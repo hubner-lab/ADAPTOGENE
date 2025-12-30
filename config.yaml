@@ -1,0 +1,101 @@
+# Basic arguments 
+#TODO remove --pca from plink
+#VCF_RAW: 'populations.snps.H.S.miss0.3.maf0.05.HetReplaced.vcf'
+VCF_RAW: 'Trifol_maf005_minDP3_SamplesMiss08.vcf.gz'
+SAMPLES: 'Trifolium_location_64.tsv' # should contain 4 first columns site, sample, latitude, longitude and possible additional columns which represent phenotypes (all column names shouldn't contain spaces)
+GFF: 'Trifolium_genes_annotated.gff3'
+INDIR: "data/" # provide dir where all input files stored - could be . as current dir (test for current dir)
+PROJECTNAME: 'Trifolium_new2'
+CPU: 120
+
+################################################# mode=structure ###################################
+# RUN: <docker command> snakemake -s Snakefile --config mode=structure --configfile config_HB.yaml
+
+# plink vcf processing options
+MAF: 0.1
+MISS: 0.3
+LDwin: 100 # LD window size
+LDstep: 20 # Step of LD window
+LDr2: 0.2 # r2 threshold for LD prunning 
+
+# SNMF arguments
+K_START: 3 # optimal from 3 to 15
+K_END: 6
+PLOIDY: 2 
+REPEAT: 10 # minimum 10 #TEMP
+PROJECT: "new" # no need to change (remove in the future)
+
+################################################ mode=structure_K ##################################
+# SNMF whole arguments
+K_BEST: 3
+CUSTOM_TRAIT: 'NULL' # Here you can provide filename which should be placed in INDIR directory and contain 2 columns: site and <Trait>, with some desirable value calculated for each population (If file doesn't exists it just skip this step)
+# Climate
+CROP_REGION: "auto" # [min_long, max_long, min_lat, max_lat] or auto for automatic defining borders
+  #CROP_REGION: "34.24167,35.80000,30.4,33.34167"
+RESOLUTION: 0.5 #TODO not in use now
+GAP: 0.5 # If CROP_REGION == 'auto' you can specified the desired GAP (from the square estimated based on lat\long coords)
+METRICS_WINSIZE: 10000 # the size of sliding window for TajimaD and PiDiversity 
+
+# PieMap plot
+PieMap_PALLETE_MAP: 1022614
+PieMap_PALLETE_MAP_reverse: FALSE
+PieMap_PIE_SIZE: 0.1 
+PieMap_PIE_ALPHA: 0.6
+PieMap_IBD_ALPHA: 0.6
+PieMap_IBD_COLOR: 'black'
+PieMap_POP_LABEL: 'F'
+PieMap_PIE_RESCALE: 1
+PieMap_POP_LABEL_SIZE: 10
+############################################## mode=association ####################################
+# LFMM and/or EMMAX on not imputed data
+#PREDICTORS_SELECTED: "bio_1,bio_2,bio_3,bio_4,bio_5,bio_6,bio_7,bio_8,bio_9,bio_10,bio_11,bio_12,bio_13,bio_14,bio_15,bio_16,bio_17,bio_18,bio_19"
+PREDICTORS_SELECTED: "bio_1,bio_2,bio_3,bio_4,bio_7,bio_12,bio_15"
+
+# Join together and parse in script
+#TODO make two variables and join it in Snakefile
+#ADJUST: 'bonf_0.05' # qval_0.05/bonf_0.05/custom_PVAL/top_1000 (top is under development)  
+# Association configurations, list of all desireable analysis with thresholds 
+ASSOCIATION_CONFIGS:
+   - METHOD: "EMMAX"
+     ADJUST: "bonf"
+     THRESHOLD: '0.05'
+       #   - METHOD: "LFMM"
+       #ADJUST: "bonf"
+       #THRESHOLD: '0.05'
+
+GFF_FEATURE: 'transcript' # feature you want to overlap with sigSNPs one of the specified in gff like mRNA/gene or other. In most cases mRNA is most informative
+#TODO write it as 1Mb and parse in the script + add to genesAround output 
+GENE_DISTANCE: 200000 # DISTANCE from sigSNPs to find the genes, start - GENE_DISTANCE / 2; end + GENE_DISTANCE / 2, can be estimated by LD decay
+SNP_DISTANCE: 0 # DISTANCE to account that SNPs overlapping, can be estimated by LD decay
+PROMOTER_LENGTH: 10000 # use for count SNPs in some region upstream the gene
+
+# How to agreggate the results (if several assoc methods used EMMAX\LFMM, 
+# by default it will take the last element with EMMAX and the last element with LFMM from 
+# ASSOCIATION_CONFIGS list)
+#TODO add additional methods if will add RDA
+sigSNPs_METHOD: 'EMMAX' # EMMAX/LFMM/Sum/Overlap/PairOverlap; all - for taking SNPs from both methods; Overlap - for use only overlapping SNPs with sigSNPs_GAP (0 for identical SNPs only).
+sigSNPs_GAP: 10000 # gap for overlaping in bp (0 for identical SNPs only; ONLY FOR sigSNPs_METHOD == Overlap/PairOverlap)
+
+### Optional:
+############################################# mode=regionplot ######################################
+#python gff2toprFormat_fix.py FB19_028_3_ANNOTATED_fix_fix.gff mRNA description biotype
+# Use GFF and GFF_FEATURE from above
+#REGIONPLOT_REQUEST: "bio_4,bio_12:chr3H_2:472270633;bio_1,bio_12:chr5H_2:89884988" #TODO now plotting all sig snps
+GFF_GENENAME: 'description' # could be any field from column 9 in gff file like ID,Parent,description or other which you want to use for gene annotation
+GFF_BIOTYPE: 'biotype' # how gene type specified in column 9 in gff file
+
+REGIONPLOT_TRAITS: 'bio_12'
+REGIONPLOT_ASSOCMETHOD: 'EMMAX'
+REGIONPLOT_REGION: "chr4H_1:121738725-123738725"
+GENES_TO_HIGHLIGHT: 'nameless' # "all" or "nameless"(plot only gene structure without name) list of gene names (based on the GFF_GENENAME feature) with '|' separator gene1|gene2 and etc
+############################################# mode=maladaptation ###################################
+# Future climate data downloading
+
+SSP: '585' # 126, 245, 370, 585 - TODO check actual on geodata when it starts work
+YEAR: '2061-2080' # year range 2061-2080
+MODELS: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'
+# Run gradientForest
+NTREE: '1000' # number of tree parameter
+COR_THRESHOLD: '0.5' # Correlation threshold parameter
+PCNM: 'with' # with or without Spatial variables in GF model
+GF_SUFFIX: 'K3_EMMAX_bonf05_new' # uniq suffix for current run (you can test several set of parameters, to achieve optimal in your case)
