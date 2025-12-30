@@ -29,6 +29,36 @@ Overall, ADAPTOGENE standardizes complex population genomic workflows, automates
 
 ---
 
+## Workflow
+
+```mermaid
+flowchart TD
+    A[Input data] -->|VCF| B[Genotype filtering<br/>PLINK]
+    A -->|Sample metadata| C
+    A -->|GFF3| H
+
+    B --> D[Population structure<br/>PCA + sNMF]
+    D --> E[Select optimal K]
+    E --> F[Spatial structure analysis]
+
+    B --> I[Association analysis]
+    C --> I
+    I --> J[Significant SNPs]
+
+    J --> H[Gene overlap]
+    H --> K[Candidate genes]
+
+    K --> L[Signal aggregation]
+    L --> M[Adaptive SNP set]
+
+    M --> N[Gradient Forest]
+    C --> N
+    O[Climate data] --> N
+
+    N --> P[Genomic offset]
+    P --> Q[Adaptive potential]
+```
+
 ## Key features
 
 - Unified framework for **population structure, association, and maladaptation**
