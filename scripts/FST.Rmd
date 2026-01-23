@@ -1,0 +1,146 @@
+---
+title: "FST"
+output: html_document
+date: "2025-01-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#devtools::install_github("uqrmaie1/admixtools", dependencies = T)
+library(admixtools)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(data.table)
+library(stringr)
+library(vegan)  # for mantel test
+
+#' Calculate FST matrix from PLINK files
+#' @param plink_prefix Path prefix for PLINK files
+#' @param outdir Directory for intermediate files
+#' @param n_cores Number of cores to use for computation
+#' @return Matrix of FST values between populations
+#' @export
+calculate_fst_matrix <- function(plink_prefix, outdir, n_cores = 1) {
+  # Extract F2 statistics
+  extract_f2(plink_prefix, outdir = outdir, n_cores = n_cores)
+  
+  # Calculate FST
+  f2 = f2_from_precomp(outdir)
+  fst_result <- fst(outdir)
+  
+  # Create symmetric matrix with diagonal = 1
+  fst_matrix <- fst_result %>%
+    rbind(.,
+          data.frame(pop1 = c(.$pop1, .$pop2) %>% unique,
+                    pop2 = c(.$pop1, .$pop2) %>% unique,
+                    est = 1,
+                    se = 1)
+    ) %>%
+    dplyr::arrange(pop1, pop2) %>%
+    dplyr::select(-se)
+  
+  # Convert to wide format
+  wide_table <- pivot_wider(fst_matrix, names_from = pop1, values_from = est)
+  lower_mat <- as.matrix(wide_table[, -1])
+  row.names(lower_mat) <- wide_table$pop2
+  
+  # Make matrix symmetric
+  lower_mat[upper.tri(lower_mat, diag = T)] <- t(lower_mat)[upper.tri(lower_mat, diag = T)]
+  
+  return(lower_mat)
+}
+
+#' Perform MDS analysis and visualization of FST matrix
+#' @param fst_matrix FST distance matrix
+#' @param colorset Vector of colors for population groups
+#' @param plot_theme ggplot theme settings
+#' @return ggplot object with MDS visualization
+#' @export
+plot_fst_mds <- function(fst_matrix, colorset, plot_theme = theme_minimal()) {
+  # Perform MDS
+  mds <- MASS::isoMDS(1 - fst_matrix)
+  
+  # Create plot
+  mds_plot <- mds$points %>%
+    as.data.table() %>%
+    dplyr::mutate(pops = row.names(fst_matrix) %>% as.factor) %>%
+    ggplot(aes(V1, V2, label = pops, fill = pops)) +
+    geom_label(color = 'black') +
+    scale_fill_manual(values = colorset) +
+    labs(x = 'MDS1', y = 'MDS2') +
+    plot_theme +
+    theme(legend.position = 'none')
+  
+  return(mds_plot)
+}
+
+#' Perform Mantel test and create correlation plot
+#' @param gen_dist Genetic distance matrix (1 - FST)
+#' @param env_dist Environmental distance matrix
+#' @param plot_theme ggplot theme settings
+#' @return List containing mantel test results and correlation plot
+#' @export
+analyze_distance_correlation <- function(gen_dist, env_dist, plot_theme = theme_minimal()) {
+  # Perform Mantel test
+  mantel_result <- mantel(env_dist, gen_dist)
+  
+  # Create correlation plot
+  df <- data.frame(
+    Env_dist = as.vector(env_dist),
+    Gen_dist = as.vector(gen_dist)
+  )
+  
+  correlation_plot <- ggplot(df, aes(x = Env_dist, y = Gen_dist)) +
+    geom_point() +
+    geom_smooth(method = "lm", col = "red") +
+    labs(title = "Mantel Test Correlation",
+         x = "Environmental distances", 
+         y = "Genetic distances") +
+    annotate("text", 
+             x = max(as.vector(env_dist)) * 0.7, 
+             y = max(as.vector(gen_dist)) * 0.9,
+             label = paste("r =", round(mantel_result$statistic, 3),
+                          "\nP-value =", mantel_result$signif)) +
+    plot_theme
+  
+  return(list(
+    mantel_result = mantel_result,
+    correlation_plot = correlation_plot
+  ))
+}
+
+```
+
+
+# Calculate ENV dist
+
+```{r}
+env_data = fread('/data/EnvNew/TakeAsMaxAsWeCan_byCHUNKS/joined/300/PREDICTORS_ALL_bios.tsv') %>%
+  scale %>%
+  unique
+
+env_dist = vegan::vegdist(env_data,
+                   method="euclidean",
+                   binary=FALSE, 
+                   diag=T, 
+                   upper=FALSE,
+                   na.rm = FALSE) %>%
+  as.matrix
+
+```
+
+```{r}
+Fstat_dir = '/data/EnviromentAssociationBarley/data/intermediate/Fstatistics/'
+plink_file = '../../EnvNew/TakeAsMaxAsWeCan_byCHUNKS/joined/K3_imputed_thinned100k'
+###########################################
+
+
+# Example usage:
+fst_matrix <- calculate_fst_matrix(plink_file, Fstat_dir, n_cores = 4)
+# mds_plot <- plot_fst_mds(fst_matrix, colorset = my_colors)
+correlation_results <- analyze_distance_correlation(1 - fst_matrix, env_dist)
+correlation_results
+```
+

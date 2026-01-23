@@ -1,0 +1,59 @@
+---
+title: "test"
+output: html_document
+date: "2025-05-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(data.table)
+library(GenomicRanges)
+```
+
+# Parameters
+```{r}
+sigSNPs_emmax = '../0_Bulbosum_results/tables/EMMAX/EMMAX_pvalues_PC3_sigSNPs_bonf_0.05.tsv'
+sigSNPs_lfmm = '../0_Bulbosum_results/tables/LFMM/LFMM_pvalues_K3_sigSNPs_bonf_0.05.tsv'
+sigSNPs_smth = '../0_Bulbosum_results/tables/LFMM/LFMM_pvalues_K3_sigSNPs_top_10.tsv'
+
+sigSNPs_vec <- c(sigSNPs_emmax, sigSNPs_lfmm)
+PREDICTORS_SELECTED = paste0('bio_', c(1:4,7,12,15))
+```
+
+# Overlap
+```{r}
+FUN_make_gr <- function(dt){
+  dt %>%
+    dplyr::mutate(start = pos,
+                  end = pos) %>%
+    dplyr::select(chr, start, end, SNPID) %>%
+    GRanges()
+}
+
+N = 100
+################
+
+sigSNPs_lst <- lapply(sigSNPs_vec, function(x) x %>% fread %>% dplyr::filter(trait %in% !!PREDICTORS_SELECTED))
+sigSNPs_lstGR <- lapply(sigSNPs_lst, FUN_make_gr)
+
+sigSNPs_overlapped <-
+  lapply(1:length(sigSNPs_vec), function(i){
+    sapply(1:length(sigSNPs_vec), function(j){
+      
+      # Do not compare the same ranges
+      if(i == j){return(NULL)}
+      
+      gr_i = sigSNPs_lstGR[[i]]
+      gr_j = sigSNPs_lstGR[[j]]
+      
+      overlaps_dt = findOverlaps(gr_i, gr_j, maxgap = N) %>% as.data.table
+      
+      sigSNPs_lst[[i]][overlaps_dt$queryHits]$SNPID %>% unique
+    })
+  }) %>% unlist %>%
+    unique
+
+
+```
+
