@@ -6,8 +6,6 @@ from itertools import product
 import re
 from pathlib import Path
 
-# Read config.yaml
-configfile: "/pipeline/config.yaml" #TODO
 
 # Create dirs
 ########################### Functions
