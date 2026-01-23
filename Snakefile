@@ -80,7 +80,6 @@ def parse_association_configs(config, varname = 'ASSOCIATION_CONFIGS'):
     return configs
 
 
-
 # Generate targets for all association configurations
 def get_association_targets(assoc_configs, config):  # Accept pre-parsed configs
     targets = []
