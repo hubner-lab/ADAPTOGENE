@@ -33,6 +33,10 @@ RESOLUTION: 0.5
 GAP: 0.5 # If CROP_REGION == 'auto' you can specified the desired GAP (from the square estimated based on lat\long coords), keep as any number if you use your own coordinates
 METRICS_WINSIZE: 3000000 # the size of sliding window for TajimaD, Pi diversity metrics
 
+# Population statistics (Tajima's D, Pi diversity, AMOVA, IBD)
+# Set to FALSE if populations have < 3 samples each (these metrics require multiple samples per population)
+CALC_POP_STATS: FALSE  # TRUE if all populations have >= 3 samples, FALSE to skip
+
 # PieMap plot configuration (find your best parameters iteratevely for the best visualisation)
 PieMap_PALLETE_MAP: 1022614
 PieMap_PALLETE_MAP_reverse: FALSE

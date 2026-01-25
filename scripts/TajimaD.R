@@ -7,9 +7,10 @@ VCF = args[1]
 SAMPLES = args[2]
 WINSIZE = args[3]
 CPU = args[4]
-INTERMEDIATE = 'intermediate/'
+OUTPUT = args[5]
+INTER_DIR = args[6]
+INTERMEDIATE = paste0(INTER_DIR, '/')
 VCFTOOLS = '/app/vcftools-0.1.16/bin/vcftools'
-#VCFTOOLS = 'vcftools'
 #################################
 
 ################### Functions ###################
@@ -46,4 +47,4 @@ samples <- fread(SAMPLES,
 							message(samples %>% str)
 							message("INFO: RUN NEUTRALITY TEST FOR WHOLE GENOME")
 FUN_tajima(VCF, samples, INTERMEDIATE, VCFTOOLS, WINSIZE, CPU) %>%
-	fwrite('tables/TajimaD_TotalByPop.tsv', sep = '\t')
+	fwrite(OUTPUT, sep = '\t')

@@ -1,4 +1,3 @@
-library(geodata)
 library(raster)
 library(data.table)
 library(dplyr)
@@ -24,57 +23,102 @@ FUN_define_crop_region <- function(samples, gap) {
   return(c(min_long, max_long, min_lat, max_lat))
 }
 
+# Download WorldClim data directly from geodata.ucdavis.edu
+FUN_download_worldclim <- function(data_dir, resolution = 0.5) {
+  # Convert resolution to WorldClim format
+  resolution_format <- switch(as.character(resolution),
+                              '0.5' = "30s",
+                              '2.5' = "2.5m",
+                              '5'  = "5m",
+                              '10' = "10m")
+
+  tif_dir <- file.path(data_dir, paste0("wc2.1_", resolution_format))
+  zip_file <- file.path(data_dir, paste0("wc2.1_", resolution_format, "_bio.zip"))
+
+  # Check if tif files already exist
+  expected_tifs <- file.path(tif_dir, paste0("wc2.1_", resolution_format, "_bio_", 1:19, ".tif"))
+
+  if (all(file.exists(expected_tifs))) {
+    message("INFO: All bioclimatic tif files already exist, skipping download")
+    return(tif_dir)
+  }
+
+  # Create directory if needed
+  if (!dir.exists(tif_dir)) {
+    dir.create(tif_dir, recursive = TRUE)
+  }
+
+  # Download zip if not exists
+  if (!file.exists(zip_file)) {
+    url <- paste0("https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_",
+                  resolution_format, "_bio.zip")
+    message(paste0("INFO: Downloading WorldClim bioclimatic data from: ", url))
+    download.file(url, zip_file, mode = "wb", quiet = FALSE)
+  } else {
+    message("INFO: Zip file already exists, skipping download")
+  }
+
+  # Unzip
+  message("INFO: Extracting tif files...")
+  unzip(zip_file, exdir = tif_dir)
+
+  return(tif_dir)
+}
+
 FUN_present_climate <- function(samples,
                                 data_dir,
                                 crop_region,
                                 resolution = 0.5) {
-  
-  # Download world map
-  worldclim_global('bio', resolution, data_dir)
-  
+
+  # Download/check WorldClim data
+  tif_dir <- FUN_download_worldclim(data_dir, resolution)
+
   # Construct folder path based on resolution
   resolution_format <- switch(as.character(resolution),
                               '0.5' = "30s",
                               '2.5' = "2.5m",
                               '5'  = "5m",
                               '10' = "10m")
-  
-  clim.list <- dir(paste0(data_dir, '/wc2.1_', resolution_format),
-  #clim.list <- dir(paste0(data_dir, '/climate/wc2.1_', resolution_format), # depending on the version of geodata!
+
+  clim.list <- dir(tif_dir,
                    full.names = TRUE,
                    pattern = paste0("^wc2\\.1_", resolution_format, "_bio_[0-9]+\\.tif$"))
   message(clim.list %>% str)
-  
+
+  if (length(clim.list) == 0) {
+    stop(paste0("ERROR: No bioclimatic tif files found in ", tif_dir))
+  }
+
   # Stack from tif
   clim.layer <- stack(clim.list)
   message('INFO: Present climate stack of tif files loaded')
   message(samples %>% str)
-  
+
   # Extract coordinates
   coords <- data.frame(long = samples$longitude,
                        lat = samples$latitude)
   coordinates(coords) <- ~ long + lat
-  
+
   # Crop
   if (length(crop_region) == 1 && crop_region == 'world') {
     clim.present <- clim.layer
   } else {
     clim.present <- raster::crop(clim.layer, crop_region)
   }
-  
+
   names(clim.present) <- gsub(paste0("wc2\\.1_", resolution_format, "_"), "", names(clim.present))
-  
+
   # Extract data for coordinates
   clim.present.coords <- raster::extract(clim.present, coords) %>%
     as.data.frame
-  
+
   # Extract each pixel values
   clim.land <- raster::extract(clim.present,
                                1:ncell(clim.present),
                                df = TRUE) %>%
     na.omit %>%
     setNames(c('ID', names(clim.present)))
-  
+
   return(list(RasterStack = clim.present,
               SiteValues = clim.present.coords,
               AllValues = clim.land))

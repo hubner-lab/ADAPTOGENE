@@ -6,7 +6,7 @@ from pathlib import Path
 #=============================================================================
 # CONFIGURATION
 #=============================================================================
-configfile: "/pipeline/config.yaml"
+#configfile: "/pipeline/config.yaml"
 
 #=============================================================================
 # HELPER FUNCTIONS
@@ -75,6 +75,7 @@ CROP_REGION = config.get('CROP_REGION', 'auto')
 GAP = config.get('GAP', 0.5)
 RESOLUTION = config.get('RESOLUTION', 0.5)
 METRICS_WINSIZE = config.get('METRICS_WINSIZE', 10000)
+CALC_POP_STATS = config.get('CALC_POP_STATS', False)  # Tajima's D, Pi, AMOVA, IBD - requires >= 3 samples per population
 CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
 
 # PieMap plot parameters
@@ -87,6 +88,29 @@ PIEMAP_IBD_COLOR = config.get('PieMap_IBD_COLOR', 'black')
 PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
 PIEMAP_PIE_RESCALE = config.get('PieMap_PIE_RESCALE', 1)
 PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
+
+# Association parameters
+GFF = config.get('GFF', '')
+GFF_FEATURE = config.get('GFF_FEATURE', 'mRNA')
+GENE_DISTANCE = config.get('GENE_DISTANCE', 1000000)
+SNP_DISTANCE = config.get('SNP_DISTANCE', 100000)
+PROMOTER_LENGTH = config.get('PROMOTER_LENGTH', 10000)
+SIGSNPS_METHOD = config.get('sigSNPs_METHOD', 'EMMAX')
+SIGSNPS_GAP = config.get('sigSNPs_GAP', 100000)
+
+def parse_association_configs(config):
+    """Parse ASSOCIATION_CONFIGS into method -> adjust_threshold dict."""
+    assoc_configs = config.get('ASSOCIATION_CONFIGS', [])
+    configs = {}
+    for cfg in assoc_configs:
+        method = cfg['METHOD']
+        adjust = f"{cfg['ADJUST']}_{cfg['THRESHOLD']}"
+        if method in configs:
+            raise ValueError(f"Method '{method}' appears multiple times in ASSOCIATION_CONFIGS")
+        configs[method] = adjust
+    return configs
+
+ASSOC_CONFIGS = parse_association_configs(config)
 
 #=============================================================================
 # PATH DEFINITIONS
@@ -163,6 +187,27 @@ def add_kbest_paths():
 
 add_kbest_paths()
 
+# Association paths (added when K_BEST is set and association mode is used)
+def add_association_paths():
+    """Add association-specific paths to W and O dictionaries."""
+    if K_BEST is None or not ASSOC_CONFIGS:
+        return
+
+    # Full (non-LD pruned) files for association analysis
+    W['geno_full'] = f"{WORK_FILT}{VCF_BASE}.geno"
+    W['lfmm_full'] = f"{WORK_FILT}{VCF_BASE}.lfmm"
+    W['vcfsnp_full'] = f"{WORK_FILT}{VCF_BASE}.vcfsnp"
+    W['removed_full'] = f"{WORK_FILT}{VCF_BASE}.removed"
+    W['snmf_full'] = f"{WORK_FILT}{VCF_BASE}.snmfProject"
+    W['lfmm_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.lfmm"
+    W['vcf_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.vcf"
+
+    # Combined outputs
+    O['selected_snps_redundant'] = f"{TABLES}Selected_SNPs_redundant_{SIGSNPS_METHOD}_Gap{SIGSNPS_GAP}.tsv"
+    O['selected_snps_unique'] = f"{TABLES}Selected_SNPs_unique_{SIGSNPS_METHOD}_Gap{SIGSNPS_GAP}.list"
+
+add_association_paths()
+
 # Templates for K-dependent outputs
 def clusters_table(k): return f"{TABLES}clusters_K{k}.tsv"
 def structure_plot(k): return f"{PLOTS}structure/structure_K{k}.png"
@@ -175,12 +220,26 @@ def piemap_tajima(bio): return f"{PLOTS}piemap/PieMap_{bio}_TajimaD.png"
 def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
 def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
 
+# Templates for association outputs
+def assoc_pvalues(method): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}.tsv"
+def assoc_sigsnps(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{adjust}.tsv"
+def assoc_genes(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}.tsv"
+def assoc_genes_collapsed(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv"
+def manhattan_plot(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}.pdf"
+
 #=============================================================================
 # CREATE DIRECTORIES
 #=============================================================================
-for d in [WORK, WORK_FILT, WORK_LD, PLOTS, 
+dirs_to_create = [WORK, WORK_FILT, WORK_LD, PLOTS,
           f"{PLOTS}pca/", f"{PLOTS}structure/", f"{PLOTS}climate/", f"{PLOTS}piemap/",
-          TABLES, INTER, LOGDIR]:
+          TABLES, INTER, LOGDIR]
+
+# Add association directories for each method
+for method in ASSOC_CONFIGS:
+    dirs_to_create.append(f"{PLOTS}{method}/")
+    dirs_to_create.append(f"{TABLES}{method}/")
+
+for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
 
 workdir: OUTDIR
@@ -215,25 +274,68 @@ def get_targets(mode):
         predictors = get_predictors_list()
         if not predictors:
             raise ValueError("PREDICTORS_SELECTED must be set for structure_K mode")
-        
-        return (
+
+        targets = (
             # Imputed data
             [W['lfmm_imp'], W['vcf_imp']] +
             # Climate data
             [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']] +
             # Density plots for each predictor
             [density_plot(bio) for bio in predictors] +
-            # Population metrics
-            [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']] +
-            # Summary plots
-            [O['corr_heatmap'], O['mantel'], O['amova'], O['amova_plot']] +
-            # PieMaps for each predictor
-            [piemap_tajima(bio) for bio in predictors] +
-            [piemap_diversity(bio) for bio in predictors]
+            # Correlation heatmap (doesn't require pop stats)
+            [O['corr_heatmap']]
         )
-    
+
+        # Population statistics (requires >= 3 samples per population)
+        if CALC_POP_STATS:
+            targets += (
+                # Population metrics
+                [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']] +
+                # Summary plots requiring pop stats
+                [O['mantel'], O['amova'], O['amova_plot']] +
+                # PieMaps with trait overlays
+                [piemap_tajima(bio) for bio in predictors] +
+                [piemap_diversity(bio) for bio in predictors]
+            )
+        else:
+            # Basic PieMaps without trait overlays
+            targets += [piemap_notrait(bio) for bio in predictors]
+
+        return targets
+
+    elif mode == 'association':
+        check_numeric(K_BEST, 'K_BEST')
+        predictors = get_predictors_list()
+        if not predictors:
+            raise ValueError("PREDICTORS_SELECTED must be set for association mode")
+        if not ASSOC_CONFIGS:
+            raise ValueError("ASSOCIATION_CONFIGS must be set for association mode")
+        if GFF:
+            check_file_exists(INDIR, GFF, 'GFF')
+
+        targets = []
+
+        # Per-method targets
+        for method, adjust in ASSOC_CONFIGS.items():
+            # P-values table
+            targets.append(assoc_pvalues(method))
+            # Significant SNPs
+            targets.append(assoc_sigsnps(method, adjust))
+            # Genes around significant SNPs
+            targets.append(assoc_genes(method, adjust))
+            targets.append(assoc_genes_collapsed(method, adjust))
+            # Manhattan plots per trait
+            for trait in predictors:
+                targets.append(manhattan_plot(method, trait, adjust))
+
+        # Combined significant SNPs
+        targets.append(O['selected_snps_redundant'])
+        targets.append(O['selected_snps_unique'])
+
+        return targets
+
     elif mode is None:
-        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K")
+        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association")
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
@@ -597,4 +699,217 @@ rule piemap_plot:
             {params.pie_size} {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} \
             {params.pop_label} {params.pie_rescale} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+rule piemap_simple:
+    """Generate basic PieMap plots without population statistics overlay."""
+    input:
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        raster = W['climate_raster']
+    output: piemap_notrait("{bio}")
+    wildcard_constraints: bio = r"bio_\d+"
+    params:
+        bio = lambda wc: wc.bio,
+        palette = PIEMAP_PALETTE,
+        palette_rev = PIEMAP_PALETTE_REV,
+        pie_size = PIEMAP_PIE_SIZE,
+        pie_alpha = PIEMAP_PIE_ALPHA,
+        pop_label = PIEMAP_POP_LABEL,
+        pie_rescale = PIEMAP_PIE_RESCALE,
+        pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        plot_dir = f"{PLOTS}piemap/",
+        inter_dir = INTER
+    log: f"{LOGDIR}piemap_simple_{{bio}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap_simple.R \
+            {input.meta} {input.clusters} {input.raster} \
+            {params.bio} {params.palette} {params.palette_rev} \
+            {params.pie_size} {params.pie_alpha} \
+            {params.pop_label} {params.pie_rescale} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+#=============================================================================
+# MODULE 4: ASSOCIATION (EMMAX/LFMM)
+#=============================================================================
+
+# Full dataset processing (non-LD pruned) - needed for LFMM
+rule vcf_to_lfmm_full:
+    """Convert full filtered VCF to LEA formats for association analysis."""
+    input:  vcf = W['vcf_filt']
+    output:
+        geno = W['geno_full'],
+        lfmm = W['lfmm_full'],
+        vcfsnp = W['vcfsnp_full'],
+        removed = W['removed_full']
+    log: f"{LOGDIR}vcf_to_lfmm_full.log"
+    shell: "Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
+
+rule snmf_full:
+    """Run sNMF on full (non-LD pruned) dataset for imputation."""
+    input:  geno = W['geno_full']
+    output: W['snmf_full']
+    params: ks = K_START, ke = K_END, ploidy = PLOIDY, rep = REPEAT, mode = SNMF_PROJECT_MODE
+    log:    f"{LOGDIR}snmf_full.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/SNMF.R {input.geno} \
+            {params.ks} {params.ke} {params.ploidy} {params.rep} \
+            {threads} {params.mode} > {log} 2>&1
+        """
+
+rule impute_full:
+    """Impute missing genotypes in full dataset using SNMF."""
+    input:  snmf = W['snmf_full'], lfmm = W['lfmm_full']
+    output: W['lfmm_imp_full']
+    params: k = K_BEST
+    log:    f"{LOGDIR}impute_full.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/Impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        """
+
+rule lfmm2vcf_full:
+    """Convert imputed full LFMM to VCF format."""
+    input:  vcf = W['vcf_filt'], lfmm_imp = W['lfmm_imp_full']
+    output: W['vcf_imp_full']
+    params: blocksize = 20000
+    log:    f"{LOGDIR}lfmm2vcf_full.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} {params.blocksize} > {log} 2>&1
+        """
+
+# EMMAX analysis
+rule emmax_analysis:
+    """Run EMMAX association analysis for all traits."""
+    input:
+        vcf = W['vcf_filt'],
+        traits = O['climate_site_scaled'],
+        covariates = W['eigenvec'],
+        metadata = O['metadata']
+    output: assoc_pvalues("EMMAX")
+    params:
+        k = K_BEST,
+        predictors = PREDICTORS_SELECTED,
+        inter_dir = INTER,
+        tables_dir = f"{TABLES}EMMAX/"
+    log: f"{LOGDIR}emmax_analysis.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/emmax.R \
+            {input.vcf} {params.k} {input.traits} {input.covariates} \
+            {params.predictors} {params.inter_dir} {input.metadata} \
+            {params.tables_dir} > {log} 2>&1
+        """
+
+# LFMM analysis
+rule lfmm_analysis:
+    """Run LFMM association analysis for all traits."""
+    input:
+        lfmm_ld = W['lfmm_imp'],       # LD-pruned imputed (for model training)
+        lfmm_full = W['lfmm_imp_full'], # Full imputed (for testing)
+        climate = O['climate_site_scaled'],
+        vcfsnp = W['vcfsnp_full']
+    output: assoc_pvalues("LFMM")
+    params:
+        k = K_BEST,
+        predictors = PREDICTORS_SELECTED,
+        tables_dir = f"{TABLES}LFMM/"
+    log: f"{LOGDIR}lfmm_analysis.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/lfmm.R \
+            {input.lfmm_ld} {input.lfmm_full} {input.climate} \
+            {params.k} {params.predictors} {input.vcfsnp} \
+            {params.tables_dir} > {log} 2>&1
+        """
+
+# Manhattan plots - one rule per method/trait
+rule manhattan_plot:
+    """Generate Manhattan plot for a specific trait and method."""
+    input: assoc = lambda wc: assoc_pvalues(wc.method)
+    output: f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.pdf"
+    wildcard_constraints:
+        method = r"EMMAX|LFMM",
+        trait = r"bio_\d+",
+        adjust = r"\w+_[\d.]+"
+    params:
+        k = K_BEST,
+        plot_dir = lambda wc: f"{PLOTS}{wc.method}/"
+    log: f"{LOGDIR}manhattan_{{method}}_{{trait}}_{{adjust}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_manhattan.R \
+            {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
+            {wildcards.trait} {params.plot_dir} > {log} 2>&1
+        """
+
+# Find significant SNPs - one rule per method
+rule find_sig_snps:
+    """Find significant SNPs for a specific method."""
+    input: assoc = lambda wc: assoc_pvalues(wc.method)
+    output: f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_sigSNPs_{{adjust}}.tsv"
+    wildcard_constraints:
+        method = r"EMMAX|LFMM",
+        adjust = r"\w+_[\d.]+"
+    params: snp_dist = SNP_DISTANCE
+    log: f"{LOGDIR}find_sig_snps_{{method}}_{{adjust}}.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/find_sig_snps.R \
+            {input.assoc} {wildcards.adjust} {params.snp_dist} \
+            {wildcards.method} {threads} {output} > {log} 2>&1
+        """
+
+# Find genes around significant SNPs
+rule find_genes_around_snps:
+    """Find genes within GENE_DISTANCE of significant SNPs."""
+    input:
+        sigsnps = lambda wc: assoc_sigsnps(wc.method, wc.adjust),
+        gff = f"{INDIR}{GFF}",
+        vcfsnp = W['vcfsnp_full']
+    output:
+        genes = f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_{{adjust}}_genesAround{GENE_DISTANCE}.tsv",
+        collapsed = f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_{{adjust}}_genesAround{GENE_DISTANCE}_collapsed.tsv"
+    wildcard_constraints:
+        method = r"EMMAX|LFMM",
+        adjust = r"\w+_[\d.]+"
+    params:
+        feature = GFF_FEATURE,
+        distance = GENE_DISTANCE,
+        promoter_len = PROMOTER_LENGTH
+    log: f"{LOGDIR}find_genes_{{method}}_{{adjust}}.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/find_genes_around_snps.R \
+            {input.gff} {input.sigsnps} {params.feature} {params.distance} \
+            {params.promoter_len} {input.vcfsnp} {threads} \
+            {output.genes} {output.collapsed} > {log} 2>&1
+        """
+
+# Combine significant SNPs from different methods
+rule find_sig_snp_overlap:
+    """Combine significant SNPs from all association methods."""
+    input:
+        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
+    output:
+        redundant = O['selected_snps_redundant'],
+        unique = O['selected_snps_unique']
+    params:
+        sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
+        method = SIGSNPS_METHOD,
+        gap = SIGSNPS_GAP,
+        predictors = PREDICTORS_SELECTED
+    log: f"{LOGDIR}find_sig_snp_overlap.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/find_sig_snp_overlap.R \
+            "{params.sigsnps_str}" {params.method} {params.gap} \
+            {params.predictors} {output.redundant} {output.unique} > {log} 2>&1
         """
