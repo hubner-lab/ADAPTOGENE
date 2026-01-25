@@ -3,3 +3,4 @@ data/
 TEST_results/
 TEST_logs/
 .snakemake/
+CLAUDE.md
