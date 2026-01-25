@@ -1,851 +1,595 @@
-#TODO train_N and SNPID_N count the same - SNPs number
+# ADAPTOGENE Pipeline - Refactored
 # vim: filetype=python
 import os
-from collections import defaultdict
-from itertools import product
-import re
 from pathlib import Path
 
+#=============================================================================
+# CONFIGURATION
+#=============================================================================
+configfile: "/pipeline/config.yaml"
 
-# Create dirs
-########################### Functions
-def check_numeric(value, arg_name, allowed_null = False):
-	if allowed_null:
-		return True	
-	try:
-		int(value)
-	except:
-		raise ValueError(f'The {arg_name} is not numeric. Please provide correct number')
+#=============================================================================
+# HELPER FUNCTIONS
+#=============================================================================
+def check_numeric(value, name, allow_null=False):
+    if allow_null and value is None: return True
+    try: int(value); return True
+    except: raise ValueError(f"{name} must be numeric, got: {value}")
 
-def check_in_list(value, allowed_values_lst, arg_name):
-	if value in allowed_values_lst:
-		return True
-	else:
-		allowed_values_str = '/'.join(allowed_values_lst)
-		raise ValueError(f"The {arg_name} has not proper value. Should be on of the {allowed_values_str}.")
+def check_float(value, name, allow_null=False):
+    if allow_null and value is None: return True
+    try: float(value); return True
+    except: raise ValueError(f"{name} must be float, got: {value}")
 
-def check_float(value, arg_name, allowed_null = False):
-	if allowed_null:
-		return True
-	try:
-		float(value)
-	except:
-		raise ValueError(f'The {arg_name} is not float. Please provide correct number')
+def check_in_list(value, allowed, name):
+    if value not in allowed:
+        raise ValueError(f"{name} must be one of {allowed}, got: {value}")
 
-def check_comma_separated(value, arg_name, numeric = False, allowed_single_values = None):
-	if allowed_single_values is not None and value in allowed_single_values:
-		return True
-	if " " in value:
-		raise ValueError(f"Invalid input: {value} for argument {arg_name}. Spaces are not allowed.")
-	if ',' not in value:
-		raise ValueError(f"Invalid input: {value} for argument {arg_name}. Input must be a comma-separated string with at least 2 arguments.")
-	if numeric:
-		try:
-			[check_float(x, arg_name) for x in value.split(',')]
-		except:
-			raise ValueError(f"Invalid input: {value} for argument {arg_name}. Input must contain only numbers separated by commas")
+def check_file_exists(directory, filename, name):
+    if not os.path.exists(os.path.join(directory, filename)):
+        raise ValueError(f"File not found for {name}: {os.path.join(directory, filename)}")
 
-def check_vcf_name(dir, value, arg_name):
-	if not value.endswith('.vcf') and not value.endswith('vcf.gz'):
-		raise ValueError(f"Please provide file for {arg_name} in .vcf or .vcf.gz format")
+def get_vcf_basename(vcf_path):
+    """Extract basename from VCF file (handles .vcf and .vcf.gz)."""
+    name = os.path.basename(vcf_path)
+    if name.endswith('.vcf.gz'): return name[:-7]
+    if name.endswith('.vcf'): return name[:-4]
+    raise ValueError(f"VCF must end with .vcf or .vcf.gz: {vcf_path}")
 
-def check_file_exist(dir_path, value, arg_name):
-	
-	file_path = os.path.join(dir_path, value)
-	
-	if not os.path.exists(file_path):
-		raise ValueError(f"File {value} doesn't exist in {dir_path}, please provide correct file name for argument {arg_name} with correct INDIR argument")
- 
-# Parse association config list
-# Parse association config list
-def parse_association_configs(config, varname = 'ASSOCIATION_CONFIGS'):
-    """Parse association configurations from config file"""
-    assoc_configs = config.get(varname, [])
-    
-    # If no configs specified, use legacy parameter
-    configs = defaultdict(str)
-    method_seen = set()
-    
-    for cfg in assoc_configs:
-        method = cfg["METHOD"]
-        adjust = cfg["ADJUST"] + '_' + cfg["THRESHOLD"]
-        
-        # Check if method already exists
-        if method in method_seen:
-            raise ValueError(f"Method '{method}' appears multiple times in ASSOCIATION_CONFIGS. Only one ADJUST+THRESHOLD combination per method is allowed.")
-        
-        method_seen.add(method)
-        configs[method] = adjust
-    
-    return configs
+def k_range(start, end):
+    return list(range(int(start), int(end) + 1))
 
-
-# Generate targets for all association configurations
-def get_association_targets(assoc_configs, config):  # Accept pre-parsed configs
-    targets = []
-    # Remove the internal parsing line
-    # assoc_configs = parse_association_configs(config)  # DELETE THIS LINE
-    
-    for method in assoc_configs:
-        if method == "EMMAX":
-            base = f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}"
-        elif method == "LFMM":
-            base = f"tables/LFMM/LFMM_pvalues_K{K_BEST}"
-        
-        adjust = assoc_configs[method]
-        
-        targets.append(f"{base}_sigSNPs_{adjust}.tsv")
-        targets.append(f"{base}_{adjust}_genesAround{GENE_DISTANCE}.tsv")
-        targets.append(f"{base}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv")
-        
-        targets += [f"plots/{method}/Rectangular-Manhattan.{trait}_K{K_BEST}_{adjust}.pdf" 
-                   for trait in PREDICTORS_SELECTED.split(',')]
-    
-    return targets
-#def parse_association_configs(config, varname = 'ASSOCIATION_CONFIGS'):
-#	"""Parse association configurations from config file"""
-#	assoc_configs = config.get(varname, [])
-#
-#	# If no configs specified, use legacy parameter
-#	configs = defaultdict(list)
-#	for cfg in assoc_configs:
-#		method = cfg["METHOD"]
-#		adjust = cfg["ADJUST"] + '_' + cfg["THRESHOLD"]
-#		configs[method].append(adjust)
-#
-#	return configs
-#
-## Generate targets for all association configurations
-#def get_association_targets(config):
-#	
-#	targets = []
-#	assoc_configs = parse_association_configs(config)
-#	
-#	for method in assoc_configs:
-#		if method == "EMMAX":
-#			base = f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}"
-#		elif method == "LFMM":
-#			base = f"tables/LFMM/LFMM_pvalues_K{K_BEST}"
-#		#TODO add another method        	
-#
-#		# Add significant SNPs target
-#		sigsnps = [ f"{base}_sigSNPs_{adjust}.tsv" for adjust in assoc_configs[method] ]
-#		targets += sigsnps
-#		
-#		# Add genes around target
-#		genes = [f"{base}_{adjust}_genesAround{GENE_DISTANCE}.tsv" for adjust in assoc_configs[method] ]
-#		targets += genes
-#
-#		# Add genes around target
-#		genes = [f"{base}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv" for adjust in assoc_configs[method] ]
-#		targets += genes
-#
-#		# Add manhatan plots
-#		targets += ["plots/" + method + "/" + f"Rectangular-Manhattan.{trait}_K{K_BEST}_{adjust}.pdf" for trait, adjust in product(PREDICTORS_SELECTED.split(','), assoc_configs[method]) ]
-#	return targets
-
-#def sig_snps_files(wildcards):
-#    pattern = re.compile(
-#        r"tables/(?P<method>[A-Za-z]+)/(?P=method)_pvalues_(?:PC|K)\d+_[^_]+_genesAround\.tsv"
-#    )
-#    files = []
-#    for f in Path("tables").rglob("*_genesAround{GENE_DISTANCE}.tsv"):
-#        if pattern.fullmatch(str(f)):
-#            files.append(str(f))
-#    if not files:
-#        raise ValueError("No matching sigSNPs files found!")
-#    return files
-# [f"plots/Rectangular-Manhattan.{trait}_K{K_BEST}_{adjust}.pdf" for trait, adjust in product(PREDICTORS_SELECTED.split(','), ADJUST['EMMAX']) ]
-
-######################### Basic arguments for all modes
-CPU = config['CPU'] ; check_numeric(CPU, 'CPU')
+#=============================================================================
+# PARSE AND VALIDATE CONFIGURATION
+#=============================================================================
+# Paths
 INDIR = '/pipeline/' + config["INDIR"]
-PROJECTNAME = config["PROJECTNAME"]
-VCF_RAW = config['VCF_RAW'] ; check_vcf_name(INDIR, VCF_RAW, 'VCF_RAW') ; check_file_exist(INDIR, VCF_RAW, 'VCF_RAW')
-FILENAME = VCF_RAW[:-4] if VCF_RAW.endswith('.vcf') else VCF_RAW[:-7] # extract basename
-SAMPLES = config['SAMPLES'] ; check_file_exist(INDIR, SAMPLES, 'SAMPLES') # filename of table with columns site,sample,latitude,longitude
+PROJECT = config["PROJECTNAME"]
+OUTDIR = f'/pipeline/{PROJECT}_results/'
+LOGDIR = f'/pipeline/{PROJECT}_logs/'
 
-OUTDIR = '/pipeline/' + PROJECTNAME + '_results/'
-LOGDIR = '/pipeline/' + PROJECTNAME + '_logs/'
-# Create dirs
-os.makedirs(OUTDIR, exist_ok=True)
-os.makedirs(OUTDIR + 'tables', exist_ok=True)
-os.makedirs(OUTDIR + 'plots', exist_ok=True)
-os.makedirs(OUTDIR + 'intermediate', exist_ok=True)
-workdir: OUTDIR
+# Basic parameters
+CPU = config['CPU']; check_numeric(CPU, 'CPU')
+VCF_RAW = config['VCF_RAW']; check_file_exists(INDIR, VCF_RAW, 'VCF_RAW')
+SAMPLES = config['SAMPLES']; check_file_exists(INDIR, SAMPLES, 'SAMPLES')
+VCF_BASE = get_vcf_basename(VCF_RAW)
 
-# Process VCF arguments
-MAF = config['MAF'] ; check_float(MAF, 'MAF')
-MISS = config['MISS'] ; check_float(MISS, 'MISS')
-LDwin = config['LDwin'] ; check_numeric(LDwin, 'LDwin')
-LDstep = config['LDstep'] ; check_numeric(LDstep, 'LDstep')
-LDr2 = config['LDr2'] ; check_float(LDr2, 'LDr2')
+# VCF filtering
+MAF = config['MAF']; check_float(MAF, 'MAF')
+MISS = config['MISS']; check_float(MISS, 'MISS')
+LD_WIN = config['LDwin']; check_numeric(LD_WIN, 'LDwin')
+LD_STEP = config['LDstep']; check_numeric(LD_STEP, 'LDstep')
+LD_R2 = config['LDr2']; check_float(LD_R2, 'LDr2')
 
-# SNMF arguments
-K_START = config['K_START'] ; check_numeric(K_START, 'K_START')
-K_END = config['K_END'] ; check_numeric(K_END, 'K_END')
+# SNMF parameters
+K_START = config['K_START']; check_numeric(K_START, 'K_START')
+K_END = config['K_END']; check_numeric(K_END, 'K_END')
 PLOIDY = config['PLOIDY']; check_numeric(PLOIDY, 'PLOIDY')
 REPEAT = config['REPEAT']; check_numeric(REPEAT, 'REPEAT')
-PROJECT = config['PROJECT'] # could be new or continue
+SNMF_PROJECT_MODE = config.get('PROJECT', 'new')
 
-# structure_K
-K_BEST = config['K_BEST'] ; check_numeric(K_BEST, 'K_BEST', allowed_null = True) #TODO relising the range of K applied, in parallel imputing and GEA/GWAS, for comparing association results (it's very obvious in comparison of different K how well population structure was accounted (possibly sometimes required different K for different traits, for example precipitation in case of Israel highly linked with GEO, so there is some masking effect of bigger K)
-#TODO also possibly different Ks for Impute,EMMAX,LFMM (LFMM works strangenly with low Ks, while for EMMAX from my experience lower K often better)
-CUSTOM_TRAIT = INDIR + config['CUSTOM_TRAIT'] #TODO could be No or filename (check that file exists in INDIR directory
-CROP_REGION = config['CROP_REGION'] ; check_comma_separated(CROP_REGION, 'CROP_REGION', numeric = True, allowed_single_values = ['auto', 'world'])
-RESOLUTION = config['RESOLUTION'] ; check_in_list(RESOLUTION, [0.5, 2.5, 5, 10 ], 'RESOLUTION')
-GAP = config['GAP'] ; check_float(GAP, 'GAP')# GAP for automatically identified map region
-METRICS_WINSIZE = config['METRICS_WINSIZE']; check_numeric(METRICS_WINSIZE, 'METRICS_WINSIZE')
-PieMap_PALLETE_MAP = config['PieMap_PALLETE_MAP']
-PieMap_PALLETE_MAP_reverse = config['PieMap_PALLETE_MAP_reverse']
-PieMap_PIE_SIZE = config['PieMap_PIE_SIZE']
-PieMap_PIE_ALPHA = config['PieMap_PIE_ALPHA']
-PieMap_IBD_ALPHA = config['PieMap_IBD_ALPHA']
-PieMap_IBD_COLOR = config['PieMap_IBD_COLOR']
-PieMap_POP_LABEL = config['PieMap_POP_LABEL'] ; check_in_list(PieMap_POP_LABEL, ['T', 'F'], 'PieMap_POP_LABEL')
-PieMap_PIE_RESCALE = config['PieMap_PIE_RESCALE']; check_numeric(PieMap_PIE_RESCALE, 'PieMap_PIE_RESCALE')
-PieMap_POP_LABEL_SIZE = config['PieMap_POP_LABEL_SIZE'] ; check_numeric(PieMap_POP_LABEL_SIZE, 'PieMap_POP_LABEL_SIZE')
-# Association
-#ADJUST = config['ADJUST'] #TODO add checking values bonf or qval - in all_input part
-ADJUST = parse_association_configs(config) # dict where we can call EMMAX, LFMM or ANOTHER assoc method
+# structure_K parameters (used when mode=structure_K)
+K_BEST = config.get('K_BEST', None)
+PREDICTORS_SELECTED = config.get('PREDICTORS_SELECTED', '')
+CROP_REGION = config.get('CROP_REGION', 'auto')
+GAP = config.get('GAP', 0.5)
+RESOLUTION = config.get('RESOLUTION', 0.5)
+METRICS_WINSIZE = config.get('METRICS_WINSIZE', 10000)
+CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
 
-print("DEBUG ADJUST:", ADJUST)
-for method in ADJUST:
-    print(f"DEBUG {method}:", ADJUST[method])
+# PieMap plot parameters
+PIEMAP_PALETTE = config.get('PieMap_PALLETE_MAP', 1022614)
+PIEMAP_PALETTE_REV = config.get('PieMap_PALLETE_MAP_reverse', False)
+PIEMAP_PIE_SIZE = config.get('PieMap_PIE_SIZE', 0.1)
+PIEMAP_PIE_ALPHA = config.get('PieMap_PIE_ALPHA', 0.6)
+PIEMAP_IBD_ALPHA = config.get('PieMap_IBD_ALPHA', 0.6)
+PIEMAP_IBD_COLOR = config.get('PieMap_IBD_COLOR', 'black')
+PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
+PIEMAP_PIE_RESCALE = config.get('PieMap_PIE_RESCALE', 1)
+PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
 
-PREDICTORS_SELECTED = config['PREDICTORS_SELECTED']
-GFF = config['GFF'] #TODO check function file exists
-GFF_FEATURE = config['GFF_FEATURE'] #TODO add check function which check that value is one from the list of values(2 args)
-GENE_DISTANCE = config['GENE_DISTANCE']
-SNP_DISTANCE = config['SNP_DISTANCE']
-PROMOTER_LENGTH = config['PROMOTER_LENGTH'] ; check_numeric(PROMOTER_LENGTH, 'PROMOTER_LENGTPROMOTER_LENGTHH')
-sigSNPs_METHOD = config['sigSNPs_METHOD'] ; check_in_list(sigSNPs_METHOD, ['EMMAX', 'LFMM', 'Sum', 'Overlap', 'PairOverlap'], 'sigSNPs_METHOD')
-sigSNPs_GAP = config['sigSNPs_GAP'] ; check_numeric(sigSNPs_GAP, 'sigSNPs_GAP')
+#=============================================================================
+# PATH DEFINITIONS
+#=============================================================================
+# Directory tags (easy to modify if adding new parameters)
+FILT_TAG = f"maf{MAF}_miss{MISS}"
+LD_TAG = f"ld{LD_R2}"
 
-# regionPlot
-#REGIONPLOT_REQUEST = config['REGIONPLOT_REQUEST'] #TODO
-GFF_GENENAME = config['GFF_GENENAME'] #TODO
-GFF_BIOTYPE = config['GFF_BIOTYPE'] #TODO
-REGIONPLOT_TRAITS = config['REGIONPLOT_TRAITS'] #TODO add cheking if there is that trait in metadata table
-REGIONPLOT_TRAITS_SAFE = REGIONPLOT_TRAITS.replace(',', '_')
+# Base directories
+WORK = f"{OUTDIR}work/"
+PLOTS = f"{OUTDIR}plots/"
+TABLES = f"{OUTDIR}tables/"
+INTER = f"{OUTDIR}intermediate/"
 
-REGIONPLOT_ASSOCMETHOD = config['REGIONPLOT_ASSOCMETHOD'] ; check_in_list(REGIONPLOT_ASSOCMETHOD, ['EMMAX', 'LFMM'], REGIONPLOT_ASSOCMETHOD)
-REGIONPLOT_REGION = config['REGIONPLOT_REGION'] # check is in script
-REGIONPLOT_REGION_SAFE = config['REGIONPLOT_REGION'].replace(':', '_').replace('-', '_') # for saving in files
-GENES_TO_HIGHLIGHT = config['GENES_TO_HIGHLIGHT']
-#REGIONPLOT_REQUEST = config['REGIONPLOT_REQUEST'] 
+# Working subdirectories (parameter-based structure)
+WORK_FILT = f"{WORK}{FILT_TAG}/"
+WORK_LD = f"{WORK_FILT}{LD_TAG}/"
 
-# Maladaptation
-SSP = config['SSP']
-YEAR = config['YEAR']
-MODELS = config['MODELS']
-NTREE = config['NTREE']  # number of tree parameter
-COR_THRESHOLD = config['COR_THRESHOLD'] # Correlation threshold parameter
-PCNM = config['PCNM'] #TODO check values with or without
-GF_SUFFIX = config['GF_SUFFIX']
+# Working paths
+W = {
+    # Samples (in intermediate - shared across all filtering)
+    'samples_list': f"{INTER}samples.list",
+    'samples_order': f"{INTER}samples_order.list",
+    # Filtered VCF (in FILT_TAG directory)
+    'vcf_filt': f"{WORK_FILT}{VCF_BASE}.vcf",
+    # LD-pruned files (in LD_TAG subdirectory)
+    'vcf_ld': f"{WORK_LD}{VCF_BASE}.vcf",
+    'eigenvec': f"{WORK_LD}{VCF_BASE}.eigenvec",
+    'prune_in': f"{WORK_LD}{VCF_BASE}.prune.in",
+    'geno': f"{WORK_LD}{VCF_BASE}.geno",
+    'lfmm': f"{WORK_LD}{VCF_BASE}.lfmm",
+    'vcfsnp': f"{WORK_LD}{VCF_BASE}.vcfsnp",
+    'removed': f"{WORK_LD}{VCF_BASE}.removed",
+    'snmf': f"{WORK_LD}{VCF_BASE}.snmfProject",
+}
 
+# Output paths (organized results)
+O = {
+    'metadata': f"{TABLES}metadata.tsv",
+    'pca': f"{PLOTS}pca/pca.png",
+    'pca_svg': f"{PLOTS}pca/pca.svg",
+    'tracy': f"{PLOTS}pca/tracy_widom.png",
+    'cross_entropy': f"{PLOTS}structure/cross_entropy_K{K_START}-{K_END}.png",
+}
 
-# Rule to process all files
-####################################
-MODE = config.get('mode', 'Absence')
-if MODE == 'structure':
-	all_inputs = [f"tables/SNMF_clusters_K{K}.tsv" for K in range(K_START, K_END + 1, 1)] + ["plots/PCA.png"] # Add another plots
-elif MODE == 'structure_K':	
-	
-	check_numeric(K_BEST, 'K_BEST') # null not allowed
-	# Define required output file for mode
-	all_inputs = [f"plots/PieMap_{trait}_TajimaD.png" for trait in PREDICTORS_SELECTED.split(',') ] + [f"plots/PieMap_{trait}_PiDiversity.png" for trait in PREDICTORS_SELECTED.split(',') ] + [f"plots/DensityPlot_{bio}.png" for bio in PREDICTORS_SELECTED.split(',') ] + ['plots/CorrelationHeatmap.png'] + ["plots/MantelTest.png"] + [f"plots/PieMap_{trait}_PiDiversity.svg" for trait in PREDICTORS_SELECTED.split(',')] + ["plots/AMOVA.png", "tables/AMOVA.tsv"]  
-	# further should be PieMap plot
-elif MODE == 'association':
-	# Load specific arguments
-	#TODO ADJUST add checking values bonf or qval
-	check_numeric(K_BEST, 'K_BEST') # null not allowed
-	check_comma_separated(PREDICTORS_SELECTED, 'PREDICTORS_SELECTED')
-	#TODO GFF check function file exists
-	#TODO GFF_FEATURE add check function which check that value is one from the list of values(2 args)
-	check_numeric(GENE_DISTANCE, 'GENE_DISTANCE')
-	check_numeric(SNP_DISTANCE, 'SNP_DISTANCE')
+# K_BEST dependent paths (added dynamically when K_BEST is set)
+def add_kbest_paths():
+    """Add K_BEST dependent paths to W and O dictionaries."""
+    if K_BEST is None:
+        return
+    
+    # Imputed files in LD directory
+    W['lfmm_imp'] = f"{WORK_LD}{VCF_BASE}_K{K_BEST}imp.lfmm"
+    W['vcf_imp'] = f"{WORK_LD}{VCF_BASE}_K{K_BEST}imp.vcf"
+    
+    # Climate data
+    W['climate_raster'] = f"{INTER}climate_present.grd"
+    
+    # Tables
+    O['climate_site'] = f"{TABLES}climate_present_site.tsv"
+    O['climate_site_scaled'] = f"{TABLES}climate_present_site_scaled.tsv"
+    O['climate_all'] = f"{TABLES}climate_present_all.tsv"
+    O['tajima'] = f"{TABLES}TajimaD_byPop.tsv"
+    O['pi_div'] = f"{TABLES}Pi_diversity_byPop.tsv"
+    O['ibd_raw'] = f"{TABLES}IBD_raw.tsv"
+    O['ibd_pairs'] = f"{TABLES}IBD_notIsolated.tsv"
+    O['amova'] = f"{TABLES}AMOVA.tsv"
+    
+    # Plots
+    O['corr_heatmap'] = f"{PLOTS}climate/CorrelationHeatmap.png"
+    O['mantel'] = f"{PLOTS}structure/MantelTest.png"
+    O['amova_plot'] = f"{PLOTS}structure/AMOVA.png"
 
-	# Create output directories for manhatan plots
-	for method in ADJUST: # iterate through keys
-		os.makedirs(OUTDIR + 'plots/' + method, exist_ok=True)
-		os.makedirs(OUTDIR + 'tables/' + method, exist_ok=True)
-		
+add_kbest_paths()
 
-	# Define required output file for mode
-	all_inputs = get_association_targets(ADJUST, config) + [f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.tsv", f"tables/Selected_SNPs_unique_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.list" ] #, f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}_genesAround{GENE_DISTANCE}.tsv"] #TODO removed for testing on trifolium
-	print(all_inputs) #TODO TEMP
+# Templates for K-dependent outputs
+def clusters_table(k): return f"{TABLES}clusters_K{k}.tsv"
+def structure_plot(k): return f"{PLOTS}structure/structure_K{k}.png"
+def pca_struct_plot(k): return f"{PLOTS}pca/pca_structure_K{k}.png"
+def pop_diff_plot(k): return f"{PLOTS}structure/pop_diff_K{k}.png"
 
-elif MODE == 'regionplot':
-	all_inputs = ['topr_gene_annotation.tsv',
-f"plots/regionPlot_{REGIONPLOT_TRAITS_SAFE}_{REGIONPLOT_REGION_SAFE}_{ADJUST[REGIONPLOT_ASSOCMETHOD]}.png"	
-]
+# Templates for climate/trait-dependent outputs
+def density_plot(bio): return f"{PLOTS}climate/DensityPlot_{bio}.png"
+def piemap_tajima(bio): return f"{PLOTS}piemap/PieMap_{bio}_TajimaD.png"
+def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
+def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
 
-elif MODE == 'maladaptation':
-	check_numeric(SSP, 'SSP') #TODO add checking that it in list
-	check_numeric(NTREE, 'NTREE')
-	check_float(COR_THRESHOLD, 'COR_THRESHOLD')
-	#TODO add checking YEAR in list
-	#TODO add checking MODELS that all elements in list
-	
-	all_inputs = [
-			#TODO adjust final files, make + not new list if another mode selected
-		      #get_association_targets(ADJUST, config),
-		      f"tables/Climate_future_year{YEAR}_ssp{SSP}_site.tsv",
-		      f"tables/gradientForest_GeneticOffesetValues_{GF_SUFFIX}_{PCNM}PCNM.tsv",
-		      f"plots/gradientForest_GeneticOffesetPieMap_{GF_SUFFIX}_{PCNM}PCNM.png"] #TODO maybe add MODELS with some formating in the name of the file?
-	
-	
-elif MODE == 'Absence':
-	raise ValueError(f"No mode selected. Please provide any with --config mode=<MODE> argument")
-else:
-	raise ValueError(f"Unknown mode: {mode}. Please provide: --config mode=structure or mode=association")
+#=============================================================================
+# CREATE DIRECTORIES
+#=============================================================================
+for d in [WORK, WORK_FILT, WORK_LD, PLOTS, 
+          f"{PLOTS}pca/", f"{PLOTS}structure/", f"{PLOTS}climate/", f"{PLOTS}piemap/",
+          TABLES, INTER, LOGDIR]:
+    os.makedirs(d, exist_ok=True)
 
+workdir: OUTDIR
 
-##################################### structure
+#=============================================================================
+# MODE AND TARGETS
+#=============================================================================
+MODE = config.get('mode', None)
+
+def get_predictors_list():
+    """Parse PREDICTORS_SELECTED into list."""
+    if not PREDICTORS_SELECTED:
+        return []
+    return [p.strip() for p in PREDICTORS_SELECTED.split(',')]
+
+def get_targets(mode):
+    if mode == 'vcf_processing':
+        return [W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], W['eigenvec'], O['metadata']]
+    
+    elif mode == 'structure':
+        ks = k_range(K_START, K_END)
+        return (
+            [clusters_table(k) for k in ks] +
+            [structure_plot(k) for k in ks] +
+            [pca_struct_plot(k) for k in ks] +
+            [pop_diff_plot(k) for k in ks] +
+            [O['pca'], O['tracy'], O['cross_entropy']]
+        )
+    
+    elif mode == 'structure_K':
+        check_numeric(K_BEST, 'K_BEST')
+        predictors = get_predictors_list()
+        if not predictors:
+            raise ValueError("PREDICTORS_SELECTED must be set for structure_K mode")
+        
+        return (
+            # Imputed data
+            [W['lfmm_imp'], W['vcf_imp']] +
+            # Climate data
+            [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']] +
+            # Density plots for each predictor
+            [density_plot(bio) for bio in predictors] +
+            # Population metrics
+            [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']] +
+            # Summary plots
+            [O['corr_heatmap'], O['mantel'], O['amova'], O['amova_plot']] +
+            # PieMaps for each predictor
+            [piemap_tajima(bio) for bio in predictors] +
+            [piemap_diversity(bio) for bio in predictors]
+        )
+    
+    elif mode is None:
+        raise ValueError("Specify mode: --config mode=vcf_processing or mode=structure or mode=structure_K")
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+#=============================================================================
+# MAIN RULE
+#=============================================================================
 rule all:
-	input:
-		all_inputs
+    input: get_targets(MODE)
+
+#=============================================================================
+# MODULE 1: VCF PROCESSING
+#=============================================================================
 
 rule extract_samples:
-	input:
-		samples=f"{INDIR}{SAMPLES}"
-	output:
-		samples_list = "samples_metadata.list"
-	threads: 1
-	log:
-		f"{LOGDIR}extract_samples.log"
-	shell:
-		"(tail -n +2 {input.samples} | awk '{{print 0,$2}}'  > {output.samples_list}) > {log} 2>&1"
-	
-rule process_vcf:
-	input: 
-		vcf=lambda wildcards: f"{INDIR}{FILENAME}.vcf.gz" if VCF_RAW.endswith('.vcf.gz') else f"{INDIR}{FILENAME}.vcf",
-		samples="samples_metadata.list"
-	output:
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.vcf",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.eigenvec"
-	threads: CPU
-	log:
-		f"{LOGDIR}process_vcf.log"
-	shell:
-		"/pipeline/scripts/process_vcf.sh {input.vcf} {input.samples} {MAF} {MISS} {LDwin} {LDstep} {LDr2} > {log} 2>&1"
+    """Extract sample IDs from metadata for VCF subsetting."""
+    input:  samples = f"{INDIR}{SAMPLES}"
+    output: W['samples_list']
+    log:    f"{LOGDIR}extract_samples.log"
+    shell:  "tail -n +2 {input.samples} | awk '{{print 0, $2}}' > {output} 2> {log}"
 
-rule extract_samples_order_vcf:
-	input:
-		vcf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf"
-	output:
-		"samples_vcf.list"
-	threads: 1
-	log:
-		f"{LOGDIR}extract_samples_order_vcf.log"
-	shell:
-		"grep -m1 CHROM {input.vcf} | cut -f10- | tr '\t' '\n' > samples_vcf.list "
+rule filter_vcf:
+    """Filter VCF by MAF, missingness, and sample list."""
+    input:  vcf = f"{INDIR}{VCF_RAW}", samples = W['samples_list']
+    output: W['vcf_filt']
+    params: prefix = W['vcf_filt'].replace('.vcf', ''), maf = MAF, miss = MISS
+    log:    f"{LOGDIR}filter_vcf.log"
+    threads: CPU
+    shell:
+        """
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# --keep {input.samples} \
+            --maf {params.maf} --geno {params.miss} \
+            --recode vcf --out {params.prefix} > {log} 2>&1
+        sed -i '/^#CHROM/s/\\t0_/\\t/g' {output}
+        """
 
-rule filter_arrange_metadata:
-	input:
-		metadata = f"{INDIR}{SAMPLES}",
-		samples_vcf = "samples_vcf.list"
-	output:
-		"Metadata_filtered_arranged.tsv"
-	threads: 1
-	log:
-		f"{LOGDIR}filter_arrange_metadata.log"
-	shell:
-		"Rscript /pipeline/scripts/filter_arrange_metadata.R {input.metadata} {input.samples_vcf} {output} > {log} 2>&1"	
+rule ld_prune:
+    """LD prune and compute PCA."""
+    input:  vcf = W['vcf_filt']
+    output: vcf = W['vcf_ld'], eigenvec = W['eigenvec'], prune = W['prune_in']
+    params: prefix = W['vcf_ld'].replace('.vcf', ''), win = LD_WIN, step = LD_STEP, r2 = LD_R2
+    log:    f"{LOGDIR}ld_prune.log"
+    threads: CPU
+    shell:
+        """
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# \
+            --indep-pairwise {params.win} {params.step} {params.r2} \
+            --out {params.prefix} > {log} 2>&1
+        
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# --extract {output.prune} \
+            --make-bed --pca --recode vcf \
+            --out {params.prefix} >> {log} 2>&1
+        
+        sed -i '/^#CHROM/s/\\t0_0_/\\t/g' {output.vcf}
+        """
 
-# Convert only LD for PopStructure inference
-rule vcf2lfmm_LD:
-	input:
-		vcf=f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.vcf"
-	output:
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.geno",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.lfmm",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.vcfsnp", #TODO maybe it's already removed so simplify the rule in gradForest
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.removed"
-	threads: 1
-	log:
-		f"{LOGDIR}vcf2lfmm_LD.log"
-	shell:
-		"Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
+rule extract_vcf_sample_order:
+    """Get sample order from VCF header for metadata alignment."""
+    input:  vcf = W['vcf_filt']
+    output: W['samples_order']
+    log:    f"{LOGDIR}extract_vcf_sample_order.log"
+    shell:  "grep -m1 CHROM {input.vcf} | cut -f10- | tr '\\t' '\\n' > {output} 2> {log}"
 
-# Run SNMF structure pipeline
-rule SNMF_LD:
-  input:
-          geno=f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.geno"
-  output:
-          f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.snmfProject"
-  threads: CPU
-  log:
-          f"{LOGDIR}SNMF_LD.log"
-  shell:
-          "Rscript /pipeline/scripts/SNMF.R {input.geno} {K_START} {K_END} {PLOIDY} {REPEAT} {threads} {PROJECT} > {log} 2>&1"
+rule align_metadata:
+    """Align metadata rows to match VCF sample order."""
+    input:  meta = f"{INDIR}{SAMPLES}", order = W['samples_order']
+    output: O['metadata']
+    log:    f"{LOGDIR}align_metadata.log"
+    shell:  "Rscript /pipeline/scripts/filter_arrange_metadata.R {input.meta} {input.order} {output} > {log} 2>&1"
 
-rule Impute_LD: 
-	input:
-		snmf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.snmfProject",
-		lfmm = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.lfmm"
-	output:
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}_K{K_BEST}imputed.lfmm"
-	log:
-		f"{LOGDIR}Impute_LD.log"
-	run:
-		if config.get("run_Impute_LD", True): #TEMP
-			shell(f"Rscript /pipeline/scripts/Impute.R {input.snmf} {input.lfmm} {K_BEST} > {log} 2>&1")
-		else:
-			print("Skipping Impute_LD rule as per config")
+rule vcf_to_lfmm:
+    """Convert VCF to LEA formats (geno, lfmm)."""
+    input:  vcf = W['vcf_ld']
+    output: geno = W['geno'], lfmm = W['lfmm'], vcfsnp = W['vcfsnp'], removed = W['removed']
+    log:    f"{LOGDIR}vcf_to_lfmm.log"
+    shell:  "Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
 
-rule lfmm2vcf_LD:
-	input:
-		vcf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.vcf",
-		lfmm_imp = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}_K{K_BEST}imputed.lfmm"
-	output:
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}_K{K_BEST}imputed.vcf"
-	params:
-		blocksize = 20000 # Blocksize for transposeBigData, set as deafult but could be changed if face some resource problems
-	log:
-		f"{LOGDIR}lfmm2vcf_LD.log"
-	shell:
-		"Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} 20000 > {log} 2>&1" 
-rule SNMF_LD_plots:
-	input:
-		snmfProject=f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.snmfProject",
-		lfmm=f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.lfmm",
-		samples="Metadata_filtered_arranged.tsv"
-	output:
-		[f"tables/SNMF_clusters_K{K}.tsv" for K in range(K_START, K_END + 1, 1)],
-		'plots/PCA.png'
-	threads: 1
-	log:
-		f"{LOGDIR}SNMF_LD_plots.log"
-	shell:
-		"Rscript /pipeline/scripts/SNMF_plots.R {input.snmfProject} {input.lfmm} {K_START} {K_END} {PLOIDY} {input.samples} > {log} 2>&1"
+#=============================================================================
+# MODULE 2: POPULATION STRUCTURE
+#=============================================================================
 
-rule AMOVA: # for now it subset 10k SNPs from LD prunned file so it fast return approximate AMOVA results (too long with sufficient number of SNPs)
-	input:
-		vcf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}_K{K_BEST}imputed.vcf", # use imputed data for more stable performance (failed with miss = 0.2)
-		sample = "Metadata_filtered_arranged.tsv" 
-	output:
-		"plots/AMOVA.png",
-		"tables/AMOVA.tsv"
-	threads: 1
-	log:
-		f"{LOGDIR}AMOVA.log"
-	shell:
-		"Rscript /pipeline/scripts/AMOVA.R {input.vcf} {input.sample} {threads} > {log} 2>&1"
+rule snmf:
+    """Run sNMF across K range."""
+    input:  geno = W['geno']
+    output: W['snmf']
+    params: ks = K_START, ke = K_END, ploidy = PLOIDY, rep = REPEAT, mode = SNMF_PROJECT_MODE
+    log:    f"{LOGDIR}snmf.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/SNMF.R {input.geno} \
+            {params.ks} {params.ke} {params.ploidy} {params.rep} \
+            {threads} {params.mode} > {log} 2>&1
+        """
 
-##################### structure_K required Kbest
+rule pca_plot:
+    """Generate PCA and Tracy-Widom plots."""
+    input:  lfmm = W['lfmm'], meta = O['metadata']
+    output: pca = O['pca'], pca_svg = O['pca_svg'], tracy = O['tracy']
+    params: plot_dir = f"{PLOTS}pca/", inter_dir = INTER
+    log:    f"{LOGDIR}pca_plot.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_pca.R \
+            {input.lfmm} {input.meta} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-# Convert whole vcf to lfmm
-rule vcf2lfmm:
-	input:
-		vcf=f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf"
-	output:
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.geno",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.lfmm",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp",
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.removed"
-	log:
-		f"{LOGDIR}vcf2lfmm.log"
-	shell:
-		"Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
+rule cross_entropy_plot:
+    """Plot cross-entropy for K selection."""
+    input:  snmf = W['snmf']
+    output: O['cross_entropy']
+    params: ks = K_START, ke = K_END, plot_dir = f"{PLOTS}structure/", inter_dir = INTER
+    log:    f"{LOGDIR}cross_entropy.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_cross_entropy.R \
+            {input.snmf} {params.ks} {params.ke} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-# run SNMF for whole dataset for imputation missing values
-rule SNMF:
-	input:
-		geno=f"{FILENAME}_MAF{MAF}_MISS{MISS}.geno" # after correctly define structure (if not structure flag with trun)
-	output: 
-		f"{FILENAME}_MAF{MAF}_MISS{MISS}.snmfProject"
-	log:
-		f"{LOGDIR}SNMF.log"
-	shell:
-		"Rscript /pipeline/scripts/SNMF.R {input.geno} {K_START} {K_END} {PLOIDY} {REPEAT} {CPU} {PROJECT} > {log} 2>&1"
-# 
+rule extract_clusters:
+    """Extract Q-matrix (cluster assignments) for specific K."""
+    input:  snmf = W['snmf'], meta = O['metadata']
+    output: clusters_table("{k}")
+    wildcard_constraints: k = r"\d+"
+    params: k = lambda wc: wc.k
+    log:    f"{LOGDIR}extract_clusters_K{{k}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/extract_clusters.R \
+            {input.snmf} {input.meta} {params.k} {output} > {log} 2>&1
+        """
 
-# After Imputation we can calculate neutrality test and IBD (maybe it's better to calculate it on missing values data)
-rule TajimaD:	#TODO add exception for only 1 individual in population
-	input: 
-		vcf=f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf",
-		samples= "Metadata_filtered_arranged.tsv"
-	params:
-		winsize = METRICS_WINSIZE		
-	output:
-		"tables/TajimaD_TotalByPop.tsv"
-	log:
-		f"{LOGDIR}TajimaD.log"
-	threads: CPU
-	shell:
-		"Rscript /pipeline/scripts/TajimaD.R {input.vcf} {input.samples} {params.winsize} {CPU} > {log} 2>&1"
+rule structure_barplot:
+    """Generate structure barplot for specific K."""
+    input:  clusters = clusters_table("{k}")
+    output: structure_plot("{k}")
+    wildcard_constraints: k = r"\d+"
+    params: k = lambda wc: wc.k, plot_dir = f"{PLOTS}structure/", inter_dir = INTER
+    log:    f"{LOGDIR}structure_plot_K{{k}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_structure.R \
+            {input.clusters} {params.k} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-rule Pi_diversity: #TODO add exception for only 1 individual in population
-	input:
-		vcf=f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf",
-		samples= "Metadata_filtered_arranged.tsv"
-	params:
-		winsize = METRICS_WINSIZE
-	output:
-		"tables/Pi_diversity_TotalByPop.tsv"
-	log:
-		f"{LOGDIR}Pi_diversity.log"
-	threads: CPU
-	shell:
-		"Rscript /pipeline/scripts/Pi_diversity.R {input.vcf} {input.samples} {params.winsize} {CPU} > {log} 2>&1"
-		
-rule IBD: #TODO not very reprodicible, CHECK IT!
-	input:
-		cluster=f"tables/SNMF_clusters_K{K_BEST}.tsv",
-		samples="Metadata_filtered_arranged.tsv"
-	output:
-		"tables/IBD_raw.tsv",
-		"tables/IBD_notIsolated.tsv" # for plots
-	log:
-		f"{LOGDIR}IBD.log"
-	shell:
-		"Rscript /pipeline/scripts/IBD.R {input.cluster} {input.samples} {CPU} > {log} 2>&1"
+rule pca_structure_plot:
+    """Generate PCA with structure pie charts for specific K."""
+    input:  lfmm = W['lfmm'], clusters = clusters_table("{k}")
+    output: pca_struct_plot("{k}")
+    wildcard_constraints: k = r"\d+"
+    params: k = lambda wc: wc.k, plot_dir = f"{PLOTS}pca/", inter_dir = INTER
+    log:    f"{LOGDIR}pca_structure_K{{k}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_pca_structure.R \
+            {input.lfmm} {input.clusters} {params.k} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+rule pop_diff_test:
+    """Population differentiation test for specific K."""
+    input:  snmf = W['snmf']
+    output: pop_diff_plot("{k}")
+    wildcard_constraints: k = r"\d+"
+    params: k = lambda wc: wc.k, ploidy = PLOIDY, plot_dir = f"{PLOTS}structure/", inter_dir = INTER
+    log:    f"{LOGDIR}pop_diff_K{{k}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_pop_diff.R \
+            {input.snmf} {params.k} {params.ploidy} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+#=============================================================================
+# MODULE 3: STRUCTURE_K (requires K_BEST selection)
+#=============================================================================
+
+rule impute_ld:
+    """Impute missing genotypes using SNMF results for K_BEST."""
+    input:  snmf = W['snmf'], lfmm = W['lfmm']
+    output: W['lfmm_imp']
+    params: k = K_BEST
+    log:    f"{LOGDIR}impute_ld.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/Impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        """
+
+rule lfmm2vcf_ld:
+    """Convert imputed LFMM back to VCF format."""
+    input:  vcf = W['vcf_ld'], lfmm_imp = W['lfmm_imp']
+    output: W['vcf_imp']
+    params: blocksize = 20000
+    log:    f"{LOGDIR}lfmm2vcf_ld.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} {params.blocksize} > {log} 2>&1
+        """
+    # NOTE: lfmm2vcf.R already exists, outputs .vcf with same base as .lfmm input
 
 rule download_climate_present:
-	input:
-		lfmm=f"{FILENAME}_MAF{MAF}_MISS{MISS}.lfmm",
-		samples="Metadata_filtered_arranged.tsv"
-	params:
-		resolution=RESOLUTION
-	output:
-		"tables/Climate_present_region.tsv",
-		"tables/Climate_present_region_scaled.tsv",
-		"tables/Climate_present_all.tsv",
-		"intermediate/Climate_present_RasterStack.grd",
-		[f"plots/DensityPlot_{bio}.png" for bio in PREDICTORS_SELECTED.split(',') ]
-	log:
-		f"{LOGDIR}download_climate_present.log"
-	shell:
-		"Rscript /pipeline/scripts/Download_PresentClimate.R {input.samples} {CROP_REGION} {GAP} /pipeline/data/ {params.resolution} > {log} 2>&1" #TODO manual climate dir
+    """Download and process present climate data for sampling locations."""
+    input:  meta = O['metadata']
+    output:
+        site = O['climate_site'],
+        site_scaled = O['climate_site_scaled'],
+        all_vals = O['climate_all'],
+        raster = W['climate_raster']
+    params:
+        crop = CROP_REGION,
+        gap = GAP,
+        resolution = RESOLUTION,
+        data_dir = f"{INDIR}",
+        inter_dir = INTER,
+        tables_dir = TABLES
+    log: f"{LOGDIR}download_climate_present.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/download_climate_present.R \
+            {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
+            {params.inter_dir} {params.tables_dir} > {log} 2>&1
+        """
 
-rule pie_map_plot:
-	input:
-		samples="Metadata_filtered_arranged.tsv",
-		clusters=f"tables/SNMF_clusters_K{K_BEST}.tsv",
-		raster=f"intermediate/Climate_present_RasterStack.grd",
-		ibd="tables/IBD_notIsolated.tsv",
-		tajima="tables/TajimaD_TotalByPop.tsv",
-		diversity="tables/Pi_diversity_TotalByPop.tsv"
-	params:
-		custom_trait=CUSTOM_TRAIT,
-		palette_map=PieMap_PALLETE_MAP,
-		palette_map_reverse=PieMap_PALLETE_MAP_reverse,
-		pie_size=PieMap_PIE_SIZE,
-		pie_alpha=PieMap_PIE_ALPHA,
-		ibd_alpha=PieMap_IBD_ALPHA,
-		ibd_color=PieMap_IBD_COLOR,
-		pop_label=PieMap_POP_LABEL,
-		pop_label_size=PieMap_POP_LABEL_SIZE,
-		pie_rescale=PieMap_PIE_RESCALE
-	output:
-		[f"plots/PieMap_{trait}_TajimaD.png" for trait in PREDICTORS_SELECTED.split(',')],
-		[f"plots/PieMap_{trait}_TajimaD.svg" for trait in PREDICTORS_SELECTED.split(',')],
-		[f"plots/PieMap_{trait}_PiDiversity.png" for trait in PREDICTORS_SELECTED.split(',')],
-		[f"plots/PieMap_{trait}_PiDiversity.svg" for trait in PREDICTORS_SELECTED.split(',')]
-	log:
-		f"{LOGDIR}pie_map_plot.log"
-	shell:
-		"Rscript /pipeline/scripts/PieMap_plot.R {input.samples} {input.clusters} {input.raster} {input.ibd} {input.tajima} {input.diversity} {params.custom_trait} {params.palette_map} {params.palette_map_reverse} {params.pie_size} {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} {params.pop_label} {params.pie_rescale} {params.pop_label_size} > {log} 2>&1"
+rule density_plot:
+    """Generate density plot for a climate predictor."""
+    input:  climate = O['climate_site']
+    output: density_plot("{bio}")
+    wildcard_constraints: bio = r"bio_\d+"
+    params: bio = lambda wc: wc.bio, plot_dir = f"{PLOTS}climate/", inter_dir = INTER
+    log:    f"{LOGDIR}density_plot_{{bio}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_density.R \
+            {input.climate} {params.bio} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-rule Plot_CorrelationHM:
-	input:
-		samples = "Metadata_filtered_arranged.tsv",
-		climate = "tables/Climate_present_region.tsv"
-	output:
-		'plots/CorrelationHeatmap.png'
-	log:
-		f"{LOGDIR}Plot_CorrelationHM.log"
-	shell:
-		"Rscript /pipeline/scripts/Plot_CorrelationHeatmap.R {input.climate} {input.samples} > {log} 2>&1"
+rule tajima_d:
+    """Calculate Tajima's D per population."""
+    input:  vcf = W['vcf_filt'], meta = O['metadata']
+    output: O['tajima']
+    params: winsize = METRICS_WINSIZE, inter_dir = INTER
+    log:    f"{LOGDIR}tajima_d.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/TajimaD.R \
+            {input.vcf} {input.meta} {params.winsize} {threads} \
+            {output} {params.inter_dir} > {log} 2>&1
+        """
 
+rule pi_diversity:
+    """Calculate nucleotide diversity (Pi) per population."""
+    input:  vcf = W['vcf_filt'], meta = O['metadata']
+    output: O['pi_div']
+    params: winsize = METRICS_WINSIZE, inter_dir = INTER
+    log:    f"{LOGDIR}pi_diversity.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/Pi_diversity.R \
+            {input.vcf} {input.meta} {params.winsize} {threads} \
+            {output} {params.inter_dir} > {log} 2>&1
+        """
 
-#TODO one-tail behavior of vegan::mantel - change on another one mantel.testr()
-#TODO handle scaling?
-rule MantelTest:
-	input:
-		samples ="Metadata_filtered_arranged.tsv", 
-		climate = "tables/Climate_present_region.tsv",
-		clusters= f"tables/SNMF_clusters_K{K_BEST}.tsv"
-	output:
-		"plots/MantelTest.png"
-	log:
-		f"{LOGDIR}MantelTest.log"
-	shell:
-		"Rscript /pipeline/scripts/MantelTest.R {input.samples} {input.clusters} {input.climate} {PREDICTORS_SELECTED} > {log} 2>&1"
-################################ association mode ################################
-# Impute also LD dataset for LFMM model training 
-if 'LFMM' in ADJUST:
+rule ibd:
+    """Calculate isolation by distance between populations."""
+    input:  clusters = clusters_table(K_BEST), meta = O['metadata']
+    output: raw = O['ibd_raw'], pairs = O['ibd_pairs']
+    params: tables_dir = TABLES
+    log:    f"{LOGDIR}ibd.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/IBD.R \
+            {input.clusters} {input.meta} {threads} {params.tables_dir} > {log} 2>&1
+        """
 
-	rule Impute:
-		input:
-			snmf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.snmfProject",
-			lfmm = f"{FILENAME}_MAF{MAF}_MISS{MISS}.lfmm"
-		output:
-			f"{FILENAME}_MAF{MAF}_MISS{MISS}_K{K_BEST}imputed.lfmm"
-		log:
-			f"{LOGDIR}Impute.log"
-		run:
-			if config.get('run_Impute', True): #TEMP
-				shell(f"Rscript /pipeline/scripts/Impute.R {input.snmf} {input.lfmm} {K_BEST} > {log} 2>&1")
-			else:
-				print("Skipping Impute rule as per config")
-	#		"Rscript /pipeline/scripts/Impute.R {input.snmf} {input.lfmm} {K_BEST} > {log} 2>&1"
-	rule lfmm2vcf:
-		input:
-			vcf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf",
-			lfmm_imp = f"{FILENAME}_MAF{MAF}_MISS{MISS}_K{K_BEST}imputed.lfmm"
-		output:
-			f"{FILENAME}_MAF{MAF}_MISS{MISS}_K{K_BEST}imputed.vcf"
-		log:
-			f"{LOGDIR}lfmm2vcf.log"
-		shell:
-			"Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} 20000 > {log} 2>&1" # Blocksize for transposeBigData, set as deafult but could be changed if face some resource problems
-	
-	rule LFMM:
-		input: 
-			lfmm = f"{FILENAME}_MAF{MAF}_MISS{MISS}_K{K_BEST}imputed.lfmm",
-			lfmm_LD = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}_K{K_BEST}imputed.lfmm",
-			climate="tables/Climate_present_region_scaled.tsv",
-			vcfsnp=f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp"
-		output:
-			f"tables/LFMM/LFMM_pvalues_K{K_BEST}.tsv"
-		log:
-			f"{LOGDIR}LFMM.log"
-		shell:
-			"Rscript /pipeline/scripts/LFMM.R {input.lfmm_LD} {input.lfmm} {input.climate} {K_BEST} {PREDICTORS_SELECTED} {input.vcfsnp} > {log} 2>&1"
+rule correlation_heatmap:
+    """Generate correlation heatmap of climate variables and traits."""
+    input:  climate = O['climate_site'], meta = O['metadata']
+    output: O['corr_heatmap']
+    params: plot_dir = f"{PLOTS}climate/", inter_dir = INTER
+    log:    f"{LOGDIR}correlation_heatmap.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_correlation_heatmap.R \
+            {input.climate} {input.meta} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-	rule LFMM_Manhattan_plot:
-		input:
-			assoc = f"tables/LFMM/LFMM_pvalues_K{K_BEST}.tsv"
-		output:
-			[f"plots/LFMM/Rectangular-Manhattan.{trait}_K{K_BEST}_{ADJUST['LFMM']}.pdf" for trait in PREDICTORS_SELECTED.split(',') ]
-		params:
-			K = K_BEST,
-			adjust = ADJUST['LFMM'],
-			method = 'LFMM' # 'plots/LFMM'
-		log:
-			f"{LOGDIR}LFMM_manhattan_plots.log"
-		shell:
-			"Rscript /pipeline/scripts/Plot_manhat_CMplot.R {input.assoc} {params.adjust} {params.K} {params.method} > {log} 2>&1"
+rule mantel_test:
+    """Perform Mantel test for IBD/IBE."""
+    input:  meta = O['metadata'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
+    output: O['mantel']
+    params:
+        predictors = PREDICTORS_SELECTED,
+        plot_dir = f"{PLOTS}structure/",
+        inter_dir = INTER
+    log: f"{LOGDIR}mantel_test.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/mantel_test.R \
+            {input.meta} {input.clusters} {input.climate} {params.predictors} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-	rule LFMM_sigSNP:
-		input:
-			assoc = f"tables/LFMM/LFMM_pvalues_K{K_BEST}.tsv"
-		output:
-			f"tables/LFMM/LFMM_pvalues_K{K_BEST}_sigSNPs_{ADJUST['LFMM']}.tsv"
-		params:
-			adjust = ADJUST['LFMM'],
-			snp_dist = SNP_DISTANCE,
-			cpu = CPU,
-			method = 'LFMM'
-		log:
-			f"{LOGDIR}LFMM_sigSNP.log"
-		shell:
-			"Rscript /pipeline/scripts/find_sigSNPs.R {input.assoc} {params.adjust} {params.snp_dist} {params.method} {params.cpu} > {log} 2>&1"
+rule amova:
+    """Perform AMOVA analysis."""
+    input:  vcf = W['vcf_imp'], meta = O['metadata']
+    output: table = O['amova'], plot = O['amova_plot']
+    params: plot_dir = f"{PLOTS}structure/", tables_dir = TABLES, inter_dir = INTER
+    log:    f"{LOGDIR}amova.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/amova.R \
+            {input.vcf} {input.meta} {threads} \
+            {params.plot_dir} {params.tables_dir} {params.inter_dir} > {log} 2>&1
+        """
 
-	rule LFMM_sigSNP_genesAround:
-		input:
-			sigsnps = f"tables/LFMM/LFMM_pvalues_K{K_BEST}_sigSNPs_{ADJUST['LFMM']}.tsv",
-			gff = f"{INDIR}{GFF}",
-			vcfsnp = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp"
-		output:
-			f"tables/LFMM/LFMM_pvalues_K{K_BEST}_{ADJUST['LFMM']}_genesAround{GENE_DISTANCE}.tsv",
-			f"tables/LFMM/LFMM_pvalues_K{K_BEST}_{ADJUST['LFMM']}_genesAround{GENE_DISTANCE}_collapsed.tsv" 
-		params:
-			feature = GFF_FEATURE,
-			distance = GENE_DISTANCE,
-			promoter_len = PROMOTER_LENGTH
-		log:
-			f"{LOGDIR}EMMAX_sigSNP_genesAround.log" #TODO maybe add DISTANCE to name of 
-		shell:
-			"Rscript /pipeline/scripts/find_genes_around_sigSNPs.R {input.gff} {input.sigsnps} {params.feature} {params.distance} {params.promoter_len} {input.vcfsnp} {CPU} > {log} 2>&1"
-
-if 'EMMAX' in ADJUST:
-	rule EMMAX:
-		input:
-			vcf = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcf",
-			traits = "tables/Climate_present_region_scaled.tsv",
-			covariates = f"{FILENAME}_MAF{MAF}_MISS{MISS}.LD{LDr2}.eigenvec",
-			metadata ="Metadata_filtered_arranged.tsv" #TODO for now it's unscalled phen traits
-		output:
-			f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}.tsv"
-		log:
-			f"{LOGDIR}EMMAX.log"
-		shell:
-			"Rscript /pipeline/scripts/EMMAX.R {input.vcf} {K_BEST} {input.traits} {input.covariates} {PREDICTORS_SELECTED} intermediate/ {input.metadata} > {log} 2>&1"
-
-	rule EMMAX_Manhattan_plot:
-		input:
-			assoc = f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}.tsv"
-		output:
-			[f"plots/EMMAX/Rectangular-Manhattan.{trait}_K{K_BEST}_{ADJUST['EMMAX']}.pdf" for trait in PREDICTORS_SELECTED.split(',')]
-		params:
-			K = K_BEST,
-			adjust = ADJUST['EMMAX'],
-			method = 'EMMAX'
-
-		log:
-			f"{LOGDIR}EMMAX_manhattan_plots.log"
-		shell:
-			"Rscript /pipeline/scripts/Plot_manhat_CMplot.R {input.assoc} {params.adjust} {params.K} {params.method} > {log} 2>&1"
-
-	#TODO make it universal not only for EMMAX (add ASSOC_METHOD variable)
-	rule EMMAX_sigSNP:
-		input:
-			assoc = f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}.tsv"
-		output:
-			f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}_sigSNPs_{ADJUST['EMMAX']}.tsv"
-		params:
-			adjust = ADJUST['EMMAX'],
-			snp_dist = SNP_DISTANCE,
-			cpu = CPU,
-			method = 'EMMAX'
-		log:
-			f"{LOGDIR}EMMAX_sigSNP.log" 
-		shell:
-			"Rscript /pipeline/scripts/find_sigSNPs.R {input.assoc} {params.adjust} {params.snp_dist} {params.method} {params.cpu} > {log} 2>&1"
-
-	rule EMMAX_sigSNP_genesAround:
-		input:
-			sigsnps = f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}_sigSNPs_{ADJUST['EMMAX']}.tsv",
-			gff = f"{INDIR}{GFF}",
-			vcfsnp = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp"
-		output:
-			f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}_{ADJUST['EMMAX']}_genesAround{GENE_DISTANCE}.tsv",
-			f"tables/EMMAX/EMMAX_pvalues_K{K_BEST}_{ADJUST['EMMAX']}_genesAround{GENE_DISTANCE}_collapsed.tsv"
-		params:
-			feature = GFF_FEATURE,
-			distance = GENE_DISTANCE,
-			promoter_len = PROMOTER_LENGTH
-		log:
-			f"{LOGDIR}EMMAX_sigSNP_genesAround.log" #TODO maybe add DISTANCE to name of file
-		shell:
-			"Rscript /pipeline/scripts/find_genes_around_sigSNPs.R {input.gff} {input.sigsnps} {params.feature} {params.distance} {params.promoter_len} {input.vcfsnp} {CPU} > {log} 2>&1"
-
-# Summary of association analysis
-#TODO make some summing\comparing plots 
-#TODO circular plot with only significant to see overlaps (think about tool for vizualization (probably interactive)
-rule find_sigSNP_overlap: # between EMMAX and LFMM and #TODO for another method (RDA?)
-	input: # will return error if some of them doesn't exist
-	  sigsnps_lst = [f"tables/{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{ADJUST[method]}.tsv" for method in ADJUST]
-	params:
-	  sigsnps_str = lambda wildcards, input: ','.join(input.sigsnps_lst),
-	  method = sigSNPs_METHOD,
-	  gap = sigSNPs_GAP,
-	  predictors_selected = PREDICTORS_SELECTED
-	output:
-		f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.tsv",
-		f"tables/Selected_SNPs_unique_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.list"
-	log:
-		f"{LOGDIR}find_sigSNP_overlap.log"
-	shell:
-		"Rscript /pipeline/scripts/find_sigSNPs_overlap.R {params.sigsnps_str} {params.method} {params.gap} {params.predictors_selected} > {log} 2>&1"
-
-rule Overlap_sigSNP_genesAround:
-	input:
-		sigsnps = f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.tsv",
-		gff = f"{INDIR}{GFF}",
-		vcfsnp = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp"
-	params:
-		feature = GFF_FEATURE,
-		distance = GENE_DISTANCE,
-		promoter_len = PROMOTER_LENGTH
-	output:
-		f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}_genesAround{GENE_DISTANCE}.tsv",
-		f"tables/Selected_SNPs_redundant_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}_genesAround{GENE_DISTANCE}_collapsed.tsv"
-	log:
-		f"{LOGDIR}Overlap_sigSNP_genesAround.log" #TODO maybe add DISTANCE to name of file
-	shell:
-		"Rscript /pipeline/scripts/find_genes_around_sigSNPs.R {input.gff} {input.sigsnps} {params.feature} {params.distance} {params.promoter_len} {input.vcfsnp} {CPU} > {log} 2>&1"
-		
-		 
-##################### regionalPlot #########################
-#TODO make some variable to choose what to print, by default some top 10 regions? make available to drow subset of SNPs provided 
-
-rule gff2topr:
-	input:
-		gff = f"{INDIR}{GFF}"
-	params:
-		feature=GFF_FEATURE,
-		genename=GFF_GENENAME,
-		biotype=GFF_BIOTYPE
-	output:
-		outfile='topr_gene_annotation.tsv'
-	log:
-		f"{LOGDIR}gff2topr.log"
-	shell:
-		"python3 /pipeline/scripts/gff2topr.py {input.gff} {params.feature} {params.genename} {params.biotype} {output.outfile} > {log} 2>&1" 
-
-#TODO add option for climate factors EMMAX/LFMM to build regional plot, probably joined 
-#TODO for now only EMMAX and only 1 GWAS, rework it later
-rule regionPlot:
-	input:
-		assoc = f"tables/{REGIONPLOT_ASSOCMETHOD}/{REGIONPLOT_ASSOCMETHOD}_pvalues_K{K_BEST}.tsv",
-		gff_topr = 'topr_gene_annotation.tsv'
-	params:
-		region = REGIONPLOT_REGION,
-		adjust = ADJUST[REGIONPLOT_ASSOCMETHOD],
-		traits = REGIONPLOT_TRAITS,
-		genes_to_highlight = GENES_TO_HIGHLIGHT
-	output:
-		f"plots/regionPlot_{REGIONPLOT_TRAITS_SAFE}_{REGIONPLOT_REGION_SAFE}_{ADJUST[REGIONPLOT_ASSOCMETHOD]}.png"	
-	log:
-		f"{LOGDIR}regionPlot.log"
-	shell:
-		"Rscript /pipeline/scripts/Plot_regionManh.R {input.assoc} {input.gff_topr} {params.region} {params.adjust} {params.traits} {params.genes_to_highlight} > {log} 2>&1"
-##################### Maladaptation  ####################### part4
-rule download_climate_future:
-	input:
-		lfmm=f"{FILENAME}_MAF{MAF}_MISS{MISS}.lfmm", # when starts downloading, can keep it like this
-		samples="Metadata_filtered_arranged.tsv"
-	params:
-		resolution = RESOLUTION
-	output:
-		f"tables/Climate_future_year{YEAR}_ssp{SSP}_site.tsv",
-		f"tables/Climate_future_year{YEAR}_ssp{SSP}_all.tsv",
-		f"intermediate/Climate_future_year{YEAR}_ssp{SSP}_RasterStack.grd"
-	log:
-		f"{LOGDIR}download_climate_future_year{YEAR}_ssp{SSP}.log"
-	shell:
-		"Rscript /pipeline/scripts/Download_FutureClimate.R {input.samples} {CROP_REGION} {GAP} {INDIR} {SSP} {YEAR} {MODELS} {CPU} {params.resolution} > {log} 2>&1"
-
-#TODO change random subsetting add while tryCatch or smth like this and advice to increase number of SNPs
-rule gradientForest:
-	input:
-		lfmm = f"{FILENAME}_MAF{MAF}_MISS{MISS}.lfmm", #TODO add choice to make GF on imputed (if confidence) or notImp data
-		sigsnps = f"tables/Selected_SNPs_unique_{sigSNPs_METHOD}_Gap{sigSNPs_GAP}.list",
-		vcfsnp = f"{FILENAME}_MAF{MAF}_MISS{MISS}.vcfsnp",
-		removed = f"{FILENAME}_MAF{MAF}_MISS{MISS}.removed",
-		samples ="Metadata_filtered_arranged.tsv", 
-		climate = "tables/Climate_present_region.tsv" # Here we need not scaled climate values for better interpretability
-	output:
-		f'intermediate/gradientForest_random_{GF_SUFFIX}_{PCNM}PCNM.qs', #PC3_sigSNPs_bonf_0.05
-		f'intermediate/gradientForest_adaptive_{GF_SUFFIX}_{PCNM}PCNM.qs'
-	log:
-		f"{LOGDIR}gradientForest.log"
-	shell:
-		"Rscript /pipeline/scripts/gradientForest.R {input.lfmm} {input.sigsnps} {input.vcfsnp} {input.removed} {input.samples} {input.climate} {PREDICTORS_SELECTED} {NTREE} {COR_THRESHOLD} {PCNM} {GF_SUFFIX} > {log} 2>&1"
-#Selected_SNPs_unique_EMMAX_Gap10000.list
-
-rule gradientForest_plot:
-	input:
-		gf=f'intermediate/gradientForest_adaptive_{GF_SUFFIX}_{PCNM}PCNM.qs',
-		gf_random=f'intermediate/gradientForest_random_{GF_SUFFIX}_{PCNM}PCNM.qs',
-		future_climate_all=f"tables/Climate_future_year{YEAR}_ssp{SSP}_all.tsv",
-		present_climate_all=f"tables/Climate_present_all.tsv",
-		raster_present="intermediate/Climate_present_RasterStack.grd",
-		clusters=f"tables/SNMF_clusters_K{K_BEST}.tsv",
-		ibd="tables/IBD_notIsolated.tsv",
-		tajima="tables/TajimaD_TotalByPop.tsv",
-		samples="Metadata_filtered_arranged.tsv"
-	output:
-		f"plots/gradientForest_GeneticOffesetPieMap_{GF_SUFFIX}_{PCNM}PCNM.png",
-		f"tables/gradientForest_GeneticOffesetValues_{GF_SUFFIX}_{PCNM}PCNM.tsv"
-	log:
-		f"{LOGDIR}gradientForest_plot.log"
-	shell:
-		"Rscript /pipeline/scripts/gradientForest_plots.R {input.gf} {input.gf_random} {PREDICTORS_SELECTED} {input.future_climate_all} {input.present_climate_all} {input.raster_present} {input.samples} {input.clusters} {input.ibd} {input.tajima} {PieMap_PALLETE_MAP} {PieMap_PIE_SIZE} {PieMap_PIE_ALPHA} {PieMap_IBD_ALPHA} {PieMap_IBD_COLOR} {PCNM} {GF_SUFFIX} > {log} 2>&1"	
-
+rule piemap_plot:
+    """Generate PieMap plots for a climate predictor."""
+    input:
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        raster = W['climate_raster'],
+        ibd = O['ibd_pairs'],
+        tajima = O['tajima'],
+        diversity = O['pi_div']
+    output:
+        tajima_plot = piemap_tajima("{bio}"),
+        diversity_plot = piemap_diversity("{bio}")
+    wildcard_constraints: bio = r"bio_\d+"
+    params:
+        bio = lambda wc: wc.bio,
+        custom_trait = f"{INDIR}{CUSTOM_TRAIT}",
+        palette = PIEMAP_PALETTE,
+        palette_rev = PIEMAP_PALETTE_REV,
+        pie_size = PIEMAP_PIE_SIZE,
+        pie_alpha = PIEMAP_PIE_ALPHA,
+        ibd_alpha = PIEMAP_IBD_ALPHA,
+        ibd_color = PIEMAP_IBD_COLOR,
+        pop_label = PIEMAP_POP_LABEL,
+        pie_rescale = PIEMAP_PIE_RESCALE,
+        pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        plot_dir = f"{PLOTS}piemap/",
+        inter_dir = INTER
+    log: f"{LOGDIR}piemap_{{bio}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.meta} {input.clusters} {input.raster} {input.ibd} \
+            {input.tajima} {input.diversity} {params.custom_trait} \
+            {params.bio} {params.palette} {params.palette_rev} \
+            {params.pie_size} {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} \
+            {params.pop_label} {params.pie_rescale} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
