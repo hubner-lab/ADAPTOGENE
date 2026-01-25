@@ -77,6 +77,10 @@ PROMOTER_LENGTH: 10000 # use for count SNPs in some region upstream the gene
 sigSNPs_METHOD: 'EMMAX' # EMMAX/LFMM/Sum/Overlap; all - for taking SNPs from both methods; Overlap - for use only overlapping SNPs with sigSNPs_GAP (0 for identical SNPs only).
 sigSNPs_GAP: 100000 # gap for overlaping in bp (0 for identical SNPs only; ONLY FOR sigSNPs_METHOD == Overlap/PairOverlap)
 
+# Region and enrichment settings
+REGION_DISTANCE: 2000000 # Distance to merge nearby SNPs into regions (e.g., 2000000 for 2Mb)
+GO_FIELD: 'ontology'     # GFF attribute field containing GO terms (set to NULL to skip enrichment)
+
 
 ### Optional:
 # Build regional plot for certain region

@@ -19,7 +19,13 @@ PREDICTORS_SELECTED = args[5] %>% str_split(',') %>% unlist
 INTER_DIR = args[6]
 SAMPLES_FILE = args[7]
 TABLES_DIR = args[8]
+EMMAX_WORK_DIR = args[9]  # Directory for EMMAX work files (kinship, tped, tfam)
 ########################
+
+# Create EMMAX work directory if it doesn't exist
+if (!dir.exists(EMMAX_WORK_DIR)) {
+    dir.create(EMMAX_WORK_DIR, recursive = TRUE)
+}
 
 message("INFO: Starting EMMAX analysis")
 message(paste0("INFO: K = ", Kbest))
@@ -34,11 +40,13 @@ covariates <- fread(COVARIATES_FILE, sep = ' ', header = F)[, 3:(2 + Kbest)] %>%
 
 ################################ Functions
 
-FUN_emmax <- function(VCF, trait, covariates, OUT, kinship = TRUE, force = FALSE) {
+FUN_emmax <- function(VCF, trait, covariates, OUT, WORK_DIR, kinship = TRUE, force = FALSE) {
 
     f <- paste0(gsub('.vcf', '', basename(VCF)))
-    tfam <- paste0(f, '.tfam')
-    kinship.f <- paste0(f, '.aIBS.kinf')
+    # Place work files in dedicated directory
+    f_path <- file.path(WORK_DIR, f)
+    tfam <- paste0(f_path, '.tfam')
+    kinship.f <- paste0(f_path, '.aIBS.kinf')
 
     message("INFO: Read VCF and extract SNPID")
     snpid <- fread(cmd = paste('grep -v "##"', VCF, '| cut -f1-2')) %>%
@@ -51,17 +59,18 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, kinship = TRUE, force = FALSE
         as.character()
 
     if (!file.exists(kinship.f) | force) {
-        message(paste0('EMMAX: Create ', f, ' file'))
+        message(paste0('EMMAX: Create ', f_path, ' files in work directory'))
 
-        # Prepare TPED/TFAM files
+        # Prepare TPED/TFAM files in work directory
         system(paste0('plink --vcf ', VCF,
-                      ' --allow-extra-chr --recode12 transpose --output-missing-genotype 0 --out ', f))
+                      ' --allow-extra-chr --recode12 transpose --output-missing-genotype 0 --out ', f_path))
 
         # Edit family and individual names in .tfam
-        system(paste("cat", tfam, "| awk '{split($1, a, \"_\"); split($2, b, \"_\"); if (a[1] == b[1]) {$1 = a[1]; $2 = a[1]} print}' > tmp.tfam && mv tmp.tfam", tfam))
+        tmp_tfam <- file.path(WORK_DIR, 'tmp.tfam')
+        system(paste("cat", tfam, "| awk '{split($1, a, \"_\"); split($2, b, \"_\"); if (a[1] == b[1]) {$1 = a[1]; $2 = a[1]} print}' >", tmp_tfam, "&& mv", tmp_tfam, tfam))
 
         message('EMMAX: Calculate kinship matrix')
-        system(paste('../scripts/emmax-kin-intel64 -v -s -d 10 -x', f))
+        system(paste('/pipeline/scripts/emmax-kin-intel64 -v -s -d 10 -x', f_path))
     }
 
     # FILES produced
@@ -87,7 +96,7 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, kinship = TRUE, force = FALSE
             write.table(COVAR, sep = '\t', col.names = F, row.names = F, quote = F)
 
         # Run EMMAX
-        system(paste('../scripts/emmax-intel64 -v -d 10 -t', f,
+        system(paste('/pipeline/scripts/emmax-intel64 -v -d 10 -t', f_path,
                      '-p', PHEN,
                      '-k', kinship.f,
                      '-c', COVAR,
@@ -96,7 +105,7 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, kinship = TRUE, force = FALSE
 
     if (is.null(covariates) & !is.null(kinship)) {
         message('RUN emmax without PCA correction')
-        system(paste('../scripts/emmax-intel64 -v -d 10 -t', f,
+        system(paste('/pipeline/scripts/emmax-intel64 -v -d 10 -t', f_path,
                      '-p', PHEN,
                      '-k', kinship.f,
                      '-o', EMMAXOUT))
@@ -104,7 +113,7 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, kinship = TRUE, force = FALSE
 
     if (is.null(covariates) & is.null(kinship)) {
         message('RUN emmax without PCA and kinship corrections')
-        system(paste('../scripts/emmax-intel64 -v -d 10 -t', f,
+        system(paste('/pipeline/scripts/emmax-intel64 -v -d 10 -t', f_path,
                      '-o', EMMAXOUT))
     }
 
@@ -137,7 +146,7 @@ if (ncol(samples) > 4) {
 
 # Run EMMAX for each trait
 pval_dt <- lapply(1:ncol(trait), function(i) {
-    FUN_emmax(VCF, trait[, ..i], covariates, INTER_DIR)
+    FUN_emmax(VCF, trait[, ..i], covariates, INTER_DIR, EMMAX_WORK_DIR)
 }) %>%
     reduce(function(x, y) {
         left_join(x, y, by = c("SNPID", "chr", "pos"))

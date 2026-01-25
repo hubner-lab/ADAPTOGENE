@@ -97,6 +97,8 @@ SNP_DISTANCE = config.get('SNP_DISTANCE', 100000)
 PROMOTER_LENGTH = config.get('PROMOTER_LENGTH', 10000)
 SIGSNPS_METHOD = config.get('sigSNPs_METHOD', 'EMMAX')
 SIGSNPS_GAP = config.get('sigSNPs_GAP', 100000)
+REGION_DISTANCE = config.get('REGION_DISTANCE', 2000000)
+GO_FIELD = config.get('GO_FIELD', 'NULL')
 
 def parse_association_configs(config):
     """Parse ASSOCIATION_CONFIGS into method -> adjust_threshold dict."""
@@ -202,9 +204,15 @@ def add_association_paths():
     W['lfmm_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.lfmm"
     W['vcf_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.vcf"
 
+    # EMMAX work directory (kinship, tped, tfam files)
+    W['emmax_work'] = f"{WORK_FILT}emmax/"
+
     # Combined outputs
-    O['selected_snps_redundant'] = f"{TABLES}Selected_SNPs_redundant_{SIGSNPS_METHOD}_Gap{SIGSNPS_GAP}.tsv"
-    O['selected_snps_unique'] = f"{TABLES}Selected_SNPs_unique_{SIGSNPS_METHOD}_Gap{SIGSNPS_GAP}.list"
+    O['selected_snps'] = f"{TABLES}Selected_SNPs.tsv"
+    O['regions'] = f"{TABLES}Regions.tsv"
+    O['genes_per_region'] = f"{TABLES}Genes_per_region.tsv"
+    O['genes_per_region_collapsed'] = f"{TABLES}Genes_per_region_collapsed.tsv"
+    O['enrichment'] = f"{TABLES}enrichment/Enrichment_combined.tsv"
 
 add_association_paths()
 
@@ -225,7 +233,8 @@ def assoc_pvalues(method): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}.
 def assoc_sigsnps(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{adjust}.tsv"
 def assoc_genes(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}.tsv"
 def assoc_genes_collapsed(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv"
-def manhattan_plot(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}.pdf"
+def manhattan_plot(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}.png"
+def manhattan_plot_regions(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
 
 #=============================================================================
 # CREATE DIRECTORIES
@@ -238,6 +247,9 @@ dirs_to_create = [WORK, WORK_FILT, WORK_LD, PLOTS,
 for method in ASSOC_CONFIGS:
     dirs_to_create.append(f"{PLOTS}{method}/")
     dirs_to_create.append(f"{TABLES}{method}/")
+
+# Add enrichment directory
+dirs_to_create.append(f"{TABLES}enrichment/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
@@ -319,18 +331,23 @@ def get_targets(mode):
         for method, adjust in ASSOC_CONFIGS.items():
             # P-values table
             targets.append(assoc_pvalues(method))
-            # Significant SNPs
+            # Significant SNPs per method
             targets.append(assoc_sigsnps(method, adjust))
-            # Genes around significant SNPs
-            targets.append(assoc_genes(method, adjust))
-            targets.append(assoc_genes_collapsed(method, adjust))
-            # Manhattan plots per trait
+            # Manhattan plots per trait (simple + with regions)
+            # Each rule produces both PNG and SVG
             for trait in predictors:
                 targets.append(manhattan_plot(method, trait, adjust))
+                targets.append(manhattan_plot_regions(method, trait, adjust))
 
-        # Combined significant SNPs
-        targets.append(O['selected_snps_redundant'])
-        targets.append(O['selected_snps_unique'])
+        # Combined analysis targets
+        targets.append(O['selected_snps'])
+        targets.append(O['regions'])
+        targets.append(O['genes_per_region'])
+        targets.append(O['genes_per_region_collapsed'])
+
+        # Enrichment (if GO_FIELD is specified)
+        if GO_FIELD and GO_FIELD != 'NULL':
+            targets.append(O['enrichment'])
 
         return targets
 
@@ -796,14 +813,15 @@ rule emmax_analysis:
         k = K_BEST,
         predictors = PREDICTORS_SELECTED,
         inter_dir = INTER,
-        tables_dir = f"{TABLES}EMMAX/"
+        tables_dir = f"{TABLES}EMMAX/",
+        emmax_work = W['emmax_work']
     log: f"{LOGDIR}emmax_analysis.log"
     shell:
         """
         Rscript /pipeline/scripts/emmax.R \
             {input.vcf} {params.k} {input.traits} {input.covariates} \
             {params.predictors} {params.inter_dir} {input.metadata} \
-            {params.tables_dir} > {log} 2>&1
+            {params.tables_dir} {params.emmax_work} > {log} 2>&1
         """
 
 # LFMM analysis
@@ -828,11 +846,40 @@ rule lfmm_analysis:
             {params.tables_dir} > {log} 2>&1
         """
 
-# Manhattan plots - one rule per method/trait
+# Manhattan plots - simple version (runs early, no region dependency)
+# Produces both PNG and SVG in a single run
 rule manhattan_plot:
-    """Generate Manhattan plot for a specific trait and method."""
+    """Generate simple Manhattan plot for a specific trait and method."""
     input: assoc = lambda wc: assoc_pvalues(wc.method)
-    output: f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.pdf"
+    output:
+        png = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
+        svg = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+    wildcard_constraints:
+        method = r"EMMAX|LFMM",
+        trait = r"bio_\d+",
+        adjust = r"\w+_[\d.]+"
+    params:
+        k = K_BEST,
+        plot_dir = lambda wc: f"{PLOTS}{wc.method}/",
+        regions = "NULL"  # No regions for simple plot
+    log: f"{LOGDIR}manhattan_{{method}}_{{trait}}_{{adjust}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_manhattan.R \
+            {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
+            {wildcards.trait} {params.plot_dir} {params.regions} > {log} 2>&1
+        """
+
+# Manhattan plots with regions highlighted (runs after regions are created)
+# Produces both PNG and SVG in a single run
+rule manhattan_plot_regions:
+    """Generate Manhattan plot with significant regions highlighted."""
+    input:
+        assoc = lambda wc: assoc_pvalues(wc.method),
+        regions = O['regions']
+    output:
+        png = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
+        svg = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
     wildcard_constraints:
         method = r"EMMAX|LFMM",
         trait = r"bio_\d+",
@@ -840,12 +887,12 @@ rule manhattan_plot:
     params:
         k = K_BEST,
         plot_dir = lambda wc: f"{PLOTS}{wc.method}/"
-    log: f"{LOGDIR}manhattan_{{method}}_{{trait}}_{{adjust}}.log"
+    log: f"{LOGDIR}manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {input.regions} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method
@@ -866,50 +913,77 @@ rule find_sig_snps:
             {wildcards.method} {threads} {output} > {log} 2>&1
         """
 
-# Find genes around significant SNPs
-rule find_genes_around_snps:
-    """Find genes within GENE_DISTANCE of significant SNPs."""
-    input:
-        sigsnps = lambda wc: assoc_sigsnps(wc.method, wc.adjust),
-        gff = f"{INDIR}{GFF}",
-        vcfsnp = W['vcfsnp_full']
-    output:
-        genes = f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_{{adjust}}_genesAround{GENE_DISTANCE}.tsv",
-        collapsed = f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_{{adjust}}_genesAround{GENE_DISTANCE}_collapsed.tsv"
-    wildcard_constraints:
-        method = r"EMMAX|LFMM",
-        adjust = r"\w+_[\d.]+"
-    params:
-        feature = GFF_FEATURE,
-        distance = GENE_DISTANCE,
-        promoter_len = PROMOTER_LENGTH
-    log: f"{LOGDIR}find_genes_{{method}}_{{adjust}}.log"
-    threads: CPU
-    shell:
-        """
-        Rscript /pipeline/scripts/find_genes_around_snps.R \
-            {input.gff} {input.sigsnps} {params.feature} {params.distance} \
-            {params.promoter_len} {input.vcfsnp} {threads} \
-            {output.genes} {output.collapsed} > {log} 2>&1
-        """
-
-# Combine significant SNPs from different methods
-rule find_sig_snp_overlap:
+# Combine significant SNPs from different methods into Selected_SNPs table
+rule combine_selected_snps:
     """Combine significant SNPs from all association methods."""
     input:
         sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
-    output:
-        redundant = O['selected_snps_redundant'],
-        unique = O['selected_snps_unique']
+    output: O['selected_snps']
     params:
         sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
         method = SIGSNPS_METHOD,
         gap = SIGSNPS_GAP,
         predictors = PREDICTORS_SELECTED
-    log: f"{LOGDIR}find_sig_snp_overlap.log"
+    log: f"{LOGDIR}combine_selected_snps.log"
     shell:
         """
-        Rscript /pipeline/scripts/find_sig_snp_overlap.R \
+        Rscript /pipeline/scripts/combine_selected_snps.R \
             "{params.sigsnps_str}" {params.method} {params.gap} \
-            {params.predictors} {output.redundant} {output.unique} > {log} 2>&1
+            {params.predictors} {output} > {log} 2>&1
+        """
+
+# Merge SNPs into regions based on distance
+rule create_regions:
+    """Merge nearby significant SNPs into regions."""
+    input: selected_snps = O['selected_snps']
+    output: O['regions']
+    params: region_dist = REGION_DISTANCE
+    log: f"{LOGDIR}create_regions.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/create_regions.R \
+            {input.selected_snps} {params.region_dist} {output} > {log} 2>&1
+        """
+
+# Find genes around regions
+rule find_genes_around_regions:
+    """Find genes within GENE_DISTANCE of significant regions."""
+    input:
+        regions = O['regions'],
+        gff = f"{INDIR}{GFF}",
+        vcfsnp = W['vcfsnp_full']
+    output:
+        genes = O['genes_per_region'],
+        collapsed = O['genes_per_region_collapsed']
+    params:
+        feature = GFF_FEATURE,
+        distance = GENE_DISTANCE,
+        promoter_len = PROMOTER_LENGTH
+    log: f"{LOGDIR}find_genes_around_regions.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/find_genes_around_regions.R \
+            {input.gff} {input.regions} {params.feature} {params.distance} \
+            {params.promoter_len} {input.vcfsnp} {threads} \
+            {output.genes} {output.collapsed} > {log} 2>&1
+        """
+
+# GO enrichment analysis (only if GO_FIELD is specified)
+rule run_enrichment:
+    """Run GO enrichment analysis for genes around significant regions."""
+    input:
+        genes = O['genes_per_region_collapsed'],
+        gff = f"{INDIR}{GFF}"
+    output: O['enrichment']
+    params:
+        go_field = GO_FIELD,
+        feature = GFF_FEATURE,
+        tables_dir = f"{TABLES}enrichment/"
+    log: f"{LOGDIR}run_enrichment.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/run_enrichment.R \
+            {input.genes} {input.gff} {params.go_field} {params.feature} \
+            {params.tables_dir} {output} > {log} 2>&1
         """
