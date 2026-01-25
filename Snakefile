@@ -115,6 +115,7 @@ W = {
     # LD-pruned files (in LD_TAG subdirectory)
     'vcf_ld': f"{WORK_LD}{VCF_BASE}.vcf",
     'eigenvec': f"{WORK_LD}{VCF_BASE}.eigenvec",
+    'eigenval': f"{WORK_LD}{VCF_BASE}.eigenval",
     'prune_in': f"{WORK_LD}{VCF_BASE}.prune.in",
     'geno': f"{WORK_LD}{VCF_BASE}.geno",
     'lfmm': f"{WORK_LD}{VCF_BASE}.lfmm",
@@ -196,7 +197,7 @@ def get_predictors_list():
     return [p.strip() for p in PREDICTORS_SELECTED.split(',')]
 
 def get_targets(mode):
-    if mode == 'vcf_processing':
+    if mode == 'processing':
         return [W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], W['eigenvec'], O['metadata']]
     
     elif mode == 'structure':
@@ -232,7 +233,7 @@ def get_targets(mode):
         )
     
     elif mode is None:
-        raise ValueError("Specify mode: --config mode=vcf_processing or mode=structure or mode=structure_K")
+        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K")
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
@@ -272,7 +273,7 @@ rule filter_vcf:
 rule ld_prune:
     """LD prune and compute PCA."""
     input:  vcf = W['vcf_filt']
-    output: vcf = W['vcf_ld'], eigenvec = W['eigenvec'], prune = W['prune_in']
+    output: vcf = W['vcf_ld'], eigenvec = W['eigenvec'], eigenval = W['eigenval'], prune = W['prune_in']
     params: prefix = W['vcf_ld'].replace('.vcf', ''), win = LD_WIN, step = LD_STEP, r2 = LD_R2
     log:    f"{LOGDIR}ld_prune.log"
     threads: CPU
@@ -383,7 +384,11 @@ rule structure_barplot:
 
 rule pca_structure_plot:
     """Generate PCA with structure pie charts for specific K."""
-    input:  lfmm = W['lfmm'], clusters = clusters_table("{k}")
+    input:
+        lfmm = W['lfmm'],
+        clusters = clusters_table("{k}"),
+        eigenvec = W['eigenvec'],
+        eigenval = W['eigenval']
     output: pca_struct_plot("{k}")
     wildcard_constraints: k = r"\d+"
     params: k = lambda wc: wc.k, plot_dir = f"{PLOTS}pca/", inter_dir = INTER
@@ -391,8 +396,8 @@ rule pca_structure_plot:
     shell:
         """
         Rscript /pipeline/scripts/plot_pca_structure.R \
-            {input.lfmm} {input.clusters} {params.k} \
-            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.lfmm} {input.clusters} {input.eigenvec} {input.eigenval} \
+            {params.k} {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """
 
 rule pop_diff_test:
