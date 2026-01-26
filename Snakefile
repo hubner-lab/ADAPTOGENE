@@ -57,6 +57,7 @@ VCF_BASE = get_vcf_basename(VCF_RAW)
 # VCF filtering
 MAF = config['MAF']; check_float(MAF, 'MAF')
 MISS = config['MISS']; check_float(MISS, 'MISS')
+SAMPLE_MISS = config.get('SAMPLE_MISS', 0.5); check_float(SAMPLE_MISS, 'SAMPLE_MISS')
 LD_WIN = config['LDwin']; check_numeric(LD_WIN, 'LDwin')
 LD_STEP = config['LDstep']; check_numeric(LD_STEP, 'LDstep')
 LD_R2 = config['LDr2']; check_float(LD_R2, 'LDr2')
@@ -135,6 +136,9 @@ WORK_LD = f"{WORK_FILT}{LD_TAG}/"
 W = {
     # Samples (in intermediate - shared across all filtering)
     'samples_list': f"{INTER}samples.list",
+    'samples_filtered': f"{INTER}samples_filtered.list",  # After missingness filtering
+    'samples_removed': f"{INTER}samples_removed.list",    # Samples removed by missingness
+    'samples_missing_stats': f"{INTER}samples_missing_stats.tsv",  # Per-sample missing stats
     'samples_order': f"{INTER}samples_order.list",
     # Filtered VCF (in FILT_TAG directory)
     'vcf_filt': f"{WORK_FILT}{VCF_BASE}.vcf",
@@ -269,7 +273,10 @@ def get_predictors_list():
 
 def get_targets(mode):
     if mode == 'processing':
-        return [W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], W['eigenvec'], O['metadata']]
+        return [
+            W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
+            W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], W['eigenvec'], O['metadata']
+        ]
     
     elif mode == 'structure':
         ks = k_range(K_START, K_END)
@@ -373,9 +380,55 @@ rule extract_samples:
     log:    f"{LOGDIR}extract_samples.log"
     shell:  "tail -n +2 {input.samples} | awk '{{print 0, $2}}' > {output} 2> {log}"
 
+rule calculate_sample_missing:
+    """Calculate per-sample missing genotype rate and filter samples."""
+    input:
+        vcf = f"{INDIR}{VCF_RAW}",
+        samples = W['samples_list']
+    output:
+        stats = W['samples_missing_stats'],
+        filtered = W['samples_filtered'],
+        removed = W['samples_removed']
+    params:
+        threshold = SAMPLE_MISS,
+        prefix = f"{INTER}sample_miss_tmp"
+    log: f"{LOGDIR}calculate_sample_missing.log"
+    threads: CPU
+    shell:
+        """
+        # Calculate per-sample missingness using plink
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# --keep {input.samples} \
+            --missing --out {params.prefix} > {log} 2>&1
+
+        # Create stats file with header
+        echo -e "FID\\tIID\\tMISS_PHENO\\tN_MISS\\tN_GENO\\tF_MISS" > {output.stats}
+        tail -n +2 {params.prefix}.imiss >> {output.stats}
+
+        # Filter samples: keep those with F_MISS <= threshold
+        awk -v thresh={params.threshold} 'NR>1 && $6 <= thresh {{print $1, $2}}' {params.prefix}.imiss > {output.filtered}
+
+        # List removed samples: those with F_MISS > threshold
+        awk -v thresh={params.threshold} 'NR>1 && $6 > thresh {{print $1, $2, $6}}' {params.prefix}.imiss > {output.removed}
+
+        # Log summary
+        n_total=$(wc -l < {input.samples})
+        n_kept=$(wc -l < {output.filtered})
+        n_removed=$(wc -l < {output.removed})
+        echo "INFO: Sample missingness filtering (threshold: {params.threshold})" >> {log}
+        echo "INFO: Total samples: $n_total" >> {log}
+        echo "INFO: Samples passing: $n_kept" >> {log}
+        echo "INFO: Samples removed: $n_removed" >> {log}
+
+        # Cleanup temp files
+        rm -f {params.prefix}.*
+        """
+
 rule filter_vcf:
-    """Filter VCF by MAF, missingness, and sample list."""
-    input:  vcf = f"{INDIR}{VCF_RAW}", samples = W['samples_list']
+    """Filter VCF by MAF, missingness, and sample list (after sample missingness filter)."""
+    input:
+        vcf = f"{INDIR}{VCF_RAW}",
+        samples = W['samples_filtered']  # Use filtered samples list
     output: W['vcf_filt']
     params: prefix = W['vcf_filt'].replace('.vcf', ''), maf = MAF, miss = MISS
     log:    f"{LOGDIR}filter_vcf.log"
@@ -861,22 +914,26 @@ rule manhattan_plot:
     params:
         k = K_BEST,
         plot_dir = lambda wc: f"{PLOTS}{wc.method}/",
-        regions = "NULL"  # No regions for simple plot
+        regions = "NULL",  # No regions for simple plot
+        selected_snps = "NULL"  # No selected SNPs for simple plot
     log: f"{LOGDIR}manhattan_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {params.regions} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} > {log} 2>&1
         """
 
 # Manhattan plots with regions highlighted (runs after regions are created)
 # Produces both PNG and SVG in a single run
+# For combined methods (Sum/Overlap/PairOverlap), shows all selected SNPs
+# with different shapes: circle=current method, triangle=other method, diamond=both
 rule manhattan_plot_regions:
     """Generate Manhattan plot with significant regions highlighted."""
     input:
         assoc = lambda wc: assoc_pvalues(wc.method),
-        regions = O['regions']
+        regions = O['regions'],
+        selected_snps = O['selected_snps']
     output:
         png = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
         svg = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
@@ -892,7 +949,7 @@ rule manhattan_plot_regions:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {input.regions} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {input.regions} {input.selected_snps} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method

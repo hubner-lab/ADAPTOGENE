@@ -130,6 +130,8 @@ RUN Rscript -e "BiocManager::install('qvalue', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('GenomicRanges', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('WGCNA', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('clusterProfiler', version = '3.22', ask = FALSE)"
+RUN Rscript -e "BiocManager::install('AnnotationDbi', version = '3.22', ask = FALSE)"
+RUN Rscript -e "BiocManager::install('GO.db', version = '3.22', ask = FALSE)"
 
 # CRAN packages used with Bioconductor workflows
 RUN Rscript -e " \
