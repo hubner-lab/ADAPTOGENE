@@ -56,6 +56,36 @@ extract_field <- function(description, field_name) {
     str_extract(description, pattern)
 }
 
+# Get GO term descriptions from GO.db (if available)
+get_go_descriptions <- function(go_ids) {
+    # Try to load GO.db
+    if (requireNamespace("GO.db", quietly = TRUE)) {
+        message('INFO: Using GO.db for term descriptions')
+        library(GO.db)
+
+        # Get term descriptions
+        go_terms <- AnnotationDbi::select(GO.db,
+                                          keys = go_ids,
+                                          columns = c("GOID", "TERM"),
+                                          keytype = "GOID")
+
+        # Create mapping
+        term2name <- data.frame(
+            term = go_terms$GOID,
+            name = go_terms$TERM,
+            stringsAsFactors = FALSE
+        )
+
+        # Fill in missing descriptions with GO ID
+        term2name$name[is.na(term2name$name)] <- term2name$term[is.na(term2name$name)]
+
+        return(term2name)
+    } else {
+        message('WARNING: GO.db not available, descriptions will be GO IDs')
+        return(NULL)
+    }
+}
+
 #################### Main
 
 # Load genes from regions
@@ -131,6 +161,14 @@ term2gene <- gff_data %>%
 message(paste0('INFO: Created TERM2GENE with ', nrow(term2gene), ' term-gene pairs'))
 message(paste0('INFO: Unique GO terms: ', n_distinct(term2gene$term)))
 
+# Get GO term descriptions
+unique_go_ids <- unique(term2gene$term)
+term2name <- get_go_descriptions(unique_go_ids)
+
+if (!is.null(term2name)) {
+    message(paste0('INFO: Got descriptions for ', sum(!is.na(term2name$name) & term2name$name != term2name$term), ' GO terms'))
+}
+
 # Filter genes of interest to those with GO annotations
 genes_with_go <- intersect(genes_of_interest, unique(term2gene$gene))
 message(paste0('INFO: Genes of interest with GO annotations: ', length(genes_with_go)))
@@ -159,6 +197,7 @@ tryCatch({
     enrich_result <- enricher(
         gene = genes_with_go,
         TERM2GENE = term2gene,
+        TERM2NAME = term2name,  # Now includes GO term descriptions
         pvalueCutoff = 0.05,
         qvalueCutoff = 0.2,
         pAdjustMethod = "BH",
@@ -187,8 +226,17 @@ tryCatch({
             dplyr::select(ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue, geneID, Count) %>%
             setNames(c('GO_id', 'description', 'gene_ratio', 'bg_ratio', 'pvalue', 'p_adjust', 'qvalue', 'gene_ids', 'gene_count'))
 
-        # Description might be NA if not provided - use GO_id as fallback
-        result_dt$description[is.na(result_dt$description)] <- result_dt$GO_id[is.na(result_dt$description)]
+        # If description is still NA or same as GO_id, try to look it up again
+        if (!is.null(term2name)) {
+            for (i in seq_len(nrow(result_dt))) {
+                if (is.na(result_dt$description[i]) || result_dt$description[i] == result_dt$GO_id[i]) {
+                    match_idx <- which(term2name$term == result_dt$GO_id[i])
+                    if (length(match_idx) > 0 && !is.na(term2name$name[match_idx[1]])) {
+                        result_dt$description[i] <- term2name$name[match_idx[1]]
+                    }
+                }
+            }
+        }
 
         message(paste0('INFO: Found ', nrow(result_dt), ' enriched terms'))
 
