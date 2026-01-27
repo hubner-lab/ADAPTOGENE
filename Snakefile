@@ -108,6 +108,17 @@ REGIONPLOT_REGION = config.get('REGIONPLOT_REGION', 'NULL')
 REGIONPLOT_TRAITS = config.get('REGIONPLOT_TRAITS', 'NULL')
 REGIONPLOT_ASSOCMETHOD = config.get('REGIONPLOT_ASSOCMETHOD', 'NULL')
 
+# Maladaptation parameters
+SSP = config.get('SSP', '585')
+YEAR = config.get('YEAR', '2061-2080')
+MODELS_STR = config.get('MODELS', '')
+MODELS_LIST = [m.strip() for m in MODELS_STR.split(',') if m.strip()] if MODELS_STR else []
+NTREE = config.get('NTREE', '500')
+COR_THRESHOLD = config.get('COR_THRESHOLD', '0.5')
+PCNM = config.get('PCNM', 'with')
+GF_SUFFIX = config.get('GF_SUFFIX', '')
+GF_RANDOM_MODEL = config.get('GF_RANDOM_MODEL', True)
+
 def parse_association_configs(config):
     """Parse ASSOCIATION_CONFIGS into method -> adjust_threshold dict."""
     assoc_configs = config.get('ASSOCIATION_CONFIGS', [])
@@ -183,12 +194,12 @@ def add_kbest_paths():
     W['vcf_imp'] = f"{WORK_LD}{VCF_BASE}_K{K_BEST}imp.vcf"
     
     # Climate data
-    W['climate_raster'] = f"{INTER}climate_present.grd"
-    
+    W['climate_raster'] = f"{INTER}Climate_present_RasterStack.grd"
+
     # Tables
-    O['climate_site'] = f"{TABLES}climate_present_site.tsv"
-    O['climate_site_scaled'] = f"{TABLES}climate_present_site_scaled.tsv"
-    O['climate_all'] = f"{TABLES}climate_present_all.tsv"
+    O['climate_site'] = f"{TABLES}Climate_present_site.tsv"
+    O['climate_site_scaled'] = f"{TABLES}Climate_present_site_scaled.tsv"
+    O['climate_all'] = f"{TABLES}Climate_present_all.tsv"
     O['tajima'] = f"{TABLES}TajimaD_byPop.tsv"
     O['pi_div'] = f"{TABLES}Pi_diversity_byPop.tsv"
     O['ibd_raw'] = f"{TABLES}IBD_raw.tsv"
@@ -196,7 +207,7 @@ def add_kbest_paths():
     O['amova'] = f"{TABLES}AMOVA.tsv"
     
     # Plots
-    O['corr_heatmap'] = f"{PLOTS}climate/CorrelationHeatmap.png"
+    O['corr_heatmap'] = f"{PLOTS}climate/CorrelationHeatmap_present.png"
     O['mantel'] = f"{PLOTS}structure/MantelTest.png"
     O['amova_plot'] = f"{PLOTS}structure/AMOVA.png"
 
@@ -233,6 +244,42 @@ def add_association_paths():
 
 add_association_paths()
 
+# Maladaptation paths
+def add_maladaptation_paths():
+    """Add maladaptation-specific paths to W and O dictionaries."""
+    if K_BEST is None or not MODELS_LIST:
+        return
+
+    SUFFIX = f"{GF_SUFFIX}_{PCNM}PCNM"
+
+    # Per-model future climate rasters
+    for model in MODELS_LIST:
+        W[f'climate_future_{model}'] = f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_{model}.grd"
+
+    # Merged future climate
+    W['climate_future_raster'] = f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_RasterStack.grd"
+    O['climate_future_all'] = f"{TABLES}Climate_future_year{YEAR}_ssp{SSP}_all.tsv"
+    O['climate_future_site'] = f"{TABLES}Climate_future_year{YEAR}_ssp{SSP}_site.tsv"
+
+    # Gradient Forest models
+    W['gf_adaptive'] = f"{INTER}gradientForest_adaptive_{SUFFIX}.qs"
+    W['gf_random'] = f"{INTER}gradientForest_random_{SUFFIX}.qs"
+
+    # Genetic offset outputs
+    W['gf_offset_raster'] = f"{INTER}GeneticOffset_{SUFFIX}.grd"
+    O['gf_offset_map_values'] = f"{TABLES}GeneticOffset_map_{SUFFIX}.tsv"
+    O['gf_offset_site_values'] = f"{TABLES}GeneticOffset_site_{SUFFIX}.tsv"
+
+    # Gradient Forest plots
+    O['gf_offset_piemap'] = f"{PLOTS}gradientForest/GeneticOffsetPieMap_{SUFFIX}.png"
+    O['gf_cumimp'] = f"{PLOTS}gradientForest/CumulativeImportance_{SUFFIX}.png"
+    O['gf_importance'] = f"{PLOTS}gradientForest/OverallImportance_{SUFFIX}.png"
+
+    # Future climate density plot
+    O['density_future'] = f"{PLOTS}climate/DensityPlot_future_ssp{SSP}_{YEAR}.png"
+
+add_maladaptation_paths()
+
 # Templates for K-dependent outputs
 def clusters_table(k): return f"{TABLES}clusters_K{k}.tsv"
 def structure_plot(k): return f"{PLOTS}structure/structure_K{k}.png"
@@ -240,7 +287,7 @@ def pca_struct_plot(k): return f"{PLOTS}pca/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{PLOTS}structure/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
-DENSITY_PLOT_COMBINED = f"{PLOTS}climate/DensityPlot_combined.png"
+DENSITY_PLOT_COMBINED = f"{PLOTS}climate/DensityPlot_present.png"
 def piemap_tajima(bio): return f"{PLOTS}piemap/PieMap_{bio}_TajimaD.png"
 def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
 def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
@@ -270,6 +317,9 @@ dirs_to_create.append(f"{TABLES}enrichment/")
 
 # Add regionplot directory
 dirs_to_create.append(f"{PLOTS}regionplot/")
+
+# Add gradientForest directory
+dirs_to_create.append(f"{PLOTS}gradientForest/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
@@ -382,6 +432,36 @@ def get_targets(mode):
             check_file_exists(INDIR, GFF, 'GFF')
 
         return [O['regionplot_done']]
+
+    elif mode == 'maladaptation':
+        check_numeric(K_BEST, 'K_BEST')
+        check_numeric(SSP, 'SSP')
+        check_numeric(NTREE, 'NTREE')
+        check_float(COR_THRESHOLD, 'COR_THRESHOLD')
+        if not MODELS_LIST:
+            raise ValueError("MODELS must be set for maladaptation mode")
+
+        targets = [
+            # Future climate
+            O['climate_future_site'],
+            O['climate_future_all'],
+            W['climate_future_raster'],
+            # Gradient Forest models
+            W['gf_adaptive'],
+            # Genetic offset
+            O['gf_offset_map_values'],
+            O['gf_offset_site_values'],
+            # Plots
+            O['gf_cumimp'],
+            O['gf_importance'],
+            O['gf_offset_piemap'],
+            O['density_future'],
+        ]
+
+        if GF_RANDOM_MODEL:
+            targets.append(W['gf_random'])
+
+        return targets
 
     elif mode is None:
         raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association")
@@ -672,12 +752,14 @@ rule density_plot:
     params:
         predictors = PREDICTORS_SELECTED,
         plot_dir = f"{PLOTS}climate/",
-        inter_dir = INTER
+        inter_dir = INTER,
+        prefix = "DensityPlot_present"
     log:    f"{LOGDIR}density_plot.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_density.R \
-            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} \
+            {params.prefix} > {log} 2>&1
         """
 
 rule tajima_d:
@@ -1120,4 +1202,216 @@ rule regionplot:
             {params.top_regions} {params.genes} {params.plot_dir} \
             {params.custom_region} {params.custom_traits} \
             {params.custom_methods} > {log} 2>&1
+        """
+
+#=============================================================================
+# MODULE 6: MALADAPTATION
+#=============================================================================
+
+# Per-model future climate download (runs in parallel via Snakemake)
+rule download_climate_future_model:
+    """Download CMIP6 future climate data for a single model."""
+    input: samples = O['metadata']
+    output: f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_{{model}}.grd"
+    wildcard_constraints: model = r"[A-Za-z0-9_-]+"
+    params:
+        crop = CROP_REGION,
+        gap = GAP,
+        resolution = RESOLUTION,
+        data_dir = INDIR
+    log: f"{LOGDIR}download_climate_future_{{model}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/download_climate_future_model.R \
+            {input.samples} {params.crop} {params.gap} {params.data_dir} \
+            {SSP} {YEAR} {wildcards.model} {params.resolution} \
+            {output} > {log} 2>&1
+        """
+
+# Merge per-model rasters into averaged future climate
+rule merge_climate_future:
+    """Average future climate across models and extract site values."""
+    input:
+        samples = O['metadata'],
+        model_rasters = [f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_{model}.grd" for model in MODELS_LIST]
+    output:
+        raster = W['climate_future_raster'],
+        all_vals = O['climate_future_all'],
+        site_vals = O['climate_future_site']
+    params:
+        raster_str = lambda wc, input: ','.join(input.model_rasters),
+        n_models = len(MODELS_LIST)
+    log: f"{LOGDIR}merge_climate_future.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/merge_climate_future.R \
+            {input.samples} {params.raster_str} {params.n_models} \
+            {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
+        """
+
+rule density_plot_future:
+    """Generate combined density plot for future climate predictors."""
+    input: climate = O['climate_future_site']
+    output: O['density_future']
+    params:
+        predictors = PREDICTORS_SELECTED,
+        plot_dir = f"{PLOTS}climate/",
+        inter_dir = INTER,
+        prefix = f"DensityPlot_future_ssp{SSP}_{YEAR}"
+    log: f"{LOGDIR}density_plot_future.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_density.R \
+            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} \
+            {params.prefix} > {log} 2>&1
+        """
+
+# Gradient Forest - adaptive model
+rule gradient_forest_adaptive:
+    """Build adaptive Gradient Forest model using significant SNPs."""
+    input:
+        lfmm = W['lfmm_full'],
+        sigsnps = O['selected_snps'],
+        vcfsnp = W['vcfsnp_full'],
+        removed = W['removed_full'],
+        samples = O['metadata'],
+        climate = O['climate_site']
+    output: W['gf_adaptive']
+    params:
+        predictors = PREDICTORS_SELECTED,
+        ntree = NTREE,
+        cor_threshold = COR_THRESHOLD,
+        pcnm = PCNM
+    log: f"{LOGDIR}gradient_forest_adaptive.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/gradient_forest_model.R \
+            {input.lfmm} {input.sigsnps} {input.vcfsnp} {input.removed} \
+            {input.samples} {input.climate} {params.predictors} \
+            {params.ntree} {params.cor_threshold} {params.pcnm} \
+            adaptive {output} > {log} 2>&1
+        """
+
+# Gradient Forest - random/neutral model (optional)
+rule gradient_forest_random:
+    """Build neutral Gradient Forest model using random SNPs."""
+    input:
+        lfmm = W['lfmm_full'],
+        sigsnps = O['selected_snps'],
+        vcfsnp = W['vcfsnp_full'],
+        removed = W['removed_full'],
+        samples = O['metadata'],
+        climate = O['climate_site']
+    output: W['gf_random']
+    params:
+        predictors = PREDICTORS_SELECTED,
+        ntree = NTREE,
+        cor_threshold = COR_THRESHOLD,
+        pcnm = PCNM
+    log: f"{LOGDIR}gradient_forest_random.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/gradient_forest_model.R \
+            {input.lfmm} {input.sigsnps} {input.vcfsnp} {input.removed} \
+            {input.samples} {input.climate} {params.predictors} \
+            {params.ntree} {params.cor_threshold} {params.pcnm} \
+            random {output} > {log} 2>&1
+        """
+
+# Genetic offset calculation
+rule gradient_forest_offset:
+    """Calculate genetic offset between present and future climate."""
+    input:
+        gf = W['gf_adaptive'],
+        future_all = O['climate_future_all'],
+        present_all = O['climate_all'],
+        present_raster = W['climate_raster'],
+        samples = O['metadata']
+    output:
+        raster = W['gf_offset_raster'],
+        map_values = O['gf_offset_map_values'],
+        site_values = O['gf_offset_site_values']
+    params:
+        predictors = PREDICTORS_SELECTED
+    log: f"{LOGDIR}gradient_forest_offset.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/gradient_forest_offset.R \
+            {input.gf} {params.predictors} {input.future_all} {input.present_all} \
+            {input.present_raster} {input.samples} \
+            {output.raster} {output.map_values} {output.site_values} > {log} 2>&1
+        """
+
+# Cumulative importance plot
+rule plot_gf_cumimp:
+    """Plot cumulative importance curves for adaptive (and optionally neutral) GF model."""
+    input:
+        gf = W['gf_adaptive'],
+        gf_random = W['gf_random'] if GF_RANDOM_MODEL else []
+    output: O['gf_cumimp']
+    params:
+        gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
+        predictors = PREDICTORS_SELECTED,
+        plot_dir = f"{PLOTS}gradientForest/",
+        inter_dir = INTER,
+        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+    log: f"{LOGDIR}plot_gf_cumimp.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_gf_cumimp.R \
+            {input.gf} {params.gf_random_path} {params.predictors} \
+            {params.plot_dir} {params.inter_dir} {params.suffix} > {log} 2>&1
+        """
+
+# Overall importance plot
+rule plot_gf_importance:
+    """Plot R2-weighted importance for adaptive (and optionally neutral) GF model."""
+    input:
+        gf = W['gf_adaptive'],
+        gf_random = W['gf_random'] if GF_RANDOM_MODEL else []
+    output: O['gf_importance']
+    params:
+        gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
+        plot_dir = f"{PLOTS}gradientForest/",
+        inter_dir = INTER,
+        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+    log: f"{LOGDIR}plot_gf_importance.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_gf_importance.R \
+            {input.gf} {params.gf_random_path} \
+            {params.plot_dir} {params.inter_dir} {params.suffix} > {log} 2>&1
+        """
+
+# Genetic offset PieMap
+rule plot_gf_offset_piemap:
+    """Plot genetic offset on map with population structure pie charts."""
+    input:
+        offset_raster = W['gf_offset_raster'],
+        samples = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        ibd = O['ibd_pairs'],
+        tajima = O['tajima']
+    output: O['gf_offset_piemap']
+    params:
+        palette = PIEMAP_PALETTE,
+        palette_rev = PIEMAP_PALETTE_REV,
+        pie_alpha = PIEMAP_PIE_ALPHA,
+        ibd_alpha = PIEMAP_IBD_ALPHA,
+        ibd_color = PIEMAP_IBD_COLOR,
+        pop_label = PIEMAP_POP_LABEL,
+        pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        plot_dir = f"{PLOTS}gradientForest/",
+        inter_dir = INTER,
+        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+    log: f"{LOGDIR}plot_gf_offset_piemap.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_gf_offset_piemap.R \
+            {input.offset_raster} {input.samples} {input.clusters} \
+            {input.ibd} {input.tajima} \
+            {params.palette} {params.palette_rev} {params.pie_alpha} \
+            {params.ibd_alpha} {params.ibd_color} {params.pop_label} \
+            {params.pop_label_size} {params.plot_dir} {params.inter_dir} \
+            {params.suffix} > {log} 2>&1
         """

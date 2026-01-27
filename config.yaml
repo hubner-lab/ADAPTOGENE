@@ -80,6 +80,7 @@ sigSNPs_GAP: 100000 # gap for overlaping in bp (0 for identical SNPs only; ONLY 
 
 # Region and enrichment settings
 REGION_DISTANCE: 2000000 # Distance to merge nearby SNPs into regions (e.g., 2000000 for 2Mb)
+TOP_REGIONS: 10          # Keep only top N regions by snp_count for gene/enrichment analysis (0 = all)
 GO_FIELD: 'ontology'     # GFF attribute field containing GO terms (set to NULL to skip enrichment)
 
 
