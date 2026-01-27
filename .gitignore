@@ -2,5 +2,7 @@
 data/
 TEST_results/
 TEST_logs/
+SIMDATA_results/
+SIMDATA_logs/
 .snakemake/
 CLAUDE.md
