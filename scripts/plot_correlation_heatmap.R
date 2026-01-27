@@ -58,7 +58,7 @@ width <- ncol(traits) * scale_factor
 height <- ncol(traits) * scale_factor
 
 # Save
-ggsave(paste0(PLOT_DIR, 'CorrelationHeatmap.png'), gHM, width = width, height = height, units = "in")
-ggsave(paste0(PLOT_DIR, 'CorrelationHeatmap.svg'), gHM, width = width, height = height, units = "in",
+ggsave(paste0(PLOT_DIR, 'CorrelationHeatmap_present.png'), gHM, width = width, height = height, units = "in")
+ggsave(paste0(PLOT_DIR, 'CorrelationHeatmap_present.svg'), gHM, width = width, height = height, units = "in",
        device = svglite::svglite, bg = 'transparent')
-qsave(gHM, paste0(INTER_DIR, 'CorrelationHeatmap.qs'))
+qsave(gHM, paste0(INTER_DIR, 'CorrelationHeatmap_present.qs'))

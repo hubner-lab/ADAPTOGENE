@@ -158,20 +158,20 @@ message(clim_present %>% str)
 
 # Save raster
 writeRaster(clim_present$RasterStack,
-            filename = paste0(INTER_DIR, 'climate_present.grd'),
+            filename = paste0(INTER_DIR, 'Climate_present_RasterStack.grd'),
             format = "raster",
             overwrite = TRUE,
             options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 # Save all values
 clim_present$AllValues %>%
-  fwrite(paste0(TABLES_DIR, 'climate_present_all.tsv'), sep = '\t')
+  fwrite(paste0(TABLES_DIR, 'Climate_present_all.tsv'), sep = '\t')
 
 # Save site values
 clim_present$SiteValues %>%
-  fwrite(paste0(TABLES_DIR, 'climate_present_site.tsv'), sep = '\t')
+  fwrite(paste0(TABLES_DIR, 'Climate_present_site.tsv'), sep = '\t')
 
 # Save site values scaled
 clim_present$SiteValues %>%
   dplyr::mutate_all(scale) %>%
-  fwrite(paste0(TABLES_DIR, 'climate_present_site_scaled.tsv'), sep = '\t')
+  fwrite(paste0(TABLES_DIR, 'Climate_present_site_scaled.tsv'), sep = '\t')
