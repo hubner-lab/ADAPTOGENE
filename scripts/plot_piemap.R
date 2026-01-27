@@ -3,6 +3,7 @@ library(data.table)
 library(dplyr)
 library(see)
 library(ggplot2)
+library(ggrepel)
 library(raster)
 library(ggspatial)
 library(scatterpie)
@@ -93,6 +94,7 @@ FUN_pie_map <- function(samples,
                         clusters,
                         raster_layer,
                         trait = NULL,
+                        trait_name = NULL,       # name for size legend (e.g., "Tajima's D")
                         pie_size_range = NULL,  # list with min_radius, max_radius, mid_radius
                         ibd.dt = NULL,
                         ibd.line_alpha = 0.6,
@@ -159,12 +161,19 @@ FUN_pie_map <- function(samples,
     theme(legend.position = legend_position)
 
   if (pop.labels) {
+    label_data <- clusters.by.pop %>%
+      dplyr::distinct(site, .keep_all = TRUE)
     gPlot <- gPlot +
-      geom_text(data = clusters.by.pop,
-                aes(x = longitude, y = latitude, label = site),
-                alpha = pie_alpha,
-                color = 'white',
-                size = pop.label.size)
+      geom_text_repel(data = label_data,
+                      aes(x = longitude, y = latitude, label = site),
+                      alpha = 0.7,
+                      color = 'black',
+                      size = pop.label.size,
+                      box.padding = 0.5,
+                      point.padding = 0.3,
+                      segment.color = 'grey50',
+                      segment.alpha = 0.5,
+                      max.overlaps = Inf)
   }
 
   if (!is.null(ibd.dt) && nrow(ibd.dt) > 0) {
@@ -175,6 +184,50 @@ FUN_pie_map <- function(samples,
                   color = ibd.line_color,
                   alpha = ibd.line_alpha)
       })
+  }
+
+  # Add size legend showing actual trait values
+  if (!is.null(trait) && !is.null(trait_name)) {
+    trait_vals <- clusters.by.pop$trait_value
+    trait_min <- min(trait_vals, na.rm = TRUE)
+    trait_max <- max(trait_vals, na.rm = TRUE)
+    trait_mid <- (trait_min + trait_max) / 2
+
+    # Create break values and corresponding point sizes (in mm for geom_point)
+    # Map pie_radius (map units) to point size (mm) proportionally
+    size_min <- 2
+    size_max <- 6
+    size_mid <- (size_min + size_max) / 2
+
+    legend_data <- data.frame(
+      x = rep(mean(clusters.by.pop$longitude), 3),
+      y = rep(mean(clusters.by.pop$latitude), 3),
+      trait_value = c(trait_min, trait_mid, trait_max),
+      point_size = c(size_min, size_mid, size_max)
+    )
+
+    # Format legend values based on trait type
+    break_vals <- c(trait_min, trait_mid, trait_max)
+    if (grepl("Pi|pi|diversity", trait_name, ignore.case = TRUE)) {
+      break_labels <- formatC(break_vals, format = "e", digits = 2)
+    } else {
+      break_labels <- formatC(break_vals, format = "f", digits = 2)
+    }
+
+    gPlot <- gPlot +
+      geom_point(data = legend_data,
+                 aes(x = x, y = y, size = trait_value),
+                 alpha = 0) +
+      scale_size_continuous(
+        name = trait_name,
+        range = c(size_min, size_max),
+        breaks = break_vals,
+        labels = break_labels
+      ) +
+      guides(size = guide_legend(override.aes = list(alpha = 1, color = 'grey30')))
+
+    message(paste0('INFO: Added size legend for ', trait_name,
+                   ' [', round(trait_min, 3), ', ', round(trait_max, 3), ']'))
   }
 
   return(gPlot)
@@ -225,6 +278,7 @@ gTajima <- FUN_pie_map(samples,
                        clusters,
                        rlayer,
                        trait = tajima,
+                       trait_name = "Tajima's D",
                        pie_size_range = pie_size_range,
                        ibd.dt = ibd.dt,
                        ibd.line_alpha = IBD_ALPHA,
@@ -248,6 +302,7 @@ gDiversity <- FUN_pie_map(samples,
                           clusters,
                           rlayer,
                           trait = pi_diversity,
+                          trait_name = "Pi Diversity",
                           pie_size_range = pie_size_range,
                           ibd.dt = ibd.dt,
                           ibd.line_alpha = IBD_ALPHA,
@@ -277,6 +332,7 @@ if (file.exists(CUSTOM_TRAIT) && CUSTOM_TRAIT != "NULL") {
                          clusters,
                          rlayer,
                          trait = custom_trait,
+                         trait_name = trait_name,
                          pie_size_range = pie_size_range,
                          ibd.dt = ibd.dt,
                          ibd.line_alpha = IBD_ALPHA,

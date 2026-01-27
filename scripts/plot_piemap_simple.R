@@ -3,6 +3,7 @@ library(data.table)
 library(dplyr)
 library(see)
 library(ggplot2)
+library(ggrepel)
 library(raster)
 library(ggspatial)
 library(scatterpie)
@@ -109,12 +110,19 @@ FUN_pie_map_simple <- function(samples,
     theme(legend.position = legend_position)
 
   if (pop.labels) {
+    label_data <- clusters.by.pop %>%
+      dplyr::distinct(site, .keep_all = TRUE)
     gPlot <- gPlot +
-      geom_text(data = clusters.by.pop,
-                aes(x = longitude, y = latitude, label = site),
-                alpha = pie_alpha,
-                color = 'white',
-                size = pop.label.size)
+      geom_text_repel(data = label_data,
+                      aes(x = longitude, y = latitude, label = site),
+                      alpha = 0.7,
+                      color = 'black',
+                      size = pop.label.size,
+                      box.padding = 0.5,
+                      point.padding = 0.3,
+                      segment.color = 'grey50',
+                      segment.alpha = 0.5,
+                      max.overlaps = Inf)
   }
 
   return(gPlot)
