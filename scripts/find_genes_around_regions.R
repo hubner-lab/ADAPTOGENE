@@ -18,8 +18,9 @@ DISTANCE = args[4] %>% as.numeric
 PROMOTER_LENGTH = args[5] %>% as.numeric
 ALL_SNPS = args[6]  # vcfsnp file
 CPU = args[7] %>% as.numeric
-OUTPUT_GENES = args[8]
-OUTPUT_COLLAPSED = args[9]
+TOP_REGIONS = args[8] %>% as.numeric  # Keep only top N regions by snp_count (0 = all)
+OUTPUT_GENES = args[9]
+OUTPUT_COLLAPSED = args[10]
 ################
 
 message('INFO: Finding genes around significant regions')
@@ -27,26 +28,6 @@ message(paste0('INFO: Distance: ', DISTANCE))
 message(paste0('INFO: GFF feature: ', GFF_FEATURE))
 
 ######################## Functions
-
-# Harmonize chromosome names between two character vectors
-# Strips common prefixes (chr, Chr, CHR) if one side has them and the other doesn't
-# Handles formats: chr1, Chr1, CHR1, 1, chr1H, chr1H_1
-harmonize_chr_names <- function(chr_a, chr_b) {
-    has_prefix_a <- any(grepl("^[Cc][Hh][Rr]", chr_a))
-    has_prefix_b <- any(grepl("^[Cc][Hh][Rr]", chr_b))
-
-    if (has_prefix_a && !has_prefix_b) {
-        # GFF has prefix, regions don't — strip prefix from GFF side
-        message('INFO: Harmonizing chr names: stripping chr prefix from source A to match source B')
-        return(list(a = sub("^[Cc][Hh][Rr]", "", chr_a), b = chr_b))
-    } else if (!has_prefix_a && has_prefix_b) {
-        # Regions have prefix, GFF doesn't — strip prefix from regions side
-        message('INFO: Harmonizing chr names: stripping chr prefix from source B to match source A')
-        return(list(a = chr_a, b = sub("^[Cc][Hh][Rr]", "", chr_b)))
-    }
-    # Both have same convention — no change needed
-    return(list(a = chr_a, b = chr_b))
-}
 
 # Extract gene ID from Parent or ID field (only these are assumed standard)
 extract_gene_id <- function(attr) {
@@ -77,6 +58,14 @@ if (nrow(regions) == 0) {
     empty_genes %>% fwrite(OUTPUT_GENES, sep = '\t')
     empty_genes %>% fwrite(OUTPUT_COLLAPSED, sep = '\t')
     quit(save = "no", status = 0)
+}
+
+# Filter to top N regions by snp_count if specified
+if (TOP_REGIONS > 0 && nrow(regions) > TOP_REGIONS) {
+    message(paste0('INFO: Filtering to top ', TOP_REGIONS, ' regions by snp_count (from ', nrow(regions), ')'))
+    regions <- regions %>%
+        dplyr::arrange(desc(snp_count), min_pvalue) %>%
+        dplyr::slice_head(n = TOP_REGIONS)
 }
 
 message(paste0('INFO: Processing ', nrow(regions), ' regions'))
@@ -125,14 +114,6 @@ for (field in fields) {
 
 genes_gff <- genes_gff %>%
     dplyr::mutate(start = as.integer(start), end = as.integer(end))
-
-# Harmonize chromosome names between regions and GFF
-# (e.g., VCF-derived regions may have "1" while GFF has "chr1")
-chr_harmonized <- harmonize_chr_names(genes_gff$chr, regions$chr)
-genes_gff$chr <- chr_harmonized$a
-regions$chr <- chr_harmonized$b
-# Also harmonize allsnps
-allsnps$chr <- harmonize_chr_names(allsnps$chr, regions$chr)$a
 
 # Create GRanges for genes
 genes_gr <- genes_gff %>%
@@ -183,7 +164,7 @@ message(paste0('INFO: Found ', nrow(genes_per_region), ' gene-region pairs'))
 # Count SNPs in exons and promoters
 message('INFO: Counting exon/promoter SNPs')
 
-# Load exon data for SNP counting (apply same chr harmonization as genes_gff)
+# Load exon data for SNP counting
 exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::filter(V3 == 'exon') %>%
     dplyr::select(V1, V4, V5, V9) %>%
@@ -191,7 +172,6 @@ exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::mutate(chr = as.character(chr),
                   gene_id = description %>% extract_gene_id) %>%
     dplyr::select(-description)
-exon_gff$chr <- harmonize_chr_names(exon_gff$chr, regions$chr)$a
 
 # Get unique gene IDs
 unique_genes <- unique(genes_per_region$gene_id)

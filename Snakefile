@@ -98,6 +98,15 @@ SIGSNPS_METHOD = config.get('sigSNPs_METHOD', 'EMMAX')
 SIGSNPS_GAP = config.get('sigSNPs_GAP', 100000)
 REGION_DISTANCE = config.get('REGION_DISTANCE', 2000000)
 GO_FIELD = config.get('GO_FIELD', 'NULL')
+TOP_REGIONS = config.get('TOP_REGIONS', 10)
+
+# Regionplot parameters
+GFF_GENENAME = config.get('GFF_GENENAME', 'description')
+GFF_BIOTYPE = config.get('GFF_BIOTYPE', 'biotype')
+GENES_TO_HIGHLIGHT = config.get('GENES_TO_HIGHLIGHT', 'all')
+REGIONPLOT_REGION = config.get('REGIONPLOT_REGION', 'NULL')
+REGIONPLOT_TRAITS = config.get('REGIONPLOT_TRAITS', 'NULL')
+REGIONPLOT_ASSOCMETHOD = config.get('REGIONPLOT_ASSOCMETHOD', 'NULL')
 
 def parse_association_configs(config):
     """Parse ASSOCIATION_CONFIGS into method -> adjust_threshold dict."""
@@ -218,6 +227,10 @@ def add_association_paths():
     O['genes_per_region_collapsed'] = f"{TABLES}Genes_per_region_collapsed.tsv"
     O['enrichment'] = f"{TABLES}enrichment/Enrichment_combined.tsv"
 
+    # Regionplot outputs
+    O['gff_topr'] = f"{INTER}topr_gene_annotation.tsv"
+    O['regionplot_done'] = f"{PLOTS}regionplot/.done"
+
 add_association_paths()
 
 # Templates for K-dependent outputs
@@ -254,6 +267,9 @@ for method in ASSOC_CONFIGS:
 
 # Add enrichment directory
 dirs_to_create.append(f"{TABLES}enrichment/")
+
+# Add regionplot directory
+dirs_to_create.append(f"{PLOTS}regionplot/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
@@ -357,6 +373,15 @@ def get_targets(mode):
             targets.append(O['enrichment'])
 
         return targets
+
+    elif mode == 'regionplot':
+        check_numeric(K_BEST, 'K_BEST')
+        if not ASSOC_CONFIGS:
+            raise ValueError("ASSOCIATION_CONFIGS must be set for regionplot mode")
+        if GFF:
+            check_file_exists(INDIR, GFF, 'GFF')
+
+        return [O['regionplot_done']]
 
     elif mode is None:
         raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association")
@@ -1018,14 +1043,15 @@ rule find_genes_around_regions:
     params:
         feature = GFF_FEATURE,
         distance = GENE_DISTANCE,
-        promoter_len = PROMOTER_LENGTH
+        promoter_len = PROMOTER_LENGTH,
+        top_regions = TOP_REGIONS
     log: f"{LOGDIR}find_genes_around_regions.log"
     threads: CPU
     shell:
         """
         Rscript /pipeline/scripts/find_genes_around_regions.R \
             {input.gff} {input.regions} {params.feature} {params.distance} \
-            {params.promoter_len} {input.vcfsnp} {threads} \
+            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
             {output.genes} {output.collapsed} > {log} 2>&1
         """
 
@@ -1046,4 +1072,52 @@ rule run_enrichment:
         Rscript /pipeline/scripts/run_enrichment.R \
             {input.genes} {input.gff} {params.go_field} {params.feature} \
             {params.tables_dir} {output} > {log} 2>&1
+        """
+
+#=============================================================================
+# MODULE 5: REGIONPLOT
+#=============================================================================
+
+rule gff2topr:
+    """Convert GFF to topr-compatible gene annotation format."""
+    input: gff = f"{INDIR}{GFF}"
+    output: O['gff_topr']
+    params:
+        feature = GFF_FEATURE,
+        genename = GFF_GENENAME,
+        biotype = GFF_BIOTYPE
+    log: f"{LOGDIR}gff2topr.log"
+    shell:
+        """
+        python3 /pipeline/scripts/gff2topr.py \
+            {input.gff} {params.feature} {params.genename} {params.biotype} \
+            {output} > {log} 2>&1
+        """
+
+rule regionplot:
+    """Generate regional Manhattan plots for top regions with all methods overlaid."""
+    input:
+        regions = O['regions'],
+        gff_topr = O['gff_topr'],
+        assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS]
+    output: touch(O['regionplot_done'])
+    params:
+        assoc_str = ','.join([
+            f"{method}:{adjust}:{assoc_pvalues(method)}"
+            for method, adjust in ASSOC_CONFIGS.items()
+        ]),
+        top_regions = TOP_REGIONS,
+        genes = GENES_TO_HIGHLIGHT,
+        plot_dir = f"{PLOTS}regionplot/",
+        custom_region = REGIONPLOT_REGION,
+        custom_traits = REGIONPLOT_TRAITS,
+        custom_methods = REGIONPLOT_ASSOCMETHOD
+    log: f"{LOGDIR}regionplot.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_regionplot.R \
+            {input.regions} {input.gff_topr} {params.assoc_str} \
+            {params.top_regions} {params.genes} {params.plot_dir} \
+            {params.custom_region} {params.custom_traits} \
+            {params.custom_methods} > {log} 2>&1
         """
