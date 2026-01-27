@@ -39,6 +39,7 @@ extract_gene_id <- function(attr) {
 FUN_find_overlapped_genes <- function(GFF, gff_feature, sigSNPs, DISTANCE, CPU) {
 
     snps_sig <- fread(sigSNPs)
+    if ('chr' %in% colnames(snps_sig)) snps_sig$chr <- as.character(snps_sig$chr)
 
     if (nrow(snps_sig) == 0) {
         message('WARNING: No significant SNPs to process')
@@ -52,7 +53,8 @@ FUN_find_overlapped_genes <- function(GFF, gff_feature, sigSNPs, DISTANCE, CPU) 
         dplyr::filter(V3 == !!gff_feature) %>%
         dplyr::select(V1, V4, V5, V9) %>%
         setNames(c('chr', 'start', 'end', 'description')) %>%
-        dplyr::mutate(id = description %>% extract_gene_id)
+        dplyr::mutate(chr = as.character(chr),
+                      id = description %>% extract_gene_id)
 
     # Extract description fields
     fields <- genes_gff$description[1] %>%
@@ -172,7 +174,8 @@ count_exon_promoter_snps <- function(genesID, snps, GFF, promoter_len, gff_featu
 message('INFO: Loading all SNPs')
 allsnps <- fread(ALL_SNPS) %>%
     dplyr::select(V1, V2) %>%
-    setNames(c('chr', 'pos'))
+    setNames(c('chr', 'pos')) %>%
+    dplyr::mutate(chr = as.character(chr))
 message(allsnps %>% str)
 
 message('INFO: Finding overlapped genes')

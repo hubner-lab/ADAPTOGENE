@@ -20,15 +20,14 @@ CUSTOM_TRAIT = args[7]    # path or 'NULL'
 BIO = args[8]             # single bio variable name (e.g., "bio_1")
 PALLETE_MAP = args[9] %>% as.numeric
 PALLETE_MAP_reverse = args[10] %>% as.logical
-PIE_SIZE = args[11] %>% as.numeric
-PIE_ALPHA = args[12] %>% as.numeric
-IBD_ALPHA = args[13] %>% as.numeric
-IBD_COLOR = args[14]
-POP_LABELS = args[15] %>% as.logical
-PIE_RESCALE = args[16] %>% as.numeric
-POP_LABEL_SIZE = args[17] %>% as.numeric
-PLOT_DIR = args[18]
-INTER_DIR = args[19]
+PIE_ALPHA = args[11] %>% as.numeric
+IBD_ALPHA = args[12] %>% as.numeric
+IBD_COLOR = args[13]
+POP_LABELS = args[14] %>% as.logical
+POP_LABEL_SIZE = args[15] %>% as.numeric
+PLOT_DIR = args[16]
+INTER_DIR = args[17]
+# Note: PIE_SIZE and PIE_RESCALE removed - now autoscaled based on map extent
 #################################
 
 set.seed(42)
@@ -39,10 +38,62 @@ my.colors = c("#f3c300", "#a1caf1", "#be0032", "#8db600", "#e68fac", "#0067a5", 
               "#008856", "#f99379", "#604e97", "#f6a600")
 
 ############################# Function
+
+#' Calculate autoscaled pie size range based on map extent
+#' @param raster_layer Raster layer to get extent from
+#' @return List with min_radius, max_radius, mid_radius (in map units)
+calculate_pie_size_range <- function(raster_layer) {
+  map_extent <- extent(raster_layer)
+  x_range <- map_extent@xmax - map_extent@xmin
+  y_range <- map_extent@ymax - map_extent@ymin
+
+  # Use the smaller dimension to ensure pies fit well
+  map_size <- min(c(x_range, y_range))
+
+  # Define min/max as proportion of map size
+  # These proportions work well for typical population genomics maps
+  min_radius <- map_size * 0.02   # 2% of map size
+  max_radius <- map_size * 0.06   # 6% of map size
+  mid_radius <- (min_radius + max_radius) / 2
+
+  message(paste0('INFO: Map extent - X: ', round(x_range, 2), ', Y: ', round(y_range, 2)))
+  message(paste0('INFO: Autoscaled pie sizes - min: ', round(min_radius, 4),
+                 ', mid: ', round(mid_radius, 4), ', max: ', round(max_radius, 4)))
+
+  return(list(
+    min_radius = min_radius,
+    max_radius = max_radius,
+    mid_radius = mid_radius
+  ))
+}
+
+#' Scale trait values to pie radius using min-max normalization
+#' @param trait_values Numeric vector of trait values
+#' @param min_radius Minimum pie radius
+#' @param max_radius Maximum pie radius
+#' @return Numeric vector of scaled radii
+scale_trait_to_radius <- function(trait_values, min_radius, max_radius) {
+  trait_min <- min(trait_values, na.rm = TRUE)
+  trait_max <- max(trait_values, na.rm = TRUE)
+
+  # Handle case where all values are the same
+  if (trait_max == trait_min) {
+    return(rep((min_radius + max_radius) / 2, length(trait_values)))
+  }
+
+  # Min-max scaling to [min_radius, max_radius]
+  scaled <- min_radius +
+    (trait_values - trait_min) / (trait_max - trait_min) *
+    (max_radius - min_radius)
+
+  return(scaled)
+}
+
 FUN_pie_map <- function(samples,
                         clusters,
                         raster_layer,
                         trait = NULL,
+                        pie_size_range = NULL,  # list with min_radius, max_radius, mid_radius
                         ibd.dt = NULL,
                         ibd.line_alpha = 0.6,
                         ibd.line_color = 'black',
@@ -50,18 +101,16 @@ FUN_pie_map <- function(samples,
                         pallete_num = 1022614,
                         pallete_reverse = FALSE,
                         mapcolor_lim = NULL,
-                        pie.size = 10,
                         pie_alpha = 0.6,
-                        pie_rescale = 1,
                         pop.labels = FALSE,
                         pop.label.size = 5,
                         legend_map_title = 'Climate',
                         legend_pie_title = 'Clusters',
                         legend_position = 'right') {
 
-  if (is.null(trait)) {
-    trait = data.frame(site = clusters$site,
-                       trait = pie.size)
+  # Calculate pie size range if not provided
+  if (is.null(pie_size_range)) {
+    pie_size_range <- calculate_pie_size_range(raster_layer)
   }
 
   # Process cluster info by population
@@ -69,26 +118,28 @@ FUN_pie_map <- function(samples,
     dplyr::select(-sample) %>%
     dplyr::group_by(site) %>%
     dplyr::summarise_all(mean) %>%
-    dplyr::left_join(samples[, c('site', 'latitude', 'longitude')] %>% unique, by = 'site') %>%
-    dplyr::left_join(trait, by = 'site') %>%
-    dplyr::rename(trait = colnames(trait)[2])
+    dplyr::left_join(samples[, c('site', 'latitude', 'longitude')] %>% unique, by = 'site')
 
-  # Pie size scaling
-  map_extent <- extent(raster_layer)
-  x_range <- map_extent@xmax - map_extent@xmin
-  y_range <- map_extent@ymax - map_extent@ymin
-  map_size <- mean(c(x_range, y_range))
+  # Apply pie sizing based on trait or use midpoint for uniform size
+  if (is.null(trait)) {
+    # No trait: use midpoint size for all pies
+    clusters.by.pop$pie_radius <- pie_size_range$mid_radius
+    message('INFO: Using uniform midpoint pie size (no trait provided)')
+  } else {
+    # Trait provided: min-max scale trait values to pie radius
+    clusters.by.pop <- clusters.by.pop %>%
+      dplyr::left_join(trait, by = 'site') %>%
+      dplyr::rename(trait_value = colnames(trait)[2])
 
-  min_size <- 0.2
-  max_size <- 1
-
-  clusters.by.pop$trait_rescaled <- min_size +
-    (clusters.by.pop$trait - min(clusters.by.pop$trait, na.rm = TRUE)) /
-    (max(clusters.by.pop$trait, na.rm = TRUE) - min(clusters.by.pop$trait, na.rm = TRUE)) *
-    (max_size - min_size)
-
-  scaling_factor <- map_size * 0.1
-  clusters.by.pop$trait_scaled <- clusters.by.pop$trait_rescaled * scaling_factor
+    clusters.by.pop$pie_radius <- scale_trait_to_radius(
+      clusters.by.pop$trait_value,
+      pie_size_range$min_radius,
+      pie_size_range$max_radius
+    )
+    message(paste0('INFO: Scaled trait values to pie radius [',
+                   round(pie_size_range$min_radius, 4), ', ',
+                   round(pie_size_range$max_radius, 4), ']'))
+  }
 
   # Plot
 
@@ -98,7 +149,7 @@ FUN_pie_map <- function(samples,
     labs(fill = legend_map_title) +
     ggnewscale::new_scale_fill() +
     geom_scatterpie(data = clusters.by.pop,
-                    aes(x = longitude, y = latitude, group = site, r = trait_scaled),
+                    aes(x = longitude, y = latitude, group = site, r = pie_radius),
                     cols = grep('C[0-9]+', colnames(clusters), value = TRUE),
                     color = 'black',
                     alpha = pie_alpha) +
@@ -164,15 +215,20 @@ tajima <- fread(TAJIMA,
 pi_diversity <- fread(PI_DIVERSITY,
                       colClasses = c("site" = "character"))
 
-# TajimaD plot
+# Calculate autoscaled pie size range based on map extent (once for all plots)
+message('INFO: Calculating autoscaled pie sizes based on map extent')
+pie_size_range <- calculate_pie_size_range(rlayer)
+
+# TajimaD plot - pie size scaled by Tajima's D values
+message('INFO: Creating TajimaD PieMap with trait-scaled pie sizes')
 gTajima <- FUN_pie_map(samples,
                        clusters,
                        rlayer,
+                       trait = tajima,
+                       pie_size_range = pie_size_range,
                        ibd.dt = ibd.dt,
                        ibd.line_alpha = IBD_ALPHA,
                        ibd.line_color = IBD_COLOR,
-                       trait = tajima,
-                       pie.size = PIE_SIZE,
                        pie_alpha = PIE_ALPHA,
                        colors = my.colors[1:Nclust],
                        pallete_num = PALLETE_MAP,
@@ -186,15 +242,16 @@ ggsave(paste0(PLOT_DIR, "PieMap_", BIO, "_TajimaD.svg"), gTajima,
        device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
 qsave(gTajima, paste0(INTER_DIR, "PieMap_", BIO, "_TajimaD.qs"))
 
-# PiDiversity plot
+# PiDiversity plot - pie size scaled by Pi diversity values
+message('INFO: Creating PiDiversity PieMap with trait-scaled pie sizes')
 gDiversity <- FUN_pie_map(samples,
                           clusters,
                           rlayer,
+                          trait = pi_diversity,
+                          pie_size_range = pie_size_range,
                           ibd.dt = ibd.dt,
                           ibd.line_alpha = IBD_ALPHA,
                           ibd.line_color = IBD_COLOR,
-                          trait = pi_diversity,
-                          pie.size = PIE_SIZE,
                           pie_alpha = PIE_ALPHA,
                           colors = my.colors[1:Nclust],
                           pallete_num = PALLETE_MAP,
@@ -212,28 +269,30 @@ qsave(gDiversity, paste0(INTER_DIR, "PieMap_", BIO, "_PiDiversity.qs"))
 if (file.exists(CUSTOM_TRAIT) && CUSTOM_TRAIT != "NULL") {
   custom_trait <- fread(CUSTOM_TRAIT,
                         colClasses = c("site" = "character"))
-  
+
   trait_name <- custom_trait %>% dplyr::select(-site) %>% colnames
-  
+
+  message(paste0('INFO: Creating Custom trait (', trait_name, ') PieMap with trait-scaled pie sizes'))
   gCustom <- FUN_pie_map(samples,
                          clusters,
                          rlayer,
+                         trait = custom_trait,
+                         pie_size_range = pie_size_range,
                          ibd.dt = ibd.dt,
                          ibd.line_alpha = IBD_ALPHA,
                          ibd.line_color = IBD_COLOR,
-                         trait = custom_trait,
-                         pie.size = PIE_SIZE,
                          pie_alpha = PIE_ALPHA,
                          colors = my.colors[1:Nclust],
                          pallete_num = PALLETE_MAP,
                          pallete_reverse = PALLETE_MAP_reverse,
-                         pie_rescale = PIE_RESCALE,
                          pop.labels = POP_LABELS,
                          pop.label.size = POP_LABEL_SIZE,
                          legend_map_title = BIO)
-  
+
   ggsave(paste0(PLOT_DIR, "PieMap_", BIO, "_", trait_name, ".png"), gCustom)
   ggsave(paste0(PLOT_DIR, "PieMap_", BIO, "_", trait_name, ".svg"), gCustom,
          device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
   qsave(gCustom, paste0(INTER_DIR, "PieMap_", BIO, "_", trait_name, ".qs"))
 }
+
+message('INFO: PieMap plots complete')

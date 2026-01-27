@@ -26,6 +26,7 @@ message(paste0('INFO: Maximum gap between neighboring SNPs: ', REGION_DISTANCE))
 
 # Load selected SNPs
 snps <- fread(SELECTED_SNPS)
+if ('chr' %in% colnames(snps)) snps$chr <- as.character(snps$chr)
 
 if (nrow(snps) == 0) {
     message('WARNING: No SNPs to process')
@@ -46,6 +47,41 @@ if (nrow(snps) == 0) {
 }
 
 message(paste0('INFO: Processing ', nrow(snps), ' SNPs'))
+
+# Handle new Selected_SNPs format with method-specific columns (EMMAX, LFMM, etc.)
+# Reconstruct 'traits' and 'methods' columns from method-specific columns
+if (!'traits' %in% colnames(snps)) {
+    message('INFO: Detected new format with method-specific columns, reconstructing traits/methods')
+
+    # Identify method columns (everything except SNPID, chr, pos, min_pvalue)
+    method_cols <- setdiff(colnames(snps), c('SNPID', 'chr', 'pos', 'min_pvalue'))
+    message(paste0('INFO: Method columns: ', paste(method_cols, collapse = ', ')))
+
+    # Build traits and methods for each SNP
+    snps$traits <- sapply(1:nrow(snps), function(i) {
+        all_traits <- c()
+        for (m in method_cols) {
+            val <- snps[[m]][i]
+            if (!is.na(val) && val != '' && val != '""') {
+                # Remove quotes and split by comma
+                traits_m <- str_replace_all(val, '"', '') %>% str_split(',') %>% unlist
+                all_traits <- c(all_traits, traits_m)
+            }
+        }
+        paste(unique(all_traits[all_traits != '']), collapse = ',')
+    })
+
+    snps$methods <- sapply(1:nrow(snps), function(i) {
+        active_methods <- c()
+        for (m in method_cols) {
+            val <- snps[[m]][i]
+            if (!is.na(val) && val != '' && val != '""') {
+                active_methods <- c(active_methods, m)
+            }
+        }
+        paste(active_methods, collapse = ',')
+    })
+}
 
 # Convert to GRanges for region merging
 snps_gr <- snps %>%

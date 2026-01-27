@@ -34,9 +34,18 @@ message(paste0("INFO: Predictors: ", paste(PREDICTORS_SELECTED, collapse = ", ")
 # Load trait data
 trait <- fread(TRAIT_FILE, sep = '\t', header = T)
 
-# Load covariates (PCs from eigenvec)
-covariates <- fread(COVARIATES_FILE, sep = ' ', header = F)[, 3:(2 + Kbest)] %>%
-    setNames(paste0('PC', 1:Kbest))
+# Load covariates (PCs from LEA projections or PLINK eigenvec)
+# LEA format: space-separated, no header, cols = PCs (no FID/IID)
+# PLINK format: space-separated, no header, cols = FID IID PC1 PC2 ...
+cov_raw <- fread(COVARIATES_FILE, sep = ' ', header = F)
+# Detect format: if first column is all same value (FID) and second is different (IID), it's PLINK format
+if (ncol(cov_raw) > 2 && length(unique(cov_raw[[1]])) == 1 && length(unique(cov_raw[[2]])) == nrow(cov_raw)) {
+    message("INFO: Detected PLINK eigenvec format")
+    covariates <- cov_raw[, 3:(2 + Kbest)] %>% setNames(paste0('PC', 1:Kbest))
+} else {
+    message("INFO: Detected LEA projections format")
+    covariates <- cov_raw[, 1:Kbest] %>% setNames(paste0('PC', 1:Kbest))
+}
 
 ################################ Functions
 

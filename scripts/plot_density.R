@@ -1,43 +1,97 @@
+#!/usr/bin/env Rscript
+# Density plots for climate predictors - combined into single figure
 library(ggplot2)
+library(ggpubr)
 library(data.table)
 library(dplyr)
 library(qs)
 
 args = commandArgs(trailingOnly=TRUE)
 #################################
-CLIMATE = args[1]    # climate site values TSV
-BIO = args[2]        # bio variable name (e.g., "bio_1")
+CLIMATE = args[1]       # climate site values TSV
+PREDICTORS = args[2]    # comma-separated list of bio variables (e.g., "bio_1,bio_2,bio_3")
 PLOT_DIR = args[3]
 INTER_DIR = args[4]
 #################################
 
+# Parse predictors
+bio_vars <- strsplit(PREDICTORS, ",")[[1]]
+message(paste0('INFO: Creating density plots for ', length(bio_vars), ' predictors'))
+
 # Plot theme
 plot_theme <-
-  theme_classic(base_size = 12, base_family = 'Helvetica') +
-  theme(plot.title = element_text(size = 12, face = 'bold'),
-        axis.text = element_text(face = 'bold', size = 12),
-        axis.title = element_text(face = "bold", size = 16),
-        legend.text = element_text(size = 15),
-        legend.title = element_text(face = "bold", size = 15))
+  theme_classic(base_size = 10, base_family = 'Helvetica') +
+  theme(plot.title = element_text(size = 11, face = 'bold', hjust = 0.5),
+        axis.text = element_text(size = 9),
+        axis.title = element_text(face = "bold", size = 10),
+        plot.margin = margin(5, 10, 5, 10))
 
 # Load climate data
 climate <- fread(CLIMATE)
+message(paste0('INFO: Loaded climate data with ', nrow(climate), ' sites'))
 
-# Check if bio variable exists
-if (!BIO %in% colnames(climate)) {
-  stop(paste0("ERROR: Variable '", BIO, "' not found in climate data. ",
-              "Available: ", paste(colnames(climate), collapse = ", ")))
+# Create individual density plots
+plot_list <- list()
+for (bio in bio_vars) {
+  if (!bio %in% colnames(climate)) {
+    warning(paste0("Variable '", bio, "' not found in climate data, skipping"))
+    next
+  }
+
+  gDens <- climate %>%
+    ggplot(aes(x = .data[[bio]])) +
+    geom_density(fill = 'steelblue', alpha = 0.7, color = 'darkblue') +
+    labs(title = bio, x = "Value", y = "Density") +
+    plot_theme
+
+  plot_list[[bio]] <- gDens
+
+  # Save individual plot to intermediate for potential reuse
+  qsave(gDens, paste0(INTER_DIR, 'DensityPlot_', bio, '.qs'))
 }
 
-# Create density plot
-gDens <- climate %>%
-  ggplot(aes(x = .data[[BIO]])) +
-  geom_density(fill = 'blue') +
-  labs(title = BIO, x = "Values", y = "Density") +
-  plot_theme
+message(paste0('INFO: Created ', length(plot_list), ' density plots'))
 
-# Save
-ggsave(paste0(PLOT_DIR, 'DensityPlot_', BIO, '.png'), gDens)
-ggsave(paste0(PLOT_DIR, 'DensityPlot_', BIO, '.svg'), gDens,
-       device = svglite::svglite, bg = 'transparent')
-qsave(gDens, paste0(INTER_DIR, 'DensityPlot_', BIO, '.qs'))
+# Determine grid layout based on number of plots
+n_plots <- length(plot_list)
+if (n_plots == 0) {
+  stop("ERROR: No valid predictors found in climate data")
+}
+
+# Calculate optimal grid: prefer wider layouts
+if (n_plots <= 3) {
+  ncol <- n_plots
+  nrow <- 1
+} else if (n_plots <= 6) {
+  ncol <- 3
+  nrow <- ceiling(n_plots / 3)
+} else if (n_plots <= 12) {
+  ncol <- 4
+  nrow <- ceiling(n_plots / 4)
+} else {
+  ncol <- 5
+  nrow <- ceiling(n_plots / 5)
+}
+
+# Combine plots with ggarrange
+combined_plot <- ggarrange(
+  plotlist = plot_list,
+  ncol = ncol,
+  nrow = nrow,
+  align = "hv"
+)
+
+# Calculate figure dimensions based on grid
+fig_width <- ncol * 3.5
+fig_height <- nrow * 3
+
+# Save combined plot
+ggsave(paste0(PLOT_DIR, 'DensityPlot_combined.png'), combined_plot,
+       width = fig_width, height = fig_height, dpi = 300)
+ggsave(paste0(PLOT_DIR, 'DensityPlot_combined.svg'), combined_plot,
+       device = svglite::svglite, bg = 'transparent',
+       width = fig_width, height = fig_height)
+qsave(combined_plot, paste0(INTER_DIR, 'DensityPlot_combined.qs'))
+
+message(paste0('INFO: Saved combined density plot (', ncol, 'x', nrow, ' grid)'))
+message('INFO: Complete')

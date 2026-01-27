@@ -79,15 +79,13 @@ METRICS_WINSIZE = config.get('METRICS_WINSIZE', 10000)
 CALC_POP_STATS = config.get('CALC_POP_STATS', False)  # Tajima's D, Pi, AMOVA, IBD - requires >= 3 samples per population
 CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
 
-# PieMap plot parameters
+# PieMap plot parameters (PIE_SIZE and PIE_RESCALE removed - now autoscaled based on map extent)
 PIEMAP_PALETTE = config.get('PieMap_PALLETE_MAP', 1022614)
 PIEMAP_PALETTE_REV = config.get('PieMap_PALLETE_MAP_reverse', False)
-PIEMAP_PIE_SIZE = config.get('PieMap_PIE_SIZE', 0.1)
 PIEMAP_PIE_ALPHA = config.get('PieMap_PIE_ALPHA', 0.6)
 PIEMAP_IBD_ALPHA = config.get('PieMap_IBD_ALPHA', 0.6)
 PIEMAP_IBD_COLOR = config.get('PieMap_IBD_COLOR', 'black')
 PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
-PIEMAP_PIE_RESCALE = config.get('PieMap_PIE_RESCALE', 1)
 PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
 
 # Association parameters
@@ -144,11 +142,13 @@ W = {
     'vcf_filt': f"{WORK_FILT}{VCF_BASE}.vcf",
     # LD-pruned files (in LD_TAG subdirectory)
     'vcf_ld': f"{WORK_LD}{VCF_BASE}.vcf",
-    'eigenvec': f"{WORK_LD}{VCF_BASE}.eigenvec",
-    'eigenval': f"{WORK_LD}{VCF_BASE}.eigenval",
     'prune_in': f"{WORK_LD}{VCF_BASE}.prune.in",
     'geno': f"{WORK_LD}{VCF_BASE}.geno",
     'lfmm': f"{WORK_LD}{VCF_BASE}.lfmm",
+    # LEA PCA outputs (created by pca_plot rule)
+    # LEA::pca() strips extension and creates {basename}.pca/ directory
+    'pca_projections': f"{WORK_LD}{VCF_BASE}.pca/{VCF_BASE}.projections",
+    'pca_eigenvalues': f"{WORK_LD}{VCF_BASE}.pca/{VCF_BASE}.eigenvalues",
     'vcfsnp': f"{WORK_LD}{VCF_BASE}.vcfsnp",
     'removed': f"{WORK_LD}{VCF_BASE}.removed",
     'snmf': f"{WORK_LD}{VCF_BASE}.snmfProject",
@@ -227,7 +227,7 @@ def pca_struct_plot(k): return f"{PLOTS}pca/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{PLOTS}structure/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
-def density_plot(bio): return f"{PLOTS}climate/DensityPlot_{bio}.png"
+DENSITY_PLOT_COMBINED = f"{PLOTS}climate/DensityPlot_combined.png"
 def piemap_tajima(bio): return f"{PLOTS}piemap/PieMap_{bio}_TajimaD.png"
 def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
 def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
@@ -275,7 +275,7 @@ def get_targets(mode):
     if mode == 'processing':
         return [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
-            W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], W['eigenvec'], O['metadata']
+            W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata']
         ]
     
     elif mode == 'structure':
@@ -299,8 +299,8 @@ def get_targets(mode):
             [W['lfmm_imp'], W['vcf_imp']] +
             # Climate data
             [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']] +
-            # Density plots for each predictor
-            [density_plot(bio) for bio in predictors] +
+            # Combined density plot for all predictors
+            [DENSITY_PLOT_COMBINED] +
             # Correlation heatmap (doesn't require pop stats)
             [O['corr_heatmap']]
         )
@@ -443,9 +443,9 @@ rule filter_vcf:
         """
 
 rule ld_prune:
-    """LD prune and compute PCA."""
+    """LD prune VCF (PCA is done separately via LEA)."""
     input:  vcf = W['vcf_filt']
-    output: vcf = W['vcf_ld'], eigenvec = W['eigenvec'], eigenval = W['eigenval'], prune = W['prune_in']
+    output: vcf = W['vcf_ld'], prune = W['prune_in']
     params: prefix = W['vcf_ld'].replace('.vcf', ''), win = LD_WIN, step = LD_STEP, r2 = LD_R2
     log:    f"{LOGDIR}ld_prune.log"
     threads: CPU
@@ -455,12 +455,12 @@ rule ld_prune:
             --set-missing-var-ids @:# \
             --indep-pairwise {params.win} {params.step} {params.r2} \
             --out {params.prefix} > {log} 2>&1
-        
+
         plink --vcf {input.vcf} --const-fid --allow-extra-chr \
             --set-missing-var-ids @:# --extract {output.prune} \
-            --make-bed --pca --recode vcf \
+            --make-bed --recode vcf \
             --out {params.prefix} >> {log} 2>&1
-        
+
         sed -i '/^#CHROM/s/\\t0_0_/\\t/g' {output.vcf}
         """
 
@@ -504,9 +504,14 @@ rule snmf:
         """
 
 rule pca_plot:
-    """Generate PCA and Tracy-Widom plots."""
+    """Generate PCA and Tracy-Widom plots (also creates LEA PCA projections/eigenvalues)."""
     input:  lfmm = W['lfmm'], meta = O['metadata']
-    output: pca = O['pca'], pca_svg = O['pca_svg'], tracy = O['tracy']
+    output:
+        pca = O['pca'],
+        pca_svg = O['pca_svg'],
+        tracy = O['tracy'],
+        projections = W['pca_projections'],
+        eigenvalues = W['pca_eigenvalues']
     params: plot_dir = f"{PLOTS}pca/", inter_dir = INTER
     log:    f"{LOGDIR}pca_plot.log"
     shell:
@@ -555,12 +560,11 @@ rule structure_barplot:
         """
 
 rule pca_structure_plot:
-    """Generate PCA with structure pie charts for specific K."""
+    """Generate PCA with structure pie charts for specific K (uses LEA PCA)."""
     input:
-        lfmm = W['lfmm'],
         clusters = clusters_table("{k}"),
-        eigenvec = W['eigenvec'],
-        eigenval = W['eigenval']
+        projections = W['pca_projections'],
+        eigenvalues = W['pca_eigenvalues']
     output: pca_struct_plot("{k}")
     wildcard_constraints: k = r"\d+"
     params: k = lambda wc: wc.k, plot_dir = f"{PLOTS}pca/", inter_dir = INTER
@@ -568,7 +572,7 @@ rule pca_structure_plot:
     shell:
         """
         Rscript /pipeline/scripts/plot_pca_structure.R \
-            {input.lfmm} {input.clusters} {input.eigenvec} {input.eigenval} \
+            {input.clusters} {input.projections} {input.eigenvalues} \
             {params.k} {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """
 
@@ -637,16 +641,18 @@ rule download_climate_present:
         """
 
 rule density_plot:
-    """Generate density plot for a climate predictor."""
+    """Generate combined density plot for all climate predictors."""
     input:  climate = O['climate_site']
-    output: density_plot("{bio}")
-    wildcard_constraints: bio = r"bio_\d+"
-    params: bio = lambda wc: wc.bio, plot_dir = f"{PLOTS}climate/", inter_dir = INTER
-    log:    f"{LOGDIR}density_plot_{{bio}}.log"
+    output: DENSITY_PLOT_COMBINED
+    params:
+        predictors = PREDICTORS_SELECTED,
+        plot_dir = f"{PLOTS}climate/",
+        inter_dir = INTER
+    log:    f"{LOGDIR}density_plot.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_density.R \
-            {input.climate} {params.bio} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """
 
 rule tajima_d:
@@ -733,7 +739,7 @@ rule amova:
         """
 
 rule piemap_plot:
-    """Generate PieMap plots for a climate predictor."""
+    """Generate PieMap plots for a climate predictor with trait-scaled pie sizes."""
     input:
         meta = O['metadata'],
         clusters = clusters_table(K_BEST),
@@ -750,12 +756,10 @@ rule piemap_plot:
         custom_trait = f"{INDIR}{CUSTOM_TRAIT}",
         palette = PIEMAP_PALETTE,
         palette_rev = PIEMAP_PALETTE_REV,
-        pie_size = PIEMAP_PIE_SIZE,
         pie_alpha = PIEMAP_PIE_ALPHA,
         ibd_alpha = PIEMAP_IBD_ALPHA,
         ibd_color = PIEMAP_IBD_COLOR,
         pop_label = PIEMAP_POP_LABEL,
-        pie_rescale = PIEMAP_PIE_RESCALE,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER
@@ -766,13 +770,13 @@ rule piemap_plot:
             {input.meta} {input.clusters} {input.raster} {input.ibd} \
             {input.tajima} {input.diversity} {params.custom_trait} \
             {params.bio} {params.palette} {params.palette_rev} \
-            {params.pie_size} {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} \
-            {params.pop_label} {params.pie_rescale} {params.pop_label_size} \
+            {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} \
+            {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """
 
 rule piemap_simple:
-    """Generate basic PieMap plots without population statistics overlay."""
+    """Generate basic PieMap plots with autoscaled uniform pie size (no trait overlay)."""
     input:
         meta = O['metadata'],
         clusters = clusters_table(K_BEST),
@@ -783,10 +787,8 @@ rule piemap_simple:
         bio = lambda wc: wc.bio,
         palette = PIEMAP_PALETTE,
         palette_rev = PIEMAP_PALETTE_REV,
-        pie_size = PIEMAP_PIE_SIZE,
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
-        pie_rescale = PIEMAP_PIE_RESCALE,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER
@@ -796,8 +798,7 @@ rule piemap_simple:
         Rscript /pipeline/scripts/plot_piemap_simple.R \
             {input.meta} {input.clusters} {input.raster} \
             {params.bio} {params.palette} {params.palette_rev} \
-            {params.pie_size} {params.pie_alpha} \
-            {params.pop_label} {params.pie_rescale} {params.pop_label_size} \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """
 
@@ -859,7 +860,7 @@ rule emmax_analysis:
     input:
         vcf = W['vcf_filt'],
         traits = O['climate_site_scaled'],
-        covariates = W['eigenvec'],
+        covariates = W['pca_projections'],  # LEA PCA projections
         metadata = O['metadata']
     output: assoc_pvalues("EMMAX")
     params:
@@ -933,7 +934,8 @@ rule manhattan_plot_regions:
     input:
         assoc = lambda wc: assoc_pvalues(wc.method),
         regions = O['regions'],
-        selected_snps = O['selected_snps']
+        # All sigSNPs files from all methods for per-trait method attribution
+        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
     output:
         png = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
         svg = f"{PLOTS}{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
@@ -943,13 +945,14 @@ rule manhattan_plot_regions:
         adjust = r"\w+_[\d.]+"
     params:
         k = K_BEST,
-        plot_dir = lambda wc: f"{PLOTS}{wc.method}/"
+        plot_dir = lambda wc: f"{PLOTS}{wc.method}/",
+        sigsnps_str = lambda wc, input: ','.join(input.sigsnps)
     log: f"{LOGDIR}manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {input.regions} {input.selected_snps} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method

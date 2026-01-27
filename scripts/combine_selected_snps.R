@@ -50,6 +50,7 @@ sigSNPs_vec %<>% setNames(methods_vec)
 sigSNPs_lst <- lapply(sigSNPs_vec, function(x) {
     dt <- fread(x)
     if (nrow(dt) == 0) return(dt)
+    dt$chr <- as.character(dt$chr)
     dt %>%
         dplyr::filter(trait %in% !!PREDICTORS_SELECTED) %>%
         dplyr::select(SNPID, chr, pos, trait, method, pvalue)
@@ -115,31 +116,67 @@ if (METHOD %in% names(sigSNPs_lst)) {
 # Handle empty results
 if (is.null(snpIDs) || nrow(snpIDs) == 0) {
     message('WARNING: No SNPs found with specified method')
+    # Create empty table with method columns
     empty_dt <- data.table(
         SNPID = character(),
         chr = character(),
-        pos = integer(),
-        traits = character(),
-        methods = character(),
-        min_pvalue = numeric()
+        pos = integer()
     )
+    for (m in methods_vec) {
+        empty_dt[[m]] <- character()
+    }
+    empty_dt$min_pvalue <- numeric()
     empty_dt %>% fwrite(OUTPUT, sep = '\t')
 } else {
-    # Collapse by SNPID: aggregate traits, methods, and min pvalue
+    # Get unique SNPIDs from selected SNPs
+    selected_snp_ids <- unique(snpIDs$SNPID)
+
+    # Build per-method trait attribution for selected SNPs
+    # For each SNP, list which traits it's significant for in each method
+    method_traits <- lapply(methods_vec, function(m) {
+        if (is.null(sigSNPs_lst[[m]]) || nrow(sigSNPs_lst[[m]]) == 0) {
+            return(data.frame(SNPID = character(), traits = character(), stringsAsFactors = FALSE))
+        }
+        sigSNPs_lst[[m]] %>%
+            dplyr::filter(SNPID %in% selected_snp_ids) %>%
+            group_by(SNPID) %>%
+            summarise(traits = paste(unique(trait), collapse = ','), .groups = 'drop') %>%
+            as.data.frame()
+    }) %>% setNames(methods_vec)
+
+    # Build base result with unique SNPs
     result <- snpIDs %>%
         as.data.table %>%
         group_by(SNPID, chr, pos) %>%
-        summarise(
-            traits = paste(unique(trait), collapse = ','),
-            methods = paste(unique(method), collapse = ','),
-            min_pvalue = min(pvalue),
-            .groups = 'drop'
-        ) %>%
+        summarise(min_pvalue = min(pvalue), .groups = 'drop') %>%
         dplyr::arrange(chr, pos) %>%
-        as.data.table
+        as.data.frame()
 
-    result %>% fwrite(OUTPUT, sep = '\t')
+    # Add method-specific trait columns
+    for (m in methods_vec) {
+        mt <- method_traits[[m]]
+        if (nrow(mt) > 0) {
+            result <- result %>%
+                left_join(mt %>% dplyr::rename(!!m := traits), by = "SNPID")
+        } else {
+            result[[m]] <- NA_character_
+        }
+        # Replace NA with empty string for cleaner output
+        result[[m]][is.na(result[[m]])] <- ""
+    }
+
+    # Reorder columns: SNPID, chr, pos, <methods>, min_pvalue
+    col_order <- c("SNPID", "chr", "pos", methods_vec, "min_pvalue")
+    result <- result[, col_order]
+
+    result %>% as.data.table %>% fwrite(OUTPUT, sep = '\t')
     message(paste0('INFO: Saved ', nrow(result), ' unique SNPs to ', OUTPUT))
+
+    # Log summary per method
+    for (m in methods_vec) {
+        n_with_method <- sum(result[[m]] != "", na.rm = TRUE)
+        message(paste0('INFO: ', m, ': ', n_with_method, ' SNPs with significant traits'))
+    }
 }
 
 message('INFO: Complete')

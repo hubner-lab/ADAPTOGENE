@@ -46,6 +46,7 @@ FUN_max_pvalue_top <- function(pvalues, topN) {
 FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
 
     snps_assoc <- fread(ASSOC_PVAL)
+    snps_assoc$chr <- as.character(snps_assoc$chr)
     message(snps_assoc %>% str)
 
     traits <- snps_assoc %>% dplyr::select(-SNPID, -chr, -pos) %>% colnames

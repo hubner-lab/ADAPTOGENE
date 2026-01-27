@@ -1,4 +1,3 @@
-library(LEA)
 library(ggplot2)
 library(dplyr)
 library(data.table)
@@ -7,13 +6,12 @@ library(qs)
 
 args = commandArgs(trailingOnly=TRUE)
 #################################
-LFMM = args[1]
-CLUSTERS = args[2]
-EIGENVECTORS = args[3]
-EIGENVALUES = args[4]
-K = args[5] %>% as.numeric
-PLOT_DIR = args[6]
-INTER_DIR = args[7]
+CLUSTERS = args[1]
+PROJECTIONS = args[2]  # LEA PCA projections file
+EIGENVALUES = args[3]  # LEA PCA eigenvalues file
+K = args[4] %>% as.numeric
+PLOT_DIR = args[5]
+INTER_DIR = args[6]
 #################################
 
 # Colors
@@ -32,24 +30,28 @@ plot_theme <-
 
 # Load clusters
 clusters <- fread(CLUSTERS)
+message(clusters %>% str)
 
-		    message(clusters %>% str)
-# Preprocess - use paste0 for naming, not gsub
-# Load PCA
-eigenvectors <- fread(EIGENVECTORS, header = F) %>%
-           setNames(paste0('PC', 1:ncol(.)))
-		    message(eigenvectors %>% str)
-eigenvalues <- fread(EIGENVALUES, header = F)$V1
-    message(eigenvalues %>% str)
+# Load LEA PCA projections (space-separated, no header, rows = samples, cols = PCs)
+projections <- fread(PROJECTIONS, header = FALSE)
+# Rename columns to PC1, PC2, etc.
+colnames(projections) <- paste0('PC', 1:ncol(projections))
+message(projections %>% str)
+
+# Load LEA eigenvalues (one value per line)
+eigenvalues <- fread(EIGENVALUES, header = FALSE)$V1
+message(eigenvalues %>% str)
 
 # Validate dimensions
-if (nrow(clusters) != nrow(eigenvectors)) {
+if (nrow(clusters) != nrow(projections)) {
     stop(paste0("ERROR: Row count mismatch! Clusters has ", nrow(clusters),
-                " rows but PCA projections has ", nrow(eigenvectors), " rows."))
+                " rows but PCA projections has ", nrow(projections), " rows."))
 }
 
-df <- cbind(clusters, eigenvectors[, 1:4])
+# Combine clusters with PCA projections
+df <- cbind(clusters, projections[, 1:min(4, ncol(projections))])
 
+# Calculate variance explained
 var.explained <- c((eigenvalues[1] / sum(eigenvalues)) * 100,
                    (eigenvalues[2] / sum(eigenvalues)) * 100)
 
@@ -69,3 +71,5 @@ ggsave(paste0(PLOT_DIR, 'pca_structure_K', K, '.png'), gPCA)
 ggsave(paste0(PLOT_DIR, 'pca_structure_K', K, '.svg'), gPCA,
        device = svglite::svglite, bg = "transparent")
 qsave(gPCA, paste0(INTER_DIR, 'pca_structure_K', K, '.qs'))
+
+message('INFO: PCA structure plot complete')

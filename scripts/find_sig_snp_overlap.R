@@ -57,6 +57,7 @@ message(paste0('INFO: Methods detected: ', paste(methods_vec, collapse = ', ')))
 sigSNPs_lst <- lapply(sigSNPs_vec, function(x) {
     dt <- fread(x)
     if (nrow(dt) == 0) return(dt)
+    dt$chr <- as.character(dt$chr)
     dt %>%
         dplyr::filter(trait %in% !!PREDICTORS_SELECTED) %>%
         dplyr::select(SNPID, chr, pos, trait, method, pvalue)

@@ -28,6 +28,26 @@ message(paste0('INFO: GFF feature: ', GFF_FEATURE))
 
 ######################## Functions
 
+# Harmonize chromosome names between two character vectors
+# Strips common prefixes (chr, Chr, CHR) if one side has them and the other doesn't
+# Handles formats: chr1, Chr1, CHR1, 1, chr1H, chr1H_1
+harmonize_chr_names <- function(chr_a, chr_b) {
+    has_prefix_a <- any(grepl("^[Cc][Hh][Rr]", chr_a))
+    has_prefix_b <- any(grepl("^[Cc][Hh][Rr]", chr_b))
+
+    if (has_prefix_a && !has_prefix_b) {
+        # GFF has prefix, regions don't — strip prefix from GFF side
+        message('INFO: Harmonizing chr names: stripping chr prefix from source A to match source B')
+        return(list(a = sub("^[Cc][Hh][Rr]", "", chr_a), b = chr_b))
+    } else if (!has_prefix_a && has_prefix_b) {
+        # Regions have prefix, GFF doesn't — strip prefix from regions side
+        message('INFO: Harmonizing chr names: stripping chr prefix from source B to match source A')
+        return(list(a = chr_a, b = sub("^[Cc][Hh][Rr]", "", chr_b)))
+    }
+    # Both have same convention — no change needed
+    return(list(a = chr_a, b = chr_b))
+}
+
 # Extract gene ID from Parent or ID field (only these are assumed standard)
 extract_gene_id <- function(attr) {
     id <- str_extract(attr, "(?<=Parent=)[^;]+")
@@ -46,6 +66,7 @@ clean_attr_value <- function(x) {
 
 # Load regions
 regions <- fread(REGIONS)
+if ('chr' %in% colnames(regions)) regions$chr <- as.character(regions$chr)
 
 if (nrow(regions) == 0) {
     message('WARNING: No regions to process')
@@ -64,14 +85,16 @@ message(paste0('INFO: Processing ', nrow(regions), ' regions'))
 message('INFO: Loading all SNPs')
 allsnps <- fread(ALL_SNPS) %>%
     dplyr::select(V1, V2) %>%
-    setNames(c('chr', 'pos'))
+    setNames(c('chr', 'pos')) %>%
+    dplyr::mutate(chr = as.character(chr))
 
 # Load GFF
 message('INFO: Loading GFF')
 genes_gff_raw <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::filter(V3 == !!GFF_FEATURE) %>%
     dplyr::select(V1, V4, V5, V9) %>%
-    setNames(c('chr', 'start', 'end', 'description'))
+    setNames(c('chr', 'start', 'end', 'description')) %>%
+    dplyr::mutate(chr = as.character(chr))
 
 # Extract gene ID
 genes_gff_raw <- genes_gff_raw %>%
@@ -102,6 +125,14 @@ for (field in fields) {
 
 genes_gff <- genes_gff %>%
     dplyr::mutate(start = as.integer(start), end = as.integer(end))
+
+# Harmonize chromosome names between regions and GFF
+# (e.g., VCF-derived regions may have "1" while GFF has "chr1")
+chr_harmonized <- harmonize_chr_names(genes_gff$chr, regions$chr)
+genes_gff$chr <- chr_harmonized$a
+regions$chr <- chr_harmonized$b
+# Also harmonize allsnps
+allsnps$chr <- harmonize_chr_names(allsnps$chr, regions$chr)$a
 
 # Create GRanges for genes
 genes_gr <- genes_gff %>%
@@ -152,13 +183,15 @@ message(paste0('INFO: Found ', nrow(genes_per_region), ' gene-region pairs'))
 # Count SNPs in exons and promoters
 message('INFO: Counting exon/promoter SNPs')
 
-# Load exon data for SNP counting
+# Load exon data for SNP counting (apply same chr harmonization as genes_gff)
 exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::filter(V3 == 'exon') %>%
     dplyr::select(V1, V4, V5, V9) %>%
     setNames(c('chr', 'start', 'end', 'description')) %>%
-    dplyr::mutate(gene_id = description %>% extract_gene_id) %>%
+    dplyr::mutate(chr = as.character(chr),
+                  gene_id = description %>% extract_gene_id) %>%
     dplyr::select(-description)
+exon_gff$chr <- harmonize_chr_names(exon_gff$chr, regions$chr)$a
 
 # Get unique gene IDs
 unique_genes <- unique(genes_per_region$gene_id)

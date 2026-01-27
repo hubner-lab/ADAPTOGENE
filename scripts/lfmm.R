@@ -48,7 +48,8 @@ message('INFO: Read VCFSNP')
 vcfsnp <- fread(VCFSNP, sep = ' ', header = F) %>%
     dplyr::select(V1, V2) %>%
     setNames(c('chr', 'pos')) %>%
-    dplyr::mutate(SNPID = paste0(chr, ':', pos)) %>%
+    dplyr::mutate(chr = as.character(chr),
+                  SNPID = paste0(chr, ':', pos)) %>%
     dplyr::select(SNPID, chr, pos)
 
 # Run LFMM2 separately for each predictor

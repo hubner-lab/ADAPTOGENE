@@ -19,15 +19,15 @@ METHOD = args[4]        # EMMAX or LFMM (current plot method)
 TRAIT = args[5]         # single trait name, e.g., "bio_1"
 PLOT_DIR = args[6]      # output directory
 REGIONS_FILE = args[7]  # optional: Regions.tsv for highlighting (can be "NULL")
-SELECTED_SNPS_FILE = args[8]  # optional: Selected_SNPs.tsv for combined method highlighting (can be "NULL")
+SIGSNPS_FILES = args[8] # comma-separated list of sigSNPs files from all methods
 ################################
 
 # Handle optional files
 if (is.na(REGIONS_FILE) || REGIONS_FILE == "NULL" || REGIONS_FILE == "") {
     REGIONS_FILE <- NULL
 }
-if (is.na(SELECTED_SNPS_FILE) || SELECTED_SNPS_FILE == "NULL" || SELECTED_SNPS_FILE == "") {
-    SELECTED_SNPS_FILE <- NULL
+if (is.na(SIGSNPS_FILES) || SIGSNPS_FILES == "NULL" || SIGSNPS_FILES == "") {
+    SIGSNPS_FILES <- NULL
 }
 
 message(paste0('INFO: Manhattan plot for ', METHOD, ' - ', TRAIT))
@@ -126,6 +126,7 @@ get_region_colors <- function(n_regions) {
 # Load association data
 message('INFO: Loading association data')
 snps_assoc <- fread(ASSOC_TABLE, sep = '\t', header = T)
+snps_assoc$chr <- as.character(snps_assoc$chr)
 message(paste0('INFO: Loaded ', nrow(snps_assoc), ' SNPs'))
 
 # Check if trait exists
@@ -235,11 +236,13 @@ regions_generated <- FALSE
 if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
     message('INFO: Loading regions for highlighting')
     regions <- fread(REGIONS_FILE)
+    if ('chr' %in% colnames(regions)) regions$chr <- as.character(regions$chr)
 
     if (nrow(regions) > 0) {
-        # Filter regions that contain the current trait
+        # Filter regions that contain the current trait (exact match, not substring)
+        # Use word boundary to avoid "bio_1" matching "bio_12"
         regions_trait <- regions %>%
-            dplyr::filter(str_detect(traits, TRAIT))
+            dplyr::filter(str_detect(traits, paste0("(^|,)", TRAIT, "(,|$)")))
 
         message(paste0('INFO: Found ', nrow(regions_trait), ' regions for trait ', TRAIT))
 
@@ -254,30 +257,71 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             }
 
             # Add cumulative positions to regions
+            # Ensure chr types match (fread may read chr as integer)
             regions_trait <- regions_trait %>%
+                dplyr::mutate(chr = as.character(chr)) %>%
                 left_join(chr_info %>%
                          dplyr::mutate(chr = as.character(chr_f)) %>%
                          dplyr::select(chr, tot),
                          by = "chr") %>%
                 dplyr::mutate(
                     start_cum = start + tot,
-                    end_cum = end + tot,
-                    # For single SNP regions, expand slightly for visibility
-                    start_cum = ifelse(start == end, start_cum - 5e6, start_cum),
-                    end_cum = ifelse(start == end, end_cum + 5e6, end_cum)
+                    end_cum = end + tot
                 )
 
-            # Load Selected_SNPs if available to determine method source
-            selected_snps <- NULL
-            if (!is.null(SELECTED_SNPS_FILE) && file.exists(SELECTED_SNPS_FILE)) {
-                message('INFO: Loading Selected_SNPs for method attribution')
-                selected_snps <- fread(SELECTED_SNPS_FILE)
+            # Ensure all region boxes have a visible minimum width
+            # Use 1.5% of total genome span as minimum half-width
+            total_span <- max(plot_df$pos_cum) - min(plot_df$pos_cum)
+            min_half_width <- total_span * 0.015
 
-                # Filter for current trait
-                selected_snps_trait <- selected_snps %>%
-                    dplyr::filter(str_detect(traits, TRAIT))
+            regions_trait <- regions_trait %>%
+                dplyr::mutate(
+                    region_center = (start_cum + end_cum) / 2,
+                    region_half_width = pmax((end_cum - start_cum) / 2, min_half_width),
+                    start_cum = region_center - region_half_width,
+                    end_cum = region_center + region_half_width
+                ) %>%
+                dplyr::select(-region_center, -region_half_width)
 
-                message(paste0('INFO: Found ', nrow(selected_snps_trait), ' selected SNPs for trait ', TRAIT))
+            # Load sigSNPs from all methods for per-trait method attribution
+            method_snps <- list()
+            if (!is.null(SIGSNPS_FILES)) {
+                message('INFO: Loading sigSNPs files for per-trait method attribution')
+                sigsnps_vec <- str_split(SIGSNPS_FILES, ',')[[1]]
+                sigsnps_vec <- sigsnps_vec[sigsnps_vec != ""]
+
+                for (sigfile in sigsnps_vec) {
+                    if (file.exists(sigfile)) {
+                        dt <- fread(sigfile)
+                        if ('chr' %in% colnames(dt)) dt$chr <- as.character(dt$chr)
+                        if (nrow(dt) > 0) {
+                            # Extract method from filename (e.g., "EMMAX" from "EMMAX_pvalues_K5_sigSNPs_bonf_0.05.tsv")
+                            file_method <- basename(sigfile) %>% str_extract("^[A-Z]+")
+                            # Filter for current trait only
+                            dt_trait <- dt %>% dplyr::filter(trait == TRAIT)
+                            if (nrow(dt_trait) > 0) {
+                                method_snps[[file_method]] <- dt_trait$SNPID
+                                message(paste0('INFO: ', file_method, ' has ', nrow(dt_trait), ' sigSNPs for ', TRAIT))
+                            }
+                        }
+                    }
+                }
+            }
+
+            # Build per-trait method attribution lookup
+            snp_method_lookup <- NULL
+            if (length(method_snps) > 0) {
+                all_sig_snps <- unique(unlist(method_snps))
+                snp_method_lookup <- data.frame(
+                    SNPID = all_sig_snps,
+                    stringsAsFactors = FALSE
+                )
+                # Determine which methods detected each SNP for this trait
+                snp_method_lookup$source_method <- sapply(all_sig_snps, function(snp) {
+                    methods_with_snp <- names(method_snps)[sapply(method_snps, function(m) snp %in% m)]
+                    paste(methods_with_snp, collapse = ',')
+                })
+                message(paste0('INFO: Built method lookup for ', nrow(snp_method_lookup), ' sigSNPs for ', TRAIT))
             }
 
             # Initialize region marking
@@ -285,7 +329,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 dplyr::mutate(
                     in_region = FALSE,
                     region_id = NA_character_,
-                    source_method = NA_character_  # Which method(s) detected this SNP
+                    source_method = NA_character_  # Which method(s) detected this SNP for THIS trait
                 )
 
             # Mark SNPs that are in regions
@@ -293,27 +337,27 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 r <- regions_trait[i, ]
 
                 # Find SNPs within the region boundaries (with some padding)
-                in_this_region <- plot_df_regions$chr == r$chr &
+                in_this_region <- as.character(plot_df_regions$chr) == as.character(r$chr) &
                                   plot_df_regions$pos >= (r$start - 500000) &
                                   plot_df_regions$pos <= (r$end + 500000)
 
-                # If we have Selected_SNPs info, use it to determine which SNPs to highlight
-                if (!is.null(selected_snps) && nrow(selected_snps_trait) > 0) {
-                    # Get SNPs from Selected_SNPs that are in this region
-                    region_selected <- selected_snps_trait %>%
+                # If we have per-trait method lookup, use it
+                if (!is.null(snp_method_lookup) && nrow(snp_method_lookup) > 0) {
+                    # Get SNPs that are significant (in any method) for this trait AND in this region
+                    region_sig_snps <- snp_method_lookup %>%
                         dplyr::filter(SNPID %in% plot_df_regions$SNPID[in_this_region])
 
-                    # Mark SNPs that are in Selected_SNPs AND in this region
-                    for (j in seq_len(nrow(region_selected))) {
-                        snp_row <- which(plot_df_regions$SNPID == region_selected$SNPID[j])
+                    # Mark SNPs with their trait-specific method attribution
+                    for (j in seq_len(nrow(region_sig_snps))) {
+                        snp_row <- which(plot_df_regions$SNPID == region_sig_snps$SNPID[j])
                         if (length(snp_row) > 0) {
                             plot_df_regions$in_region[snp_row] <- TRUE
                             plot_df_regions$region_id[snp_row] <- r$region_id
-                            plot_df_regions$source_method[snp_row] <- region_selected$methods[j]
+                            plot_df_regions$source_method[snp_row] <- region_sig_snps$source_method[j]
                         }
                     }
                 } else {
-                    # No Selected_SNPs file - use only significant SNPs for current method
+                    # No method lookup - use only significant SNPs for current method
                     snps_to_mark <- in_this_region & plot_df_regions$is_significant
                     plot_df_regions$in_region[snps_to_mark] <- TRUE
                     plot_df_regions$region_id[snps_to_mark] <- r$region_id
@@ -345,12 +389,12 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             n_in_regions <- sum(plot_df_regions$in_region)
             message(paste0('INFO: ', n_in_regions, ' SNPs to highlight in regions'))
 
-            # Count by source
-            if (!is.null(selected_snps) && n_in_regions > 0) {
+            # Count by source (per-trait method attribution)
+            if (!is.null(snp_method_lookup) && n_in_regions > 0) {
                 n_current <- sum(plot_df_regions$in_region & plot_df_regions$source_method == METHOD, na.rm = TRUE)
                 n_both <- sum(plot_df_regions$in_region & str_detect(plot_df_regions$source_method, ","), na.rm = TRUE)
                 n_other <- n_in_regions - n_current - n_both
-                message(paste0('INFO: Sources: ', METHOD, '=', n_current, ', other=', n_other, ', both=', n_both))
+                message(paste0('INFO: Per-trait sources for ', TRAIT, ': ', METHOD, '=', n_current, ', other=', n_other, ', both=', n_both))
             }
 
             # Create the plot with region highlighting
