@@ -173,7 +173,7 @@ W = {
 
 # Output paths (organized results)
 O = {
-    'metadata': f"{TABLES}metadata.tsv",
+    'metadata': f"{TABLES}structure/metadata.tsv",
     'pca': f"{PLOTS}pca/pca.png",
     'pca_svg': f"{PLOTS}pca/pca.svg",
     'tracy': f"{PLOTS}pca/tracy_widom.png",
@@ -193,15 +193,16 @@ def add_kbest_paths():
     # Climate data
     W['climate_raster'] = f"{INTER}Climate_present_RasterStack.grd"
 
-    # Tables
-    O['climate_site'] = f"{TABLES}Climate_present_site.tsv"
-    O['climate_site_scaled'] = f"{TABLES}Climate_present_site_scaled.tsv"
-    O['climate_all'] = f"{TABLES}Climate_present_all.tsv"
-    O['tajima'] = f"{TABLES}TajimaD_byPop.tsv"
-    O['pi_div'] = f"{TABLES}Pi_diversity_byPop.tsv"
-    O['ibd_raw'] = f"{TABLES}IBD_raw.tsv"
-    O['ibd_pairs'] = f"{TABLES}IBD_notIsolated.tsv"
-    O['amova'] = f"{TABLES}AMOVA.tsv"
+    # Tables - climate
+    O['climate_site'] = f"{TABLES}climate/Climate_present_site.tsv"
+    O['climate_site_scaled'] = f"{TABLES}climate/Climate_present_site_scaled.tsv"
+    O['climate_all'] = f"{TABLES}climate/Climate_present_all.tsv"
+    # Tables - structure/population stats
+    O['tajima'] = f"{TABLES}structure/TajimaD_byPop.tsv"
+    O['pi_div'] = f"{TABLES}structure/Pi_diversity_byPop.tsv"
+    O['ibd_raw'] = f"{TABLES}structure/IBD_raw.tsv"
+    O['ibd_pairs'] = f"{TABLES}structure/IBD_notIsolated.tsv"
+    O['amova'] = f"{TABLES}structure/AMOVA.tsv"
     
     # Plots
     O['corr_heatmap'] = f"{PLOTS}climate/CorrelationHeatmap_present.png"
@@ -228,12 +229,12 @@ def add_association_paths():
     # EMMAX work directory (kinship, tped, tfam files)
     W['emmax_work'] = f"{WORK_FILT}emmax/"
 
-    # Combined outputs
-    O['selected_snps'] = f"{TABLES}Selected_SNPs.tsv"
-    O['regions'] = f"{TABLES}Regions.tsv"
-    O['genes_per_region'] = f"{TABLES}Genes_per_region.tsv"
-    O['genes_per_region_collapsed'] = f"{TABLES}Genes_per_region_collapsed.tsv"
-    O['enrichment'] = f"{TABLES}enrichment/Enrichment_combined.tsv"
+    # Combined outputs - association
+    O['selected_snps'] = f"{TABLES}association/Selected_SNPs.tsv"
+    O['regions'] = f"{TABLES}association/Regions.tsv"
+    O['genes_per_region'] = f"{TABLES}association/Genes_per_region.tsv"
+    O['genes_per_region_collapsed'] = f"{TABLES}association/Genes_per_region_collapsed.tsv"
+    O['enrichment'] = f"{TABLES}association/enrichment/Enrichment_combined.tsv"
 
     # Regionplot outputs
     O['gff_topr'] = f"{INTER}topr_gene_annotation.tsv"
@@ -255,8 +256,8 @@ def add_maladaptation_paths():
 
     # Merged future climate
     W['climate_future_raster'] = f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_RasterStack.grd"
-    O['climate_future_all'] = f"{TABLES}Climate_future_year{YEAR}_ssp{SSP}_all.tsv"
-    O['climate_future_site'] = f"{TABLES}Climate_future_year{YEAR}_ssp{SSP}_site.tsv"
+    O['climate_future_all'] = f"{TABLES}climate/Climate_future_year{YEAR}_ssp{SSP}_all.tsv"
+    O['climate_future_site'] = f"{TABLES}climate/Climate_future_year{YEAR}_ssp{SSP}_site.tsv"
 
     # Gradient Forest models
     W['gf_adaptive'] = f"{INTER}gradientForest_adaptive_{SUFFIX}.qs"
@@ -264,8 +265,8 @@ def add_maladaptation_paths():
 
     # Genetic offset outputs
     W['gf_offset_raster'] = f"{INTER}GeneticOffset_{SUFFIX}.grd"
-    O['gf_offset_map_values'] = f"{TABLES}GeneticOffset_map_{SUFFIX}.tsv"
-    O['gf_offset_site_values'] = f"{TABLES}GeneticOffset_site_{SUFFIX}.tsv"
+    O['gf_offset_map_values'] = f"{TABLES}gradientForest/GeneticOffset_map_{SUFFIX}.tsv"
+    O['gf_offset_site_values'] = f"{TABLES}gradientForest/GeneticOffset_site_{SUFFIX}.tsv"
 
     # Gradient Forest plots
     O['gf_offset_piemap'] = f"{PLOTS}gradientForest/GeneticOffsetPieMap_{SUFFIX}.png"
@@ -280,7 +281,7 @@ def add_maladaptation_paths():
 add_maladaptation_paths()
 
 # Templates for K-dependent outputs
-def clusters_table(k): return f"{TABLES}clusters_K{k}.tsv"
+def clusters_table(k): return f"{TABLES}structure/clusters_K{k}.tsv"
 def structure_plot(k): return f"{PLOTS}structure/structure_K{k}.png"
 def pca_struct_plot(k): return f"{PLOTS}pca/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{PLOTS}structure/pop_diff_K{k}.png"
@@ -292,10 +293,10 @@ def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
 def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
 
 # Templates for association outputs
-def assoc_pvalues(method): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}.tsv"
-def assoc_sigsnps(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{adjust}.tsv"
-def assoc_genes(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}.tsv"
-def assoc_genes_collapsed(method, adjust): return f"{TABLES}{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv"
+def assoc_pvalues(method): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}.tsv"
+def assoc_sigsnps(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{adjust}.tsv"
+def assoc_genes(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}.tsv"
+def assoc_genes_collapsed(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv"
 def manhattan_plot(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def manhattan_plot_regions(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
 
@@ -304,21 +305,24 @@ def manhattan_plot_regions(method, trait, adjust): return f"{PLOTS}{method}/Manh
 #=============================================================================
 dirs_to_create = [WORK, WORK_FILT, WORK_LD, PLOTS,
           f"{PLOTS}pca/", f"{PLOTS}structure/", f"{PLOTS}climate/", f"{PLOTS}piemap/",
-          TABLES, INTER, LOGDIR]
+          TABLES, f"{TABLES}structure/", f"{TABLES}climate/",
+          INTER, LOGDIR]
 
 # Add association directories for each method
 for method in ASSOC_CONFIGS:
     dirs_to_create.append(f"{PLOTS}{method}/")
-    dirs_to_create.append(f"{TABLES}{method}/")
+    dirs_to_create.append(f"{TABLES}association/{method}/")
 
 # Add enrichment directory
-dirs_to_create.append(f"{TABLES}enrichment/")
+dirs_to_create.append(f"{TABLES}association/")
+dirs_to_create.append(f"{TABLES}association/enrichment/")
 
 # Add regionplot directory
 dirs_to_create.append(f"{PLOTS}regionplot/")
 
-# Add gradientForest directory
+# Add gradientForest directories
 dirs_to_create.append(f"{PLOTS}gradientForest/")
+dirs_to_create.append(f"{TABLES}gradientForest/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
@@ -742,7 +746,7 @@ rule download_climate_present:
         resolution = RESOLUTION,
         data_dir = f"{INDIR}",
         inter_dir = INTER,
-        tables_dir = TABLES
+        tables_dir = f"{TABLES}climate/"
     log: f"{LOGDIR}download_climate_present.log"
     shell:
         """
@@ -800,7 +804,7 @@ rule ibd:
     """Calculate isolation by distance between populations."""
     input:  clusters = clusters_table(K_BEST), meta = O['metadata']
     output: raw = O['ibd_raw'], pairs = O['ibd_pairs']
-    params: tables_dir = TABLES
+    params: tables_dir = f"{TABLES}structure/"
     log:    f"{LOGDIR}ibd.log"
     threads: CPU
     shell:
@@ -841,7 +845,7 @@ rule amova:
     """Perform AMOVA analysis."""
     input:  vcf = W['vcf_imp'], meta = O['metadata']
     output: table = O['amova'], plot = O['amova_plot']
-    params: plot_dir = f"{PLOTS}structure/", tables_dir = TABLES, inter_dir = INTER
+    params: plot_dir = f"{PLOTS}structure/", tables_dir = f"{TABLES}structure/", inter_dir = INTER
     log:    f"{LOGDIR}amova.log"
     threads: CPU
     shell:
@@ -984,7 +988,7 @@ rule emmax_analysis:
         k = K_BEST,
         predictors = PREDICTORS_SELECTED,
         inter_dir = INTER,
-        tables_dir = f"{TABLES}EMMAX/",
+        tables_dir = f"{TABLES}association/EMMAX/",
         emmax_work = W['emmax_work']
     log: f"{LOGDIR}emmax_analysis.log"
     shell:
@@ -1007,7 +1011,7 @@ rule lfmm_analysis:
     params:
         k = K_BEST,
         predictors = PREDICTORS_SELECTED,
-        tables_dir = f"{TABLES}LFMM/"
+        tables_dir = f"{TABLES}association/LFMM/"
     log: f"{LOGDIR}lfmm_analysis.log"
     shell:
         """
@@ -1076,7 +1080,7 @@ rule manhattan_plot_regions:
 rule find_sig_snps:
     """Find significant SNPs for a specific method."""
     input: assoc = lambda wc: assoc_pvalues(wc.method)
-    output: f"{TABLES}{{method}}/{{method}}_pvalues_K{K_BEST}_sigSNPs_{{adjust}}.tsv"
+    output: f"{TABLES}association/{{method}}/{{method}}_pvalues_K{K_BEST}_sigSNPs_{{adjust}}.tsv"
     wildcard_constraints:
         method = r"EMMAX|LFMM",
         adjust = r"\w+_[\d.]+"
@@ -1157,7 +1161,7 @@ rule run_enrichment:
     params:
         go_field = GO_FIELD,
         feature = GFF_FEATURE,
-        tables_dir = f"{TABLES}enrichment/"
+        tables_dir = f"{TABLES}association/enrichment/"
     log: f"{LOGDIR}run_enrichment.log"
     shell:
         """

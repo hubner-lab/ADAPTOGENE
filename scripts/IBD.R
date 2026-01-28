@@ -10,6 +10,7 @@ set.seed(42)
 CLUSTERS = args[1]
 SAMPLES = args[2]
 CPU = args[3]
+TABLES_DIR = args[4]
 #######################
 
 
@@ -84,12 +85,12 @@ ibd <- FUN_ibd(clusters, samples, CPU)
 
 # Save
 ibd$raw %>%
-	fwrite('tables/IBD_raw.tsv', sep = '\t')
+	fwrite(paste0(TABLES_DIR, 'IBD_raw.tsv'), sep = '\t')
 				#			message(ibd$not_ibd %>% str)
-ibd$not_ibd %>%	
+ibd$not_ibd %>%
 	do.call(rbind, . ) %>%
 	as.data.table %>%
 	dplyr::rename(pop1 = V1, pop2 = V2) %>%
-	fwrite('tables/IBD_notIsolated.tsv', sep = '\t') # not isolated 
+	fwrite(paste0(TABLES_DIR, 'IBD_notIsolated.tsv'), sep = '\t') # not isolated 
 
 #TODO plot heatmap
