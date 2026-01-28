@@ -38,9 +38,7 @@ METRICS_WINSIZE: 3000000 # the size of sliding window for TajimaD, Pi diversity 
 # Set to FALSE if populations have < 3 samples each (these metrics require multiple samples per population)
 CALC_POP_STATS: FALSE  # TRUE if all populations have >= 3 samples, FALSE to skip
 
-# PieMap plot configuration (find your best parameters iteratevely for the best visualisation)
-PieMap_PALLETE_MAP: 1022614
-PieMap_PALLETE_MAP_reverse: FALSE
+# PieMap plot configuration (palette is now fixed to viridis plasma - colorblind-friendly)
 PieMap_PIE_ALPHA: 0.6
 PieMap_POP_LABEL: 'F'
 PieMap_POP_LABEL_SIZE: 8

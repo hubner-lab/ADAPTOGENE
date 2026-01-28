@@ -4,7 +4,6 @@
 library(qs)
 library(data.table)
 library(dplyr)
-library(see)
 library(ggplot2)
 library(ggrepel)
 library(raster)
@@ -12,6 +11,7 @@ library(ggspatial)
 library(scatterpie)
 library(ggnewscale)
 library(svglite)
+library(viridis)
 
 args = commandArgs(trailingOnly=TRUE)
 #################################
@@ -22,14 +22,12 @@ SAMPLES = args[4]           # metadata file
 CLUSTERS = args[5]          # clusters file
 SIZE_TRAIT = args[6]        # trait file for pie sizing, or "NULL" for uniform
 SIZE_TRAIT_NAME = args[7]   # name for size legend, or "NULL"
-PALETTE = args[8] %>% as.numeric
-PALETTE_REV = args[9] %>% as.logical
-PIE_ALPHA = args[10] %>% as.numeric
-POP_LABEL = args[11]
-POP_LABEL_SIZE = args[12] %>% as.numeric
-PLOT_DIR = args[13]
-INTER_DIR = args[14]
-OUTPUT_PREFIX = args[15]
+PIE_ALPHA = args[8] %>% as.numeric
+POP_LABEL = args[9]
+POP_LABEL_SIZE = args[10] %>% as.numeric
+PLOT_DIR = args[11]
+INTER_DIR = args[12]
+OUTPUT_PREFIX = args[13]
 #################################
 
 set.seed(42)
@@ -100,8 +98,6 @@ scale_trait_to_radius <- function(trait_values, min_radius, max_radius) {
 #' @param trait_name Name for size legend (e.g., "Tajima's D")
 #' @param pie_size_range List with min_radius, max_radius, mid_radius
 #' @param pie_alpha Alpha for pie charts
-#' @param palette_num Colorhex palette number
-#' @param palette_reverse Reverse palette direction
 #' @param pop_labels Show population labels
 #' @param pop_label_size Size of population labels
 #' @param legend_map_title Title for raster legend
@@ -113,8 +109,6 @@ create_piemap <- function(samples,
                           trait_name = NULL,
                           pie_size_range = NULL,
                           pie_alpha = 0.6,
-                          palette_num = 1022614,
-                          palette_reverse = FALSE,
                           pop_labels = FALSE,
                           pop_label_size = 5,
                           legend_map_title = 'Value') {
@@ -157,10 +151,10 @@ create_piemap <- function(samples,
                    round(pie_size_range$max_radius, 4), ']'))
   }
 
-  # Build plot
+  # Build plot with viridis plasma palette (colorblind-friendly)
   gPlot <- ggplot() +
     layer_spatial(raster_layer, aes(fill = after_stat(band1))) +
-    scale_fill_colorhex_c(na.value = NA, palette = palette_num, reverse = palette_reverse) +
+    scale_fill_viridis_c(option = "plasma", na.value = NA) +
     labs(fill = legend_map_title) +
     ggnewscale::new_scale_fill() +
     geom_scatterpie(data = clusters_by_pop,
@@ -292,8 +286,6 @@ gPlot <- create_piemap(
   trait_name = if (SIZE_TRAIT_NAME != "NULL") SIZE_TRAIT_NAME else NULL,
   pie_size_range = pie_size_range,
   pie_alpha = PIE_ALPHA,
-  palette_num = PALETTE,
-  palette_reverse = PALETTE_REV,
   pop_labels = pop_labels,
   pop_label_size = POP_LABEL_SIZE,
   legend_map_title = RASTER_LEGEND

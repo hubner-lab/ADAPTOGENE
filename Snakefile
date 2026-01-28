@@ -80,8 +80,7 @@ CALC_POP_STATS = config.get('CALC_POP_STATS', False)  # Tajima's D, Pi, AMOVA, I
 CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
 
 # PieMap plot parameters (PIE_SIZE and PIE_RESCALE removed - now autoscaled based on map extent)
-PIEMAP_PALETTE = config.get('PieMap_PALLETE_MAP', 1022614)
-PIEMAP_PALETTE_REV = config.get('PieMap_PALLETE_MAP_reverse', False)
+# Palette is now fixed to viridis plasma (colorblind-friendly)
 PIEMAP_PIE_ALPHA = config.get('PieMap_PIE_ALPHA', 0.6)
 PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
 PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
@@ -270,6 +269,8 @@ def add_maladaptation_paths():
 
     # Gradient Forest plots
     O['gf_offset_piemap'] = f"{PLOTS}gradientForest/GeneticOffsetPieMap_{SUFFIX}.png"
+    O['gf_offset_piemap_tajima'] = f"{PLOTS}gradientForest/GeneticOffsetPieMap_{SUFFIX}_TajimaD.png"
+    O['gf_offset_piemap_diversity'] = f"{PLOTS}gradientForest/GeneticOffsetPieMap_{SUFFIX}_PiDiversity.png"
     O['gf_cumimp'] = f"{PLOTS}gradientForest/CumulativeImportance_{SUFFIX}.png"
     O['gf_importance'] = f"{PLOTS}gradientForest/OverallImportance_{SUFFIX}.png"
 
@@ -458,6 +459,13 @@ def get_targets(mode):
 
         if GF_RANDOM_MODEL:
             targets.append(W['gf_random'])
+
+        # Add TajimaD and PiDiversity GO piemap variants if population stats were calculated
+        if CALC_POP_STATS:
+            targets.extend([
+                O['gf_offset_piemap_tajima'],
+                O['gf_offset_piemap_diversity'],
+            ])
 
         return targets
 
@@ -857,8 +865,6 @@ rule piemap_plot:
     wildcard_constraints: bio = r"bio_\d+"
     params:
         bio = lambda wc: wc.bio,
-        palette = PIEMAP_PALETTE,
-        palette_rev = PIEMAP_PALETTE_REV,
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
@@ -872,8 +878,7 @@ rule piemap_plot:
             {input.raster} {params.bio} {params.bio} \
             {input.meta} {input.clusters} \
             {input.tajima} "Tajima's D" \
-            {params.palette} {params.palette_rev} {params.pie_alpha} \
-            {params.pop_label} {params.pop_label_size} \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
             PieMap_{params.bio}_TajimaD > {log} 2>&1
 
@@ -882,8 +887,7 @@ rule piemap_plot:
             {input.raster} {params.bio} {params.bio} \
             {input.meta} {input.clusters} \
             {input.diversity} "Pi Diversity" \
-            {params.palette} {params.palette_rev} {params.pie_alpha} \
-            {params.pop_label} {params.pop_label_size} \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
             PieMap_{params.bio}_PiDiversity >> {log} 2>&1
         """
@@ -898,8 +902,6 @@ rule piemap_simple:
     wildcard_constraints: bio = r"bio_\d+"
     params:
         bio = lambda wc: wc.bio,
-        palette = PIEMAP_PALETTE,
-        palette_rev = PIEMAP_PALETTE_REV,
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
@@ -912,8 +914,7 @@ rule piemap_simple:
             {input.raster} {params.bio} {params.bio} \
             {input.meta} {input.clusters} \
             NULL NULL \
-            {params.palette} {params.palette_rev} {params.pie_alpha} \
-            {params.pop_label} {params.pop_label_size} \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
             PieMap_{params.bio} > {log} 2>&1
         """
@@ -1394,16 +1395,13 @@ rule plot_gf_importance:
 
 # Genetic offset PieMap
 rule plot_gf_offset_piemap:
-    """Plot genetic offset on map with population structure pie charts."""
+    """Plot genetic offset on map with population structure pie charts (uniform pie size)."""
     input:
         offset_raster = W['gf_offset_raster'],
         samples = O['metadata'],
-        clusters = clusters_table(K_BEST),
-        tajima = O['tajima']
+        clusters = clusters_table(K_BEST)
     output: O['gf_offset_piemap']
     params:
-        palette = PIEMAP_PALETTE,
-        palette_rev = PIEMAP_PALETTE_REV,
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
@@ -1416,9 +1414,62 @@ rule plot_gf_offset_piemap:
         Rscript /pipeline/scripts/plot_piemap.R \
             {input.offset_raster} 1 "Genetic Offset" \
             {input.samples} {input.clusters} \
-            {input.tajima} "Tajima's D" \
-            {params.palette} TRUE {params.pie_alpha} \
-            {params.pop_label} {params.pop_label_size} \
+            NULL NULL \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
             GeneticOffsetPieMap_{params.suffix} > {log} 2>&1
+        """
+
+rule plot_gf_offset_piemap_tajima:
+    """Plot genetic offset with Tajima's D-scaled pie sizes (requires CALC_POP_STATS=TRUE)."""
+    input:
+        offset_raster = W['gf_offset_raster'],
+        samples = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        tajima = O['tajima']
+    output: O['gf_offset_piemap_tajima']
+    params:
+        pie_alpha = PIEMAP_PIE_ALPHA,
+        pop_label = PIEMAP_POP_LABEL,
+        pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        plot_dir = f"{PLOTS}gradientForest/",
+        inter_dir = INTER,
+        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+    log: f"{LOGDIR}plot_gf_offset_piemap_tajima.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.offset_raster} 1 "Genetic Offset" \
+            {input.samples} {input.clusters} \
+            {input.tajima} "Tajima's D" \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            GeneticOffsetPieMap_{params.suffix}_TajimaD > {log} 2>&1
+        """
+
+rule plot_gf_offset_piemap_diversity:
+    """Plot genetic offset with Pi Diversity-scaled pie sizes (requires CALC_POP_STATS=TRUE)."""
+    input:
+        offset_raster = W['gf_offset_raster'],
+        samples = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        diversity = O['pi_div']
+    output: O['gf_offset_piemap_diversity']
+    params:
+        pie_alpha = PIEMAP_PIE_ALPHA,
+        pop_label = PIEMAP_POP_LABEL,
+        pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        plot_dir = f"{PLOTS}gradientForest/",
+        inter_dir = INTER,
+        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+    log: f"{LOGDIR}plot_gf_offset_piemap_diversity.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.offset_raster} 1 "Genetic Offset" \
+            {input.samples} {input.clusters} \
+            {input.diversity} "Pi Diversity" \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            GeneticOffsetPieMap_{params.suffix}_PiDiversity > {log} 2>&1
         """
