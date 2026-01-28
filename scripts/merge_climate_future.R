@@ -7,9 +7,11 @@ args = commandArgs(trailingOnly=TRUE)
 SAMPLES = args[1]
 MODEL_RASTERS = args[2]  # comma-separated list of per-model .grd files
 N_MODELS = args[3] %>% as.numeric
-OUTPUT_RASTER = args[4]
-OUTPUT_ALL = args[5]
-OUTPUT_SITE = args[6]
+PRESENT_RASTER = args[4]  # present climate raster for cell count validation
+PRESENT_ALL = args[5]     # present climate all values for cell count validation
+OUTPUT_RASTER = args[6]
+OUTPUT_ALL = args[7]
+OUTPUT_SITE = args[8]
 #################################
 
 message('INFO: Merging future climate rasters from individual models')
@@ -47,6 +49,25 @@ if (length(clim_list) == 1) {
 
 message('INFO: Model averaging complete')
 
+# Extract all values (na.omit to match present climate format)
+clim_future_all <- raster::extract(clim_future, 1:ncell(clim_future), df = TRUE) %>%
+  na.omit
+
+# Validate cell count matches present climate
+message('INFO: Validating cell count matches present climate...')
+present_all <- fread(PRESENT_ALL)
+
+future_cells <- nrow(clim_future_all)
+present_cells <- nrow(present_all)
+
+message(paste0('INFO: Present climate cells: ', present_cells))
+message(paste0('INFO: Future climate cells: ', future_cells))
+
+if (future_cells != present_cells) {
+  stop(paste0('ERROR: Cell count mismatch - present: ', present_cells, ', future: ', future_cells))
+}
+message('INFO: Cell count validation passed')
+
 # Save merged raster
 writeRaster(clim_future,
             filename = OUTPUT_RASTER,
@@ -55,9 +76,7 @@ writeRaster(clim_future,
             options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 message(paste0('INFO: Saved merged raster: ', OUTPUT_RASTER))
 
-# Extract all values (na.omit to match present climate format)
-clim_future_all <- raster::extract(clim_future, 1:ncell(clim_future), df = TRUE) %>%
-  na.omit
+# Save all values
 clim_future_all %>%
   fwrite(OUTPUT_ALL, sep = '\t')
 message(paste0('INFO: Saved all values: ', OUTPUT_ALL))

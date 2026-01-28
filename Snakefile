@@ -134,8 +134,9 @@ ASSOC_CONFIGS = parse_association_configs(config)
 # PATH DEFINITIONS
 #=============================================================================
 # Directory tags (easy to modify if adding new parameters)
-FILT_TAG = f"maf{MAF}_miss{MISS}"
-LD_TAG = f"ld{LD_R2}"
+FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}"
+LD_TAG = f"ld{LD_R2}_win{LD_WIN}_step{LD_STEP}"
+CLIMATE_TAG = f"climate_{RESOLUTION}"
 
 # Base directories
 WORK = f"{OUTDIR}work/"
@@ -193,10 +194,10 @@ def add_kbest_paths():
     # Climate data
     W['climate_raster'] = f"{INTER}Climate_present_RasterStack.grd"
 
-    # Tables - climate
-    O['climate_site'] = f"{TABLES}climate/Climate_present_site.tsv"
-    O['climate_site_scaled'] = f"{TABLES}climate/Climate_present_site_scaled.tsv"
-    O['climate_all'] = f"{TABLES}climate/Climate_present_all.tsv"
+    # Tables - climate (resolution-specific)
+    O['climate_site'] = f"{TABLES}{CLIMATE_TAG}/Climate_present_site.tsv"
+    O['climate_site_scaled'] = f"{TABLES}{CLIMATE_TAG}/Climate_present_site_scaled.tsv"
+    O['climate_all'] = f"{TABLES}{CLIMATE_TAG}/Climate_present_all.tsv"
     # Tables - structure/population stats
     O['tajima'] = f"{TABLES}structure/TajimaD_byPop.tsv"
     O['pi_div'] = f"{TABLES}structure/Pi_diversity_byPop.tsv"
@@ -205,7 +206,7 @@ def add_kbest_paths():
     O['amova'] = f"{TABLES}structure/AMOVA.tsv"
     
     # Plots
-    O['corr_heatmap'] = f"{PLOTS}climate/CorrelationHeatmap_present.png"
+    O['corr_heatmap'] = f"{PLOTS}{CLIMATE_TAG}/CorrelationHeatmap_present.png"
     O['mantel'] = f"{PLOTS}structure/MantelTest.png"
     O['amova_plot'] = f"{PLOTS}structure/AMOVA.png"
 
@@ -256,8 +257,8 @@ def add_maladaptation_paths():
 
     # Merged future climate
     W['climate_future_raster'] = f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_RasterStack.grd"
-    O['climate_future_all'] = f"{TABLES}climate/Climate_future_year{YEAR}_ssp{SSP}_all.tsv"
-    O['climate_future_site'] = f"{TABLES}climate/Climate_future_year{YEAR}_ssp{SSP}_site.tsv"
+    O['climate_future_all'] = f"{TABLES}{CLIMATE_TAG}/Climate_future_year{YEAR}_ssp{SSP}_all.tsv"
+    O['climate_future_site'] = f"{TABLES}{CLIMATE_TAG}/Climate_future_year{YEAR}_ssp{SSP}_site.tsv"
 
     # Gradient Forest models
     W['gf_adaptive'] = f"{INTER}gradientForest_adaptive_{SUFFIX}.qs"
@@ -276,7 +277,7 @@ def add_maladaptation_paths():
     O['gf_importance'] = f"{PLOTS}gradientForest/OverallImportance_{SUFFIX}.png"
 
     # Future climate density plot
-    O['density_future'] = f"{PLOTS}climate/DensityPlot_future_ssp{SSP}_{YEAR}.png"
+    O['density_future'] = f"{PLOTS}{CLIMATE_TAG}/DensityPlot_future_ssp{SSP}_{YEAR}.png"
 
 add_maladaptation_paths()
 
@@ -287,7 +288,7 @@ def pca_struct_plot(k): return f"{PLOTS}pca/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{PLOTS}structure/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
-DENSITY_PLOT_COMBINED = f"{PLOTS}climate/DensityPlot_present.png"
+DENSITY_PLOT_COMBINED = f"{PLOTS}{CLIMATE_TAG}/DensityPlot_present.png"
 def piemap_tajima(bio): return f"{PLOTS}piemap/PieMap_{bio}_TajimaD.png"
 def piemap_diversity(bio): return f"{PLOTS}piemap/PieMap_{bio}_PiDiversity.png"
 def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
@@ -304,8 +305,8 @@ def manhattan_plot_regions(method, trait, adjust): return f"{PLOTS}{method}/Manh
 # CREATE DIRECTORIES
 #=============================================================================
 dirs_to_create = [WORK, WORK_FILT, WORK_LD, PLOTS,
-          f"{PLOTS}pca/", f"{PLOTS}structure/", f"{PLOTS}climate/", f"{PLOTS}piemap/",
-          TABLES, f"{TABLES}structure/", f"{TABLES}climate/",
+          f"{PLOTS}pca/", f"{PLOTS}structure/", f"{PLOTS}{CLIMATE_TAG}/", f"{PLOTS}piemap/",
+          TABLES, f"{TABLES}structure/", f"{TABLES}{CLIMATE_TAG}/",
           INTER, LOGDIR]
 
 # Add association directories for each method
@@ -746,7 +747,7 @@ rule download_climate_present:
         resolution = RESOLUTION,
         data_dir = f"{INDIR}",
         inter_dir = INTER,
-        tables_dir = f"{TABLES}climate/"
+        tables_dir = f"{TABLES}{CLIMATE_TAG}/"
     log: f"{LOGDIR}download_climate_present.log"
     shell:
         """
@@ -761,7 +762,7 @@ rule density_plot:
     output: DENSITY_PLOT_COMBINED
     params:
         predictors = PREDICTORS_SELECTED,
-        plot_dir = f"{PLOTS}climate/",
+        plot_dir = f"{PLOTS}{CLIMATE_TAG}/",
         inter_dir = INTER,
         prefix = "DensityPlot_present"
     log:    f"{LOGDIR}density_plot.log"
@@ -817,7 +818,7 @@ rule correlation_heatmap:
     """Generate correlation heatmap of climate variables and traits."""
     input:  climate = O['climate_site'], meta = O['metadata']
     output: O['corr_heatmap']
-    params: plot_dir = f"{PLOTS}climate/", inter_dir = INTER
+    params: plot_dir = f"{PLOTS}{CLIMATE_TAG}/", inter_dir = INTER
     log:    f"{LOGDIR}correlation_heatmap.log"
     shell:
         """
@@ -1247,7 +1248,9 @@ rule merge_climate_future:
     """Average future climate across models and extract site values."""
     input:
         samples = O['metadata'],
-        model_rasters = [f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_{model}.grd" for model in MODELS_LIST]
+        model_rasters = [f"{INTER}Climate_future_year{YEAR}_ssp{SSP}_{model}.grd" for model in MODELS_LIST],
+        present_raster = W['climate_raster'],
+        present_all = O['climate_all']
     output:
         raster = W['climate_future_raster'],
         all_vals = O['climate_future_all'],
@@ -1260,6 +1263,7 @@ rule merge_climate_future:
         """
         Rscript /pipeline/scripts/merge_climate_future.R \
             {input.samples} {params.raster_str} {params.n_models} \
+            {input.present_raster} {input.present_all} \
             {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
         """
 
@@ -1269,7 +1273,7 @@ rule density_plot_future:
     output: O['density_future']
     params:
         predictors = PREDICTORS_SELECTED,
-        plot_dir = f"{PLOTS}climate/",
+        plot_dir = f"{PLOTS}{CLIMATE_TAG}/",
         inter_dir = INTER,
         prefix = f"DensityPlot_future_ssp{SSP}_{YEAR}"
     log: f"{LOGDIR}density_plot_future.log"
