@@ -41,13 +41,9 @@ CALC_POP_STATS: FALSE  # TRUE if all populations have >= 3 samples, FALSE to ski
 # PieMap plot configuration (find your best parameters iteratevely for the best visualisation)
 PieMap_PALLETE_MAP: 1022614
 PieMap_PALLETE_MAP_reverse: FALSE
-PieMap_PIE_SIZE: 10
 PieMap_PIE_ALPHA: 0.6
-PieMap_IBD_ALPHA: 0 # don't show IBD
-PieMap_IBD_COLOR: 'black'
 PieMap_POP_LABEL: 'F'
 PieMap_POP_LABEL_SIZE: 8
-PieMap_PIE_RESCALE: 1000
 ############################################## mode=association ####################################
 # LFMM and/or EMMAX on not imputed data
 # 1,2,3,4,8,9,10,12,14,15 WBDC
@@ -108,3 +104,4 @@ NTREE: '1000' # number of tree parameter
 COR_THRESHOLD: '0.5' # Correlation threshold parameter
 PCNM: 'with' # with or without Spatial variables in GF model
 GF_SUFFIX: 'EMMAX_bonf005' # uniq suffix for current run (you can test several set of parameters, to achieve optimal in your case)
+GF_RANDOM_MODEL: TRUE # TRUE to also build a neutral/random model, FALSE to skip

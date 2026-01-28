@@ -83,8 +83,6 @@ CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
 PIEMAP_PALETTE = config.get('PieMap_PALLETE_MAP', 1022614)
 PIEMAP_PALETTE_REV = config.get('PieMap_PALLETE_MAP_reverse', False)
 PIEMAP_PIE_ALPHA = config.get('PieMap_PIE_ALPHA', 0.6)
-PIEMAP_IBD_ALPHA = config.get('PieMap_IBD_ALPHA', 0.6)
-PIEMAP_IBD_COLOR = config.get('PieMap_IBD_COLOR', 'black')
 PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
 PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
 
@@ -371,6 +369,9 @@ def get_targets(mode):
             [O['corr_heatmap']]
         )
 
+        # Simple PieMaps (uniform pie size) - always generated
+        targets += [piemap_notrait(bio) for bio in predictors]
+
         # Population statistics (requires >= 3 samples per population)
         if CALC_POP_STATS:
             targets += (
@@ -378,13 +379,10 @@ def get_targets(mode):
                 [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']] +
                 # Summary plots requiring pop stats
                 [O['mantel'], O['amova'], O['amova_plot']] +
-                # PieMaps with trait overlays
+                # PieMaps with trait overlays (in addition to simple piemaps)
                 [piemap_tajima(bio) for bio in predictors] +
                 [piemap_diversity(bio) for bio in predictors]
             )
-        else:
-            # Basic PieMaps without trait overlays
-            targets += [piemap_notrait(bio) for bio in predictors]
 
         return targets
 
@@ -851,7 +849,6 @@ rule piemap_plot:
         meta = O['metadata'],
         clusters = clusters_table(K_BEST),
         raster = W['climate_raster'],
-        ibd = O['ibd_pairs'],
         tajima = O['tajima'],
         diversity = O['pi_div']
     output:
@@ -860,12 +857,9 @@ rule piemap_plot:
     wildcard_constraints: bio = r"bio_\d+"
     params:
         bio = lambda wc: wc.bio,
-        custom_trait = f"{INDIR}{CUSTOM_TRAIT}",
         palette = PIEMAP_PALETTE,
         palette_rev = PIEMAP_PALETTE_REV,
         pie_alpha = PIEMAP_PIE_ALPHA,
-        ibd_alpha = PIEMAP_IBD_ALPHA,
-        ibd_color = PIEMAP_IBD_COLOR,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         plot_dir = f"{PLOTS}piemap/",
@@ -873,13 +867,25 @@ rule piemap_plot:
     log: f"{LOGDIR}piemap_{{bio}}.log"
     shell:
         """
+        # TajimaD piemap
         Rscript /pipeline/scripts/plot_piemap.R \
-            {input.meta} {input.clusters} {input.raster} {input.ibd} \
-            {input.tajima} {input.diversity} {params.custom_trait} \
-            {params.bio} {params.palette} {params.palette_rev} \
-            {params.pie_alpha} {params.ibd_alpha} {params.ibd_color} \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            {input.tajima} "Tajima's D" \
+            {params.palette} {params.palette_rev} {params.pie_alpha} \
             {params.pop_label} {params.pop_label_size} \
-            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {params.plot_dir} {params.inter_dir} \
+            PieMap_{params.bio}_TajimaD > {log} 2>&1
+
+        # PiDiversity piemap
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            {input.diversity} "Pi Diversity" \
+            {params.palette} {params.palette_rev} {params.pie_alpha} \
+            {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            PieMap_{params.bio}_PiDiversity >> {log} 2>&1
         """
 
 rule piemap_simple:
@@ -902,11 +908,14 @@ rule piemap_simple:
     log: f"{LOGDIR}piemap_simple_{{bio}}.log"
     shell:
         """
-        Rscript /pipeline/scripts/plot_piemap_simple.R \
-            {input.meta} {input.clusters} {input.raster} \
-            {params.bio} {params.palette} {params.palette_rev} \
-            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
-            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            NULL NULL \
+            {params.palette} {params.palette_rev} {params.pie_alpha} \
+            {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            PieMap_{params.bio} > {log} 2>&1
         """
 
 #=============================================================================
@@ -1390,15 +1399,12 @@ rule plot_gf_offset_piemap:
         offset_raster = W['gf_offset_raster'],
         samples = O['metadata'],
         clusters = clusters_table(K_BEST),
-        ibd = O['ibd_pairs'],
         tajima = O['tajima']
     output: O['gf_offset_piemap']
     params:
         palette = PIEMAP_PALETTE,
         palette_rev = PIEMAP_PALETTE_REV,
         pie_alpha = PIEMAP_PIE_ALPHA,
-        ibd_alpha = PIEMAP_IBD_ALPHA,
-        ibd_color = PIEMAP_IBD_COLOR,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         plot_dir = f"{PLOTS}gradientForest/",
@@ -1407,11 +1413,12 @@ rule plot_gf_offset_piemap:
     log: f"{LOGDIR}plot_gf_offset_piemap.log"
     shell:
         """
-        Rscript /pipeline/scripts/plot_gf_offset_piemap.R \
-            {input.offset_raster} {input.samples} {input.clusters} \
-            {input.ibd} {input.tajima} \
-            {params.palette} {params.palette_rev} {params.pie_alpha} \
-            {params.ibd_alpha} {params.ibd_color} {params.pop_label} \
-            {params.pop_label_size} {params.plot_dir} {params.inter_dir} \
-            {params.suffix} > {log} 2>&1
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.offset_raster} 1 "Genetic Offset" \
+            {input.samples} {input.clusters} \
+            {input.tajima} "Tajima's D" \
+            {params.palette} TRUE {params.pie_alpha} \
+            {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            GeneticOffsetPieMap_{params.suffix} > {log} 2>&1
         """
