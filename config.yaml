@@ -64,6 +64,8 @@ PIEMAP_LABEL_SIZE: 8            # Label font size
 #-----------------------------------------------------------------------------
 # ASSOC: Association analysis settings (GWAS/GEA)
 #-----------------------------------------------------------------------------
+ASSOC_SCATTERMORE_THRESHOLD: 30000  # Use fast scattermore rendering when SNPs > this
+
 ASSOC_CONFIGS:                  # Methods and significance thresholds
   - METHOD: "EMMAX"             # EMMAX: mixed model, accounts for population structure
     ADJUST: "bonf"              # Correction: bonf (Bonferroni) or qval (FDR)

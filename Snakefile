@@ -100,6 +100,7 @@ SIGSNPS_GAP = config.get('ASSOC_COMBINE_GAP', 100000)
 REGION_DISTANCE = config.get('ASSOC_REGION_DISTANCE', 2000000)
 GO_FIELD = config.get('ASSOC_GO_FIELD', 'NULL')
 TOP_REGIONS = config.get('ASSOC_TOP_REGIONS', 10)
+SCATTERMORE_THRESHOLD = config.get('ASSOC_SCATTERMORE_THRESHOLD', 30000)
 
 # GFF parameters
 GFF_GENENAME = config.get('GFF_GENE_NAME', 'description')
@@ -705,13 +706,18 @@ rule pop_diff_test:
     input:  snmf = W['snmf']
     output: pop_diff_plot("{k}")
     wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k, ploidy = PLOIDY, plot_dir = f"{PLOTS}structure/", inter_dir = INTER
+    params:
+        k = lambda wc: wc.k,
+        ploidy = PLOIDY,
+        plot_dir = f"{PLOTS}structure/",
+        inter_dir = INTER,
+        scattermore_threshold = SCATTERMORE_THRESHOLD
     log:    f"{LOGDIR}pop_diff_K{{k}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_pop_diff.R \
             {input.snmf} {params.k} {params.ploidy} \
-            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {params.plot_dir} {params.inter_dir} {params.scattermore_threshold} > {log} 2>&1
         """
 
 #=============================================================================
@@ -1046,13 +1052,15 @@ rule manhattan_plot:
         k = K_BEST,
         plot_dir = lambda wc: f"{PLOTS}{wc.method}/",
         regions = "NULL",  # No regions for simple plot
-        selected_snps = "NULL"  # No selected SNPs for simple plot
+        selected_snps = "NULL",  # No selected SNPs for simple plot
+        scattermore_threshold = SCATTERMORE_THRESHOLD
     log: f"{LOGDIR}manhattan_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
+            {params.scattermore_threshold} > {log} 2>&1
         """
 
 # Manhattan plots with regions highlighted (runs after regions are created)
@@ -1076,13 +1084,15 @@ rule manhattan_plot_regions:
     params:
         k = K_BEST,
         plot_dir = lambda wc: f"{PLOTS}{wc.method}/",
-        sigsnps_str = lambda wc, input: ','.join(input.sigsnps)
+        sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
+        scattermore_threshold = SCATTERMORE_THRESHOLD
     log: f"{LOGDIR}manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
+            {params.scattermore_threshold} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method
