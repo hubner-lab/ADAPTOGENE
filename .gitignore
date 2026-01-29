@@ -7,3 +7,4 @@ SIMDATA_logs/
 .snakemake/
 .claude
 CLAUDE.md
+Snakefile_old
