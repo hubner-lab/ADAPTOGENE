@@ -8,3 +8,4 @@ SIMDATA_logs/
 .claude
 CLAUDE.md
 Snakefile_old
+config_SIMDATA.yaml
