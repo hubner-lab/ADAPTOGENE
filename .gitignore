@@ -5,4 +5,5 @@ TEST_logs/
 SIMDATA_results/
 SIMDATA_logs/
 .snakemake/
+.claude
 CLAUDE.md
