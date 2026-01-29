@@ -42,83 +42,91 @@ def k_range(start, end):
 #=============================================================================
 # PARSE AND VALIDATE CONFIGURATION
 #=============================================================================
-# Paths
-INDIR = '/pipeline/' + config["INDIR"]
-PROJECT = config["PROJECTNAME"]
+# INPUT parameters
+INDIR = '/pipeline/' + config["INPUT_DIR"]
+PROJECT = config["PROJECT_NAME"]
 OUTDIR = f'/pipeline/{PROJECT}_results/'
 LOGDIR = f'/pipeline/{PROJECT}_logs/'
 
-# Basic parameters
 CPU = config['CPU']; check_numeric(CPU, 'CPU')
-VCF_RAW = config['VCF_RAW']; check_file_exists(INDIR, VCF_RAW, 'VCF_RAW')
-SAMPLES = config['SAMPLES']; check_file_exists(INDIR, SAMPLES, 'SAMPLES')
+VCF_RAW = config['INPUT_VCF']; check_file_exists(INDIR, VCF_RAW, 'INPUT_VCF')
+SAMPLES = config['INPUT_METADATA']; check_file_exists(INDIR, SAMPLES, 'INPUT_METADATA')
 VCF_BASE = get_vcf_basename(VCF_RAW)
 
-# VCF filtering
-MAF = config['MAF']; check_float(MAF, 'MAF')
-MISS = config['MISS']; check_float(MISS, 'MISS')
-SAMPLE_MISS = config.get('SAMPLE_MISS', 0.5); check_float(SAMPLE_MISS, 'SAMPLE_MISS')
-LD_WIN = config['LDwin']; check_numeric(LD_WIN, 'LDwin')
-LD_STEP = config['LDstep']; check_numeric(LD_STEP, 'LDstep')
-LD_R2 = config['LDr2']; check_float(LD_R2, 'LDr2')
+# FILTER parameters
+MAF = config['FILTER_MAF']; check_float(MAF, 'FILTER_MAF')
+MISS = config['FILTER_SNP_MISS']; check_float(MISS, 'FILTER_SNP_MISS')
+SAMPLE_MISS = config.get('FILTER_SAMPLE_MISS', 0.5); check_float(SAMPLE_MISS, 'FILTER_SAMPLE_MISS')
+
+# LD parameters
+LD_WIN = config['LD_WINDOW']; check_numeric(LD_WIN, 'LD_WINDOW')
+LD_STEP = config['LD_STEP']; check_numeric(LD_STEP, 'LD_STEP')
+LD_R2 = config['LD_R2']; check_float(LD_R2, 'LD_R2')
 
 # SNMF parameters
-K_START = config['K_START']; check_numeric(K_START, 'K_START')
-K_END = config['K_END']; check_numeric(K_END, 'K_END')
-PLOIDY = config['PLOIDY']; check_numeric(PLOIDY, 'PLOIDY')
-REPEAT = config['REPEAT']; check_numeric(REPEAT, 'REPEAT')
-SNMF_PROJECT_MODE = config.get('PROJECT', 'new')
+K_START = config['SNMF_K_START']; check_numeric(K_START, 'SNMF_K_START')
+K_END = config['SNMF_K_END']; check_numeric(K_END, 'SNMF_K_END')
+PLOIDY = config['SNMF_PLOIDY']; check_numeric(PLOIDY, 'SNMF_PLOIDY')
+REPEAT = config['SNMF_REPEATS']; check_numeric(REPEAT, 'SNMF_REPEATS')
+K_BEST = config.get('SNMF_K_BEST', None)
+SNMF_PROJECT_MODE = 'new'  # LEA project mode: 'new' for fresh runs, 'continue' to resume
 
-# structure_K parameters (used when mode=structure_K)
-K_BEST = config.get('K_BEST', None)
-PREDICTORS_SELECTED = config.get('PREDICTORS_SELECTED', '')
-CROP_REGION = config.get('CROP_REGION', 'auto')
-GAP = config.get('GAP', 0.5)
-RESOLUTION = config.get('RESOLUTION', 0.5)
-METRICS_WINSIZE = config.get('METRICS_WINSIZE', 10000)
-CALC_POP_STATS = config.get('CALC_POP_STATS', False)  # Tajima's D, Pi, AMOVA, IBD - requires >= 3 samples per population
-CUSTOM_TRAIT = config.get('CUSTOM_TRAIT', 'NULL')
+# MAP parameters
+CROP_REGION = config.get('MAP_CROP_REGION', 'auto')
+GAP = config.get('MAP_GAP', 0.5)
+RESOLUTION = config.get('MAP_RESOLUTION', 0.5)
 
-# PieMap plot parameters (PIE_SIZE and PIE_RESCALE removed - now autoscaled based on map extent)
-# Palette is now fixed to viridis plasma (colorblind-friendly)
-PIEMAP_PIE_ALPHA = config.get('PieMap_PIE_ALPHA', 0.6)
-PIEMAP_POP_LABEL = config.get('PieMap_POP_LABEL', 'F')
-PIEMAP_POP_LABEL_SIZE = config.get('PieMap_POP_LABEL_SIZE', 10)
+# CLIMATE parameters
+PREDICTORS_SELECTED = config.get('CLIMATE_PREDICTORS', '')
 
-# Association parameters
-GFF = config.get('GFF', '')
+# POP parameters
+CALC_POP_STATS = config.get('POP_CALC_STATS', False)
+METRICS_WINSIZE = config.get('POP_WINDOW_SIZE', 10000)
+CUSTOM_TRAIT = config.get('POP_CUSTOM_TRAIT', 'NULL')
+
+# PIEMAP parameters (palette fixed to viridis plasma)
+PIEMAP_PIE_ALPHA = config.get('PIEMAP_ALPHA', 0.6)
+PIEMAP_POP_LABEL = config.get('PIEMAP_SHOW_LABELS', 'F')
+PIEMAP_POP_LABEL_SIZE = config.get('PIEMAP_LABEL_SIZE', 10)
+
+# ASSOC parameters
+GFF = config.get('INPUT_GFF', '')
 GFF_FEATURE = config.get('GFF_FEATURE', 'mRNA')
-GENE_DISTANCE = config.get('GENE_DISTANCE', 1000000)
-SNP_DISTANCE = config.get('SNP_DISTANCE', 100000)
-PROMOTER_LENGTH = config.get('PROMOTER_LENGTH', 10000)
-SIGSNPS_METHOD = config.get('sigSNPs_METHOD', 'EMMAX')
-SIGSNPS_GAP = config.get('sigSNPs_GAP', 100000)
-REGION_DISTANCE = config.get('REGION_DISTANCE', 2000000)
-GO_FIELD = config.get('GO_FIELD', 'NULL')
-TOP_REGIONS = config.get('TOP_REGIONS', 10)
+GENE_DISTANCE = config.get('ASSOC_GENE_DISTANCE', 1000000)
+SNP_DISTANCE = config.get('ASSOC_SNP_DISTANCE', 100000)
+PROMOTER_LENGTH = config.get('ASSOC_PROMOTER_LENGTH', 10000)
+SIGSNPS_METHOD = config.get('ASSOC_COMBINE_METHOD', 'EMMAX')
+SIGSNPS_GAP = config.get('ASSOC_COMBINE_GAP', 100000)
+REGION_DISTANCE = config.get('ASSOC_REGION_DISTANCE', 2000000)
+GO_FIELD = config.get('ASSOC_GO_FIELD', 'NULL')
+TOP_REGIONS = config.get('ASSOC_TOP_REGIONS', 10)
 
-# Regionplot parameters
-GFF_GENENAME = config.get('GFF_GENENAME', 'description')
+# GFF parameters
+GFF_GENENAME = config.get('GFF_GENE_NAME', 'description')
 GFF_BIOTYPE = config.get('GFF_BIOTYPE', 'biotype')
-GENES_TO_HIGHLIGHT = config.get('GENES_TO_HIGHLIGHT', 'all')
+
+# REGIONPLOT parameters
+GENES_TO_HIGHLIGHT = config.get('REGIONPLOT_GENES', 'all')
 REGIONPLOT_REGION = config.get('REGIONPLOT_REGION', 'NULL')
 REGIONPLOT_TRAITS = config.get('REGIONPLOT_TRAITS', 'NULL')
-REGIONPLOT_ASSOCMETHOD = config.get('REGIONPLOT_ASSOCMETHOD', 'NULL')
+REGIONPLOT_ASSOCMETHOD = config.get('REGIONPLOT_METHOD', 'NULL')
 
-# Maladaptation parameters
-SSP = config.get('SSP', '585')
-YEAR = config.get('YEAR', '2061-2080')
-MODELS_STR = config.get('MODELS', '')
+# FUTURE parameters
+SSP = config.get('FUTURE_SSP', '585')
+YEAR = config.get('FUTURE_YEAR', '2061-2080')
+MODELS_STR = config.get('FUTURE_MODELS', '')
 MODELS_LIST = [m.strip() for m in MODELS_STR.split(',') if m.strip()] if MODELS_STR else []
-NTREE = config.get('NTREE', '500')
-COR_THRESHOLD = config.get('COR_THRESHOLD', '0.5')
-PCNM = config.get('PCNM', 'with')
+
+# GF parameters
+NTREE = config.get('GF_NTREE', '500')
+COR_THRESHOLD = config.get('GF_COR_THRESHOLD', '0.5')
+PCNM = config.get('GF_PCNM', 'with')
 GF_SUFFIX = config.get('GF_SUFFIX', '')
 GF_RANDOM_MODEL = config.get('GF_RANDOM_MODEL', True)
 
 def parse_association_configs(config):
-    """Parse ASSOCIATION_CONFIGS into method -> adjust_threshold dict."""
-    assoc_configs = config.get('ASSOCIATION_CONFIGS', [])
+    """Parse ASSOC_CONFIGS into method -> adjust_threshold dict."""
+    assoc_configs = config.get('ASSOC_CONFIGS', [])
     configs = {}
     for cfg in assoc_configs:
         method = cfg['METHOD']

@@ -1,105 +1,113 @@
-# Basic arguments 
-# TODO remove --pca from plink 
-VCF_RAW: 'Test.vcf' 
-SAMPLES: 'Test_metadata.tsv' # SampleIDs should contain only: [A-Za-z0-9]
-GFF: 'Test.gff3' # GFF file for gene annotation
-INDIR: "data/" # provide dir where all input files stored - could be . as current dir (test for current dir)
-PROJECTNAME: 'TEST'
-CPU: 10
-################################################# mode=structure ###################################
-# RUN: <docker command> snakemake -s Snakefile --config mode=structure --configfile config_HB.yaml
+#=============================================================================
+# ADAPTOGENE Configuration
+#=============================================================================
 
-# plink vcf processing options
-MAF: 0.05
-MISS: 0.1  # SNP missingness threshold (remove SNPs with > MISS missing rate)
-SAMPLE_MISS: 0.5  # Sample missingness threshold (remove samples with > SAMPLE_MISS missing rate)
-LDwin: 100 # LD window size
-LDstep: 20 # Step of LD window
-LDr2: 0.2 # r2 threshold for LD prunning 
+#-----------------------------------------------------------------------------
+# INPUT: Files and project settings
+#-----------------------------------------------------------------------------
+INPUT_DIR: "data/"              # Directory containing input files
+INPUT_VCF: 'Test.vcf'           # VCF file (supports .vcf and .vcf.gz)
+INPUT_METADATA: 'Test_metadata.tsv'  # Sample metadata (site, sample, latitude, longitude)
+INPUT_GFF: 'Test.gff3'          # GFF file for gene annotation
+PROJECT_NAME: 'TEST'            # Output directory prefix: {PROJECT_NAME}_results/
+CPU: 10                         # Number of CPU cores to use
 
-# SNMF arguments
-K_START: 3 # optimal from 3 to 15
-K_END: 7
-PLOIDY: 2 
-REPEAT: 10 # minimum 10 #TEMP
-PROJECT: "new" # no need to change (remove in the future)
+#-----------------------------------------------------------------------------
+# FILTER: VCF quality filtering (affects variant and sample retention)
+#-----------------------------------------------------------------------------
+FILTER_MAF: 0.05                # Minor allele frequency threshold (remove rare variants)
+FILTER_SNP_MISS: 0.1            # Max SNP missingness (remove SNPs missing in >10% samples)
+FILTER_SAMPLE_MISS: 0.5         # Max sample missingness (remove samples with >50% missing)
 
-################################################ mode=structure_K ##################################
-# SNMF whole arguments
-K_BEST: 5
-CUSTOM_TRAIT: 'NULL' # Here you can provide filename which should be placed in INDIR directory and contain 2 columns: site and <Trait>, with some desirable value calculated for each population (If file doesn't exists it just skip this step)
-# Climate
-CROP_REGION: "auto" # [min_long, max_long, min_lat, max_lat] or auto for automatic defining borders
-RESOLUTION: 0.5
-GAP: 0.5 # If CROP_REGION == 'auto' you can specified the desired GAP (from the square estimated based on lat\long coords), keep as any number if you use your own coordinates
-METRICS_WINSIZE: 3000000 # the size of sliding window for TajimaD, Pi diversity metrics
+#-----------------------------------------------------------------------------
+# LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)
+#-----------------------------------------------------------------------------
+LD_WINDOW: 100                  # Window size in kb for LD calculation
+LD_STEP: 20                     # Step size for sliding window
+LD_R2: 0.2                      # R² threshold (keep SNPs with r² < this value)
 
-# Population statistics (Tajima's D, Pi diversity, AMOVA, IBD)
-# Set to FALSE if populations have < 3 samples each (these metrics require multiple samples per population)
-CALC_POP_STATS: FALSE  # TRUE if all populations have >= 3 samples, FALSE to skip
+#-----------------------------------------------------------------------------
+# SNMF: Population structure inference (ancestry proportions)
+#-----------------------------------------------------------------------------
+SNMF_K_START: 3                 # Minimum K (number of ancestral populations) to test
+SNMF_K_END: 7                   # Maximum K to test
+SNMF_K_BEST: 5                  # Selected K for downstream analyses (set after reviewing cross-entropy)
+SNMF_PLOIDY: 2                  # Ploidy level (2 for diploid)
+SNMF_REPEATS: 10                # Number of repetitions per K (higher = more stable)
 
-# PieMap plot configuration (palette is now fixed to viridis plasma - colorblind-friendly)
-PieMap_PIE_ALPHA: 0.6
-PieMap_POP_LABEL: 'F'
-PieMap_POP_LABEL_SIZE: 8
-############################################## mode=association ####################################
-# LFMM and/or EMMAX on not imputed data
-# 1,2,3,4,8,9,10,12,14,15 WBDC
-PREDICTORS_SELECTED: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15" #TODO use more factors
-  #1, 2, 3, 8, 9, 12, 15
-# Join together and parse in script
-#TODO make two variables and join it in Snakefile
-#ADJUST: 'bonf_0.05' # qval_0.05/bonf_0.05/custom_PVAL/top_1000 
-# Association configurations, list of all desireable analysis with thresholds(number of SNPs in case of top) 
-ASSOCIATION_CONFIGS:
-  - METHOD: "EMMAX"
+#-----------------------------------------------------------------------------
+# MAP: Geographic extent and resolution for climate data
+#-----------------------------------------------------------------------------
+MAP_CROP_REGION: "auto"         # Coordinates [min_lon, max_lon, min_lat, max_lat] or "auto"
+MAP_GAP: 0.5                    # Buffer around samples in degrees (only used if auto)
+MAP_RESOLUTION: 0.5             # Climate data resolution in arc-minutes (0.5, 2.5, 5, 10)
+
+#-----------------------------------------------------------------------------
+# CLIMATE: Bioclimatic variables for association and offset analyses
+#-----------------------------------------------------------------------------
+CLIMATE_PREDICTORS: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
+
+#-----------------------------------------------------------------------------
+# POP: Population-level statistics (require >=3 samples per population)
+#-----------------------------------------------------------------------------
+POP_CALC_STATS: FALSE           # Calculate Tajima's D, Pi, AMOVA, IBD (set FALSE if <3 samples/pop)
+POP_WINDOW_SIZE: 3000000        # Window size in bp for Tajima's D and Pi diversity
+POP_CUSTOM_TRAIT: 'NULL'        # Custom trait file for piemap sizing (site + trait columns)
+
+#-----------------------------------------------------------------------------
+# PIEMAP: Population structure visualization on maps
+#-----------------------------------------------------------------------------
+PIEMAP_ALPHA: 0.6               # Pie chart transparency (0-1)
+PIEMAP_SHOW_LABELS: 'F'         # Show population labels (T/F)
+PIEMAP_LABEL_SIZE: 8            # Label font size
+
+#-----------------------------------------------------------------------------
+# ASSOC: Association analysis settings (GWAS/GEA)
+#-----------------------------------------------------------------------------
+ASSOC_CONFIGS:                  # Methods and significance thresholds
+  - METHOD: "EMMAX"             # EMMAX: mixed model, accounts for population structure
+    ADJUST: "bonf"              # Correction: bonf (Bonferroni) or qval (FDR)
+    THRESHOLD: '0.05'
+  - METHOD: "LFMM"              # LFMM: latent factor mixed model
     ADJUST: "bonf"
     THRESHOLD: '0.05'
-  - METHOD: "LFMM"
-    ADJUST: "bonf"
-    THRESHOLD: '0.05'
 
-GFF_FEATURE: 'mRNA' # feature you want to overlap with sigSNPs one of the specified in gff like mRNA/gene or other. In most cases mRNA is most informative
-#TODO write it as 1Mb and parse in the script + add to genesAround output 
-GENE_DISTANCE: 1000000 # DISTANCE from sigSNPs to find the genes, start - GENE_DISTANCE / 2; end + GENE_DISTANCE / 2, can be estimated by LD decay
-SNP_DISTANCE: 100000 # DISTANCE to consider that SNPs overlapping, can be estimated by LD decay
-PROMOTER_LENGTH: 10000 # use for count SNPs in some region upstream the gene
-# Aggregate results from EMMAX and LFMM (or choose only one method if some method doesn't work well on your data)
-# You should probably rerun association part of analysis if the number of Selected SNPs by your desired method is too high\small(hungreds or few thousands is good enough for modeling maladaptation) 
-# How to agreggate the results (if several assoc methods used EMMAX\LFMM, 
-# by default it will take the last element of each method you used (EMMAX/LFMM/RDA/?) 
-# ASSOCIATION_CONFIGS list)
-sigSNPs_METHOD: 'Sum' # EMMAX/LFMM/Sum/Overlap/PairOverlap; Sum - for taking SNPs from both methods; Overlap - for use only overlapping SNPs with sigSNPs_GAP (0 for identical SNPs only).
-sigSNPs_GAP: 100000 # gap for overlaping in bp (0 for identical SNPs only; ONLY FOR sigSNPs_METHOD == Overlap/PairOverlap)
+ASSOC_COMBINE_METHOD: 'Sum'     # How to combine methods: Sum/Overlap/EMMAX/LFMM
+ASSOC_COMBINE_GAP: 100000       # Max distance (bp) to consider SNPs overlapping
+ASSOC_SNP_DISTANCE: 100000      # Distance to merge nearby significant SNPs
+ASSOC_REGION_DISTANCE: 2000000  # Distance to merge SNPs into genomic regions
+ASSOC_TOP_REGIONS: 10           # Top N regions for gene analysis (0 = all)
+ASSOC_GENE_DISTANCE: 1000000    # Distance from SNP to search for genes
+ASSOC_PROMOTER_LENGTH: 10000    # Promoter region length for SNP annotation
+ASSOC_GO_FIELD: 'ontology'      # GFF attribute with GO terms (NULL to skip enrichment)
 
-# Region and enrichment settings
-REGION_DISTANCE: 2000000 # Distance to merge nearby SNPs into regions (e.g., 2000000 for 2Mb)
-TOP_REGIONS: 10          # Keep only top N regions by snp_count for gene/enrichment analysis (0 = all)
-GO_FIELD: 'ontology'     # GFF attribute field containing GO terms (set to NULL to skip enrichment)
+#-----------------------------------------------------------------------------
+# GFF: Gene annotation parsing
+#-----------------------------------------------------------------------------
+GFF_FEATURE: 'mRNA'             # Feature type to extract (mRNA, gene, CDS, etc.)
+GFF_GENE_NAME: 'description'    # Attribute for gene names
+GFF_BIOTYPE: 'biotype'          # Attribute for gene biotype
 
+#-----------------------------------------------------------------------------
+# REGIONPLOT: Detailed visualization of genomic regions
+#-----------------------------------------------------------------------------
+REGIONPLOT_REGION: "chr3H:108816722-117816722"  # Region to plot (chr:start-end)
+REGIONPLOT_TRAITS: 'GS_Mean_Mbp,Grain_weight'   # Traits to display
+REGIONPLOT_METHOD: 'EMMAX'      # Association method for p-values
+REGIONPLOT_GENES: 'all'         # Genes to label: all/nameless/gene1|gene2
 
-### Optional:
-# Build regional plot for certain region
-############################################# mode=regionplot ######################################
-#python gff2toprFormat_fix.py FB19_028_3_ANNOTATED_fix_fix.gff mRNA description biotype
-# Use GFF and GFF_FEATURE from above
-#REGIONPLOT_REQUEST: "bio_4,bio_12:chr3H_2:472270633;bio_1,bio_12:chr5H_2:89884988" #TODO now plotting all sig snps
-GFF_GENENAME: 'description' # could be any field from column 9 in gff file like ID,Parent,description or other which you want to use for gene annotation
-GFF_BIOTYPE: 'biotype' # how gene type specified in column 9 in gff file
+#-----------------------------------------------------------------------------
+# FUTURE: Climate projections for maladaptation analysis
+#-----------------------------------------------------------------------------
+FUTURE_SSP: '585'               # Shared Socioeconomic Pathway (126, 245, 370, 585)
+FUTURE_YEAR: '2061-2080'        # Time period for projections
+FUTURE_MODELS: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'  # Climate models to average
 
-REGIONPLOT_TRAITS: 'GS_Mean_Mbp,Grain_weight'
-REGIONPLOT_ASSOCMETHOD: 'EMMAX'
-REGIONPLOT_REGION: "chr3H:108816722-117816722"
-GENES_TO_HIGHLIGHT: 'all' # "all" or "nameless"(plot only gene structure without name) list of gene names (based on the GFF_GENENAME feature) with '|' separator gene1|gene2 and etc
-############################################# mode=maladaptation ###################################
-# Future climate data downloading
-
-SSP: '585' # 126, 245, 370, 585 - TODO check actual on geodata when it starts work + make possible to provide the list of desirable parameters as for ADJUST + plus provide the link to the ftp to look on existed tiffs
-YEAR: '2061-2080' # year range 2061-2080
-MODELS: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'
-# Run gradientForest
-NTREE: '1000' # number of tree parameter
-COR_THRESHOLD: '0.5' # Correlation threshold parameter
-PCNM: 'with' # with or without Spatial variables in GF model
-GF_SUFFIX: 'EMMAX_bonf005' # uniq suffix for current run (you can test several set of parameters, to achieve optimal in your case)
-GF_RANDOM_MODEL: TRUE # TRUE to also build a neutral/random model, FALSE to skip
+#-----------------------------------------------------------------------------
+# GF: Gradient Forest modeling for genetic offset
+#-----------------------------------------------------------------------------
+GF_NTREE: '1000'                # Number of trees (higher = more accurate, slower)
+GF_COR_THRESHOLD: '0.5'         # Correlation threshold for variable selection
+GF_PCNM: 'with'                 # Include spatial variables: with/without
+GF_SUFFIX: 'EMMAX_bonf005'      # Unique identifier for this GF run
+GF_RANDOM_MODEL: TRUE           # Also build neutral model for comparison
