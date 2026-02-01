@@ -77,9 +77,8 @@ ASSOC_CONFIGS:                  # Methods and significance thresholds
 ASSOC_COMBINE_METHOD: 'Sum'     # How to combine methods: Sum/Overlap/EMMAX/LFMM
 ASSOC_COMBINE_GAP: 100000       # Max distance (bp) to consider SNPs overlapping
 ASSOC_SNP_DISTANCE: 100000      # Distance to merge nearby significant SNPs
-ASSOC_REGION_DISTANCE: 2000000  # Distance to merge SNPs into genomic regions
+ASSOC_REGION_DISTANCE: 2000000  # Distance to merge SNPs into regions AND extend regions to find genes
 ASSOC_TOP_REGIONS: 10           # Top N regions for gene analysis (0 = all)
-ASSOC_GENE_DISTANCE: 1000000    # Distance from SNP to search for genes
 ASSOC_PROMOTER_LENGTH: 10000    # Promoter region length for SNP annotation
 ASSOC_GO_FIELD: 'ontology'      # GFF attribute with GO terms (NULL to skip enrichment)
 

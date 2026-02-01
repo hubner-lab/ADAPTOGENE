@@ -92,7 +92,6 @@ PIEMAP_POP_LABEL_SIZE = config.get('PIEMAP_LABEL_SIZE', 10)
 # ASSOC parameters
 GFF = config.get('INPUT_GFF', '')
 GFF_FEATURE = config.get('GFF_FEATURE', 'mRNA')
-GENE_DISTANCE = config.get('ASSOC_GENE_DISTANCE', 1000000)
 SNP_DISTANCE = config.get('ASSOC_SNP_DISTANCE', 100000)
 PROMOTER_LENGTH = config.get('ASSOC_PROMOTER_LENGTH', 10000)
 SIGSNPS_METHOD = config.get('ASSOC_COMBINE_METHOD', 'EMMAX')
@@ -165,6 +164,8 @@ W = {
     'samples_removed': f"{INTER}samples_removed.list",    # Samples removed by missingness
     'samples_missing_stats': f"{INTER}samples_missing_stats.tsv",  # Per-sample missing stats
     'samples_order': f"{INTER}samples_order.list",
+    # Normalized GFF (chromosome names match VCF - 'chr' prefix stripped)
+    'gff_normalized': f"{INTER}normalized.gff3",
     # Filtered VCF (in FILT_TAG directory)
     'vcf_filt': f"{WORK_FILT}{VCF_BASE}.vcf",
     # LD-pruned files (in LD_TAG subdirectory)
@@ -352,10 +353,14 @@ def get_predictors_list():
 
 def get_targets(mode):
     if mode == 'processing':
-        return [
+        targets = [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
             W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata']
         ]
+        # Add normalized GFF if GFF is provided
+        if GFF:
+            targets.append(W['gff_normalized'])
+        return targets
     
     elif mode == 'structure':
         ks = k_range(K_START, K_END)
@@ -550,7 +555,8 @@ rule calculate_sample_missing:
         """
 
 rule filter_vcf:
-    """Filter VCF by MAF, missingness, and sample list (after sample missingness filter)."""
+    """Filter VCF by MAF, missingness, and sample list (after sample missingness filter).
+    Also normalizes chromosome names by removing 'chr' prefix to match LEA behavior."""
     input:
         vcf = f"{INDIR}{VCF_RAW}",
         samples = W['samples_filtered']  # Use filtered samples list
@@ -565,6 +571,12 @@ rule filter_vcf:
             --maf {params.maf} --geno {params.miss} \
             --recode vcf --out {params.prefix} > {log} 2>&1
         sed -i '/^#CHROM/s/\\t0_/\\t/g' {output}
+
+        # Normalize chromosome names: strip 'chr' prefix (e.g., chr1 -> 1, chr2H -> 2H)
+        # This ensures consistency with LEA's vcf2lfmm behavior
+        sed -i 's/^chr//g' {output}
+
+        echo "INFO: Normalized chromosome names (stripped 'chr' prefix)" >> {log}
         """
 
 rule ld_prune:
@@ -602,6 +614,26 @@ rule align_metadata:
     output: O['metadata']
     log:    f"{LOGDIR}align_metadata.log"
     shell:  "Rscript /pipeline/scripts/filter_arrange_metadata.R {input.meta} {input.order} {output} > {log} 2>&1"
+
+rule normalize_gff:
+    """Normalize GFF chromosome names by removing 'chr' prefix to match VCF.
+    Creates a normalized GFF in intermediate directory used by all downstream analysis."""
+    input:  gff = f"{INDIR}{GFF}" if GFF else []
+    output: f"{INTER}normalized.gff3"
+    log:    f"{LOGDIR}normalize_gff.log"
+    shell:
+        """
+        if [ -f "{input.gff}" ]; then
+            # Copy GFF and normalize chromosome names (strip 'chr' prefix)
+            grep '^#' {input.gff} > {output} 2> {log}
+            grep -v '^#' {input.gff} | sed 's/^chr//g' >> {output} 2>> {log}
+            echo "INFO: Normalized GFF chromosome names (stripped 'chr' prefix)" >> {log}
+        else
+            # Create empty file if no GFF provided
+            touch {output}
+            echo "INFO: No GFF provided, created empty normalized GFF" >> {log}
+        fi
+        """
 
 rule vcf_to_lfmm:
     """Convert VCF to LEA formats (geno, lfmm)."""
@@ -1147,17 +1179,17 @@ rule create_regions:
 
 # Find genes around regions
 rule find_genes_around_regions:
-    """Find genes within GENE_DISTANCE of significant regions."""
+    """Find genes overlapping regions extended by REGION_DISTANCE."""
     input:
         regions = O['regions'],
-        gff = f"{INDIR}{GFF}",
+        gff = W['gff_normalized'],
         vcfsnp = W['vcfsnp_full']
     output:
         genes = O['genes_per_region'],
         collapsed = O['genes_per_region_collapsed']
     params:
         feature = GFF_FEATURE,
-        distance = GENE_DISTANCE,
+        region_distance = REGION_DISTANCE,
         promoter_len = PROMOTER_LENGTH,
         top_regions = TOP_REGIONS
     log: f"{LOGDIR}find_genes_around_regions.log"
@@ -1165,7 +1197,7 @@ rule find_genes_around_regions:
     shell:
         """
         Rscript /pipeline/scripts/find_genes_around_regions.R \
-            {input.gff} {input.regions} {params.feature} {params.distance} \
+            {input.gff} {input.regions} {params.feature} {params.region_distance} \
             {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
             {output.genes} {output.collapsed} > {log} 2>&1
         """
@@ -1175,7 +1207,7 @@ rule run_enrichment:
     """Run GO enrichment analysis for genes around significant regions."""
     input:
         genes = O['genes_per_region_collapsed'],
-        gff = f"{INDIR}{GFF}"
+        gff = W['gff_normalized']
     output: O['enrichment']
     params:
         go_field = GO_FIELD,
@@ -1195,7 +1227,7 @@ rule run_enrichment:
 
 rule gff2topr:
     """Convert GFF to topr-compatible gene annotation format."""
-    input: gff = f"{INDIR}{GFF}"
+    input: gff = W['gff_normalized']
     output: O['gff_topr']
     params:
         feature = GFF_FEATURE,

@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
-# Find genes around significant regions
+# Find genes overlapping regions extended by REGION_DISTANCE
+# Extends each region by REGION_DISTANCE on both sides, then finds all genes overlapping
 # Outputs: redundant (one row per gene-region) and collapsed (one row per gene)
 
 library(tidyr)
@@ -14,7 +15,7 @@ args = commandArgs(trailingOnly=TRUE)
 GFF = args[1]
 REGIONS = args[2]
 GFF_FEATURE = args[3]
-DISTANCE = args[4] %>% as.numeric
+REGION_DISTANCE = args[4] %>% as.numeric
 PROMOTER_LENGTH = args[5] %>% as.numeric
 ALL_SNPS = args[6]  # vcfsnp file
 CPU = args[7] %>% as.numeric
@@ -23,8 +24,8 @@ OUTPUT_GENES = args[9]
 OUTPUT_COLLAPSED = args[10]
 ################
 
-message('INFO: Finding genes around significant regions')
-message(paste0('INFO: Distance: ', DISTANCE))
+message('INFO: Finding genes overlapping regions extended by REGION_DISTANCE')
+message(paste0('INFO: Region extension distance: ', REGION_DISTANCE))
 message(paste0('INFO: GFF feature: ', GFF_FEATURE))
 
 ######################## Functions
@@ -115,28 +116,28 @@ for (field in fields) {
 genes_gff <- genes_gff %>%
     dplyr::mutate(start = as.integer(start), end = as.integer(end))
 
-# Create GRanges for genes
+# Create GRanges for genes (not extended)
 genes_gr <- genes_gff %>%
     dplyr::select(chr, start, end) %>%
     GRanges()
-
-# Extend genes by DISTANCE/2 on each side
-genes_extended_gr <- GRanges(
-    seqnames = seqnames(genes_gr),
-    ranges = IRanges(
-        start = pmax(1, start(genes_gr) - DISTANCE / 2),
-        end = end(genes_gr) + DISTANCE / 2
-    )
-)
 
 # Create GRanges for regions
 regions_gr <- regions %>%
     dplyr::select(chr, start, end, region_id) %>%
     GRanges()
 
-# Find overlaps between regions and extended genes
+# Extend regions by REGION_DISTANCE (not genes)
+regions_extended_gr <- GRanges(
+    seqnames = seqnames(regions_gr),
+    ranges = IRanges(
+        start = pmax(1, start(regions_gr) - REGION_DISTANCE),
+        end = end(regions_gr) + REGION_DISTANCE
+    )
+)
+
+# Find overlaps between extended regions and genes
 message('INFO: Finding gene-region overlaps')
-overlaps <- findOverlaps(regions_gr, genes_extended_gr)
+overlaps <- findOverlaps(regions_extended_gr, genes_gr)
 
 if (length(overlaps) == 0) {
     message('WARNING: No genes found around regions')
