@@ -90,6 +90,13 @@ GFF_GENE_NAME: 'description'    # Attribute for gene names
 GFF_BIOTYPE: 'biotype'          # Attribute for gene biotype
 
 #-----------------------------------------------------------------------------
+# ENRICHMENT: GO enrichment visualization settings
+#-----------------------------------------------------------------------------
+ENRICHMENT_TOP_TERMS: 20         # Number of top enriched terms to show in plots
+ENRICHMENT_PLOT_WIDTH: 12        # Plot width in inches
+ENRICHMENT_PLOT_HEIGHT: 10       # Plot height in inches
+
+#-----------------------------------------------------------------------------
 # REGIONPLOT: Detailed visualization of genomic regions
 #-----------------------------------------------------------------------------
 REGIONPLOT_REGION: "chr3H:108816722-117816722"  # Region to plot (chr:start-end)

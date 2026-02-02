@@ -134,6 +134,7 @@ RUN Rscript -e "BiocManager::install('WGCNA', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('clusterProfiler', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('AnnotationDbi', version = '3.22', ask = FALSE)"
 RUN Rscript -e "BiocManager::install('GO.db', version = '3.22', ask = FALSE)"
+RUN Rscript -e "BiocManager::install('enrichplot', version = '3.22', ask = FALSE)"
 
 # CRAN packages used with Bioconductor workflows
 RUN Rscript -e " \
@@ -141,6 +142,7 @@ RUN Rscript -e " \
     remotes::install_version('vcfR', version = '1.15.0'); \
     remotes::install_version('adegenet', version = '2.1.10'); \
     remotes::install_version('poppr', version = '2.9.6'); \
+    remotes::install_version('ggraph', version = '2.2.1'); \
 "
 
 # gradientForest from r-forge (version 0.1-37)

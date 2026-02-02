@@ -7,6 +7,7 @@ library(dplyr)
 library(stringr)
 library(tidyr)
 library(clusterProfiler)
+library(qs)
 
 args = commandArgs(trailingOnly=TRUE)
 ################
@@ -15,12 +16,14 @@ GFF = args[2]
 GO_FIELD = args[3]          # Field name containing GO terms in GFF (e.g., "ontology")
 GFF_FEATURE = args[4]       # Feature type (e.g., "mRNA")
 TABLES_DIR = args[5]        # Base directory: tables/association/enrichment/
+INTERMEDIATE_DIR = args[6]  # Base directory: intermediate/enrichment/
 ################
 
 message('INFO: Running per-region GO enrichment analysis')
 message(paste0('INFO: GO field: ', GO_FIELD))
 message(paste0('INFO: GFF feature: ', GFF_FEATURE))
-message(paste0('INFO: Output directory: ', TABLES_DIR))
+message(paste0('INFO: TSV output directory: ', TABLES_DIR))
+message(paste0('INFO: QS output directory: ', INTERMEDIATE_DIR))
 
 # Check if GO_FIELD is NULL or empty
 if (is.null(GO_FIELD) || GO_FIELD == 'NULL' || GO_FIELD == '') {
@@ -100,23 +103,22 @@ run_enrichment_for_region <- function(region_id, trait, genes_in_region, term2ge
             return(NULL)
         }
 
-        # Extract results
-        result_dt <- enrich_result@result %>%
-            as.data.table() %>%
-            dplyr::select(ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue, geneID, Count) %>%
-            setNames(c('GO_id', 'description', 'gene_ratio', 'bg_ratio', 'pvalue', 'p_adjust', 'qvalue', 'gene_ids', 'gene_count'))
+        # Fix qvalue if NA (common with small datasets where qvalue package fails)
+        if (nrow(enrich_result@result) > 0) {
+            if (all(is.na(enrich_result@result$qvalue))) {
+                message('INFO: qvalue is NA, using p.adjust as qvalue')
+                enrich_result@result$qvalue <- enrich_result@result$p.adjust
+            }
+        }
 
-        # Add region and trait columns
-        result_dt$region_id <- region_id
-        result_dt$trait <- trait
+        message(paste0('INFO: Region ', region_id, ': Found ', nrow(enrich_result@result), ' enriched terms'))
 
-        # Reorder columns
-        result_dt <- result_dt %>%
-            dplyr::select(region_id, trait, GO_id, description, gene_ratio, bg_ratio, pvalue, p_adjust, qvalue, gene_ids, gene_count)
-
-        message(paste0('INFO: Region ', region_id, ': Found ', nrow(result_dt), ' enriched terms'))
-
-        return(result_dt)
+        # Return the enrichResult object directly (will be saved with qs)
+        return(list(
+            region_id = region_id,
+            trait = trait,
+            enrich_obj = enrich_result
+        ))
 
     }, error = function(e) {
         message(paste0('ERROR in enrichment for region ', region_id, ': ', e$message))
@@ -196,10 +198,18 @@ all_genes_with_go <- unique(term2gene$gene)
 # Create output directories
 traits <- unique(genes$trait)
 for (trait in traits) {
-    trait_dir <- file.path(TABLES_DIR, trait)
-    if (!dir.exists(trait_dir)) {
-        dir.create(trait_dir, recursive = TRUE)
-        message(paste0('INFO: Created directory: ', trait_dir))
+    # Create tables directory for TSV files
+    trait_dir_tables <- file.path(TABLES_DIR, trait)
+    if (!dir.exists(trait_dir_tables)) {
+        dir.create(trait_dir_tables, recursive = TRUE)
+        message(paste0('INFO: Created directory: ', trait_dir_tables))
+    }
+
+    # Create intermediate directory for .qs files
+    trait_dir_inter <- file.path(INTERMEDIATE_DIR, trait)
+    if (!dir.exists(trait_dir_inter)) {
+        dir.create(trait_dir_inter, recursive = TRUE)
+        message(paste0('INFO: Created directory: ', trait_dir_inter))
     }
 }
 
@@ -235,14 +245,34 @@ for (i in seq_len(nrow(genes_by_region))) {
         all_genes_with_go = all_genes_with_go
     )
 
-    if (!is.null(result) && nrow(result) > 0) {
+    if (!is.null(result)) {
         result_counter <- result_counter + 1
-        all_results[[result_counter]] <- result
 
-        # Save per-region file
-        region_file <- file.path(TABLES_DIR, trait, paste0('Region_', region_id, '_enrichment.tsv'))
-        result %>% fwrite(region_file, sep = '\t')
-        message(paste0('INFO: Saved ', region_file))
+        region_id <- result$region_id
+        trait <- result$trait
+        enrich_obj <- result$enrich_obj
+
+        # Save enrichResult object as .qs file to intermediate directory
+        qs_file <- file.path(INTERMEDIATE_DIR, trait, paste0('Region_', region_id, '_enrichment.qs'))
+        qs::qsave(enrich_obj, qs_file)
+        message(paste0('INFO: Saved enrichment object to ', qs_file))
+
+        # Also save TSV summary for easy viewing
+        result_dt <- enrich_obj@result %>%
+            as.data.table() %>%
+            dplyr::select(ID, Description, GeneRatio, BgRatio, pvalue, p.adjust, qvalue, geneID, Count) %>%
+            setNames(c('GO_id', 'description', 'gene_ratio', 'bg_ratio', 'pvalue', 'p_adjust', 'qvalue', 'gene_ids', 'gene_count'))
+        result_dt$region_id <- region_id
+        result_dt$trait <- trait
+        result_dt <- result_dt %>%
+            dplyr::select(region_id, trait, GO_id, description, gene_ratio, bg_ratio, pvalue, p_adjust, qvalue, gene_ids, gene_count)
+
+        tsv_file <- file.path(TABLES_DIR, trait, paste0('Region_', region_id, '_enrichment.tsv'))
+        result_dt %>% fwrite(tsv_file, sep = '\t')
+        message(paste0('INFO: Saved TSV summary to ', tsv_file))
+
+        # Store for summary
+        all_results[[result_counter]] <- result_dt
     }
 }
 

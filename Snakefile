@@ -101,6 +101,11 @@ GO_FIELD = config.get('ASSOC_GO_FIELD', 'NULL')
 TOP_REGIONS = config.get('ASSOC_TOP_REGIONS', 10)
 SCATTERMORE_THRESHOLD = config.get('ASSOC_SCATTERMORE_THRESHOLD', 30000)
 
+# ENRICHMENT parameters
+ENRICHMENT_TOP_TERMS = config.get('ENRICHMENT_TOP_TERMS', 20)
+ENRICHMENT_PLOT_WIDTH = config.get('ENRICHMENT_PLOT_WIDTH', 12)
+ENRICHMENT_PLOT_HEIGHT = config.get('ENRICHMENT_PLOT_HEIGHT', 10)
+
 # GFF parameters
 GFF_GENENAME = config.get('GFF_GENE_NAME', 'description')
 GFF_BIOTYPE = config.get('GFF_BIOTYPE', 'biotype')
@@ -247,7 +252,8 @@ def add_association_paths():
     O['genes_per_region'] = f"{TABLES}association/Genes_per_region.tsv"
     O['genes_per_region_collapsed'] = f"{TABLES}association/Genes_per_region_collapsed.tsv"
     O['genes_combined_regions'] = f"{TABLES}association/Genes_per_region_combined.tsv"
-    O['enrichment_done'] = f"{TABLES}association/enrichment/.done"
+    W['enrichment_done'] = f"{INTER}enrichment_done"
+    W['enrichment_plots_done'] = f"{INTER}enrichment_plots_done"
 
     # Combined Manhattan plots (all traits and methods)
     O['manhattan_combined'] = f"{PLOTS}association/Manhattan_all_traits_combined_K{K_BEST}.png"
@@ -336,6 +342,7 @@ dirs_to_create.append(f"{TABLES}association/enrichment/")
 
 # Add combined association plots directory
 dirs_to_create.append(f"{PLOTS}association/")
+dirs_to_create.append(f"{PLOTS}association/enrichment/")
 
 # Add regionplot directory
 dirs_to_create.append(f"{PLOTS}regionplot/")
@@ -453,7 +460,8 @@ def get_targets(mode):
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
-            targets.append(O['enrichment_done'])
+            targets.append(W['enrichment_done'])
+            targets.append(W['enrichment_plots_done'])
 
         return targets
 
@@ -1254,7 +1262,8 @@ rule run_enrichment:
     """Run per-region GO enrichment analysis for genes around significant regions.
 
     Creates per-region enrichment files in trait-specific subdirectories:
-    - tables/association/enrichment/{trait}/Region_{region_id}_enrichment.tsv
+    - intermediate/enrichment/{trait}/Region_{region_id}_enrichment.qs (enrichResult object)
+    - tables/association/enrichment/{trait}/Region_{region_id}_enrichment.tsv (summary table)
     - tables/association/enrichment/{trait}/Enrichment_{trait}_summary.tsv
 
     Output files are determined dynamically based on regions in Genes_per_region.tsv.
@@ -1262,20 +1271,54 @@ rule run_enrichment:
     input:
         genes = O['genes_per_region'],  # Use redundant table (one row per region-gene pair)
         gff = W['gff_normalized']
-    output: O['enrichment_done']
+    output: W['enrichment_done']
     params:
         go_field = GO_FIELD,
         feature = GFF_FEATURE,
-        tables_dir = f"{TABLES}association/enrichment/"
+        tables_dir = f"{TABLES}association/enrichment/",
+        intermediate_dir = f"{INTER}enrichment/"
     log: f"{LOGDIR}run_enrichment.log"
     shell:
         """
         # Run enrichment (creates per-region and per-trait summary files)
         Rscript /pipeline/scripts/run_enrichment.R \
             {input.genes} {input.gff} {params.go_field} {params.feature} \
-            {params.tables_dir} > {log} 2>&1
+            {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
 
         # Touch done file to indicate completion
+        touch {output}
+        """
+
+# Enrichment visualization plots
+rule plot_enrichment:
+    """Generate enrichment visualization plots for each region.
+
+    Creates three plot types for each region with significant enrichment:
+    - emapplot: GO term similarity network
+    - cnetplot: Gene-concept network
+    - dotplot: Standard enrichment dotplot
+
+    Plots are organized by trait in plots/association/enrichment/{trait}/
+    Reads .qs enrichment objects from intermediate/enrichment/
+    """
+    input:
+        enrichment_done = W['enrichment_done']
+    output:
+        W['enrichment_plots_done']
+    params:
+        intermediate_dir = f"{INTER}enrichment/",
+        plots_dir = f"{PLOTS}association/enrichment/",
+        top_terms = ENRICHMENT_TOP_TERMS,
+        width = ENRICHMENT_PLOT_WIDTH,
+        height = ENRICHMENT_PLOT_HEIGHT
+    log: f"{LOGDIR}plot_enrichment.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_enrichment.R \
+            {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
+            {params.width} {params.height} > {log} 2>&1
+
+        # Touch done file
         touch {output}
         """
 

@@ -34,6 +34,8 @@ Overall, ADAPTOGENE standardizes complex population genomic workflows, automates
 - Unified framework for **population structure, association, and maladaptation**
 - Automated **climate data download and preprocessing**
 - Explicit detection of **overlapping association signals**
+- **GO enrichment analysis** with comprehensive visualizations (dotplot, emapplot, cnetplot)
+- Per-region and per-trait functional enrichment reporting
 - Reproducible execution via **Docker**
 - Designed for **landscape and conservation genomics**
 - Minimal manual intervention once configured
@@ -160,24 +162,73 @@ snakemake -s Snakefile --configfile config.yaml --config mode=structure --cores 
 ### 3. Association analysis (`mode=association`)
 
 **Input**
-- VCF  
-- Environmental predictors and/or phenotypic traits  
-- GFF annotation  
+- VCF
+- Environmental predictors and/or phenotypic traits
+- GFF annotation with GO terms (for enrichment analysis)
 
 **Methods**
-- EMMAX  
-- LFMM (optional)  
-- Multiple testing correction (Bonferroni, q-value, top-N)  
+- EMMAX
+- LFMM (optional)
+- Multiple testing correction (Bonferroni, q-value, top-N)
 
 **Purpose**
-- Identify SNPs associated with traits or environmental variables  
-- Aggregate signals across methods  
-- Detect overlapping loci across traits  
+- Identify SNPs associated with traits or environmental variables
+- Aggregate signals across methods
+- Detect overlapping loci across traits
+- Cluster significant SNPs into genomic regions
+- Identify candidate genes within regions
+- Perform GO enrichment analysis on region-associated genes
 
 **Output**
-- Significant SNP tables  
-- Candidate gene lists  
+- Significant SNP tables
+- Genomic regions of association (per-trait and combined)
+- Candidate gene lists (genes within regions)
+- GO enrichment results (per-region, organized by trait)
+- Enrichment visualization plots:
+  - **Dotplot**: Enriched GO terms with gene ratios and p-values
+  - **Emapplot**: GO term similarity network showing clustering
+  - **Cnetplot**: Gene-concept network showing gene-term relationships
+- Manhattan plots with regional annotations
 - Overlap summaries across traits and methods  
+
+#### GO Enrichment Analysis
+
+When a GFF file with GO annotations is provided (`ASSOC_GO_FIELD` parameter), the pipeline automatically performs functional enrichment analysis on genes associated with significant regions.
+
+**Process**:
+1. Significant SNPs are clustered into genomic regions using `ASSOC_REGION_DISTANCE`
+2. Genes within extended regions are identified (regions ± `ASSOC_REGION_DISTANCE`)
+3. Per-region GO enrichment analysis using clusterProfiler
+4. Enrichment visualizations generated for each region
+
+**Configuration parameters** (in `config.yaml`):
+```yaml
+ASSOC_GO_FIELD: ontology           # GFF field containing GO terms
+ENRICHMENT_TOP_TERMS: 20           # Max GO terms to show in plots
+ENRICHMENT_PLOT_WIDTH: 12          # Plot width in inches
+ENRICHMENT_PLOT_HEIGHT: 10         # Plot height in inches
+```
+
+**Output organization**:
+```
+results/
+├── intermediate/enrichment/{trait}/
+│   └── Region_{region_id}_enrichment.qs    # enrichResult objects
+├── tables/association/enrichment/{trait}/
+│   ├── Region_{region_id}_enrichment.tsv   # Per-region tables
+│   └── Enrichment_{trait}_summary.tsv      # Per-trait summaries
+└── plots/association/enrichment/{trait}/
+    ├── Region_{region_id}_dotplot.{png,svg}
+    ├── Region_{region_id}_emapplot.{png,svg}
+    └── Region_{region_id}_cnetplot.{png,svg}
+```
+
+**Plot types**:
+- **Dotplot**: Standard GO enrichment visualization showing term significance and gene ratios
+- **Emapplot**: Network plot showing GO term similarities and clustering (identifies related biological processes)
+- **Cnetplot**: Gene-concept network showing which genes belong to which GO terms (identifies hub genes)
+
+All plots are saved in both PNG (300 dpi) and SVG (vector) formats for publication.
 
 ---
 
