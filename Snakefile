@@ -246,7 +246,12 @@ def add_association_paths():
     O['regions_combined'] = f"{TABLES}association/Regions_climate_combined.tsv"
     O['genes_per_region'] = f"{TABLES}association/Genes_per_region.tsv"
     O['genes_per_region_collapsed'] = f"{TABLES}association/Genes_per_region_collapsed.tsv"
-    O['enrichment'] = f"{TABLES}association/enrichment/Enrichment_combined.tsv"
+    O['genes_combined_regions'] = f"{TABLES}association/Genes_per_region_combined.tsv"
+    O['enrichment_done'] = f"{TABLES}association/enrichment/.done"
+
+    # Combined Manhattan plots (all traits and methods)
+    O['manhattan_combined'] = f"{PLOTS}association/Manhattan_all_traits_combined_K{K_BEST}.png"
+    O['manhattan_combined_regions'] = f"{PLOTS}association/Manhattan_all_traits_combined_K{K_BEST}_regions.png"
 
     # Regionplot outputs
     O['gff_topr'] = f"{INTER}topr_gene_annotation.tsv"
@@ -328,6 +333,9 @@ for method in ASSOC_CONFIGS:
 # Add enrichment directory
 dirs_to_create.append(f"{TABLES}association/")
 dirs_to_create.append(f"{TABLES}association/enrichment/")
+
+# Add combined association plots directory
+dirs_to_create.append(f"{PLOTS}association/")
 
 # Add regionplot directory
 dirs_to_create.append(f"{PLOTS}regionplot/")
@@ -437,10 +445,15 @@ def get_targets(mode):
         targets.append(O['regions_combined'])
         targets.append(O['genes_per_region'])
         targets.append(O['genes_per_region_collapsed'])
+        targets.append(O['genes_combined_regions'])
+
+        # Combined Manhattan plots (all traits and methods)
+        targets.append(O['manhattan_combined'])
+        targets.append(O['manhattan_combined_regions'])
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
-            targets.append(O['enrichment'])
+            targets.append(O['enrichment_done'])
 
         return targets
 
@@ -1208,13 +1221,48 @@ rule find_genes_around_regions:
             {output.genes} {output.collapsed} > {log} 2>&1
         """
 
+# Find genes for combined climate regions (reference only, no enrichment)
+rule find_genes_combined_regions:
+    """Find genes overlapping combined climate regions (all traits) for reference."""
+    input:
+        regions = O['regions_combined'],
+        gff = W['gff_normalized'],
+        vcfsnp = W['vcfsnp_full']
+    output:
+        genes = O['genes_combined_regions']
+    params:
+        feature = GFF_FEATURE,
+        region_distance = REGION_DISTANCE,
+        promoter_len = PROMOTER_LENGTH,
+        top_regions = TOP_REGIONS
+    log: f"{LOGDIR}find_genes_combined_regions.log"
+    threads: CPU
+    shell:
+        """
+        # Use same script but only keep the redundant output (genes file)
+        # Combined regions don't need collapsed output since we don't run enrichment on them
+        TEMP_COLLAPSED=$(mktemp)
+        Rscript /pipeline/scripts/find_genes_around_regions.R \
+            {input.gff} {input.regions} {params.feature} {params.region_distance} \
+            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+            {output.genes} $TEMP_COLLAPSED > {log} 2>&1
+        rm -f $TEMP_COLLAPSED
+        """
+
 # GO enrichment analysis (only if GO_FIELD is specified)
 rule run_enrichment:
-    """Run GO enrichment analysis for genes around significant regions."""
+    """Run per-region GO enrichment analysis for genes around significant regions.
+
+    Creates per-region enrichment files in trait-specific subdirectories:
+    - tables/association/enrichment/{trait}/Region_{region_id}_enrichment.tsv
+    - tables/association/enrichment/{trait}/Enrichment_{trait}_summary.tsv
+
+    Output files are determined dynamically based on regions in Genes_per_region.tsv.
+    """
     input:
-        genes = O['genes_per_region_collapsed'],
+        genes = O['genes_per_region'],  # Use redundant table (one row per region-gene pair)
         gff = W['gff_normalized']
-    output: O['enrichment']
+    output: O['enrichment_done']
     params:
         go_field = GO_FIELD,
         feature = GFF_FEATURE,
@@ -1222,9 +1270,41 @@ rule run_enrichment:
     log: f"{LOGDIR}run_enrichment.log"
     shell:
         """
+        # Run enrichment (creates per-region and per-trait summary files)
         Rscript /pipeline/scripts/run_enrichment.R \
             {input.genes} {input.gff} {params.go_field} {params.feature} \
-            {params.tables_dir} {output} > {log} 2>&1
+            {params.tables_dir} > {log} 2>&1
+
+        # Touch done file to indicate completion
+        touch {output}
+        """
+
+# Combined Manhattan plots (all traits and methods)
+rule manhattan_combined:
+    """Generate combined Manhattan plots showing all traits and methods together.
+    Produces two versions: simple and with regions highlighted."""
+    input:
+        assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS],
+        regions = O['regions_combined']
+    output:
+        simple_png = O['manhattan_combined'],
+        simple_svg = f"{PLOTS}association/Manhattan_all_traits_combined_K{K_BEST}.svg",
+        regions_png = O['manhattan_combined_regions'],
+        regions_svg = f"{PLOTS}association/Manhattan_all_traits_combined_K{K_BEST}_regions.svg"
+    params:
+        assoc_str = ','.join([
+            f"{method}:{adjust}:{assoc_pvalues(method)}"
+            for method, adjust in ASSOC_CONFIGS.items()
+        ]),
+        predictors = PREDICTORS_SELECTED,
+        k = K_BEST,
+        plot_dir = f"{PLOTS}association/"
+    log: f"{LOGDIR}manhattan_combined.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_manhattan_combined.R \
+            "{params.assoc_str}" {params.predictors} {params.k} \
+            {input.regions} {params.plot_dir} > {log} 2>&1
         """
 
 #=============================================================================

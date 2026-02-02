@@ -99,6 +99,7 @@ RUN Rscript -e " \
     remotes::install_version('svglite', version = '2.1.3'); \
     remotes::install_version('CMplot', version = '4.5.1'); \
     remotes::install_version('scattermore', version = '1.2'); \
+    remotes::install_version('RColorBrewer', version = '1.1-3'); \
 "
 
 # Spatial and geographic packages
