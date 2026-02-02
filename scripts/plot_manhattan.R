@@ -288,10 +288,10 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
     if ('chr' %in% colnames(regions)) regions$chr <- as.character(regions$chr)
 
     if (nrow(regions) > 0) {
-        # Filter regions that contain the current trait (exact match, not substring)
-        # Use word boundary to avoid "bio_1" matching "bio_12"
+        # Filter regions for the current trait
+        # Per-trait regions have a "trait" column with exact matches
         regions_trait <- regions %>%
-            dplyr::filter(str_detect(traits, paste0("(^|,)", TRAIT, "(,|$)")))
+            dplyr::filter(trait == TRAIT)
 
         message(paste0('INFO: Found ', nrow(regions_trait), ' regions for trait ', TRAIT))
 

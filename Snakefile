@@ -242,7 +242,8 @@ def add_association_paths():
 
     # Combined outputs - association
     O['selected_snps'] = f"{TABLES}association/Selected_SNPs.tsv"
-    O['regions'] = f"{TABLES}association/Regions.tsv"
+    O['regions_per_trait'] = f"{TABLES}association/Regions_per_trait.tsv"
+    O['regions_combined'] = f"{TABLES}association/Regions_climate_combined.tsv"
     O['genes_per_region'] = f"{TABLES}association/Genes_per_region.tsv"
     O['genes_per_region_collapsed'] = f"{TABLES}association/Genes_per_region_collapsed.tsv"
     O['enrichment'] = f"{TABLES}association/enrichment/Enrichment_combined.tsv"
@@ -432,7 +433,8 @@ def get_targets(mode):
 
         # Combined analysis targets
         targets.append(O['selected_snps'])
-        targets.append(O['regions'])
+        targets.append(O['regions_per_trait'])
+        targets.append(O['regions_combined'])
         targets.append(O['genes_per_region'])
         targets.append(O['genes_per_region_collapsed'])
 
@@ -1100,10 +1102,10 @@ rule manhattan_plot:
 # For combined methods (Sum/Overlap/PairOverlap), shows all selected SNPs
 # with different shapes: circle=current method, triangle=other method, diamond=both
 rule manhattan_plot_regions:
-    """Generate Manhattan plot with significant regions highlighted."""
+    """Generate Manhattan plot with per-trait regions highlighted."""
     input:
         assoc = lambda wc: assoc_pvalues(wc.method),
-        regions = O['regions'],
+        regions = O['regions_per_trait'],
         # All sigSNPs files from all methods for per-trait method attribution
         sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
     output:
@@ -1166,22 +1168,26 @@ rule combine_selected_snps:
 
 # Merge SNPs into regions based on distance
 rule create_regions:
-    """Merge nearby significant SNPs into regions."""
+    """Merge nearby significant SNPs into regions.
+    Produces two outputs: per-trait regions and combined climate regions."""
     input: selected_snps = O['selected_snps']
-    output: O['regions']
+    output:
+        per_trait = O['regions_per_trait'],
+        combined = O['regions_combined']
     params: region_dist = REGION_DISTANCE
     log: f"{LOGDIR}create_regions.log"
     shell:
         """
         Rscript /pipeline/scripts/create_regions.R \
-            {input.selected_snps} {params.region_dist} {output} > {log} 2>&1
+            {input.selected_snps} {params.region_dist} \
+            {output.per_trait} {output.combined} > {log} 2>&1
         """
 
 # Find genes around regions
 rule find_genes_around_regions:
-    """Find genes overlapping regions extended by REGION_DISTANCE."""
+    """Find genes overlapping per-trait regions extended by REGION_DISTANCE."""
     input:
-        regions = O['regions'],
+        regions = O['regions_per_trait'],
         gff = W['gff_normalized'],
         vcfsnp = W['vcfsnp_full']
     output:
@@ -1244,7 +1250,7 @@ rule gff2topr:
 rule regionplot:
     """Generate regional Manhattan plots for top regions with all methods overlaid."""
     input:
-        regions = O['regions'],
+        regions = O['regions_per_trait'],
         gff_topr = O['gff_topr'],
         assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS]
     output: touch(O['regionplot_done'])
