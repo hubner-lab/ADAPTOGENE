@@ -28,6 +28,7 @@ POP_LABEL_SIZE = args[10] %>% as.numeric
 PLOT_DIR = args[11]
 INTER_DIR = args[12]
 OUTPUT_PREFIX = args[13]
+REGIONMAP_EXTENT = if (length(args) >= 14) args[14] else "NULL"  # Optional: "xmin,xmax,ymin,ymax" or "NULL"
 #################################
 
 set.seed(42)
@@ -291,10 +292,83 @@ gPlot <- create_piemap(
   legend_map_title = RASTER_LEGEND
 )
 
-# Save outputs
+# Save outputs (full extent)
 ggsave(paste0(PLOT_DIR, OUTPUT_PREFIX, '.png'), gPlot)
 ggsave(paste0(PLOT_DIR, OUTPUT_PREFIX, '.svg'), gPlot,
        device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
 qsave(gPlot, paste0(INTER_DIR, OUTPUT_PREFIX, '.qs'))
 
 message(paste0('INFO: PieMap complete: ', OUTPUT_PREFIX))
+
+# Generate zoomed plot if REGIONMAP_EXTENT is provided
+if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
+    message("INFO: Generating zoomed regionmap plot...")
+
+    # Parse extent coordinates: "xmin,xmax,ymin,ymax"
+    coords <- as.numeric(strsplit(REGIONMAP_EXTENT, ",")[[1]])
+    if (length(coords) != 4) {
+        stop("ERROR: REGIONMAP_EXTENT must be 'xmin,xmax,ymin,ymax', got: ", REGIONMAP_EXTENT)
+    }
+
+    xmin <- coords[1]
+    xmax <- coords[2]
+    ymin <- coords[3]
+    ymax <- coords[4]
+
+    # Create extent object for cropping
+    zoom_extent <- extent(xmin, xmax, ymin, ymax)
+
+    # Crop raster to zoom extent
+    rlayer_zoom <- crop(rlayer, zoom_extent)
+
+    # Filter samples to those within zoom extent
+    samples_zoom <- samples %>%
+        filter(longitude >= xmin & longitude <= xmax) %>%
+        filter(latitude >= ymin & latitude <= ymax)
+
+    if (nrow(samples_zoom) == 0) {
+        message("WARNING: No samples within zoom extent, skipping zoomed plot")
+    } else {
+        message(paste0("INFO: ", nrow(samples_zoom), " samples within zoom extent"))
+
+        # Filter clusters to match zoomed samples
+        clusters_zoom <- clusters %>% filter(sample %in% samples_zoom$sample)
+
+        # Filter size trait if provided
+        size_trait_zoom <- NULL
+        if (!is.null(size_trait)) {
+            size_trait_zoom <- size_trait %>% filter(site %in% samples_zoom$site)
+        }
+
+        # Recalculate pie size range for zoomed extent (maintains visual proportions)
+        pie_size_range_zoom <- calculate_pie_size_range(rlayer_zoom)
+
+        # Create zoomed plot
+        gPlot_zoom <- create_piemap(
+            samples = samples_zoom,
+            clusters = clusters_zoom,
+            raster_layer = rlayer_zoom,
+            trait = size_trait_zoom,
+            trait_name = if (SIZE_TRAIT_NAME != "NULL") SIZE_TRAIT_NAME else NULL,
+            pie_size_range = pie_size_range_zoom,
+            pie_alpha = PIE_ALPHA,
+            pop_labels = pop_labels,  # Keep same label setting
+            pop_label_size = POP_LABEL_SIZE,
+            legend_map_title = paste0(RASTER_LEGEND, " (Zoomed)")
+        )
+
+        # Create zoom suffix for filename
+        coords_str <- gsub("\\.", "p", REGIONMAP_EXTENT)  # Replace . with p
+        coords_str <- gsub(",", "_", coords_str)          # Replace , with _
+        zoom_suffix <- paste0("_zoom_", coords_str)
+
+        # Save zoomed outputs
+        zoom_dir <- paste0(PLOT_DIR, "regionmap/")
+        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, zoom_suffix, '.png'), gPlot_zoom)
+        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, zoom_suffix, '.svg'), gPlot_zoom,
+               device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
+        qsave(gPlot_zoom, paste0(INTER_DIR, OUTPUT_PREFIX, zoom_suffix, '.qs'))
+
+        message(paste0('INFO: Zoomed PieMap complete: ', OUTPUT_PREFIX, zoom_suffix))
+    }
+}

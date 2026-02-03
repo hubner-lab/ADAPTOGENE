@@ -41,6 +41,7 @@ SNMF_REPEATS: 10                # Number of repetitions per K (higher = more sta
 MAP_CROP_REGION: "auto"         # Coordinates [min_lon, max_lon, min_lat, max_lat] or "auto"
 MAP_GAP: 0.5                    # Buffer around samples in degrees (only used if auto)
 MAP_RESOLUTION: 0.5             # Climate data resolution in arc-minutes (0.5, 2.5, 5, 10)
+MAP_REGIONMAP_EXTENT: "NULL"    # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL" (creates both full + zoomed plots)
 
 #-----------------------------------------------------------------------------
 # CLIMATE: Bioclimatic variables for association and offset analyses

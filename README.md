@@ -137,7 +137,10 @@ SNMF_REPEATS: 10
 MAP_CROP_REGION: "auto"       # or [min_lon, max_lon, min_lat, max_lat]
 MAP_GAP: 0.5                  # Buffer around samples (degrees)
 MAP_RESOLUTION: 0.5           # Climate resolution (0.5, 2.5, 5, 10 arc-min)
+MAP_REGIONMAP_EXTENT: "NULL"  # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL"
 ```
+
+**Note on Regional Zoom**: When `MAP_REGIONMAP_EXTENT` is set to coordinates (e.g., `"34.8,35.8,32.0,33.3"`), the pipeline automatically generates **both** full extent and zoomed plots for all piemaps and genetic offset maps. Zoomed plots are saved to `regionmap/` subdirectories with coordinate-tagged filenames (e.g., `PieMap_bio_1_zoom_34p8_35p8_32p0_33p3.png`). This allows detailed exploration of specific geographic regions without rerunning analysis.
 
 **CLIMATE** - Bioclimatic variables
 ```yaml
