@@ -99,6 +99,7 @@ CUSTOM_TRAIT = config.get('POP_CUSTOM_TRAIT', 'NULL')
 PIEMAP_PIE_ALPHA = config.get('PIEMAP_ALPHA', 0.6)
 PIEMAP_POP_LABEL = config.get('PIEMAP_SHOW_LABELS', 'F')
 PIEMAP_POP_LABEL_SIZE = config.get('PIEMAP_LABEL_SIZE', 10)
+PIEMAP_PIE_SCALE = config.get('PIEMAP_PIE_SCALE', 1.0)
 
 # ASSOC parameters
 GFF = config.get('INPUT_GFF', '')
@@ -958,6 +959,7 @@ rule piemap_plot:
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
@@ -971,7 +973,7 @@ rule piemap_plot:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio}_TajimaD {params.regionmap_extent} > {log} 2>&1
+            PieMap_{params.bio}_TajimaD {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
 
         # PiDiversity piemap
         Rscript /pipeline/scripts/plot_piemap.R \
@@ -980,7 +982,7 @@ rule piemap_plot:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio}_PiDiversity {params.regionmap_extent} >> {log} 2>&1
+            PieMap_{params.bio}_PiDiversity {params.regionmap_extent} {params.pie_scale} >> {log} 2>&1
         """
 
 rule piemap_simple:
@@ -996,6 +998,7 @@ rule piemap_simple:
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
@@ -1008,7 +1011,7 @@ rule piemap_simple:
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio} {params.regionmap_extent} > {log} 2>&1
+            PieMap_{params.bio} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
         """
 
 #=============================================================================
@@ -1610,6 +1613,7 @@ rule plot_gf_offset_piemap:
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
@@ -1623,7 +1627,7 @@ rule plot_gf_offset_piemap:
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix} {params.regionmap_extent} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_tajima:
@@ -1638,6 +1642,7 @@ rule plot_gf_offset_piemap_tajima:
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
@@ -1651,7 +1656,7 @@ rule plot_gf_offset_piemap_tajima:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix}_TajimaD {params.regionmap_extent} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix}_TajimaD {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_diversity:
@@ -1666,6 +1671,7 @@ rule plot_gf_offset_piemap_diversity:
         pie_alpha = PIEMAP_PIE_ALPHA,
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
@@ -1679,5 +1685,5 @@ rule plot_gf_offset_piemap_diversity:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix}_PiDiversity {params.regionmap_extent} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix}_PiDiversity {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
         """

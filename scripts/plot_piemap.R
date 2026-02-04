@@ -29,6 +29,7 @@ PLOT_DIR = args[11]
 INTER_DIR = args[12]
 OUTPUT_PREFIX = args[13]
 REGIONMAP_EXTENT = if (length(args) >= 14) args[14] else "NULL"  # Optional: "xmin,xmax,ymin,ymax" or "NULL"
+PIE_SCALE = if (length(args) >= 15) as.numeric(args[15]) else 1.0  # Pie size scale factor (1.0 = 100%)
 #################################
 
 set.seed(42)
@@ -278,6 +279,17 @@ pop_labels <- toupper(substr(POP_LABEL, 1, 1)) == 'T'
 # Calculate pie size range based on map extent
 pie_size_range <- calculate_pie_size_range(rlayer)
 
+# Apply user-defined scale factor to pie sizes
+if (PIE_SCALE != 1.0) {
+    message(paste0('INFO: Applying pie scale factor: ', PIE_SCALE, ' (', PIE_SCALE * 100, '%)'))
+    pie_size_range$min_radius <- pie_size_range$min_radius * PIE_SCALE
+    pie_size_range$max_radius <- pie_size_range$max_radius * PIE_SCALE
+    pie_size_range$mid_radius <- pie_size_range$mid_radius * PIE_SCALE
+    message(paste0('INFO: Scaled pie sizes - min: ', round(pie_size_range$min_radius, 4),
+                   ', mid: ', round(pie_size_range$mid_radius, 4),
+                   ', max: ', round(pie_size_range$max_radius, 4)))
+}
+
 # Create plot
 gPlot <- create_piemap(
   samples = samples,
@@ -342,6 +354,14 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
 
         # Recalculate pie size range for zoomed extent (maintains visual proportions)
         pie_size_range_zoom <- calculate_pie_size_range(rlayer_zoom)
+
+        # Apply user-defined scale factor to zoomed pie sizes
+        if (PIE_SCALE != 1.0) {
+            pie_size_range_zoom$min_radius <- pie_size_range_zoom$min_radius * PIE_SCALE
+            pie_size_range_zoom$max_radius <- pie_size_range_zoom$max_radius * PIE_SCALE
+            pie_size_range_zoom$mid_radius <- pie_size_range_zoom$mid_radius * PIE_SCALE
+            message(paste0('INFO: Applied pie scale factor to zoomed plot: ', PIE_SCALE, ' (', PIE_SCALE * 100, '%)'))
+        }
 
         # Create zoomed plot
         gPlot_zoom <- create_piemap(
