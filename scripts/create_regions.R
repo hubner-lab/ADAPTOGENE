@@ -271,7 +271,7 @@ if (nrow(per_trait_regions) > 0) {
 }
 
 # Save per-trait regions
-per_trait_regions %>% fwrite(OUTPUT_PER_TRAIT, sep = '\t')
+per_trait_regions %>% fwrite(OUTPUT_PER_TRAIT, sep = '\t', quote = FALSE)
 message(paste0('INFO: Saved ', nrow(per_trait_regions), ' per-trait regions to ', OUTPUT_PER_TRAIT))
 
 #=============================================================================
@@ -358,7 +358,7 @@ if (!is.null(combined_regions) && nrow(combined_regions) > 0) {
 combined_regions$trait <- NULL
 
 # Save combined regions
-combined_regions %>% fwrite(OUTPUT_COMBINED, sep = '\t')
+combined_regions %>% fwrite(OUTPUT_COMBINED, sep = '\t', quote = FALSE)
 message(paste0('INFO: Saved ', nrow(combined_regions), ' combined regions to ', OUTPUT_COMBINED))
 
 message('INFO: Complete')

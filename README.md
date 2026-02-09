@@ -37,9 +37,12 @@ Overall, ADAPTOGENE standardizes complex population genomic workflows, automates
 - **GO enrichment analysis** with comprehensive visualizations:
   - Dotplot - Standard enrichment visualization
   - Emapplot - GO term similarity network showing clustering
-  - Cnetplot - Gene-concept network identifying hub genes
+  - Cnetplot - Gene-concept network with configurable gene labels (ID, Name, or description)
 - **Per-region and per-trait** functional enrichment reporting
-- **Dual region outputs** - Per-trait regions for specific analysis + combined climate regions for overview
+- **Cross-trait evidence** - Per-trait regions report overlapping signals from other traits
+- **Dual region outputs** - Per-trait regions for specific analysis + combined climate regions with per-trait and per-method SNP breakdowns
+- **Exon/promoter SNP counting** - Genes annotated with counts of significant SNPs in exons and promoters
+- **Pipeline summary table** - Running summary accumulated across all modes
 - **Combined Manhattan plots** - Visualize all traits and methods simultaneously
 - Reproducible execution via **Docker** (all dependencies included)
 - Designed for **landscape and conservation genomics**
@@ -140,7 +143,7 @@ MAP_RESOLUTION: 0.5           # Climate resolution (0.5, 2.5, 5, 10 arc-min)
 MAP_REGIONMAP_EXTENT: "NULL"  # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL"
 ```
 
-**Note on Regional Zoom**: When `MAP_REGIONMAP_EXTENT` is set to coordinates (e.g., `"34.8,35.8,32.0,33.3"`), the pipeline automatically generates **both** full extent and zoomed plots for all piemaps and genetic offset maps. Zoomed plots are saved to `regionmap/` subdirectories with coordinate-tagged filenames (e.g., `PieMap_bio_1_zoom_34p8_35p8_32p0_33p3.png`). This allows detailed exploration of specific geographic regions without rerunning analysis.
+**Note on Regional Zoom**: When `MAP_REGIONMAP_EXTENT` is set to coordinates (e.g., `"34.8,35.8,32.0,33.3"`), the pipeline automatically generates **both** full extent and zoomed plots for all piemaps and genetic offset maps. Zoomed plots are organized in coordinate-named subdirectories (e.g., `regionmap/34p8_35p8_32p0_33p3/PieMap_bio_1.png`). This keeps filenames short and groups all zoomed plots by extent.
 
 **CLIMATE** - Bioclimatic variables
 ```yaml
@@ -168,6 +171,8 @@ ASSOC_GO_FIELD: "ontology"    # GFF field containing GO terms (or "NULL")
 ENRICHMENT_TOP_TERMS: 20      # Max GO terms to show in plots
 ENRICHMENT_PLOT_WIDTH: 12     # Plot width in inches
 ENRICHMENT_PLOT_HEIGHT: 10    # Plot height in inches
+ENRICHMENT_CNET_LABEL: "gene_id"  # Gene label in cnetplot: "gene_id", "Name", "description"
+ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for (0 = all)
 ```
 
 **FUTURE** - Climate projections for maladaptation
@@ -313,24 +318,30 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 3. Multiple testing correction (Bonferroni, q-value, or top-N)
 4. Combining significant SNPs across methods (Sum/Overlap/single method)
 5. **Region clustering**:
-   - Per-trait regions (SNPs clustered separately for each climate variable)
-   - Combined climate regions (all significant SNPs clustered together)
-6. **Gene annotation**: Find genes within extended regions (±ASSOC_REGION_DISTANCE)
+   - Per-trait regions (SNPs clustered separately for each climate variable), with cross-trait evidence
+   - Combined climate regions (all significant SNPs clustered together), with per-trait and per-method SNP breakdowns
+6. **Gene annotation**: Find genes within extended regions (±ASSOC_REGION_DISTANCE), with exon and promoter SNP counts
 7. **GO enrichment analysis** (if ASSOC_GO_FIELD is set):
    - Per-region enrichment testing
    - Organized by trait
-   - Three visualization types per region
+   - Configurable number of top regions to plot per trait (`ENRICHMENT_TOP_PLOT_REGIONS`)
+   - Three visualization types per region, with configurable gene labels in cnetplot
 
 **Output**
 
 **Tables** (`tables/association/`):
 - `Selected_SNPs.tsv` - All significant SNPs (combined across methods)
-- `Regions_per_trait.tsv` - Genomic regions per climate trait
-- `Regions_climate_combined.tsv` - Combined climate-associated regions
-- `Genes_per_region.tsv` - Genes within per-trait regions
+- `Regions_per_trait.tsv` - Genomic regions per climate trait, with cross-trait evidence (`other_traits`, `other_snp_count`)
+- `Regions_climate_combined.tsv` - Combined climate-associated regions, with per-trait (e.g., `bio_1_snps`) and per-method (e.g., `EMMAX_snps`) SNP counts
+- `Genes_per_region.tsv` - Genes within per-trait regions, with `exon_snp_count` and `promoter_snp_count`
 - `Genes_per_region_climate_combined.tsv` - Genes within combined regions
 - `enrichment/{trait}/Region_{region_id}_enrichment.tsv` - Per-region GO results
 - `enrichment/{trait}/Enrichment_{trait}_summary.tsv` - Per-trait summaries
+
+**Pipeline Summary** (`tables/Pipeline_summary.tsv`):
+- Running summary accumulated across all pipeline modes
+- Long format: `step`, `metric`, `value`
+- Each mode appends its metrics (processing: sample/SNP counts; structure: K range; association: region/gene counts; maladaptation: offset statistics)
 
 **Plots** (`plots/`):
 - `{METHOD}/Manhattan_{trait}_K{K}.png` - Per-trait Manhattan plots
@@ -380,6 +391,7 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 **Methods**
 - **Gradient Forest**: Non-parametric ensemble model
 - Climate scenarios from CMIP6 (multiple models averaged)
+- Optional PCNM spatial variables (`GF_PCNM: 'with'` or `'without'`, producing `_PCNM` or `_noPCNM` suffix in output files)
 
 **Operations**
 1. Download future climate projections for selected SSP/year/models
@@ -395,6 +407,7 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 - Variable importance plots
 - Cumulative importance plots
 - Population prioritization tables for conservation
+- Zoomed regional maps in coordinate subdirectories (when `MAP_REGIONMAP_EXTENT` is set)
 
 ---
 
@@ -461,6 +474,7 @@ results/
 - Bipartite network showing genes and their GO terms
 - Identifies hub genes (genes in multiple terms)
 - Shows which specific genes drive enrichment
+- Gene labels configurable via `ENRICHMENT_CNET_LABEL`: gene ID, Name, or description
 - Useful for candidate gene prioritization
 - Created when ≥2 terms are enriched
 
@@ -472,6 +486,8 @@ All plots saved in both PNG (300 dpi) and SVG (vector) formats for publication.
 ENRICHMENT_TOP_TERMS: 20        # Maximum GO terms to show in plots
 ENRICHMENT_PLOT_WIDTH: 12       # Plot width in inches
 ENRICHMENT_PLOT_HEIGHT: 10      # Plot height in inches
+ENRICHMENT_CNET_LABEL: "gene_id"  # Gene label in cnetplot: "gene_id", "Name", "description"
+ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for (0 = all)
 ```
 
 ### Interpretation
@@ -502,6 +518,7 @@ ENRICHMENT_PLOT_HEIGHT: 10      # Plot height in inches
 │   ├── structure/                          # Structure plots, cross-entropy
 │   ├── climate_{RESOLUTION}/               # Climate maps
 │   ├── piemap/                             # Geographic ancestry maps
+│   │   └── regionmap/{coords}/             # Zoomed piemaps in coordinate subdirs
 │   ├── EMMAX/                              # EMMAX Manhattan plots
 │   ├── LFMM/                               # LFMM Manhattan plots
 │   ├── association/                        # Combined Manhattan plots
@@ -510,6 +527,7 @@ ENRICHMENT_PLOT_HEIGHT: 10      # Plot height in inches
 │   │   └── enrichment/{trait}/             # GO enrichment plots
 │   ├── regionplot/                         # Regional plots with genes
 │   └── gradientForest/                     # GF importance, offset maps
+│       └── regionmap/{coords}/             # Zoomed plots in coordinate subdirs
 │
 ├── tables/                                  # TSV outputs
 │   ├── structure/                          # Q-matrices, cluster assignments
@@ -524,6 +542,7 @@ ENRICHMENT_PLOT_HEIGHT: 10      # Plot height in inches
 │   │   └── enrichment/{trait}/             # GO enrichment results
 │   │       ├── Region_{region_id}_enrichment.tsv
 │   │       └── Enrichment_{trait}_summary.tsv
+│   ├── Pipeline_summary.tsv                # Running summary across all modes
 │   └── gradientForest/                     # GF predictions, offset scores
 │
 └── intermediate/                            # Shared files

@@ -198,6 +198,7 @@ W = {
     'pca_projections': f"{WORK_LD}{VCF_BASE}.pca/{VCF_BASE}.projections",
     'pca_eigenvalues': f"{WORK_LD}{VCF_BASE}.pca/{VCF_BASE}.eigenvalues",
     'vcfsnp': f"{WORK_LD}{VCF_BASE}.vcfsnp",
+    'summary_done': f"{INTER}summary_done",
     'removed': f"{WORK_LD}{VCF_BASE}.removed",
     'snmf': f"{WORK_LD}{VCF_BASE}.snmfProject",
 }
@@ -393,7 +394,7 @@ def get_targets(mode):
         targets = [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
             W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata'],
-            O['summary']
+            W['summary_done']
         ]
         # Add normalized GFF if GFF is provided
         if GFF:
@@ -407,7 +408,7 @@ def get_targets(mode):
             [structure_plot(k) for k in ks] +
             [pca_struct_plot(k) for k in ks] +
             [pop_diff_plot(k) for k in ks] +
-            [O['pca'], O['tracy'], O['cross_entropy'], O['summary']]
+            [O['pca'], O['tracy'], O['cross_entropy'], W['summary_done']]
         )
     
     elif mode == 'structure_K':
@@ -442,7 +443,7 @@ def get_targets(mode):
                 [piemap_diversity(bio) for bio in predictors]
             )
 
-        targets.append(O['summary'])
+        targets.append(W['summary_done'])
         return targets
 
     elif mode == 'association':
@@ -486,7 +487,7 @@ def get_targets(mode):
             targets.append(W['enrichment_done'])
             targets.append(W['enrichment_plots_done'])
 
-        targets.append(O['summary'])
+        targets.append(W['summary_done'])
         return targets
 
     elif mode == 'regionplot':
@@ -533,7 +534,7 @@ def get_targets(mode):
                 O['gf_offset_piemap_diversity'],
             ])
 
-        targets.append(O['summary'])
+        targets.append(W['summary_done'])
         return targets
 
     elif mode is None:
@@ -1715,14 +1716,16 @@ if MODE == 'processing':
             samples_list = W['samples_list'],
             samples_filtered = W['samples_filtered'],
             samples_removed = W['samples_removed']
-        output: O['summary']
+        output: W['summary_done']
+        params: summary_tsv = O['summary']
         log: f"{LOGDIR}write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                processing {output} \
+                processing {params.summary_tsv} \
                 {input.vcf_filt} {input.vcf_ld} \
                 {input.samples_list} {input.samples_filtered} {input.samples_removed} > {log} 2>&1
+            touch {output}
             """
 
 elif MODE == 'structure':
@@ -1730,14 +1733,15 @@ elif MODE == 'structure':
         """Write structure mode summary to Pipeline_summary.tsv."""
         input:
             cross_entropy = O['cross_entropy']
-        output: O['summary']
-        params: ks = K_START, ke = K_END
+        output: W['summary_done']
+        params: ks = K_START, ke = K_END, summary_tsv = O['summary']
         log: f"{LOGDIR}write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                structure {output} \
+                structure {params.summary_tsv} \
                 {params.ks} {params.ke} > {log} 2>&1
+            touch {output}
             """
 
 elif MODE == 'structure_K':
@@ -1745,14 +1749,15 @@ elif MODE == 'structure_K':
         """Write structure_K mode summary to Pipeline_summary.tsv."""
         input:
             climate_site = O['climate_site']
-        output: O['summary']
-        params: k = K_BEST, predictors = PREDICTORS_SELECTED
+        output: W['summary_done']
+        params: k = K_BEST, predictors = PREDICTORS_SELECTED, summary_tsv = O['summary']
         log: f"{LOGDIR}write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                structure_K {output} \
+                structure_K {params.summary_tsv} \
                 {params.k} {input.climate_site} {params.predictors} > {log} 2>&1
+            touch {output}
             """
 
 elif MODE == 'association':
@@ -1764,16 +1769,18 @@ elif MODE == 'association':
             regions_combined = O['regions_combined'],
             genes = O['genes_per_region'],
             enrichment_done = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else []
-        output: O['summary']
+        output: W['summary_done']
         params:
-            enrichment_path = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL'
+            enrichment_path = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL',
+            summary_tsv = O['summary']
         log: f"{LOGDIR}write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                association {output} \
+                association {params.summary_tsv} \
                 {input.selected_snps} {input.regions_per_trait} {input.regions_combined} \
                 {input.genes} {params.enrichment_path} > {log} 2>&1
+            touch {output}
             """
 
 elif MODE == 'maladaptation':
@@ -1782,11 +1789,13 @@ elif MODE == 'maladaptation':
         input:
             gf_adaptive = W['gf_adaptive'],
             offset_site = O['gf_offset_site_values']
-        output: O['summary']
+        output: W['summary_done']
+        params: summary_tsv = O['summary']
         log: f"{LOGDIR}write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                maladaptation {output} \
+                maladaptation {params.summary_tsv} \
                 {input.gf_adaptive} {input.offset_site} > {log} 2>&1
+            touch {output}
             """
