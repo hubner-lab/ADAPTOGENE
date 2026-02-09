@@ -377,18 +377,18 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
             legend_map_title = paste0(RASTER_LEGEND, " (Zoomed)")
         )
 
-        # Create zoom suffix for filename
+        # Create coordinate subdirectory for zoomed plots
         coords_str <- gsub("\\.", "p", REGIONMAP_EXTENT)  # Replace . with p
         coords_str <- gsub(",", "_", coords_str)          # Replace , with _
-        zoom_suffix <- paste0("_zoom_", coords_str)
 
-        # Save zoomed outputs
-        zoom_dir <- paste0(PLOT_DIR, "regionmap/")
-        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, zoom_suffix, '.png'), gPlot_zoom)
-        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, zoom_suffix, '.svg'), gPlot_zoom,
+        # Save zoomed outputs in coordinate subdirectory
+        zoom_dir <- paste0(PLOT_DIR, "regionmap/", coords_str, "/")
+        dir.create(zoom_dir, recursive = TRUE, showWarnings = FALSE)
+        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, '.png'), gPlot_zoom)
+        ggsave(paste0(zoom_dir, OUTPUT_PREFIX, '.svg'), gPlot_zoom,
                device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
-        qsave(gPlot_zoom, paste0(INTER_DIR, OUTPUT_PREFIX, zoom_suffix, '.qs'))
+        qsave(gPlot_zoom, paste0(INTER_DIR, OUTPUT_PREFIX, '_zoom_', coords_str, '.qs'))
 
-        message(paste0('INFO: Zoomed PieMap complete: ', OUTPUT_PREFIX, zoom_suffix))
+        message(paste0('INFO: Zoomed PieMap complete: ', zoom_dir, OUTPUT_PREFIX))
     }
 }

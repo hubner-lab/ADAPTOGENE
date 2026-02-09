@@ -117,6 +117,8 @@ SCATTERMORE_THRESHOLD = config.get('ASSOC_SCATTERMORE_THRESHOLD', 30000)
 ENRICHMENT_TOP_TERMS = config.get('ENRICHMENT_TOP_TERMS', 20)
 ENRICHMENT_PLOT_WIDTH = config.get('ENRICHMENT_PLOT_WIDTH', 12)
 ENRICHMENT_PLOT_HEIGHT = config.get('ENRICHMENT_PLOT_HEIGHT', 10)
+ENRICHMENT_CNET_LABEL = config.get('ENRICHMENT_CNET_LABEL', 'gene_id')
+ENRICHMENT_TOP_PLOT_REGIONS = config.get('ENRICHMENT_TOP_PLOT_REGIONS', 0)
 
 # GFF parameters
 GFF_GENENAME = config.get('GFF_GENE_NAME', 'description')
@@ -140,6 +142,7 @@ COR_THRESHOLD = config.get('GF_COR_THRESHOLD', '0.5')
 PCNM = config.get('GF_PCNM', 'with')
 GF_SUFFIX = config.get('GF_SUFFIX', '')
 GF_RANDOM_MODEL = config.get('GF_RANDOM_MODEL', True)
+PCNM_TAG = 'PCNM' if PCNM == 'with' else 'noPCNM'
 
 def parse_association_configs(config):
     """Parse ASSOC_CONFIGS into method -> adjust_threshold dict."""
@@ -201,6 +204,7 @@ W = {
 
 # Output paths (organized results)
 O = {
+    'summary': f"{TABLES}Pipeline_summary.tsv",
     'metadata': f"{TABLES}structure/metadata.tsv",
     'pca': f"{PLOTS}pca/pca.png",
     'pca_svg': f"{PLOTS}pca/pca.svg",
@@ -283,7 +287,7 @@ def add_maladaptation_paths():
     if K_BEST is None or not MODELS_LIST:
         return
 
-    SUFFIX = f"{GF_SUFFIX}_{PCNM}PCNM"
+    SUFFIX = f"{GF_SUFFIX}_{PCNM_TAG}"
 
     # Per-model future climate rasters
     for model in MODELS_LIST:
@@ -388,7 +392,8 @@ def get_targets(mode):
     if mode == 'processing':
         targets = [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
-            W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata']
+            W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata'],
+            O['summary']
         ]
         # Add normalized GFF if GFF is provided
         if GFF:
@@ -402,7 +407,7 @@ def get_targets(mode):
             [structure_plot(k) for k in ks] +
             [pca_struct_plot(k) for k in ks] +
             [pop_diff_plot(k) for k in ks] +
-            [O['pca'], O['tracy'], O['cross_entropy']]
+            [O['pca'], O['tracy'], O['cross_entropy'], O['summary']]
         )
     
     elif mode == 'structure_K':
@@ -437,6 +442,7 @@ def get_targets(mode):
                 [piemap_diversity(bio) for bio in predictors]
             )
 
+        targets.append(O['summary'])
         return targets
 
     elif mode == 'association':
@@ -480,6 +486,7 @@ def get_targets(mode):
             targets.append(W['enrichment_done'])
             targets.append(W['enrichment_plots_done'])
 
+        targets.append(O['summary'])
         return targets
 
     elif mode == 'regionplot':
@@ -526,6 +533,7 @@ def get_targets(mode):
                 O['gf_offset_piemap_diversity'],
             ])
 
+        targets.append(O['summary'])
         return targets
 
     elif mode is None:
@@ -1323,7 +1331,9 @@ rule plot_enrichment:
     Reads .qs enrichment objects from intermediate/enrichment/
     """
     input:
-        enrichment_done = W['enrichment_done']
+        enrichment_done = W['enrichment_done'],
+        genes = O['genes_per_region'],
+        regions = O['regions_per_trait']
     output:
         W['enrichment_plots_done']
     params:
@@ -1331,13 +1341,16 @@ rule plot_enrichment:
         plots_dir = f"{PLOTS}association/enrichment/",
         top_terms = ENRICHMENT_TOP_TERMS,
         width = ENRICHMENT_PLOT_WIDTH,
-        height = ENRICHMENT_PLOT_HEIGHT
+        height = ENRICHMENT_PLOT_HEIGHT,
+        cnet_label = ENRICHMENT_CNET_LABEL,
+        top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
     log: f"{LOGDIR}plot_enrichment.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_enrichment.R \
             {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-            {params.width} {params.height} > {log} 2>&1
+            {params.width} {params.height} {params.cnet_label} \
+            {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
 
         # Touch done file
         touch {output}
@@ -1572,7 +1585,7 @@ rule plot_gf_cumimp:
         predictors = PREDICTORS_SELECTED,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+        suffix = f"{GF_SUFFIX}_{PCNM_TAG}"
     log: f"{LOGDIR}plot_gf_cumimp.log"
     shell:
         """
@@ -1592,7 +1605,7 @@ rule plot_gf_importance:
         gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM}PCNM"
+        suffix = f"{GF_SUFFIX}_{PCNM_TAG}"
     log: f"{LOGDIR}plot_gf_importance.log"
     shell:
         """
@@ -1616,7 +1629,7 @@ rule plot_gf_offset_piemap:
         pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
+        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}plot_gf_offset_piemap.log"
     shell:
@@ -1645,7 +1658,7 @@ rule plot_gf_offset_piemap_tajima:
         pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
+        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}plot_gf_offset_piemap_tajima.log"
     shell:
@@ -1674,7 +1687,7 @@ rule plot_gf_offset_piemap_diversity:
         pie_scale = PIEMAP_PIE_SCALE,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM}PCNM",
+        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}plot_gf_offset_piemap_diversity.log"
     shell:
@@ -1687,3 +1700,93 @@ rule plot_gf_offset_piemap_diversity:
             {params.plot_dir} {params.inter_dir} \
             GeneticOffsetPieMap_{params.suffix}_PiDiversity {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
         """
+
+#=============================================================================
+# MODULE 7: PIPELINE SUMMARY
+#=============================================================================
+
+# Summary rule uses ruleorder to resolve ambiguity - only the matching mode runs
+if MODE == 'processing':
+    rule write_summary:
+        """Write processing mode summary to Pipeline_summary.tsv."""
+        input:
+            vcf_filt = W['vcf_filt'],
+            vcf_ld = W['vcf_ld'],
+            samples_list = W['samples_list'],
+            samples_filtered = W['samples_filtered'],
+            samples_removed = W['samples_removed']
+        output: O['summary']
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                processing {output} \
+                {input.vcf_filt} {input.vcf_ld} \
+                {input.samples_list} {input.samples_filtered} {input.samples_removed} > {log} 2>&1
+            """
+
+elif MODE == 'structure':
+    rule write_summary:
+        """Write structure mode summary to Pipeline_summary.tsv."""
+        input:
+            cross_entropy = O['cross_entropy']
+        output: O['summary']
+        params: ks = K_START, ke = K_END
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                structure {output} \
+                {params.ks} {params.ke} > {log} 2>&1
+            """
+
+elif MODE == 'structure_K':
+    rule write_summary:
+        """Write structure_K mode summary to Pipeline_summary.tsv."""
+        input:
+            climate_site = O['climate_site']
+        output: O['summary']
+        params: k = K_BEST, predictors = PREDICTORS_SELECTED
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                structure_K {output} \
+                {params.k} {input.climate_site} {params.predictors} > {log} 2>&1
+            """
+
+elif MODE == 'association':
+    rule write_summary:
+        """Write association mode summary to Pipeline_summary.tsv."""
+        input:
+            selected_snps = O['selected_snps'],
+            regions_per_trait = O['regions_per_trait'],
+            regions_combined = O['regions_combined'],
+            genes = O['genes_per_region'],
+            enrichment_done = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else []
+        output: O['summary']
+        params:
+            enrichment_path = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL'
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                association {output} \
+                {input.selected_snps} {input.regions_per_trait} {input.regions_combined} \
+                {input.genes} {params.enrichment_path} > {log} 2>&1
+            """
+
+elif MODE == 'maladaptation':
+    rule write_summary:
+        """Write maladaptation mode summary to Pipeline_summary.tsv."""
+        input:
+            gf_adaptive = W['gf_adaptive'],
+            offset_site = O['gf_offset_site_values']
+        output: O['summary']
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                maladaptation {output} \
+                {input.gf_adaptive} {input.offset_site} > {log} 2>&1
+            """

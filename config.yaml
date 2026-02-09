@@ -97,6 +97,8 @@ GFF_BIOTYPE: 'biotype'          # Attribute for gene biotype
 ENRICHMENT_TOP_TERMS: 20         # Number of top enriched terms to show in plots
 ENRICHMENT_PLOT_WIDTH: 12        # Plot width in inches
 ENRICHMENT_PLOT_HEIGHT: 10       # Plot height in inches
+ENRICHMENT_CNET_LABEL: "gene_id" # Gene label in cnetplot: "gene_id", "Name", "description"
+ENRICHMENT_TOP_PLOT_REGIONS: 5   # Top regions per trait to generate enrichment plots for (0 = all)
 
 #-----------------------------------------------------------------------------
 # REGIONPLOT: Detailed visualization of genomic regions

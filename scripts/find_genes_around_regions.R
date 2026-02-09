@@ -165,7 +165,7 @@ message(paste0('INFO: Found ', nrow(genes_per_region), ' gene-region pairs'))
 # Count SNPs in exons and promoters
 message('INFO: Counting exon/promoter SNPs')
 
-# Load exon data for SNP counting
+# Load exon data for SNP counting (fall back to CDS if no exon features)
 exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::filter(V3 == 'exon') %>%
     dplyr::select(V1, V4, V5, V9) %>%
@@ -173,6 +173,18 @@ exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
     dplyr::mutate(chr = as.character(chr),
                   gene_id = description %>% extract_gene_id) %>%
     dplyr::select(-description)
+
+if (nrow(exon_gff) == 0) {
+    message('INFO: No exon features found in GFF, falling back to CDS')
+    exon_gff <- fread(cmd = paste("grep -v '#'", GFF), header = F) %>%
+        dplyr::filter(V3 == 'CDS') %>%
+        dplyr::select(V1, V4, V5, V9) %>%
+        setNames(c('chr', 'start', 'end', 'description')) %>%
+        dplyr::mutate(chr = as.character(chr),
+                      gene_id = description %>% extract_gene_id) %>%
+        dplyr::select(-description)
+    message(paste0('INFO: Found ', nrow(exon_gff), ' CDS features'))
+}
 
 # Get unique gene IDs
 unique_genes <- unique(genes_per_region$gene_id)
@@ -252,7 +264,17 @@ genes_per_region <- genes_per_region %>%
     left_join(exon_snp_counts, by = 'gene_id') %>%
     left_join(promoter_snp_counts, by = 'gene_id')
 
-# Replace NA with empty string for SNP columns
+# Add numeric count columns
+genes_per_region$exon_snp_count <- sapply(genes_per_region$exon_snps, function(x) {
+    if (is.na(x) || x == '') return(0L)
+    length(strsplit(x, ',')[[1]])
+})
+genes_per_region$promoter_snp_count <- sapply(genes_per_region$promoter_snps, function(x) {
+    if (is.na(x) || x == '') return(0L)
+    length(strsplit(x, ',')[[1]])
+})
+
+# Replace NA with empty string for SNP ID columns
 genes_per_region$exon_snps[is.na(genes_per_region$exon_snps)] <- ''
 genes_per_region$promoter_snps[is.na(genes_per_region$promoter_snps)] <- ''
 
@@ -264,14 +286,14 @@ genes_per_region <- genes_per_region %>% dplyr::select(all_of(col_order))
 
 # Save redundant table
 message(paste0('INFO: Saving redundant table to ', OUTPUT_GENES))
-genes_per_region %>% fwrite(OUTPUT_GENES, sep = '\t')
+genes_per_region %>% fwrite(OUTPUT_GENES, sep = '\t', quote = FALSE)
 
 # Create collapsed table (one row per gene)
 message('INFO: Creating collapsed table')
 
-# Define columns to collapse (all except key identifiers)
+# Define columns to collapse (all except key identifiers and count columns)
 key_cols <- c('gene_id', 'chr', 'gene_start', 'gene_end')
-collapse_cols <- setdiff(colnames(genes_per_region), c(key_cols, 'region_id', 'exon_snps', 'promoter_snps'))
+collapse_cols <- setdiff(colnames(genes_per_region), c(key_cols, 'region_id', 'exon_snps', 'promoter_snps', 'exon_snp_count', 'promoter_snp_count'))
 
 genes_collapsed <- genes_per_region %>%
     group_by(gene_id, chr, gene_start, gene_end) %>%
@@ -279,6 +301,8 @@ genes_collapsed <- genes_per_region %>%
         region_id = paste(unique(region_id), collapse = ','),
         exon_snps = paste(unique(exon_snps[exon_snps != '']), collapse = ','),
         promoter_snps = paste(unique(promoter_snps[promoter_snps != '']), collapse = ','),
+        exon_snp_count = max(exon_snp_count),
+        promoter_snp_count = max(promoter_snp_count),
         across(all_of(collapse_cols), ~ paste(unique(.x[!is.na(.x)]), collapse = ',')),
         .groups = 'drop'
     ) %>%
@@ -286,7 +310,7 @@ genes_collapsed <- genes_per_region %>%
 
 # Save collapsed table
 message(paste0('INFO: Saving collapsed table to ', OUTPUT_COLLAPSED))
-genes_collapsed %>% fwrite(OUTPUT_COLLAPSED, sep = '\t')
+genes_collapsed %>% fwrite(OUTPUT_COLLAPSED, sep = '\t', quote = FALSE)
 
 message(paste0('INFO: Found ', n_distinct(genes_per_region$gene_id), ' unique genes across ', nrow(regions), ' regions'))
 message('INFO: Complete')

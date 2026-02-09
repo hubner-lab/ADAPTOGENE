@@ -221,6 +221,55 @@ if (is.null(per_trait_regions) || nrow(per_trait_regions) == 0) {
     )
 }
 
+# Add cross-trait evidence: for each region, find SNPs from OTHER traits that fall within or near it
+if (nrow(per_trait_regions) > 0) {
+    message('INFO: Computing cross-trait evidence for per-trait regions...')
+    other_traits_col <- character(nrow(per_trait_regions))
+    other_snp_count_col <- integer(nrow(per_trait_regions))
+
+    for (i in seq_len(nrow(per_trait_regions))) {
+        region <- per_trait_regions[i, ]
+        region_trait <- region$trait
+        region_chr <- region$chr
+        region_start <- region$start - REGION_DISTANCE
+        region_end <- region$end + REGION_DISTANCE
+
+        # Find all SNPs (from any trait) within the extended region
+        snps_in_region <- snps[chr == region_chr & pos >= region_start & pos <= region_end, ]
+
+        if (nrow(snps_in_region) == 0) {
+            other_traits_col[i] <- ''
+            other_snp_count_col[i] <- 0L
+            next
+        }
+
+        # Collect traits from these SNPs (excluding the region's own trait)
+        cross_traits <- c()
+        cross_snp_ids <- c()
+        for (m in method_cols) {
+            for (j in seq_len(nrow(snps_in_region))) {
+                val <- snps_in_region[[m]][j]
+                if (!is.na(val) && val != '' && val != '""') {
+                    traits_m <- str_replace_all(val, '"', '') %>% str_split(',') %>% unlist
+                    traits_m <- traits_m[traits_m != '' & !is.na(traits_m)]
+                    other_t <- traits_m[traits_m != region_trait]
+                    if (length(other_t) > 0) {
+                        cross_traits <- c(cross_traits, other_t)
+                        cross_snp_ids <- c(cross_snp_ids, snps_in_region$SNPID[j])
+                    }
+                }
+            }
+        }
+
+        other_traits_col[i] <- paste(unique(cross_traits), collapse = ',')
+        other_snp_count_col[i] <- length(unique(cross_snp_ids))
+    }
+
+    per_trait_regions$other_traits <- other_traits_col
+    per_trait_regions$other_snp_count <- other_snp_count_col
+    message('INFO: Cross-trait evidence added')
+}
+
 # Save per-trait regions
 per_trait_regions %>% fwrite(OUTPUT_PER_TRAIT, sep = '\t')
 message(paste0('INFO: Saved ', nrow(per_trait_regions), ' per-trait regions to ', OUTPUT_PER_TRAIT))
@@ -234,20 +283,59 @@ combined_regions <- create_regions_from_snps(snps, trait_label = NULL)
 
 # Add traits column showing all traits in each region
 if (!is.null(combined_regions) && nrow(combined_regions) > 0) {
-    combined_regions$traits <- sapply(str_split(combined_regions$snp_ids, ','), function(snp_ids) {
+    # Compute traits, per-trait counts, and per-method counts for each combined region
+    n_regions <- nrow(combined_regions)
+    traits_col <- character(n_regions)
+    row_data <- vector('list', n_regions)
+
+    for (i in seq_len(n_regions)) {
+        snp_ids <- str_split(combined_regions$snp_ids[i], ',')[[1]]
         region_traits <- c()
+        trait_snp_map <- list()  # trait -> set of snp_ids
+        method_snp_map <- list()  # method -> set of snp_ids
+
         for (snp_id in snp_ids) {
             snp_row <- snps[SNPID == snp_id, ]
             for (m in method_cols) {
                 val <- snp_row[[m]]
                 if (!is.na(val) && val != '' && val != '""') {
                     traits_m <- str_replace_all(val, '"', '') %>% str_split(',') %>% unlist
+                    traits_m <- traits_m[traits_m != '' & !is.na(traits_m)]
                     region_traits <- c(region_traits, traits_m)
+                    for (t in traits_m) {
+                        trait_snp_map[[t]] <- c(trait_snp_map[[t]], snp_id)
+                    }
+                    method_snp_map[[m]] <- c(method_snp_map[[m]], snp_id)
                 }
             }
         }
-        paste(unique(region_traits[region_traits != '']), collapse = ',')
-    })
+
+        traits_col[i] <- paste(unique(region_traits[region_traits != '']), collapse = ',')
+        row_data[[i]] <- list(
+            trait_counts = sapply(trait_snp_map, function(x) length(unique(x))),
+            method_counts = sapply(method_snp_map, function(x) length(unique(x)))
+        )
+    }
+
+    combined_regions$traits <- traits_col
+
+    # Collect all trait and method names across all regions
+    all_trait_names <- sort(unique(unlist(lapply(row_data, function(x) names(x$trait_counts)))))
+    all_method_names <- sort(unique(unlist(lapply(row_data, function(x) names(x$method_counts)))))
+
+    # Add per-trait count columns (e.g., bio_1_snps, bio_12_snps)
+    for (t in all_trait_names) {
+        combined_regions[[paste0(t, '_snps')]] <- sapply(row_data, function(x) {
+            if (t %in% names(x$trait_counts)) x$trait_counts[[t]] else 0L
+        })
+    }
+
+    # Add per-method count columns (e.g., EMMAX_snps, LFMM_snps)
+    for (m in all_method_names) {
+        combined_regions[[paste0(m, '_snps')]] <- sapply(row_data, function(x) {
+            if (m %in% names(x$method_counts)) x$method_counts[[m]] else 0L
+        })
+    }
 
     message(paste0('INFO: Created ', nrow(combined_regions), ' combined climate regions'))
 } else {
