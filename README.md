@@ -44,6 +44,7 @@ Overall, ADAPTOGENE standardizes complex population genomic workflows, automates
 - **Exon/promoter SNP counting** - Genes annotated with counts of significant SNPs in exons and promoters
 - **Pipeline summary table** - Running summary accumulated across all modes
 - **Combined Manhattan plots** - Visualize all traits and methods simultaneously
+- **Interactive Shiny app** - Explore all results with interactive Manhattan plots, clickable regions, gene/enrichment tables, and Gradient Forest maps
 - Reproducible execution via **Docker** (all dependencies included)
 - Designed for **landscape and conservation genomics**
 - Minimal manual intervention once configured
@@ -596,6 +597,42 @@ ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for 
    ```bash
    mode=maladaptation
    ```
+
+---
+
+## Interactive Results Viewer (Shiny App)
+
+ADAPTOGENE includes an interactive Shiny dashboard for exploring pipeline results. The app auto-discovers all projects in the pipeline directory and organizes outputs into four analysis tabs.
+
+### Running the App
+
+```bash
+docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
+  Rscript -e "shiny::runApp('/pipeline/scripts/app.R', host='0.0.0.0', port=3838)"
+```
+
+Then open http://localhost:3838 in your browser.
+
+### Features
+
+**Structure Tab** — PCA, Tracy-Widom test, cross-entropy plot, and K-dependent visualizations (ancestry piemaps, population differentiation, SNMF structure barplots) with a K slider.
+
+**Structure K Tab** — Climate correlation heatmap, bio-variable density plots and scaled piemaps with dropdown selectors for bio variable and pie-scaling metric.
+
+**Association Tab** — Interactive Manhattan plot combining all traits and methods:
+- Color encodes **trait** (e.g., bio_1 = red, bio_12 = blue), shape encodes **method** (circles = EMMAX, triangles = LFMM)
+- Significant SNPs are interactive with hover tooltips; non-significant SNPs are static for performance
+- Region rectangles show extended regions (SNP boundaries ± `ASSOC_REGION_DISTANCE`)
+- Click a significant SNP to select its region and filter the gene and GO enrichment tables below
+- Summary boxes show unique sig SNPs, sig hits on plot (SNP × trait × method), regions, genes, GO terms, and methods
+- Controls: toggle individual trait×method layers, switch region type (combined/per-trait), adjust top N regions
+
+**Maladaptation Tab** — Gradient Forest model results:
+- Model selector to switch between PCNM variants
+- Overall and Cumulative Importance diagnostic plots
+- Genetic Offset piemaps (base, with Tajima's D, with Pi Diversity)
+- Auto-discovered regional zoom maps
+- Interactive site-level genetic offset table with summary statistics
 
 ---
 
