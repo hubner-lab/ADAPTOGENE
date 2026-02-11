@@ -85,6 +85,29 @@ find_projects <- function(pipeline_path = '/pipeline') {
 }
 
 ###############################################################################
+# MALADAPTATION HELPER FUNCTIONS
+###############################################################################
+
+# Discover available Gradient Forest suffixes from intermediate .qs files
+find_gf_suffixes <- function(project, pipeline_path = '/pipeline/') {
+  inter <- paste0(pipeline_path, project, '_results/intermediate')
+  if (!dir.exists(inter)) return(character(0))
+  files <- list.files(inter, pattern = '^GeneticOffsetPieMap_.*\\.qs$')
+  # Strip prefix and .qs, remove variant suffixes (PiDiversity, TajimaD, zoom_*)
+  base <- sub('\\.qs$', '', sub('^GeneticOffsetPieMap_', '', files))
+  base <- base[!grepl('_(PiDiversity|TajimaD|zoom_)', base)]
+  sort(unique(base))
+}
+
+# Discover available zoom region tags for a GF suffix
+find_gf_zooms <- function(project, suffix, pipeline_path = '/pipeline/') {
+  inter <- paste0(pipeline_path, project, '_results/intermediate')
+  files <- list.files(inter,
+    pattern = paste0('^GeneticOffsetPieMap_', suffix, '_zoom_.*\\.qs$'))
+  sub('\\.qs$', '', sub(paste0('^GeneticOffsetPieMap_', suffix, '_zoom_'), '', files))
+}
+
+###############################################################################
 # ASSOCIATION ANALYSIS HELPER FUNCTIONS
 ###############################################################################
 
@@ -363,6 +386,8 @@ server <- function(input, output, session) {
       metric_values <- find_metric_values(proj)
       assoc_k <- find_assoc_k(proj)
       has_assoc <- !is.null(assoc_k) && length(assoc_k) > 0
+      gf_suffixes <- find_gf_suffixes(proj)
+      has_malad <- length(gf_suffixes) > 0
 
       # Read top N regions default from project config
       assoc_top_n_default <- 10L
@@ -523,10 +548,12 @@ server <- function(input, output, session) {
                 } else { tagList(
                   # Summary value boxes
                   fluidRow(
-                    valueBoxOutput(paste0("assoc_vb_snps_", proj), width = 3),
-                    valueBoxOutput(paste0("assoc_vb_regions_", proj), width = 3),
-                    valueBoxOutput(paste0("assoc_vb_genes_", proj), width = 3),
-                    valueBoxOutput(paste0("assoc_vb_enrich_", proj), width = 3)
+                    valueBoxOutput(paste0("assoc_vb_snps_unique_", proj), width = 2),
+                    valueBoxOutput(paste0("assoc_vb_snps_hits_", proj), width = 2),
+                    valueBoxOutput(paste0("assoc_vb_regions_", proj), width = 2),
+                    valueBoxOutput(paste0("assoc_vb_genes_", proj), width = 2),
+                    valueBoxOutput(paste0("assoc_vb_enrich_", proj), width = 2),
+                    valueBoxOutput(paste0("assoc_vb_methods_", proj), width = 2)
                   ),
                   # Controls
                   fluidRow(
@@ -548,7 +575,8 @@ server <- function(input, output, session) {
                           checkboxInput(paste0("assoc_show_regions_", proj),
                                         "Show top regions", value = TRUE),
                           sliderInput(paste0("assoc_top_n_", proj),
-                                      "Top N regions:", min = 1, max = 30,
+                                      "Top N regions:", min = 1,
+                                      max = assoc_top_n_default,
                                       value = assoc_top_n_default, step = 1),
                           radioButtons(paste0("assoc_region_type_", proj),
                                        "Region type:",
@@ -600,7 +628,79 @@ server <- function(input, output, session) {
               tabPanel(
                 "Maladaptation",
                 h3("Maladaptation Analysis"),
-                plotOutput(paste0("maladaptation_plot_", proj))
+                if (!has_malad) {
+                  div(style = "text-align: center; padding: 60px; color: #888;",
+                    icon("leaf"), h4("Maladaptation analysis not yet run."),
+                    p("Run the pipeline with mode=maladaptation to generate results."))
+                } else { tagList(
+                  # GF suffix selector (PCNM variant)
+                  fluidRow(
+                    box(width = 12, title = "Model Selection", collapsible = TRUE,
+                        status = "primary", solidHeader = TRUE,
+                      fluidRow(
+                        column(4,
+                          selectInput(paste0("gf_suffix_", proj),
+                                      "Gradient Forest model:",
+                                      choices = gf_suffixes,
+                                      selected = gf_suffixes[1])
+                        ),
+                        column(8,
+                          uiOutput(paste0("gf_site_info_", proj))
+                        )
+                      )
+                    )
+                  ),
+                  # Row 1: Importance plots
+                  fluidRow(
+                    box(width = 6, title = "Overall Importance",
+                        status = "info", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 300px;",
+                        plotOutput(paste0("gf_importance_", proj)),
+                        uiOutput(paste0("gf_importance_msg_", proj))
+                      )
+                    ),
+                    box(width = 6, title = "Cumulative Importance",
+                        status = "info", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 300px;",
+                        plotOutput(paste0("gf_cumimp_", proj)),
+                        uiOutput(paste0("gf_cumimp_msg_", proj))
+                      )
+                    )
+                  ),
+                  # Row 2: Genetic Offset PieMaps
+                  fluidRow(
+                    box(width = 4, title = "Genetic Offset Map",
+                        status = "success", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 350px;",
+                        plotOutput(paste0("gf_piemap_", proj)),
+                        uiOutput(paste0("gf_piemap_msg_", proj))
+                      )
+                    ),
+                    box(width = 4, title = "Offset + Tajima's D",
+                        status = "success", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 350px;",
+                        plotOutput(paste0("gf_piemap_tajima_", proj)),
+                        uiOutput(paste0("gf_piemap_tajima_msg_", proj))
+                      )
+                    ),
+                    box(width = 4, title = "Offset + Pi Diversity",
+                        status = "success", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 350px;",
+                        plotOutput(paste0("gf_piemap_diversity_", proj)),
+                        uiOutput(paste0("gf_piemap_diversity_msg_", proj))
+                      )
+                    )
+                  ),
+                  # Row 3: Zoom maps (if available)
+                  uiOutput(paste0("gf_zoom_ui_", proj)),
+                  # Row 4: Genetic Offset site values table
+                  fluidRow(
+                    box(width = 12, title = "Genetic Offset per Site",
+                        status = "warning", solidHeader = TRUE, collapsible = TRUE,
+                      DT::dataTableOutput(paste0("gf_site_dt_", proj))
+                    )
+                  )
+                )} # end tagList
               )
             )
           )
@@ -915,9 +1015,13 @@ server <- function(input, output, session) {
           })
 
           # ---- VALUE BOXES ----
-          output[[paste0("assoc_vb_snps_", local_proj)]] <- renderValueBox({
+          output[[paste0("assoc_vb_snps_unique_", local_proj)]] <- renderValueBox({
             n <- if (!is.null(ad$selected)) nrow(ad$selected) else 0
-            valueBox(n, "Sig. SNPs", icon = icon("exclamation-circle"), color = "red")
+            valueBox(n, "Unique Sig. SNPs", icon = icon("dot-circle-o"), color = "red")
+          })
+          output[[paste0("assoc_vb_snps_hits_", local_proj)]] <- renderValueBox({
+            n <- if (!is.null(mpd)) sum(mpd$data$is_sig) else 0
+            valueBox(n, "Sig. Hits on Plot", icon = icon("exclamation-circle"), color = "orange")
           })
           output[[paste0("assoc_vb_regions_", local_proj)]] <- renderValueBox({
             n <- if (!is.null(ad$regions_combined)) nrow(ad$regions_combined) else 0
@@ -934,6 +1038,10 @@ server <- function(input, output, session) {
               length(list.files(base, pattern = '_enrichment\\.tsv$', recursive = TRUE))
             } else 0
             valueBox(n, "GO Terms", icon = icon("pie-chart"), color = "yellow")
+          })
+          output[[paste0("assoc_vb_methods_", local_proj)]] <- renderValueBox({
+            n <- length(ad$methods)
+            valueBox(n, "Methods", icon = icon("flask"), color = "purple")
           })
 
           # ---- REGION INFO BAR ----
@@ -1040,10 +1148,109 @@ server <- function(input, output, session) {
 
         } # end if has_assoc_data
         
-        output[[paste0("maladaptation_plot_", local_proj)]] <- renderPlot({
-          plot.new()
-          text(0.5, 0.5, "Maladaptation plot placeholder")
-        })
+        ###############################################################
+        # MALADAPTATION TAB SERVER LOGIC
+        ###############################################################
+        gf_suffs <- find_gf_suffixes(local_proj)
+        if (length(gf_suffs) > 0) {
+
+          observeEvent(input[[paste0("gf_suffix_", local_proj)]], {
+            sfx <- input[[paste0("gf_suffix_", local_proj)]]
+            if (is.null(sfx) || sfx == "") return()
+
+            # Importance plots
+            output[[paste0("gf_importance_", local_proj)]] <-
+              render_plot(local_proj, paste0('OverallImportance_', sfx, '\\.qs$'))
+            output[[paste0("gf_importance_msg_", local_proj)]] <-
+              render_noplot_message(local_proj, paste0('OverallImportance_', sfx, '\\.qs$'))
+
+            output[[paste0("gf_cumimp_", local_proj)]] <-
+              render_plot(local_proj, paste0('CumulativeImportance_', sfx, '\\.qs$'))
+            output[[paste0("gf_cumimp_msg_", local_proj)]] <-
+              render_noplot_message(local_proj, paste0('CumulativeImportance_', sfx, '\\.qs$'))
+
+            # Genetic Offset PieMaps
+            output[[paste0("gf_piemap_", local_proj)]] <-
+              render_plot(local_proj, paste0('GeneticOffsetPieMap_', sfx, '\\.qs$'))
+            output[[paste0("gf_piemap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj, paste0('GeneticOffsetPieMap_', sfx, '\\.qs$'))
+
+            output[[paste0("gf_piemap_tajima_", local_proj)]] <-
+              render_plot(local_proj, paste0('GeneticOffsetPieMap_', sfx, '_TajimaD\\.qs$'))
+            output[[paste0("gf_piemap_tajima_msg_", local_proj)]] <-
+              render_noplot_message(local_proj, paste0('GeneticOffsetPieMap_', sfx, '_TajimaD\\.qs$'))
+
+            output[[paste0("gf_piemap_diversity_", local_proj)]] <-
+              render_plot(local_proj, paste0('GeneticOffsetPieMap_', sfx, '_PiDiversity\\.qs$'))
+            output[[paste0("gf_piemap_diversity_msg_", local_proj)]] <-
+              render_noplot_message(local_proj, paste0('GeneticOffsetPieMap_', sfx, '_PiDiversity\\.qs$'))
+
+            # Zoom maps (dynamic UI)
+            zooms <- find_gf_zooms(local_proj, sfx)
+            output[[paste0("gf_zoom_ui_", local_proj)]] <- renderUI({
+              if (length(zooms) == 0) return(NULL)
+              zoom_boxes <- lapply(zooms, function(ztag) {
+                # Format zoom label: 35p45_35p55_32p95_33p10 -> 35.45-35.55, 32.95-33.10
+                coords <- gsub('p', '.', strsplit(ztag, '_')[[1]])
+                label <- if (length(coords) == 4) {
+                  paste0('Lon ', coords[1], '-', coords[2],
+                         ', Lat ', coords[3], '-', coords[4])
+                } else ztag
+                box(width = 4, title = paste("Zoom:", label),
+                    status = "info", solidHeader = TRUE,
+                  div(style = "position: relative; min-height: 250px;",
+                    plotOutput(paste0("gf_zoom_", ztag, "_", local_proj)),
+                    uiOutput(paste0("gf_zoom_msg_", ztag, "_", local_proj))
+                  )
+                )
+              })
+              fluidRow(zoom_boxes)
+            })
+
+            # Render each zoom plot
+            for (zt in zooms) {
+              local({
+                local_zt <- zt
+                output[[paste0("gf_zoom_", local_zt, "_", local_proj)]] <-
+                  render_plot(local_proj, paste0('GeneticOffsetPieMap_', sfx,
+                                                  '_zoom_', local_zt, '\\.qs$'))
+                output[[paste0("gf_zoom_msg_", local_zt, "_", local_proj)]] <-
+                  render_noplot_message(local_proj, paste0('GeneticOffsetPieMap_', sfx,
+                                                            '_zoom_', local_zt, '\\.qs$'))
+              })
+            }
+
+            # Site values table
+            site_file <- paste0('/pipeline/', local_proj,
+                                '_results/tables/gradientForest/GeneticOffset_site_',
+                                sfx, '.tsv')
+            output[[paste0("gf_site_dt_", local_proj)]] <- renderDT({
+              if (!file.exists(site_file)) return(NULL)
+              dt <- data.table::fread(site_file)
+              datatable(dt, rownames = FALSE,
+                options = list(pageLength = 10, scrollX = TRUE),
+                selection = 'single') %>%
+                formatRound(columns = names(dt)[sapply(dt, is.numeric)], digits = 4)
+            })
+
+            # Site info summary
+            output[[paste0("gf_site_info_", local_proj)]] <- renderUI({
+              if (!file.exists(site_file)) return(NULL)
+              dt <- data.table::fread(site_file)
+              offset_col <- grep('offset|genetic_offset', names(dt),
+                                 ignore.case = TRUE, value = TRUE)
+              if (length(offset_col) > 0) {
+                vals <- dt[[offset_col[1]]]
+                div(style = "padding-top: 8px;",
+                  strong("Genetic Offset Summary: "),
+                  span(paste0("mean = ", round(mean(vals, na.rm = TRUE), 4),
+                              ", range = [", round(min(vals, na.rm = TRUE), 4),
+                              " - ", round(max(vals, na.rm = TRUE), 4), "]",
+                              " | ", nrow(dt), " sites")))
+              }
+            })
+          })
+        } # end if gf_suffs
       })
     }
   })
