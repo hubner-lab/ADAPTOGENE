@@ -117,6 +117,8 @@ RUN Rscript -e " \
 RUN Rscript -e " \
     remotes::install_version('shinydashboard', version = '0.7.2'); \
     remotes::install_version('DT', version = '0.33'); \
+    remotes::install_version('plotly', version = '4.10.4'); \
+    remotes::install_version('htmlwidgets', version = '1.6.4'); \
 "
 
 # topr - CRITICAL: version >= 2.0.0 required for custom (non-human) genome builds
