@@ -658,6 +658,68 @@ ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for 
 
 ## Workflow Summary
 
+### Pipeline Flow
+
+```mermaid
+flowchart TB
+    subgraph inputs["Input Files"]
+        direction LR
+        VCF["VCF Genotypes"]
+        META["Sample Metadata\n(site, sample, lat, lon, traits)"]
+        GFF["GFF3 Annotation\n(with GO terms)"]
+    end
+
+    subgraph proc["1 · Processing"]
+        direction LR
+        P["Sample filter → VCF filter (MAF, missingness)\n→ Chr normalization → LD pruning → LEA formats"]
+    end
+
+    subgraph struct["2 · Structure"]
+        direction LR
+        S["sNMF (K range) · PCA · Tracy-Widom\n→ Cross-entropy → Cluster extraction"]
+    end
+
+    subgraph structK["3 · Structure K"]
+        direction LR
+        SK["Imputation (sNMF Q-matrix) · Climate download\n→ PieMaps · Pop stats (Tajima D, Pi, IBD, AMOVA)"]
+    end
+
+    subgraph assoc["4 · Association — GEA"]
+        direction LR
+        A["Full dataset imputation → EMMAX / LFMM\n→ Sig SNPs → Regions → Genes → GO enrichment\n→ Manhattan plots (per-trait + combined)"]
+    end
+
+    subgraph pheno["5 · Phenotype Association — GWAS"]
+        direction LR
+        AP["Prepare traits (MEAN/MEDIAN/DROP) → EMMAX\n→ Sig SNPs → Regions → Genes → GO enrichment\n→ Manhattan plots + trait PieMaps"]
+    end
+
+    subgraph overlap_mode["6 · Overlapping Regions"]
+        direction LR
+        OV["Merge GEA + GWAS sig SNPs → Overlap stats\n→ New combined regions → Genes → GO enrichment"]
+    end
+
+    subgraph regionplot_mode["7 · Regionplot"]
+        direction LR
+        RP["Regional Manhattan plots\nwith gene annotations (topr)"]
+    end
+
+    subgraph malad["8 · Maladaptation"]
+        direction LR
+        M["Future climate (CMIP6) → Gradient Forest\n→ Genetic offset → Importance plots\n→ Offset PieMaps (± Tajima D, Pi)"]
+    end
+
+    inputs --> proc --> struct
+    struct -. "User selects\nK_BEST" .-> structK
+    structK --> assoc
+    structK --> pheno
+    assoc --> regionplot_mode
+    assoc --> malad
+    assoc & pheno --> overlap_mode
+```
+
+### Execution Steps
+
 **Typical workflow for climate adaptation study**:
 
 1. **Processing**: Filter VCF, LD prune
