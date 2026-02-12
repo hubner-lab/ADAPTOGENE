@@ -187,6 +187,120 @@ if (MODE == 'processing') {
         row('maladaptation', 'offset_mean', offset_mean)
     )
 
+} else if (MODE == 'association_phenotypes') {
+    # args: MODE OUTPUT missing_summary selected_snps regions_per_trait regions_combined genes_per_region [enrichment_done]
+    MISSING_SUMMARY = args[3]
+    SELECTED_SNPS = args[4]
+    REGIONS_PER_TRAIT = args[5]
+    REGIONS_COMBINED = args[6]
+    GENES_PER_REGION = args[7]
+    ENRICHMENT_DONE = if (length(args) >= 8) args[8] else "NULL"
+
+    # Read missing value summary
+    missing <- fread(MISSING_SUMMARY)
+    n_traits <- nrow(missing)
+
+    # Count selected SNPs
+    snps <- fread(SELECTED_SNPS)
+    n_selected_snps <- nrow(snps)
+
+    # Count regions
+    regions_trait <- fread(REGIONS_PER_TRAIT)
+    regions_combined <- fread(REGIONS_COMBINED)
+
+    # Count genes
+    genes <- fread(GENES_PER_REGION)
+    n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
+
+    # Enrichment status
+    enrichment_summary <- ''
+    if (ENRICHMENT_DONE != "NULL" && file.exists(ENRICHMENT_DONE)) {
+        enrichment_summary <- 'completed'
+    }
+
+    new_rows <- rbind(
+        row('association_phenotypes', 'n_phenotype_traits', n_traits),
+        row('association_phenotypes', 'missing_strategy', missing$strategy[1]),
+        row('association_phenotypes', 'selected_snps_total', n_selected_snps),
+        row('association_phenotypes', 'regions_per_trait', nrow(regions_trait)),
+        row('association_phenotypes', 'regions_combined', nrow(regions_combined)),
+        row('association_phenotypes', 'genes_found', n_genes),
+        row('association_phenotypes', 'enrichment_status', enrichment_summary)
+    )
+
+    # Per-trait missing info
+    for (i in seq_len(nrow(missing))) {
+        t <- missing$trait[i]
+        new_rows <- rbind(new_rows,
+            row('association_phenotypes', paste0(t, '_n_available'), missing$n_available[i]),
+            row('association_phenotypes', paste0(t, '_n_missing'), missing$n_missing[i]))
+        if (missing$n_missing[i] > 0 && nchar(missing$missing_samples[i]) > 0) {
+            new_rows <- rbind(new_rows,
+                row('association_phenotypes', paste0(t, '_dropped_samples'), missing$missing_samples[i]))
+        }
+    }
+
+    # Per-trait region counts
+    if (nrow(regions_trait) > 0 && 'trait' %in% colnames(regions_trait)) {
+        trait_counts <- regions_trait %>%
+            dplyr::group_by(trait) %>%
+            dplyr::summarise(n = dplyr::n(), .groups = 'drop')
+        for (i in seq_len(nrow(trait_counts))) {
+            new_rows <- rbind(new_rows,
+                row('association_phenotypes', paste0('regions_', trait_counts$trait[i]), trait_counts$n[i]))
+        }
+    }
+
+} else if (MODE == 'overlapping') {
+    # args: MODE OUTPUT overlap_summary selected_snps regions_per_trait regions_combined genes_per_region [enrichment_done]
+    OVERLAP_SUMMARY = args[3]
+    SELECTED_SNPS = args[4]
+    REGIONS_PER_TRAIT = args[5]
+    REGIONS_COMBINED = args[6]
+    GENES_PER_REGION = args[7]
+    ENRICHMENT_DONE = if (length(args) >= 8) args[8] else "NULL"
+
+    # Read overlap summary (last rows are SUMMARY rows)
+    overlap <- fread(OVERLAP_SUMMARY)
+    summary_rows <- overlap[gea_region_id == 'SUMMARY']
+    overlap_pairs <- overlap[gea_region_id != 'SUMMARY']
+
+    n_gea <- as.integer(summary_rows[gwas_region_id == 'gea_total', overlap_length])
+    n_gwas <- as.integer(summary_rows[gwas_region_id == 'gwas_total', overlap_length])
+    n_gea_overlap <- as.integer(summary_rows[gwas_region_id == 'gea_overlapping', overlap_length])
+    n_gwas_overlap <- as.integer(summary_rows[gwas_region_id == 'gwas_overlapping', overlap_length])
+    n_pairs <- as.integer(summary_rows[gwas_region_id == 'overlap_pairs', overlap_length])
+
+    gea_pct <- summary_rows[gwas_region_id == 'gea_total', overlap_pct]
+    gwas_pct <- summary_rows[gwas_region_id == 'gwas_total', overlap_pct]
+
+    # Count merged SNPs and regions
+    snps <- fread(SELECTED_SNPS)
+    regions_trait <- fread(REGIONS_PER_TRAIT)
+    regions_combined <- fread(REGIONS_COMBINED)
+    genes <- fread(GENES_PER_REGION)
+    n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
+
+    enrichment_summary <- ''
+    if (ENRICHMENT_DONE != "NULL" && file.exists(ENRICHMENT_DONE)) {
+        enrichment_summary <- 'completed'
+    }
+
+    new_rows <- rbind(
+        row('overlapping', 'gea_regions', n_gea),
+        row('overlapping', 'gwas_regions', n_gwas),
+        row('overlapping', 'overlap_pairs', n_pairs),
+        row('overlapping', 'gea_overlapping', n_gea_overlap),
+        row('overlapping', 'gwas_overlapping', n_gwas_overlap),
+        row('overlapping', 'gea_overlap_pct', gea_pct),
+        row('overlapping', 'gwas_overlap_pct', gwas_pct),
+        row('overlapping', 'merged_snps_total', nrow(snps)),
+        row('overlapping', 'new_regions_per_trait', nrow(regions_trait)),
+        row('overlapping', 'new_regions_combined', nrow(regions_combined)),
+        row('overlapping', 'genes_found', n_genes),
+        row('overlapping', 'enrichment_status', enrichment_summary)
+    )
+
 } else {
     message(paste0('WARNING: Unknown mode "', MODE, '", skipping summary'))
     quit(save = "no", status = 0)

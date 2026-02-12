@@ -76,10 +76,10 @@ create_regions_from_snps <- function(snps_dt, trait_label = NULL) {
         # Get SNP data
         region_snps <- snps_dt[snp_indices, ]
 
-        # Region boundaries from actual SNP positions
+        # Region boundaries: extend SNP range by REGION_DISTANCE on each side
         region_chr <- as.character(seqnames(region))
-        region_start <- min(region_snps$pos)
-        region_end <- max(region_snps$pos)
+        region_start <- as.integer(pmax(1, min(region_snps$pos) - REGION_DISTANCE))
+        region_end <- as.integer(max(region_snps$pos) + REGION_DISTANCE)
 
         # Extract methods from method-specific columns
         method_cols <- setdiff(colnames(region_snps), c('SNPID', 'chr', 'pos', 'min_pvalue'))
@@ -92,7 +92,7 @@ create_regions_from_snps <- function(snps_dt, trait_label = NULL) {
         }
         methods_str <- paste(unique(active_methods), collapse = ',')
 
-        # Create region ID
+        # Create region ID (uses extended boundaries)
         region_id <- if (!is.null(trait_label)) {
             paste0(region_chr, ':', region_start, '-', region_end, '_', trait_label)
         } else {
@@ -231,11 +231,8 @@ if (nrow(per_trait_regions) > 0) {
         region <- per_trait_regions[i, ]
         region_trait <- region$trait
         region_chr <- region$chr
-        region_start <- region$start - REGION_DISTANCE
-        region_end <- region$end + REGION_DISTANCE
-
-        # Find all SNPs (from any trait) within the extended region
-        snps_in_region <- snps[chr == region_chr & pos >= region_start & pos <= region_end, ]
+        # Use pre-extended region boundaries as-is (already extended in create_regions_from_snps)
+        snps_in_region <- snps[chr == region_chr & pos >= region$start & pos <= region$end, ]
 
         if (nrow(snps_in_region) == 0) {
             other_traits_col[i] <- ''

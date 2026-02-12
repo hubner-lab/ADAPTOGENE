@@ -51,6 +51,42 @@ Overall, ADAPTOGENE standardizes complex population genomic workflows, automates
 
 ---
 
+## Design Principles
+
+### Compute Once, Reuse Downstream
+
+Each pipeline stage produces a **finished entity** that downstream stages consume as-is. Intermediate results should never be recomputed or re-derived in later scripts.
+
+**Regions are the key example:**
+
+| Stage | What happens | Script |
+|-------|-------------|--------|
+| **Region creation** | SNPs clustered via single-linkage, boundaries extended by `REGION_DISTANCE` on each side | `create_regions.R` |
+| **Gene finding** | Genes overlapping region boundaries (used as-is, no re-extension) | `find_genes_around_regions.R` |
+| **Cross-trait evidence** | Other-trait SNPs falling within region boundaries (used as-is, no re-extension) | `create_regions.R`, `combine_overlap_snps.R` |
+| **Enrichment** | GO analysis on genes already found per region | `run_enrichment.R` |
+| **Visualization** | Region rectangles drawn at region start/end coordinates | `plot_manhattan_combined.R`, `app.R` |
+
+`REGION_DISTANCE` is a parameter for `create_regions.R` only. No downstream script receives or uses it. The region table's `start` and `end` columns are the single source of truth for region boundaries.
+
+### Structured Data Flow
+
+Each script should have a clear, single responsibility:
+- **Input**: Read finished outputs from upstream stages
+- **Process**: Perform one well-defined operation
+- **Output**: Write finished outputs for downstream stages
+
+Scripts should not:
+- Re-derive values that upstream scripts already computed (e.g., re-extending regions)
+- Accept parameters they don't use (pass-through arguments)
+- Contain dead code guarded by conditions that are always false (e.g., `if distance > 0` when always called with `0`)
+
+### Normalize Early
+
+Data normalization (chromosome names, sample IDs, coordinate systems) happens at the earliest possible step. All downstream scripts assume normalized inputs. See [Chromosome Naming](#important-chromosome-naming) for the primary example.
+
+---
+
 ## Requirements
 
 - Docker
@@ -321,7 +357,7 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 5. **Region clustering**:
    - Per-trait regions (SNPs clustered separately for each climate variable), with cross-trait evidence
    - Combined climate regions (all significant SNPs clustered together), with per-trait and per-method SNP breakdowns
-6. **Gene annotation**: Find genes within extended regions (±ASSOC_REGION_DISTANCE), with exon and promoter SNP counts
+6. **Gene annotation**: Find genes overlapping regions (regions already have extended boundaries from clustering), with exon and promoter SNP counts
 7. **GO enrichment analysis** (if ASSOC_GO_FIELD is set):
    - Per-region enrichment testing
    - Organized by trait
@@ -360,7 +396,65 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 
 ---
 
-### 5. Regional Visualization (`mode=regionplot`)
+### 5. Phenotype Association (`mode=association_phenotypes`)
+
+**Purpose**: GWAS on phenotypic traits stored in metadata columns 5+ (after site, sample, latitude, longitude)
+
+**Requirements**
+- `SNMF_K_BEST` must be set
+- Phenotype columns present in metadata (numeric, columns 5+)
+
+**Missing Value Strategies**
+- **DROP**: Per-trait sample subsetting (separate PCA/kinship per trait)
+- **MEAN/MEDIAN**: Impute missing values, single sample set for all traits
+
+**Operations**
+1. Extract and validate phenotype traits from metadata
+2. Handle missing values per configured strategy
+3. Per-trait VCF subsetting and PCA (DROP mode)
+4. EMMAX association testing per trait
+5. Combine per-trait results
+6. Region clustering, gene annotation, GO enrichment (reuses existing scripts)
+7. Per-trait Manhattan plots and geographic piemaps
+
+**Output**
+- `tables/association_phenotypes/` — p-values, sig SNPs, regions, genes, enrichment
+- `plots/association_phenotypes/` — Manhattan plots, piemaps, enrichment visualizations
+- `Pipeline_summary.tsv` — per-trait missing value info, dropped samples
+
+**Config**: Independent `PHENO_*` parameters (`PHENO_ASSOC_CONFIGS`, `PHENO_MISSING_STRATEGY`, `PHENO_REGION_DISTANCE`, etc.)
+
+---
+
+### 6. Overlapping Regions (`mode=overlapping`)
+
+**Purpose**: Combine GEA (climate association) and GWAS (phenotype association) results to identify shared genomic signals
+
+**Requirements**
+- Completed `mode=association` (Selected_SNPs.tsv, Regions_climate_combined.tsv)
+- Completed `mode=association_phenotypes` (Selected_SNPs.tsv, Regions_phenotype_combined.tsv)
+
+**Operations**
+1. Merge all significant SNPs from both GEA and GWAS into a unified set
+2. Compute overlap between GEA and GWAS regions (regions already have extended boundaries from clustering)
+3. Create NEW combined regions from ALL climate + phenotype SNPs (same single-linkage clustering)
+4. Find genes around new combined regions
+5. Run GO enrichment on new combined regions
+6. Output overlap statistics (overlap pairs, percentages, shared SNPs, contributing factors)
+
+**Output**
+- `tables/overlapping/Selected_SNPs_all.tsv` — Union of all significant SNPs
+- `tables/overlapping/Regions_per_trait_all.tsv` — Per-trait regions with `source` column (climate/phenotype)
+- `tables/overlapping/Regions_all_combined.tsv` — All SNPs clustered together with `source`, `climate_snps`, `phenotype_snps` columns
+- `tables/overlapping/Overlap_summary.tsv` — Pairwise overlap between GEA and GWAS extended regions
+- `tables/overlapping/Genes_per_region.tsv` — Genes within new combined regions
+- `tables/overlapping/enrichment/` — Per-trait GO enrichment results
+
+**Config**: Optional `OVERLAP_REGION_DISTANCE`, `OVERLAP_TOP_REGIONS`, `OVERLAP_PROMOTER_LENGTH` (defaults to max of ASSOC/PHENO values)
+
+---
+
+### 7. Regional Visualization (`mode=regionplot`)
 
 **Purpose**: Detailed visualization of specific genomic regions
 
@@ -375,7 +469,7 @@ snakemake -s Snakefile --configfile config.yaml --config mode=<MODE> --cores 24 
 
 ---
 
-### 6. Adaptive Potential and Maladaptation (`mode=maladaptation`)
+### 8. Adaptive Potential and Maladaptation (`mode=maladaptation`)
 
 **Purpose**: Model genotype-environment relationships and predict maladaptation risk
 
@@ -418,9 +512,9 @@ When a GFF file with GO annotations is provided (`ASSOC_GO_FIELD` parameter), th
 
 ### How it Works
 
-1. **Region Definition**: Significant SNPs are clustered into genomic regions using `ASSOC_REGION_DISTANCE`
+1. **Region Definition**: Significant SNPs are clustered into genomic regions using `ASSOC_REGION_DISTANCE` (regions are extended by this distance during creation)
 2. **Per-Trait Regions**: SNPs are clustered separately for each climate variable (e.g., bio_1, bio_12)
-3. **Gene Finding**: Genes within extended regions (region ± ASSOC_REGION_DISTANCE) are identified
+3. **Gene Finding**: Genes overlapping regions are identified (regions already have extended boundaries from clustering)
 4. **Enrichment Testing**: Per-region GO enrichment using clusterProfiler
 5. **Visualization**: Three plot types generated for each region
 
@@ -593,7 +687,13 @@ ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for 
    mode=regionplot
    ```
 
-6. **Maladaptation**: Predict future vulnerability
+6. **Phenotype Association** (optional): GWAS on phenotypic traits
+   ```bash
+   mode=association_phenotypes
+   # Requires phenotype columns (5+) in metadata file
+   ```
+
+7. **Maladaptation**: Predict future vulnerability
    ```bash
    mode=maladaptation
    ```
@@ -602,7 +702,7 @@ ENRICHMENT_TOP_PLOT_REGIONS: 5    # Top regions per trait to generate plots for 
 
 ## Interactive Results Viewer (Shiny App)
 
-ADAPTOGENE includes an interactive Shiny dashboard for exploring pipeline results. The app auto-discovers all projects in the pipeline directory and organizes outputs into four analysis tabs.
+ADAPTOGENE includes an interactive Shiny dashboard for exploring pipeline results. The app auto-discovers all projects in the pipeline directory and organizes outputs into seven analysis tabs.
 
 ### Running the App
 
@@ -622,10 +722,24 @@ Then open http://localhost:3838 in your browser.
 **Association Tab** — Interactive Manhattan plot combining all traits and methods:
 - Color encodes **trait** (e.g., bio_1 = red, bio_12 = blue), shape encodes **method** (circles = EMMAX, triangles = LFMM)
 - Significant SNPs are interactive with hover tooltips; non-significant SNPs are static for performance
-- Region rectangles show extended regions (SNP boundaries ± `ASSOC_REGION_DISTANCE`)
+- Region rectangles show regions (boundaries include `ASSOC_REGION_DISTANCE` extension from clustering)
 - Click a significant SNP to select its region and filter the gene and GO enrichment tables below
 - Summary boxes show unique sig SNPs, sig hits on plot (SNP × trait × method), regions, genes, GO terms, and methods
 - Controls: toggle individual trait×method layers, switch region type (combined/per-trait), adjust top N regions
+
+**Phenotype Association Tab** — Interactive GWAS results for phenotypic traits:
+- Same Manhattan architecture as Association tab (color = trait, shape = method)
+- Per-trait phenotype distribution histograms and geographic piemaps
+- Gene and GO enrichment tables linked to region selection
+- Handles missing data via DROP/MEAN/MEDIAN strategies
+
+**Overlapping Regions Tab** — Miami Manhattan plot comparing GEA and GWAS signals:
+- Requires `mode=overlapping` pipeline output (pre-computed overlap stats, new combined regions)
+- Miami plot: GEA significant SNPs (triangles) above x-axis, GWAS significant SNPs (circles) below
+- Green rectangles highlight new combined regions containing both climate and phenotype sources
+- Summary valueBoxes: GEA regions, GWAS regions, overlap pairs, new combined, genes, GO terms
+- Overlap pairs table with overlap length, percentage, SNP counts, and contributing traits
+- Region selector with genes and GO enrichment tables (same interactive pattern as other tabs)
 
 **Maladaptation Tab** — Gradient Forest model results:
 - Model selector to switch between PCNM variants

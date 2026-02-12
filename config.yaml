@@ -123,3 +123,28 @@ GF_COR_THRESHOLD: '0.5'         # Correlation threshold for variable selection
 GF_PCNM: 'with'                 # Include spatial variables: with/without
 GF_SUFFIX: 'EMMAX_bonf005'      # Unique identifier for this GF run
 GF_RANDOM_MODEL: TRUE           # Also build neutral model for comparison
+
+#-----------------------------------------------------------------------------
+# PHENO_ASSOC: Phenotypic trait association (GWAS)
+#-----------------------------------------------------------------------------
+# PHENO_ASSOC_CONFIGS:            # Uncomment to enable phenotype association mode
+#   - METHOD: "EMMAX"
+#     ADJUST: "bonf"
+#     THRESHOLD: '0.05'
+#
+# PHENO_MISSING_STRATEGY: "DROP"  # MEAN, MEDIAN, or DROP
+# PHENO_COMBINE_METHOD: 'EMMAX'
+# PHENO_COMBINE_GAP: 100000
+# PHENO_SNP_DISTANCE: 100000
+# PHENO_REGION_DISTANCE: 2000000
+# PHENO_TOP_REGIONS: 10
+# PHENO_PROMOTER_LENGTH: 10000
+# PHENO_SCATTERMORE_THRESHOLD: 30000
+
+#-----------------------------------------------------------------------------
+# OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
+#-----------------------------------------------------------------------------
+# Defaults to max of ASSOC_REGION_DISTANCE and PHENO_REGION_DISTANCE if not set
+# OVERLAP_REGION_DISTANCE: 2000000
+# OVERLAP_TOP_REGIONS: 10
+# OVERLAP_PROMOTER_LENGTH: 10000

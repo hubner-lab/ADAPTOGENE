@@ -205,7 +205,8 @@ create_piemap <- function(samples,
     )
 
     # Format legend values based on trait type
-    break_vals <- c(trait_min, trait_mid, trait_max)
+    # Deduplicate when min == max (all values identical)
+    break_vals <- unique(c(trait_min, trait_mid, trait_max))
     if (grepl("Pi|pi|diversity", trait_name, ignore.case = TRUE)) {
       break_labels <- formatC(break_vals, format = "e", digits = 2)
     } else {

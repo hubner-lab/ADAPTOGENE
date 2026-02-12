@@ -247,6 +247,7 @@ read_project_config <- function(project, key, pipeline_path = '/pipeline/') {
       val_line <- grep(paste0('^', key, ':'), lines, value = TRUE)
       if (length(val_line) > 0) {
         val <- trimws(sub(paste0('^', key, ':\\s*'), '', val_line[1]))
+        val <- trimws(sub('#.*$', '', val))  # Strip YAML comments
         return(gsub('["\']', '', val))
       }
     }
@@ -269,6 +270,123 @@ load_region_enrichment <- function(project, rid, pipeline_path = '/pipeline/') {
     if (file.exists(f)) return(data.table::fread(f))
 
     # Combined region_id: add trait suffix
+    f2 <- file.path(tdir, paste0('Region_', rid, '_', trait_name, '_enrichment.tsv'))
+    if (file.exists(f2)) return(data.table::fread(f2))
+
+    NULL
+  }), fill = TRUE)
+
+  if (nrow(results) > 0) return(results)
+  NULL
+}
+
+###############################################################################
+# PHENOTYPE ASSOCIATION HELPER FUNCTIONS
+###############################################################################
+
+# Find K value(s) from phenotype association output files
+find_pheno_assoc_k <- function(project, pipeline_path = '/pipeline/') {
+  base <- paste0(pipeline_path, project, '_results/tables/association_phenotypes')
+  if (!dir.exists(base)) return(NULL)
+
+  # Combined pvalues files are at parent level: {METHOD}_phenotypes_pvalues_K{K}.tsv
+  files <- list.files(base, pattern = '_phenotypes_pvalues_K\\d+\\.tsv$')
+  if (length(files) == 0) return(NULL)
+
+  k <- unique(as.integer(stringr::str_extract(files, '(?<=_K)\\d+')))
+  sort(k[!is.na(k)])
+}
+
+# Load all phenotype association data for a project
+load_pheno_assoc_data <- function(project, k, pipeline_path = '/pipeline/') {
+  base <- paste0(pipeline_path, project, '_results/tables/association_phenotypes')
+
+  safe_fread <- function(path) {
+    if (file.exists(path)) data.table::fread(path) else NULL
+  }
+
+  # Combined pvalues are at parent level: {METHOD}_phenotypes_pvalues_K{K}.tsv
+  pval_files <- list.files(base, pattern = paste0('_phenotypes_pvalues_K', k, '\\.tsv$'))
+  methods <- stringr::str_extract(pval_files, '^[A-Z]+')
+
+  pvals <- list()
+  for (i in seq_along(methods)) {
+    pvals[[methods[i]]] <- safe_fread(file.path(base, pval_files[i]))
+  }
+
+  list(
+    pvals = pvals,
+    methods = methods,
+    selected = safe_fread(file.path(base, 'Selected_SNPs.tsv')),
+    regions_combined = safe_fread(file.path(base, 'Regions_phenotype_combined.tsv')),
+    regions_trait = safe_fread(file.path(base, 'Regions_per_trait.tsv')),
+    genes = safe_fread(file.path(base, 'Genes_per_region.tsv')),
+    genes_collapsed = safe_fread(file.path(base, 'Genes_per_region_collapsed.tsv')),
+    genes_combined = safe_fread(file.path(base, 'Genes_per_region_combined.tsv'))
+  )
+}
+
+# Load enrichment data for a phenotype association region
+load_region_enrichment_pheno <- function(project, rid, pipeline_path = '/pipeline/') {
+  base <- paste0(pipeline_path, project, '_results/tables/association_phenotypes/enrichment')
+  if (!dir.exists(base)) return(NULL)
+
+  trait_dirs <- list.dirs(base, recursive = FALSE, full.names = TRUE)
+
+  results <- data.table::rbindlist(lapply(trait_dirs, function(tdir) {
+    trait_name <- basename(tdir)
+
+    # Exact match (per-trait region_id already includes trait suffix)
+    f <- file.path(tdir, paste0('Region_', rid, '_enrichment.tsv'))
+    if (file.exists(f)) return(data.table::fread(f))
+
+    # Combined region_id: add trait suffix
+    f2 <- file.path(tdir, paste0('Region_', rid, '_', trait_name, '_enrichment.tsv'))
+    if (file.exists(f2)) return(data.table::fread(f2))
+
+    NULL
+  }), fill = TRUE)
+
+  if (nrow(results) > 0) return(results)
+  NULL
+}
+
+###############################################################################
+# OVERLAPPING ANALYSIS HELPER FUNCTIONS
+###############################################################################
+
+# Load overlap analysis data
+load_overlap_data <- function(project, pipeline_path = '/pipeline/') {
+  base <- paste0(pipeline_path, project, '_results/tables/overlapping')
+
+  safe_fread <- function(path) {
+    if (file.exists(path)) data.table::fread(path) else NULL
+  }
+
+  list(
+    selected = safe_fread(file.path(base, 'Selected_SNPs_all.tsv')),
+    regions_combined = safe_fread(file.path(base, 'Regions_all_combined.tsv')),
+    regions_trait = safe_fread(file.path(base, 'Regions_per_trait_all.tsv')),
+    overlap_summary = safe_fread(file.path(base, 'Overlap_summary.tsv')),
+    genes = safe_fread(file.path(base, 'Genes_per_region.tsv')),
+    genes_collapsed = safe_fread(file.path(base, 'Genes_per_region_collapsed.tsv')),
+    genes_combined = safe_fread(file.path(base, 'Genes_per_region_combined.tsv'))
+  )
+}
+
+# Load enrichment data for an overlap region
+load_region_enrichment_overlap <- function(project, rid, pipeline_path = '/pipeline/') {
+  base <- paste0(pipeline_path, project, '_results/tables/overlapping/enrichment')
+  if (!dir.exists(base)) return(NULL)
+
+  trait_dirs <- list.dirs(base, recursive = FALSE, full.names = TRUE)
+
+  results <- data.table::rbindlist(lapply(trait_dirs, function(tdir) {
+    trait_name <- basename(tdir)
+
+    f <- file.path(tdir, paste0('Region_', rid, '_enrichment.tsv'))
+    if (file.exists(f)) return(data.table::fread(f))
+
     f2 <- file.path(tdir, paste0('Region_', rid, '_', trait_name, '_enrichment.tsv'))
     if (file.exists(f2)) return(data.table::fread(f2))
 
@@ -308,7 +426,7 @@ render_plot <- function(local_proj, plotname){
 			theme_void() +
 			theme(plot.background = element_rect(fill = "white"))
 			   }
-			          })
+			          }, res = 96)
 } # end render_plot
 
 render_noplot_message <- function(local_proj, plotname){ #TODO further add the name of the plot(extract from local_proj)
@@ -396,6 +514,34 @@ server <- function(input, output, session) {
         if (!is.null(cfg_val)) {
           assoc_top_n_default <- suppressWarnings(as.integer(cfg_val))
           if (is.na(assoc_top_n_default)) assoc_top_n_default <- 10L
+        }
+      }
+
+      # Phenotype association detection
+      pheno_assoc_k <- find_pheno_assoc_k(proj)
+      has_pheno_assoc <- !is.null(pheno_assoc_k) && length(pheno_assoc_k) > 0
+
+      # Read PHENO config defaults
+      pheno_top_n_default <- 10L
+      if (has_pheno_assoc) {
+        cfg_val <- read_project_config(proj, 'PHENO_TOP_REGIONS')
+        if (!is.null(cfg_val)) {
+          pheno_top_n_default <- suppressWarnings(as.integer(cfg_val))
+          if (is.na(pheno_top_n_default)) pheno_top_n_default <- 10L
+        }
+      }
+
+      # Overlapping analysis detection
+      has_overlap <- has_assoc && has_pheno_assoc &&
+        file.exists(paste0('/pipeline/', proj, '_results/tables/overlapping/Overlap_summary.tsv'))
+
+      # Read OVERLAP config defaults
+      ov_top_n_default <- 10L
+      if (has_overlap) {
+        cfg_val <- read_project_config(proj, 'OVERLAP_TOP_REGIONS')
+        if (!is.null(cfg_val)) {
+          ov_top_n_default <- suppressWarnings(as.integer(cfg_val))
+          if (is.na(ov_top_n_default)) ov_top_n_default <- 10L
         }
       }
 
@@ -625,6 +771,227 @@ server <- function(input, output, session) {
                   )
                 )} # end tagList
               ),
+###############################################################################
+# PHENOTYPE ASSOCIATION TAB
+###############################################################################
+              tabPanel(
+                "Phenotype Association",
+                h3("Phenotype Association Analysis (GWAS)"),
+                if (!has_pheno_assoc) {
+                  div(style = "text-align: center; padding: 60px; color: #888;",
+                    icon("bar-chart"), h4("Phenotype association analysis not yet run."),
+                    p("Run the pipeline with mode=association_phenotypes to generate results."))
+                } else { tagList(
+                  # Summary value boxes
+                  fluidRow(
+                    valueBoxOutput(paste0("pheno_vb_snps_unique_", proj), width = 2),
+                    valueBoxOutput(paste0("pheno_vb_snps_hits_", proj), width = 2),
+                    valueBoxOutput(paste0("pheno_vb_regions_", proj), width = 2),
+                    valueBoxOutput(paste0("pheno_vb_genes_", proj), width = 2),
+                    valueBoxOutput(paste0("pheno_vb_enrich_", proj), width = 2),
+                    valueBoxOutput(paste0("pheno_vb_methods_", proj), width = 2)
+                  ),
+                  # Controls
+                  fluidRow(
+                    box(width = 12, title = "Controls", collapsible = TRUE,
+                        status = "primary", solidHeader = TRUE,
+                      fluidRow(
+                        column(3,
+                          h5("Trait Selector"),
+                          uiOutput(paste0("pheno_trait_selector_ui_", proj))
+                        ),
+                        column(3,
+                          h5("Trait x Method layers"),
+                          uiOutput(paste0("pheno_layer_ui_", proj)),
+                          fluidRow(
+                            column(6, actionButton(paste0("pheno_all_", proj), "All",
+                                                   class = "btn-xs btn-default", width = "100%")),
+                            column(6, actionButton(paste0("pheno_none_", proj), "None",
+                                                   class = "btn-xs btn-default", width = "100%"))
+                          )
+                        ),
+                        column(3,
+                          h5("Regions"),
+                          checkboxInput(paste0("pheno_show_regions_", proj),
+                                        "Show top regions", value = TRUE),
+                          sliderInput(paste0("pheno_top_n_", proj),
+                                      "Top N regions:", min = 1,
+                                      max = pheno_top_n_default,
+                                      value = pheno_top_n_default, step = 1),
+                          radioButtons(paste0("pheno_region_type_", proj),
+                                       "Region type:",
+                                       choices = c("Combined" = "combined",
+                                                   "Per-trait" = "per_trait"),
+                                       selected = "combined", inline = TRUE)
+                        ),
+                        column(3,
+                          h5("Region Selection"),
+                          selectInput(paste0("pheno_region_select_", proj),
+                                      "Jump to region:",
+                                      choices = c("(click SNP or select)" = ""),
+                                      width = "100%"),
+                          actionButton(paste0("pheno_clear_region_", proj),
+                                       "Clear selection", class = "btn-xs btn-default",
+                                       icon = icon("times"))
+                        )
+                      )
+                    )
+                  ),
+                  # Trait exploration row: distribution + site map
+                  fluidRow(
+                    box(width = 6, title = "Trait Distribution",
+                        status = "info", solidHeader = TRUE,
+                      plotlyOutput(paste0("pheno_trait_dist_", proj), height = "350px")
+                    ),
+                    box(width = 6, title = "Trait PieMap",
+                        status = "info", solidHeader = TRUE,
+                      div(style = "position: relative; min-height: 350px;",
+                        plotOutput(paste0("pheno_site_map_", proj), height = "450px")
+                      )
+                    )
+                  ),
+                  # Manhattan plot
+                  fluidRow(
+                    box(width = 12, title = "Interactive Manhattan Plot (Phenotype GWAS)",
+                        status = "success", solidHeader = TRUE,
+                      plotlyOutput(paste0("pheno_manhattan_", proj), height = "550px")
+                    )
+                  ),
+                  # Region info bar
+                  uiOutput(paste0("pheno_region_info_", proj)),
+                  # Gene and Enrichment tables
+                  fluidRow(
+                    box(width = 6, title = "Genes in Selected Region",
+                        status = "info", solidHeader = TRUE,
+                      div(style = "min-height: 280px;",
+                        uiOutput(paste0("pheno_genes_prompt_", proj)),
+                        DT::dataTableOutput(paste0("pheno_genes_dt_", proj))
+                      )
+                    ),
+                    box(width = 6, title = "GO Enrichment",
+                        status = "warning", solidHeader = TRUE,
+                      div(style = "min-height: 280px;",
+                        uiOutput(paste0("pheno_enrich_prompt_", proj)),
+                        DT::dataTableOutput(paste0("pheno_enrich_dt_", proj))
+                      )
+                    )
+                  )
+                )} # end tagList
+              ),
+###############################################################################
+# HAPLOTYPE ANALYSIS TAB (PLACEHOLDER)
+###############################################################################
+              tabPanel(
+                "Haplotype Analysis",
+                h3("Haplotype Analysis"),
+                div(style = "text-align: center; padding: 60px; color: #999;",
+                  icon("dna", "fa-3x"),
+                  h4("Coming Soon"),
+                  p("Haplotype analysis will be available in a future update.")
+                )
+              ),
+###############################################################################
+# OVERLAPPING REGIONS TAB
+###############################################################################
+              tabPanel(
+                "Overlapping Regions",
+                h3("Overlapping Regions (GEA vs GWAS)"),
+                if (!has_overlap) {
+                  div(style = "text-align: center; padding: 60px; color: #888;",
+                    icon("exchange"), h4("Overlapping analysis not yet run."),
+                    p("Run mode=association, mode=association_phenotypes, and mode=overlapping."))
+                } else { tagList(
+                  # Summary boxes
+                  fluidRow(
+                    valueBoxOutput(paste0("ov_box_gea_", proj), width = 2),
+                    valueBoxOutput(paste0("ov_box_gwas_", proj), width = 2),
+                    valueBoxOutput(paste0("ov_box_pairs_", proj), width = 2),
+                    valueBoxOutput(paste0("ov_box_merged_", proj), width = 2),
+                    valueBoxOutput(paste0("ov_box_genes_", proj), width = 2),
+                    valueBoxOutput(paste0("ov_box_go_", proj), width = 2)
+                  ),
+                  # Controls (same pattern as Association tab)
+                  fluidRow(
+                    box(width = 12, title = "Controls", collapsible = TRUE,
+                        status = "primary", solidHeader = TRUE,
+                      fluidRow(
+                        column(4,
+                          h5("Trait x Method layers"),
+                          uiOutput(paste0("ov_layer_ui_", proj)),
+                          fluidRow(
+                            column(6, actionButton(paste0("ov_all_", proj), "All",
+                                                   class = "btn-xs btn-default", width = "100%")),
+                            column(6, actionButton(paste0("ov_none_", proj), "None",
+                                                   class = "btn-xs btn-default", width = "100%"))
+                          )
+                        ),
+                        column(4,
+                          h5("Regions"),
+                          checkboxInput(paste0("ov_show_regions_", proj),
+                                        "Show top regions", value = TRUE),
+                          sliderInput(paste0("ov_top_n_", proj),
+                                      "Top N regions:", min = 1,
+                                      max = ov_top_n_default,
+                                      value = ov_top_n_default, step = 1),
+                          radioButtons(paste0("ov_region_type_", proj),
+                                       "Region type:",
+                                       choices = c("Combined" = "combined",
+                                                   "Per-trait" = "per_trait"),
+                                       selected = "combined", inline = TRUE)
+                        ),
+                        column(4,
+                          h5("Region Selection"),
+                          selectInput(paste0("ov_region_select_", proj),
+                                      "Jump to region:",
+                                      choices = c("(click SNP or select)" = ""),
+                                      width = "100%"),
+                          actionButton(paste0("ov_clear_region_", proj),
+                                       "Clear selection", class = "btn-xs btn-default",
+                                       icon = icon("times"))
+                        )
+                      )
+                    )
+                  ),
+                  # Miami Manhattan plot
+                  fluidRow(
+                    box(width = 12, title = "Miami Manhattan Plot (GEA top / GWAS bottom)",
+                        status = "success", solidHeader = TRUE,
+                      plotlyOutput(paste0("ov_miami_", proj), height = "550px")
+                    )
+                  ),
+                  # Region info bar
+                  uiOutput(paste0("ov_region_info_", proj)),
+                  # Genes + Enrichment tables
+                  fluidRow(
+                    box(width = 6, title = "Genes in Selected Region",
+                        status = "info", solidHeader = TRUE,
+                      div(style = "min-height: 280px;",
+                        uiOutput(paste0("ov_genes_prompt_", proj)),
+                        DT::dataTableOutput(paste0("ov_genes_dt_", proj))
+                      )
+                    ),
+                    box(width = 6, title = "GO Enrichment",
+                        status = "warning", solidHeader = TRUE,
+                      div(style = "min-height: 280px;",
+                        uiOutput(paste0("ov_enrich_prompt_", proj)),
+                        DT::dataTableOutput(paste0("ov_enrich_dt_", proj))
+                      )
+                    )
+                  ),
+                  # Overlap pairs table
+                  fluidRow(
+                    box(width = 12, title = "Overlap Pairs (GEA vs GWAS regions)",
+                        status = "success", solidHeader = TRUE, collapsible = TRUE,
+                      div(style = "min-height: 200px;",
+                        DT::dataTableOutput(paste0("ov_overlap_dt_", proj))
+                      )
+                    )
+                  )
+                )} # end tagList
+              ),
+###############################################################################
+# MALADAPTATION TAB
+###############################################################################
               tabPanel(
                 "Maladaptation",
                 h3("Maladaptation Analysis"),
@@ -790,6 +1157,9 @@ server <- function(input, output, session) {
         assoc_k_val <- find_assoc_k(local_proj)
         has_assoc_data <- !is.null(assoc_k_val) && length(assoc_k_val) > 0
 
+        # Initialize to NULL (needed by Overlapping Regions tab)
+        ad <- NULL; mpd <- NULL
+
         if (has_assoc_data) {
           # Load data eagerly (pipeline outputs don't change during session)
           ad <- load_assoc_data(local_proj, assoc_k_val[1])
@@ -799,14 +1169,6 @@ server <- function(input, output, session) {
           method_names <- if (!is.null(mpd)) sort(unique(mpd$data$method)) else character(0)
           t_colors <- if (length(trait_names) > 0) generate_trait_colors(trait_names) else character(0)
           m_symbols <- if (length(method_names) > 0) generate_method_symbols(method_names) else character(0)
-
-          # Region extension distance from config (used for rectangles and display)
-          region_dist <- 2000000L  # default
-          cfg_rd <- read_project_config(local_proj, 'ASSOC_REGION_DISTANCE')
-          if (!is.null(cfg_rd)) {
-            region_dist <- suppressWarnings(as.integer(cfg_rd))
-            if (is.na(region_dist)) region_dist <- 2000000L
-          }
 
           # Reactive value for selected region
           sel_region <- reactiveVal(NULL)
@@ -836,13 +1198,12 @@ server <- function(input, output, session) {
             regions <- if (rt == "combined") ad$regions_combined else ad$regions_trait
             if (is.null(regions) || nrow(regions) == 0) return()
             regions <- regions[order(min_pvalue)]
-            # Extended region length: SNP boundaries + REGION_DISTANCE on each side
-            ext_len <- regions$length + 2 * region_dist
-            fmt_len <- ifelse(ext_len >= 1e6,
-                              paste0(round(ext_len / 1e6, 1), ' Mb'),
-                       ifelse(ext_len >= 1e3,
-                              paste0(round(ext_len / 1e3, 1), ' kb'),
-                              paste0(ext_len, ' bp')))
+            # Region length (already extended by REGION_DISTANCE in pipeline)
+            fmt_len <- ifelse(regions$length >= 1e6,
+                              paste0(round(regions$length / 1e6, 1), ' Mb'),
+                       ifelse(regions$length >= 1e3,
+                              paste0(round(regions$length / 1e3, 1), ' kb'),
+                              paste0(regions$length, ' bp')))
             ch <- c("(click SNP or select)" = "",
                     setNames(regions$region_id,
                              paste0(regions$region_id, ' (', regions$snp_count,
@@ -873,10 +1234,10 @@ server <- function(input, output, session) {
             rt <- input[[paste0("assoc_region_type_", local_proj)]]
             regions <- if (rt == "combined") ad$regions_combined else ad$regions_trait
             if (is.null(regions)) return()
-            # Match using extended region boundaries
+            # Match using region boundaries (already extended by REGION_DISTANCE in pipeline)
             matching <- regions[as.character(chr) == as.character(snp$chr) &
-                                (start - region_dist) <= snp$pos &
-                                (end + region_dist) >= snp$pos]
+                                start <= snp$pos &
+                                end >= snp$pos]
             if (nrow(matching) > 0) {
               best <- matching[which.min(min_pvalue), region_id]
               sel_region(best)
@@ -985,12 +1346,10 @@ server <- function(input, output, session) {
                   r <- top_reg[i]
                   offset <- chr_info[chr == r$chr, cum_offset]
                   if (length(offset) == 0) next
-                  # Extended region: SNP boundaries + REGION_DISTANCE on each side
-                  ext_start <- max(0, r$start - region_dist)
-                  ext_end <- r$end + region_dist
+                  # Region boundaries (already extended by REGION_DISTANCE in pipeline)
                   shapes[[length(shapes) + 1]] <- list(
                     type = "rect",
-                    x0 = ext_start + offset, x1 = ext_end + offset,
+                    x0 = r$start + offset, x1 = r$end + offset,
                     y0 = 0, y1 = y_max,
                     fillcolor = reg_pal[i], opacity = 0.35,
                     line = list(color = reg_pal[i], width = 1.5))
@@ -1053,19 +1412,16 @@ server <- function(input, output, session) {
             if (is.null(regions)) return(NULL)
             r <- regions[region_id == rid]
             if (nrow(r) == 0) return(NULL)
-            # Extended region boundaries (SNP positions + REGION_DISTANCE)
-            ext_start <- max(0, r$start[1] - region_dist)
-            ext_end <- r$end[1] + region_dist
-            ext_len <- ext_end - ext_start
-            fmt_ext <- if (ext_len >= 1e6) paste0(round(ext_len/1e6, 2), ' Mb')
-                       else if (ext_len >= 1e3) paste0(round(ext_len/1e3, 1), ' kb')
-                       else paste0(ext_len, ' bp')
+            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
+            fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
+                       else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
+                       else paste0(r$length[1], ' bp')
             div(style = paste0("background: #d9edf7; padding: 12px; margin: 5px 15px;",
                                " border-left: 4px solid #31708f; border-radius: 3px;"),
               strong(paste0("Region: ", rid)),
               span(paste0(" | Chr ", r$chr[1], ": ",
-                           format(ext_start, big.mark = ","), " - ",
-                           format(ext_end, big.mark = ","),
+                           format(r$start[1], big.mark = ","), " - ",
+                           format(r$end[1], big.mark = ","),
                            " (", fmt_ext, ")",
                            " | ", r$snp_count[1], " SNPs",
                            " | min p = ", formatC(r$min_pvalue[1],
@@ -1251,6 +1607,886 @@ server <- function(input, output, session) {
             })
           })
         } # end if gf_suffs
+
+        ###############################################################
+        # PHENOTYPE ASSOCIATION TAB SERVER LOGIC
+        ###############################################################
+        pheno_k_val <- find_pheno_assoc_k(local_proj)
+        has_pheno_data <- !is.null(pheno_k_val) && length(pheno_k_val) > 0
+
+        # Initialize to NULL (needed by Overlapping Regions tab)
+        pad <- NULL; pmpd <- NULL
+
+        if (has_pheno_data) {
+          # Load data eagerly (pipeline outputs don't change during session)
+          pad <- load_pheno_assoc_data(local_proj, pheno_k_val[1])
+          pmpd <- prep_manhattan(pad$pvals, pad$selected)
+          # Use trait name as series (method shown via shape only)
+          if (!is.null(pmpd)) pmpd$data[, series := as.character(trait)]
+          p_series_names <- if (!is.null(pmpd)) sort(unique(pmpd$data$series)) else character(0)
+          p_trait_names <- if (!is.null(pmpd)) sort(unique(as.character(pmpd$data$trait))) else character(0)
+          p_method_names <- if (!is.null(pmpd)) sort(unique(pmpd$data$method)) else character(0)
+          p_t_colors <- if (length(p_trait_names) > 0) generate_trait_colors(p_trait_names) else character(0)
+          p_m_symbols <- if (length(p_method_names) > 0) generate_method_symbols(p_method_names) else character(0)
+
+          # Reactive value for selected region
+          pheno_sel_region <- reactiveVal(NULL)
+
+          # Trait selector for PieMap/Distribution
+          output[[paste0("pheno_trait_selector_ui_", local_proj)]] <- renderUI({
+            if (length(p_trait_names) == 0) return(p("No phenotype traits available"))
+            selectInput(paste0("pheno_trait_select_", local_proj),
+                        "Select phenotype trait:",
+                        choices = p_trait_names,
+                        selected = p_trait_names[1])
+          })
+
+          # Layer checkboxes
+          output[[paste0("pheno_layer_ui_", local_proj)]] <- renderUI({
+            if (length(p_series_names) == 0) return(p("No data"))
+            checkboxGroupInput(paste0("pheno_layers_", local_proj),
+                               label = NULL, choices = p_series_names,
+                               selected = p_series_names)
+          })
+
+          # Select All / None
+          observeEvent(input[[paste0("pheno_all_", local_proj)]], {
+            updateCheckboxGroupInput(session, paste0("pheno_layers_", local_proj),
+                                     selected = p_series_names)
+          })
+          observeEvent(input[[paste0("pheno_none_", local_proj)]], {
+            updateCheckboxGroupInput(session, paste0("pheno_layers_", local_proj),
+                                     selected = character(0))
+          })
+
+          # Populate region dropdown based on region type toggle
+          observe({
+            rt <- input[[paste0("pheno_region_type_", local_proj)]]
+            if (is.null(rt)) return()
+            regions <- if (rt == "combined") pad$regions_combined else pad$regions_trait
+            if (is.null(regions) || nrow(regions) == 0) return()
+            regions <- regions[order(min_pvalue)]
+            # Region length (already extended by REGION_DISTANCE in pipeline)
+            fmt_len <- ifelse(regions$length >= 1e6,
+                              paste0(round(regions$length / 1e6, 1), ' Mb'),
+                       ifelse(regions$length >= 1e3,
+                              paste0(round(regions$length / 1e3, 1), ' kb'),
+                              paste0(regions$length, ' bp')))
+            ch <- c("(click SNP or select)" = "",
+                    setNames(regions$region_id,
+                             paste0(regions$region_id, ' (', regions$snp_count,
+                                    ' SNPs, ', fmt_len, ')')))
+            updateSelectInput(session, paste0("pheno_region_select_", local_proj), choices = ch)
+          })
+
+          # Region selection from dropdown
+          observeEvent(input[[paste0("pheno_region_select_", local_proj)]], {
+            val <- input[[paste0("pheno_region_select_", local_proj)]]
+            if (!is.null(val) && val != "") pheno_sel_region(val)
+          }, ignoreInit = TRUE)
+
+          # Clear region
+          observeEvent(input[[paste0("pheno_clear_region_", local_proj)]], {
+            pheno_sel_region(NULL)
+            updateSelectInput(session, paste0("pheno_region_select_", local_proj), selected = "")
+          })
+
+          # Click on Manhattan plot -> find region for clicked SNP
+          observeEvent(event_data("plotly_click", source = paste0("pheno_manh_", local_proj)), {
+            click <- event_data("plotly_click", source = paste0("pheno_manh_", local_proj))
+            if (is.null(click) || is.null(click$customdata)) return()
+            snpid <- click$customdata[1]
+            if (is.null(pmpd)) return()
+            snp <- pmpd$data[SNPID == snpid][1]
+            if (nrow(snp) == 0) return()
+            rt <- input[[paste0("pheno_region_type_", local_proj)]]
+            regions <- if (rt == "combined") pad$regions_combined else pad$regions_trait
+            if (is.null(regions)) return()
+            # Region boundaries already extended by REGION_DISTANCE in pipeline
+            matching <- regions[as.character(chr) == as.character(snp$chr) &
+                                start <= snp$pos &
+                                end >= snp$pos]
+            if (nrow(matching) > 0) {
+              best <- matching[which.min(min_pvalue), region_id]
+              pheno_sel_region(best)
+              updateSelectInput(session, paste0("pheno_region_select_", local_proj),
+                                selected = best)
+            }
+          })
+
+          # ---- PHENOTYPE TRAIT DISTRIBUTION ----
+          output[[paste0("pheno_trait_dist_", local_proj)]] <- renderPlotly({
+            sel_trait <- input[[paste0("pheno_trait_select_", local_proj)]]
+            if (is.null(sel_trait)) {
+              return(plot_ly() %>%
+                add_annotations(text = "Select a trait", x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+            meta_file <- paste0('/pipeline/', local_proj,
+                                '_results/tables/structure/metadata.tsv')
+            if (!file.exists(meta_file)) {
+              return(plot_ly() %>%
+                add_annotations(text = "Metadata file not found", x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+            meta <- data.table::fread(meta_file)
+            if (!sel_trait %in% names(meta)) {
+              return(plot_ly() %>%
+                add_annotations(text = paste0("Trait '", sel_trait, "' not in metadata"),
+                                x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+
+            site_col <- grep('^(site|pop|population)$', names(meta),
+                             ignore.case = TRUE, value = TRUE)
+
+            if (length(site_col) > 0) {
+              plot_ly(data = meta, x = ~get(sel_trait), color = ~get(site_col[1]),
+                      type = "histogram", opacity = 0.7) %>%
+                layout(title = paste0("Distribution of ", sel_trait),
+                       xaxis = list(title = sel_trait),
+                       yaxis = list(title = "Count"),
+                       barmode = "overlay",
+                       plot_bgcolor = 'white', paper_bgcolor = 'white')
+            } else {
+              plot_ly(data = meta, x = ~get(sel_trait), type = "histogram",
+                      marker = list(color = '#3c8dbc',
+                                    line = list(color = 'white', width = 0.5)),
+                      nbinsx = 30) %>%
+                layout(title = paste0("Distribution of ", sel_trait),
+                       xaxis = list(title = sel_trait),
+                       yaxis = list(title = "Count"),
+                       plot_bgcolor = 'white', paper_bgcolor = 'white')
+            }
+          })
+
+          # ---- PHENOTYPE SITE MAP (PIE MAP) ----
+          output[[paste0("pheno_site_map_", local_proj)]] <- renderPlot({
+            sel_trait <- input[[paste0("pheno_trait_select_", local_proj)]]
+            if (is.null(sel_trait)) return(NULL)
+
+            plot_obj <- load_plot(local_proj, paste0('PhenoMap_', sel_trait, '\\.qs$'))
+            if (is.null(plot_obj)) {
+              return(ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5,
+                         label = paste0("Pie map not available for ", sel_trait),
+                         size = 5, color = "#999"))
+            }
+            plot_obj
+          }, res = 96)
+
+          # ---- PHENOTYPE MANHATTAN PLOT ----
+          output[[paste0("pheno_manhattan_", local_proj)]] <- renderPlotly({
+            if (is.null(pmpd)) {
+              return(plot_ly() %>%
+                add_annotations(text = "No phenotype association data", x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+
+            active <- input[[paste0("pheno_layers_", local_proj)]]
+            show_reg <- input[[paste0("pheno_show_regions_", local_proj)]]
+            top_n <- input[[paste0("pheno_top_n_", local_proj)]]
+            if (is.null(active)) active <- p_series_names
+            if (is.null(top_n)) top_n <- 10
+
+            plot_dt <- pmpd$data[series %in% active]
+            chr_info <- pmpd$chr_info
+
+            if (nrow(plot_dt) == 0) {
+              return(plot_ly() %>%
+                add_annotations(text = "No series selected", x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+
+            nonsig <- plot_dt[is_sig == FALSE]
+            sig <- plot_dt[is_sig == TRUE]
+            y_max <- max(plot_dt$neglog10p) * 1.1
+
+            # Downsample non-sig if very large
+            max_nonsig <- 50000
+            if (nrow(nonsig) > max_nonsig) {
+              nonsig <- nonsig[sample(.N, max_nonsig)]
+            }
+
+            p <- plot_ly(source = paste0("pheno_manh_", local_proj))
+
+            # Non-significant points (one trace per trait)
+            for (s in unique(plot_dt$series)) {
+              sd_ns <- nonsig[series == s]
+              if (nrow(sd_ns) > 0) {
+                tr <- as.character(sd_ns$trait[1])
+                mt <- sd_ns$method[1]
+                p <- add_trace(p, data = sd_ns,
+                  x = ~pos_cum, y = ~neglog10p,
+                  type = "scatter", mode = "markers",
+                  marker = list(size = 4, color = p_t_colors[tr], opacity = 0.4,
+                                symbol = p_m_symbols[mt]),
+                  name = s, legendgroup = s, showlegend = TRUE,
+                  hoverinfo = "skip")
+              }
+            }
+
+            # Significant points (shape = method)
+            for (s in unique(sig$series)) {
+              sd_s <- sig[series == s]
+              if (nrow(sd_s) > 0) {
+                tr <- as.character(sd_s$trait[1])
+                mt <- sd_s$method[1]
+                p <- add_trace(p, data = sd_s,
+                  x = ~pos_cum, y = ~neglog10p,
+                  type = "scatter", mode = "markers",
+                  marker = list(size = 10, color = p_t_colors[tr], opacity = 0.9,
+                                symbol = p_m_symbols[mt],
+                                line = list(color = 'black', width = 1.5)),
+                  name = paste0(s, ' *'), legendgroup = s, showlegend = FALSE,
+                  text = ~paste0('* ', SNPID, '\n', trait, ' [', method, ']',
+                                 '\np=', formatC(pvalue, format = "e", digits = 2),
+                                 '\n-log10(p)=', round(neglog10p, 2)),
+                  hoverinfo = "text", customdata = ~SNPID)
+              }
+            }
+
+            # Bonferroni threshold line
+            n_snps <- nrow(plot_dt) / max(1, length(unique(plot_dt$series)))
+            bonf_line <- -log10(0.05 / max(1, n_snps))
+            p <- add_trace(p,
+              x = c(min(plot_dt$pos_cum), max(plot_dt$pos_cum)),
+              y = c(bonf_line, bonf_line),
+              type = "scatter", mode = "lines",
+              line = list(color = "red", dash = "dash", width = 1),
+              name = "Bonferroni", showlegend = TRUE, hoverinfo = "skip")
+
+            # Region rectangles
+            shapes <- list()
+            if (isTRUE(show_reg)) {
+              rt <- input[[paste0("pheno_region_type_", local_proj)]]
+              regions <- if (rt == "combined") pad$regions_combined else pad$regions_trait
+              if (!is.null(regions) && nrow(regions) > 0) {
+                regions <- regions[order(min_pvalue)]
+                top_reg <- head(regions, top_n)
+                n_reg <- nrow(top_reg)
+                reg_pal <- if (n_reg <= 12) {
+                  RColorBrewer::brewer.pal(max(3, n_reg), 'Set3')[1:n_reg]
+                } else { viridis::turbo(n_reg) }
+                for (i in 1:n_reg) {
+                  r <- top_reg[i]
+                  offset <- chr_info[chr == r$chr, cum_offset]
+                  if (length(offset) == 0) next
+                  # Region boundaries already extended in pipeline
+                  shapes[[length(shapes) + 1]] <- list(
+                    type = "rect",
+                    x0 = r$start + offset, x1 = r$end + offset,
+                    y0 = 0, y1 = y_max,
+                    fillcolor = reg_pal[i], opacity = 0.35,
+                    line = list(color = reg_pal[i], width = 1.5))
+                }
+              }
+            }
+
+            layout(p,
+              xaxis = list(title = "Chromosome", tickmode = "array",
+                           tickvals = chr_info$midpoint,
+                           ticktext = as.character(chr_info$chr),
+                           showgrid = FALSE),
+              yaxis = list(title = "-log10(p-value)", showgrid = TRUE,
+                           gridcolor = '#eee'),
+              shapes = shapes, hovermode = "closest", dragmode = "zoom",
+              legend = list(orientation = "v", x = 1.02, y = 1,
+                            font = list(size = 10)),
+              margin = list(r = 150),
+              plot_bgcolor = 'white', paper_bgcolor = 'white') %>%
+              event_register('plotly_click')
+          })
+
+          # ---- PHENOTYPE VALUE BOXES ----
+          output[[paste0("pheno_vb_snps_unique_", local_proj)]] <- renderValueBox({
+            n <- if (!is.null(pad$selected)) nrow(pad$selected) else 0
+            valueBox(n, "Unique Sig. SNPs", icon = icon("dot-circle-o"), color = "red")
+          })
+          output[[paste0("pheno_vb_snps_hits_", local_proj)]] <- renderValueBox({
+            n <- if (!is.null(pmpd)) sum(pmpd$data$is_sig) else 0
+            valueBox(n, "Sig. Hits on Plot", icon = icon("exclamation-circle"), color = "orange")
+          })
+          output[[paste0("pheno_vb_regions_", local_proj)]] <- renderValueBox({
+            n <- if (!is.null(pad$regions_combined)) nrow(pad$regions_combined) else 0
+            valueBox(n, "Regions", icon = icon("th"), color = "blue")
+          })
+          output[[paste0("pheno_vb_genes_", local_proj)]] <- renderValueBox({
+            n <- if (!is.null(pad$genes_collapsed)) nrow(pad$genes_collapsed) else 0
+            valueBox(n, "Genes", icon = icon("list"), color = "green")
+          })
+          output[[paste0("pheno_vb_enrich_", local_proj)]] <- renderValueBox({
+            base <- paste0('/pipeline/', local_proj,
+                           '_results/tables/association_phenotypes/enrichment')
+            n <- if (dir.exists(base)) {
+              length(list.files(base, pattern = '_enrichment\\.tsv$', recursive = TRUE))
+            } else 0
+            valueBox(n, "GO Terms", icon = icon("pie-chart"), color = "yellow")
+          })
+          output[[paste0("pheno_vb_methods_", local_proj)]] <- renderValueBox({
+            n <- length(pad$methods)
+            valueBox(n, "Methods", icon = icon("flask"), color = "purple")
+          })
+
+          # ---- PHENOTYPE REGION INFO BAR ----
+          output[[paste0("pheno_region_info_", local_proj)]] <- renderUI({
+            rid <- pheno_sel_region()
+            if (is.null(rid) || rid == "") return(NULL)
+            rt <- input[[paste0("pheno_region_type_", local_proj)]]
+            regions <- if (rt == "combined") pad$regions_combined else pad$regions_trait
+            if (is.null(regions)) return(NULL)
+            r <- regions[region_id == rid]
+            if (nrow(r) == 0) return(NULL)
+            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
+            fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
+                       else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
+                       else paste0(r$length[1], ' bp')
+            div(style = paste0("background: #fcf8e3; padding: 12px; margin: 5px 15px;",
+                               " border-left: 4px solid #8a6d3b; border-radius: 3px;"),
+              strong(paste0("Region: ", rid)),
+              span(paste0(" | Chr ", r$chr[1], ": ",
+                           format(r$start[1], big.mark = ","), " - ",
+                           format(r$end[1], big.mark = ","),
+                           " (", fmt_ext, ")",
+                           " | ", r$snp_count[1], " SNPs",
+                           " | min p = ", formatC(r$min_pvalue[1],
+                                                   format = "e", digits = 2))))
+          })
+
+          # ---- PHENOTYPE GENES TABLE ----
+          output[[paste0("pheno_genes_prompt_", local_proj)]] <- renderUI({
+            rid <- pheno_sel_region()
+            if (is.null(rid) || rid == "") {
+              div(style = "text-align: center; padding: 40px; color: #999;",
+                icon("hand-pointer-o"),
+                h5("Click a significant SNP or select a region to view genes"))
+            }
+          })
+
+          output[[paste0("pheno_genes_dt_", local_proj)]] <- renderDT({
+            rid <- pheno_sel_region()
+            req(rid, rid != "")
+            rt <- input[[paste0("pheno_region_type_", local_proj)]]
+            genes <- if (!is.null(rt) && rt == "combined") pad$genes_combined else pad$genes
+            if (is.null(genes) || nrow(genes) == 0) return(NULL)
+
+            rg <- genes[region_id == rid]
+            if (nrow(rg) == 0) {
+              regions_tbl <- if (!is.null(rt) && rt == "combined") pad$regions_combined else pad$regions_trait
+              if (!is.null(regions_tbl)) {
+                r <- regions_tbl[region_id == rid]
+                if (nrow(r) > 0) {
+                  # Region boundaries already extended in pipeline
+                  rg <- genes[as.character(chr) == as.character(r$chr[1]) &
+                              gene_end >= r$start[1] &
+                              gene_start <= r$end[1]]
+                }
+              }
+            }
+            if (nrow(rg) == 0) return(NULL)
+            rg <- unique(rg, by = 'gene_id')
+
+            dcols <- intersect(
+              c('gene_id', 'Name', 'description', 'chr', 'gene_start', 'gene_end',
+                'exon_snp_count', 'promoter_snp_count', 'biotype', 'ontology'),
+              names(rg))
+            datatable(rg[, ..dcols], rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE,
+                             scrollY = "220px", scrollCollapse = TRUE),
+              selection = 'single')
+          })
+
+          # ---- PHENOTYPE ENRICHMENT TABLE ----
+          output[[paste0("pheno_enrich_prompt_", local_proj)]] <- renderUI({
+            rid <- pheno_sel_region()
+            if (is.null(rid) || rid == "") {
+              div(style = "text-align: center; padding: 40px; color: #999;",
+                icon("hand-pointer-o"),
+                h5("Click a significant SNP or select a region to view enrichment"))
+            }
+          })
+
+          output[[paste0("pheno_enrich_dt_", local_proj)]] <- renderDT({
+            rid <- pheno_sel_region()
+            req(rid, rid != "")
+            enrich <- load_region_enrichment_pheno(local_proj, rid)
+            if (is.null(enrich) || nrow(enrich) == 0) {
+              return(datatable(
+                data.frame(Message = "No enrichment results for this region"),
+                rownames = FALSE, options = list(dom = 't')))
+            }
+            dcols <- intersect(
+              c('GO_id', 'description', 'gene_ratio', 'pvalue', 'p_adjust',
+                'gene_count', 'gene_ids'),
+              names(enrich))
+            datatable(enrich[, ..dcols], rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE,
+                             scrollY = "220px", scrollCollapse = TRUE),
+              selection = 'single') %>%
+              formatSignif(columns = intersect(c('pvalue', 'p_adjust'), dcols),
+                           digits = 3)
+          })
+
+        } # end if has_pheno_data
+
+        ###############################################################
+        # OVERLAPPING REGIONS TAB SERVER LOGIC
+        ###############################################################
+        # Load pipeline-precomputed overlap data
+        ovd <- NULL
+        has_overlap_file <- file.exists(paste0('/pipeline/', local_proj,
+                                               '_results/tables/overlapping/Overlap_summary.tsv'))
+
+        if (has_overlap_file && has_assoc_data && has_pheno_data) {
+          ovd <- load_overlap_data(local_proj)
+
+          # Parse overlap summary stats from SUMMARY rows
+          ov_summary_rows <- if (!is.null(ovd$overlap_summary))
+            ovd$overlap_summary[gea_region_id == 'SUMMARY'] else NULL
+          ov_pairs <- if (!is.null(ovd$overlap_summary))
+            ovd$overlap_summary[gea_region_id != 'SUMMARY'] else NULL
+
+          ov_n_gea <- if (!is.null(ov_summary_rows))
+            as.integer(ov_summary_rows[gwas_region_id == 'gea_total', overlap_length]) else 0L
+          ov_n_gwas <- if (!is.null(ov_summary_rows))
+            as.integer(ov_summary_rows[gwas_region_id == 'gwas_total', overlap_length]) else 0L
+          ov_n_pairs <- if (!is.null(ov_summary_rows))
+            as.integer(ov_summary_rows[gwas_region_id == 'overlap_pairs', overlap_length]) else 0L
+          ov_n_merged <- if (!is.null(ovd$regions_combined)) nrow(ovd$regions_combined) else 0L
+          ov_n_genes <- if (!is.null(ovd$genes) && nrow(ovd$genes) > 0 && 'gene_id' %in% names(ovd$genes))
+            length(unique(ovd$genes$gene_id)) else 0L
+
+          # Count GO terms across all overlap enrichment
+          ov_n_go <- 0L
+          ov_enrich_base <- paste0('/pipeline/', local_proj, '_results/tables/overlapping/enrichment')
+          if (dir.exists(ov_enrich_base)) {
+            ov_enrich_files <- list.files(ov_enrich_base, pattern = '_enrichment\\.tsv$',
+                                          recursive = TRUE, full.names = TRUE)
+            if (length(ov_enrich_files) > 0) {
+              ov_all_go <- data.table::rbindlist(lapply(ov_enrich_files, function(f)
+                tryCatch(data.table::fread(f), error = function(e) NULL)), fill = TRUE)
+              if (nrow(ov_all_go) > 0 && 'GO_id' %in% names(ov_all_go))
+                ov_n_go <- length(unique(ov_all_go$GO_id))
+            }
+          }
+
+          # Build unified color palette across ALL traits (GEA + GWAS)
+          all_ov_traits <- sort(unique(c(
+            if (!is.null(mpd)) as.character(unique(mpd$data$trait)) else character(0),
+            if (!is.null(pmpd)) as.character(unique(pmpd$data$trait)) else character(0)
+          )))
+          ov_colors <- if (length(all_ov_traits) > 0) generate_trait_colors(all_ov_traits) else character(0)
+
+          # Build unified method symbols across ALL methods (GEA + GWAS)
+          all_ov_methods <- sort(unique(c(
+            if (!is.null(mpd)) unique(mpd$data$method) else character(0),
+            if (!is.null(pmpd)) unique(pmpd$data$method) else character(0)
+          )))
+          ov_symbols <- if (length(all_ov_methods) > 0) generate_method_symbols(all_ov_methods) else character(0)
+
+          # Build series names for GEA and GWAS (for layer checkboxes)
+          gea_series <- if (!is.null(mpd)) sort(unique(mpd$data$series)) else character(0)
+          gwas_series <- if (!is.null(pmpd)) sort(unique(pmpd$data$series)) else character(0)
+          ov_series_gea <- paste0('GEA: ', gea_series)
+          ov_series_gwas <- paste0('GWAS: ', gwas_series)
+          ov_all_series <- c(ov_series_gea, ov_series_gwas)
+
+          # --- Summary value boxes ---
+          output[[paste0("ov_box_gea_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_gea, "GEA Regions", icon = icon("cloud-sun"), color = "blue")
+          })
+          output[[paste0("ov_box_gwas_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_gwas, "GWAS Regions", icon = icon("dna"), color = "purple")
+          })
+          output[[paste0("ov_box_pairs_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_pairs, "Overlap Pairs", icon = icon("link"), color = "green")
+          })
+          output[[paste0("ov_box_merged_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_merged, "New Combined", icon = icon("object-group"), color = "yellow")
+          })
+          output[[paste0("ov_box_genes_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_genes, "Genes", icon = icon("bars"), color = "orange")
+          })
+          output[[paste0("ov_box_go_", local_proj)]] <- renderValueBox({
+            valueBox(ov_n_go, "GO Terms", icon = icon("sitemap"), color = "red")
+          })
+
+          # --- Layer checkboxes ---
+          output[[paste0("ov_layer_ui_", local_proj)]] <- renderUI({
+            if (length(ov_all_series) == 0) return(p("No data"))
+            checkboxGroupInput(paste0("ov_layers_", local_proj),
+                               label = NULL, choices = ov_all_series,
+                               selected = ov_all_series)
+          })
+
+          # Select All / None
+          observeEvent(input[[paste0("ov_all_", local_proj)]], {
+            updateCheckboxGroupInput(session, paste0("ov_layers_", local_proj),
+                                     selected = ov_all_series)
+          })
+          observeEvent(input[[paste0("ov_none_", local_proj)]], {
+            updateCheckboxGroupInput(session, paste0("ov_layers_", local_proj),
+                                     selected = character(0))
+          })
+
+          # --- Region selection ---
+          ov_sel_region <- reactiveVal(NULL)
+
+          # Populate region dropdown based on region type toggle
+          observe({
+            rt <- input[[paste0("ov_region_type_", local_proj)]]
+            if (is.null(rt)) return()
+            regions <- if (rt == "combined") ovd$regions_combined else ovd$regions_trait
+            if (is.null(regions) || nrow(regions) == 0) return()
+            regions <- regions[order(min_pvalue)]
+            # Region length (already extended by REGION_DISTANCE in pipeline)
+            fmt_len <- ifelse(regions$length >= 1e6,
+                              paste0(round(regions$length / 1e6, 1), ' Mb'),
+                       ifelse(regions$length >= 1e3,
+                              paste0(round(regions$length / 1e3, 1), ' kb'),
+                              paste0(regions$length, ' bp')))
+            src_label <- if ('source' %in% names(regions)) paste0(' [', regions$source, ']') else ''
+            ch <- c("(click SNP or select)" = "",
+                    setNames(regions$region_id,
+                             paste0(regions$region_id, ' (', regions$snp_count,
+                                    ' SNPs, ', fmt_len, src_label, ')')))
+            updateSelectInput(session, paste0("ov_region_select_", local_proj), choices = ch)
+          })
+
+          # Region selection from dropdown
+          observeEvent(input[[paste0("ov_region_select_", local_proj)]], {
+            val <- input[[paste0("ov_region_select_", local_proj)]]
+            if (!is.null(val) && val != "") ov_sel_region(val)
+          }, ignoreInit = TRUE)
+
+          # Clear region
+          observeEvent(input[[paste0("ov_clear_region_", local_proj)]], {
+            ov_sel_region(NULL)
+            updateSelectInput(session, paste0("ov_region_select_", local_proj), selected = "")
+          })
+
+          # Click on Miami plot -> find region for clicked SNP
+          observeEvent(event_data("plotly_click", source = paste0("ov_miami_", local_proj)), {
+            click <- event_data("plotly_click", source = paste0("ov_miami_", local_proj))
+            if (is.null(click) || is.null(click$customdata)) return()
+            snpid <- click$customdata[1]
+            # Search in both GEA and GWAS data
+            snp <- NULL
+            if (!is.null(mpd)) snp <- mpd$data[SNPID == snpid][1]
+            if ((is.null(snp) || nrow(snp) == 0) && !is.null(pmpd))
+              snp <- pmpd$data[SNPID == snpid][1]
+            if (is.null(snp) || nrow(snp) == 0) return()
+            rt <- input[[paste0("ov_region_type_", local_proj)]]
+            regions <- if (rt == "combined") ovd$regions_combined else ovd$regions_trait
+            if (is.null(regions)) return()
+            # Region boundaries already extended by REGION_DISTANCE in pipeline
+            matching <- regions[as.character(chr) == as.character(snp$chr) &
+                                start <= snp$pos &
+                                end >= snp$pos]
+            if (nrow(matching) > 0) {
+              best <- matching[which.min(min_pvalue), region_id]
+              ov_sel_region(best)
+              updateSelectInput(session, paste0("ov_region_select_", local_proj),
+                                selected = best)
+            }
+          })
+
+          # --- MIAMI MANHATTAN PLOT ---
+          output[[paste0("ov_miami_", local_proj)]] <- renderPlotly({
+            req(mpd, pmpd)
+
+            active <- input[[paste0("ov_layers_", local_proj)]]
+            show_reg <- input[[paste0("ov_show_regions_", local_proj)]]
+            top_n <- input[[paste0("ov_top_n_", local_proj)]]
+            if (is.null(active)) active <- ov_all_series
+            if (is.null(top_n)) top_n <- 10
+
+            # Filter active GEA and GWAS series
+            active_gea <- sub('^GEA: ', '', active[grepl('^GEA: ', active)])
+            active_gwas <- sub('^GWAS: ', '', active[grepl('^GWAS: ', active)])
+
+            # GEA data (positive y)
+            gea_d <- copy(mpd$data)
+            gea_d <- gea_d[series %in% active_gea]
+            gea_d[, y_val := neglog10p]
+
+            # GWAS data (negative y)
+            gwas_d <- copy(pmpd$data)
+            gwas_d <- gwas_d[series %in% active_gwas]
+            gwas_d[, y_val := -neglog10p]
+
+            # Shared chr_info for consistent x-axis
+            chr_info <- mpd$chr_info
+
+            # Recalculate GWAS cumulative positions using GEA's chromosome layout
+            gwas_d <- merge(gwas_d[, !c('cum_offset', 'pos_cum'), with = FALSE],
+                            chr_info[, .(chr, cum_offset)], by = 'chr', all.x = TRUE)
+            gwas_d[, pos_cum := pos + cum_offset]
+            gwas_d <- gwas_d[!is.na(pos_cum)]
+
+            if (nrow(gea_d) == 0 && nrow(gwas_d) == 0) {
+              return(plot_ly() %>%
+                add_annotations(text = "No series selected", x = 0.5, y = 0.5,
+                                xref = "paper", yref = "paper", showarrow = FALSE))
+            }
+
+            # Determine y-axis range
+            y_max <- max(c(
+              if (nrow(gea_d) > 0) max(gea_d$neglog10p) else 1,
+              if (nrow(gwas_d) > 0) max(gwas_d$neglog10p) else 1
+            ), na.rm = TRUE) * 1.1
+
+            p <- plot_ly(source = paste0("ov_miami_", local_proj))
+
+            # --- GEA non-sig (above) ---
+            gea_nonsig <- gea_d[is_sig == FALSE]
+            if (nrow(gea_nonsig) > 50000) {
+              set.seed(42); gea_nonsig <- gea_nonsig[sample(.N, 50000)]
+            }
+            for (s in unique(gea_d$series)) {
+              sd_ns <- gea_nonsig[series == s]
+              if (nrow(sd_ns) > 0) {
+                tr <- as.character(sd_ns$trait[1])
+                mt <- sd_ns$method[1]
+                col <- if (tr %in% names(ov_colors)) ov_colors[[tr]] else '#999999'
+                sym <- if (mt %in% names(ov_symbols)) ov_symbols[[mt]] else 'circle'
+                p <- add_trace(p, data = sd_ns, x = ~pos_cum, y = ~y_val,
+                  type = 'scatter', mode = 'markers',
+                  marker = list(size = 4, color = col, opacity = 0.4, symbol = sym),
+                  hoverinfo = 'skip', showlegend = TRUE,
+                  name = paste0('GEA: ', s), legendgroup = paste0('gea_', s))
+              }
+            }
+
+            # --- GWAS non-sig (below) ---
+            gwas_nonsig <- gwas_d[is_sig == FALSE]
+            if (nrow(gwas_nonsig) > 50000) {
+              set.seed(42); gwas_nonsig <- gwas_nonsig[sample(.N, 50000)]
+            }
+            for (s in unique(gwas_d$series)) {
+              sd_ns <- gwas_nonsig[series == s]
+              if (nrow(sd_ns) > 0) {
+                tr <- as.character(sd_ns$trait[1])
+                mt <- sd_ns$method[1]
+                col <- if (tr %in% names(ov_colors)) ov_colors[[tr]] else '#999999'
+                sym <- if (mt %in% names(ov_symbols)) ov_symbols[[mt]] else 'circle'
+                p <- add_trace(p, data = sd_ns, x = ~pos_cum, y = ~y_val,
+                  type = 'scatter', mode = 'markers',
+                  marker = list(size = 4, color = col, opacity = 0.4, symbol = sym),
+                  hoverinfo = 'skip', showlegend = TRUE,
+                  name = paste0('GWAS: ', s), legendgroup = paste0('gwas_', s))
+              }
+            }
+
+            # --- GEA sig (above) ---
+            gea_sig <- gea_d[is_sig == TRUE]
+            for (s in unique(gea_sig$series)) {
+              sd_s <- gea_sig[series == s]
+              if (nrow(sd_s) > 0) {
+                tr <- as.character(sd_s$trait[1])
+                mt <- sd_s$method[1]
+                col <- if (tr %in% names(ov_colors)) ov_colors[[tr]] else '#333333'
+                sym <- if (mt %in% names(ov_symbols)) ov_symbols[[mt]] else 'circle'
+                p <- add_trace(p, data = sd_s, x = ~pos_cum, y = ~y_val,
+                  type = 'scatter', mode = 'markers',
+                  marker = list(size = 10, color = col, opacity = 0.9, symbol = sym,
+                                line = list(color = 'black', width = 1.5)),
+                  text = ~paste0('* ', SNPID, '\n', series,
+                                 '\np=', formatC(pvalue, format = "e", digits = 2),
+                                 '\n-log10(p)=', round(neglog10p, 2)),
+                  hoverinfo = 'text', customdata = ~SNPID,
+                  name = paste0('GEA: ', s, ' *'), legendgroup = paste0('gea_', s),
+                  showlegend = FALSE)
+              }
+            }
+
+            # --- GWAS sig (below) ---
+            gwas_sig <- gwas_d[is_sig == TRUE]
+            for (s in unique(gwas_sig$series)) {
+              sd_s <- gwas_sig[series == s]
+              if (nrow(sd_s) > 0) {
+                tr <- as.character(sd_s$trait[1])
+                mt <- sd_s$method[1]
+                col <- if (tr %in% names(ov_colors)) ov_colors[[tr]] else '#333333'
+                sym <- if (mt %in% names(ov_symbols)) ov_symbols[[mt]] else 'circle'
+                p <- add_trace(p, data = sd_s, x = ~pos_cum, y = ~y_val,
+                  type = 'scatter', mode = 'markers',
+                  marker = list(size = 10, color = col, opacity = 0.9, symbol = sym,
+                                line = list(color = 'black', width = 1.5)),
+                  text = ~paste0('* ', SNPID, '\n', series,
+                                 '\np=', formatC(pvalue, format = "e", digits = 2),
+                                 '\n-log10(p)=', round(neglog10p, 2)),
+                  hoverinfo = 'text', customdata = ~SNPID,
+                  name = paste0('GWAS: ', s, ' *'), legendgroup = paste0('gwas_', s),
+                  showlegend = FALSE)
+              }
+            }
+
+            # Region rectangles as shapes (from pipeline tables, extended by REGION_DISTANCE)
+            shapes <- list()
+            if (isTRUE(show_reg)) {
+              rt <- input[[paste0("ov_region_type_", local_proj)]]
+              regions <- if (rt == "combined") ovd$regions_combined else ovd$regions_trait
+              if (!is.null(regions) && nrow(regions) > 0) {
+                regions <- regions[order(min_pvalue)]
+                top_reg <- head(regions, top_n)
+                n_reg <- nrow(top_reg)
+                reg_pal <- if (n_reg <= 12) {
+                  RColorBrewer::brewer.pal(max(3, n_reg), 'Set3')[1:n_reg]
+                } else { viridis::turbo(n_reg) }
+                for (i in 1:n_reg) {
+                  r <- top_reg[i]
+                  offset <- chr_info[chr == r$chr, cum_offset]
+                  if (length(offset) == 0) next
+                  # Region boundaries already extended in pipeline
+                  shapes[[length(shapes) + 1]] <- list(
+                    type = "rect",
+                    x0 = r$start + offset, x1 = r$end + offset,
+                    y0 = -y_max, y1 = y_max,
+                    fillcolor = reg_pal[i], opacity = 0.35,
+                    line = list(color = reg_pal[i], width = 1.5))
+                }
+              }
+            }
+
+            # Layout with zero line
+            layout(p,
+              xaxis = list(title = "Chromosome", tickmode = "array",
+                           tickvals = chr_info$midpoint,
+                           ticktext = as.character(chr_info$chr),
+                           showgrid = FALSE),
+              yaxis = list(title = "-log10(p-value)",
+                           zeroline = TRUE, zerolinecolor = '#333', zerolinewidth = 2,
+                           showgrid = TRUE, gridcolor = '#eee'),
+              shapes = shapes, hovermode = "closest", dragmode = "zoom",
+              legend = list(orientation = "v", x = 1.02, y = 1,
+                            font = list(size = 10)),
+              margin = list(r = 150),
+              plot_bgcolor = 'white', paper_bgcolor = 'white') %>%
+              event_register('plotly_click')
+          })
+
+          # ---- REGION INFO BAR ----
+          output[[paste0("ov_region_info_", local_proj)]] <- renderUI({
+            rid <- ov_sel_region()
+            if (is.null(rid) || rid == "") return(NULL)
+            rt <- input[[paste0("ov_region_type_", local_proj)]]
+            regions <- if (rt == "combined") ovd$regions_combined else ovd$regions_trait
+            if (is.null(regions)) return(NULL)
+            r <- regions[region_id == rid]
+            if (nrow(r) == 0) return(NULL)
+            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
+            fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
+                       else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
+                       else paste0(r$length[1], ' bp')
+            src <- if ('source' %in% names(r)) as.character(r$source[1]) else ''
+            traits <- if ('traits' %in% names(r)) as.character(r$traits[1]) else
+                      if ('trait' %in% names(r)) as.character(r$trait[1]) else ''
+            div(style = paste0("background: #d9edf7; padding: 12px; margin: 5px 15px;",
+                               " border-left: 4px solid #31708f; border-radius: 3px;"),
+              strong(paste0("Region: ", rid)),
+              span(paste0(" | Chr ", r$chr[1], ": ",
+                           format(r$start[1], big.mark = ","), " - ",
+                           format(r$end[1], big.mark = ","),
+                           " (", fmt_ext, ")",
+                           " | Source: ", src,
+                           " | Traits: ", traits,
+                           " | ", r$snp_count[1], " SNPs",
+                           " | min p = ", formatC(r$min_pvalue[1],
+                                                   format = "e", digits = 2))))
+          })
+
+          # ---- GENES TABLE ----
+          output[[paste0("ov_genes_prompt_", local_proj)]] <- renderUI({
+            rid <- ov_sel_region()
+            if (is.null(rid) || rid == "") {
+              div(style = "text-align: center; padding: 40px; color: #999;",
+                icon("hand-pointer-o"),
+                h5("Click a significant SNP or select a region to view genes"))
+            }
+          })
+
+          output[[paste0("ov_genes_dt_", local_proj)]] <- renderDT({
+            rid <- ov_sel_region()
+            req(rid, rid != "")
+            rt <- input[[paste0("ov_region_type_", local_proj)]]
+            genes <- if (!is.null(rt) && rt == "combined") ovd$genes_combined else ovd$genes
+            if (is.null(genes) || nrow(genes) == 0) return(NULL)
+            rg <- genes[region_id == rid]
+            # Fallback: coordinate-based matching
+            if (nrow(rg) == 0) {
+              regions_tbl <- if (!is.null(rt) && rt == "combined") ovd$regions_combined else ovd$regions_trait
+              if (!is.null(regions_tbl)) {
+                r <- regions_tbl[region_id == rid]
+                if (nrow(r) > 0) {
+                  rg <- genes[as.character(chr) == as.character(r$chr[1]) &
+                              gene_end >= r$start[1] & gene_start <= r$end[1]]
+                }
+              }
+            }
+            if (nrow(rg) == 0) return(NULL)
+            rg <- unique(rg, by = 'gene_id')
+            dcols <- intersect(
+              c('gene_id', 'Name', 'description', 'chr', 'gene_start', 'gene_end',
+                'exon_snp_count', 'promoter_snp_count', 'biotype', 'ontology'),
+              names(rg))
+            datatable(rg[, ..dcols], rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE,
+                             scrollY = "220px", scrollCollapse = TRUE),
+              selection = 'single')
+          })
+
+          # ---- ENRICHMENT TABLE ----
+          output[[paste0("ov_enrich_prompt_", local_proj)]] <- renderUI({
+            rid <- ov_sel_region()
+            if (is.null(rid) || rid == "") {
+              div(style = "text-align: center; padding: 40px; color: #999;",
+                icon("hand-pointer-o"),
+                h5("Click a significant SNP or select a region to view enrichment"))
+            }
+          })
+
+          output[[paste0("ov_enrich_dt_", local_proj)]] <- renderDT({
+            rid <- ov_sel_region()
+            req(rid, rid != "")
+            enrich <- load_region_enrichment_overlap(local_proj, rid)
+            if (is.null(enrich) || nrow(enrich) == 0) {
+              return(datatable(
+                data.frame(Message = "No enrichment results for this region"),
+                rownames = FALSE, options = list(dom = 't')))
+            }
+            dcols <- intersect(
+              c('GO_id', 'description', 'gene_ratio', 'pvalue', 'p_adjust',
+                'gene_count', 'gene_ids'),
+              names(enrich))
+            datatable(enrich[, ..dcols], rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE,
+                             scrollY = "220px", scrollCollapse = TRUE),
+              selection = 'single') %>%
+              formatSignif(columns = intersect(c('pvalue', 'p_adjust'), dcols),
+                           digits = 3)
+          })
+
+          # ---- OVERLAP PAIRS TABLE ----
+          output[[paste0("ov_overlap_dt_", local_proj)]] <- renderDT({
+            if (is.null(ov_pairs) || nrow(ov_pairs) == 0) {
+              return(datatable(
+                data.frame(Message = "No overlapping regions found between GEA and GWAS"),
+                rownames = FALSE, options = list(dom = 't')))
+            }
+            dcols <- intersect(
+              c('gea_region_id', 'gwas_region_id', 'chr', 'overlap_length', 'overlap_pct',
+                'gea_snp_count', 'gwas_snp_count', 'shared_snps',
+                'gea_traits', 'gwas_traits', 'gea_min_pvalue', 'gwas_min_pvalue'),
+              names(ov_pairs))
+            datatable(ov_pairs[, ..dcols], rownames = FALSE,
+              options = list(pageLength = 10, scrollX = TRUE),
+              selection = 'single') %>%
+              formatSignif(columns = intersect(c('gea_min_pvalue', 'gwas_min_pvalue'), dcols), digits = 3)
+          })
+
+        } # end if has_overlap_file
+
       })
     }
   })
