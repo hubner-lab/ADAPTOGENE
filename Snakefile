@@ -427,8 +427,6 @@ def piemap_notrait(bio): return f"{PLOTS}piemap/PieMap_{bio}.png"
 # Templates for association outputs
 def assoc_pvalues(method): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}.tsv"
 def assoc_sigsnps(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_sigSNPs_{adjust}.tsv"
-def assoc_genes(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}.tsv"
-def assoc_genes_collapsed(method, adjust): return f"{TABLES}association/{method}/{method}_pvalues_K{K_BEST}_{adjust}_genesAround{GENE_DISTANCE}_collapsed.tsv"
 def manhattan_plot(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def manhattan_plot_regions(method, trait, adjust): return f"{PLOTS}{method}/Manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
 
