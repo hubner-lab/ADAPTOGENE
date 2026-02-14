@@ -155,6 +155,7 @@ GF_RANDOM_MODEL: TRUE           # Also build neutral model for comparison
 # HAPLOTYPE_SCAN_REGIONS_SOURCE: 'association_phenotypes'  # 'association', 'association_phenotypes', 'overlapping', 'all', 'custom'
 # HAPLOTYPE_SCAN_REGIONS_FILE: 'NULL'      # Path to custom regions TSV (when source='custom')
 # HAPLOTYPE_SCAN_TOP_REGIONS: 5            # Number of top regions to analyze per source
+# HAPLOTYPE_SCAN_MIN_SNPS: 10              # Minimum SNPs per region (skip regions with fewer)
 # HAPLOTYPE_SCAN_MGMIN: 50                 # DBSCAN MinPts (marker group minimum size)
 # HAPLOTYPE_SCAN_MINHAP: 15               # Minimum haplotype group size
 # HAPLOTYPE_SCAN_EPSILON_RANGE: [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]

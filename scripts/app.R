@@ -117,9 +117,42 @@ find_haplotype_tags <- function(project, pipeline_path = '/pipeline/') {
   if (!dir.exists(inter)) return(character(0))
   dirs <- list.dirs(inter, recursive = FALSE, full.names = FALSE)
   hap_dirs <- dirs[grepl('^haplotype_', dirs)]
-  # Return tags that have scan_done.flag (at minimum scan has been run)
   tags <- sub('^haplotype_', '', hap_dirs)
-  tags[file.exists(paste0(inter, 'haplotype_', tags, '/scan_done.flag'))]
+
+  # Only return tags where scan succeeded AND at least one HapObject exists
+  valid_tags <- c()
+  for (tag in tags) {
+    tag_dir <- paste0(inter, 'haplotype_', tag, '/')
+    # Check for scan_done.flag AND at least one HapObject
+    if (file.exists(paste0(tag_dir, 'scan_done.flag'))) {
+      hap_files <- list.files(tag_dir, pattern = '^Region_.*_HapObject\\.qs$')
+      if (length(hap_files) > 0) {
+        valid_tags <- c(valid_tags, tag)
+      }
+    }
+  }
+  valid_tags
+}
+
+# Load scan status summary for a tag
+load_haplotype_status <- function(project, tag, pipeline_path = '/pipeline/') {
+  status_file <- paste0(pipeline_path, project,
+                        '_results/intermediate/haplotype_', tag, '/scan_status.tsv')
+  if (!file.exists(status_file)) return(NULL)
+
+  status <- data.table::fread(status_file)
+  # Extract summary row if present
+  summary <- status[region_id == 'SUMMARY']
+  detail <- status[region_id != 'SUMMARY']
+
+  list(
+    summary = summary,
+    detail = detail,
+    n_total = if (nrow(summary) > 0) summary$start[1] else nrow(detail),
+    n_success = if (nrow(summary) > 0) summary$end[1] else sum(detail$status == 'success'),
+    n_skipped = if (nrow(summary) > 0) summary$snp_count[1] else sum(detail$status == 'skipped_low_snps'),
+    n_failed = if (nrow(summary) > 0) as.integer(summary$status[1]) else sum(grepl('failed', detail$status))
+  )
 }
 
 # Load haplotype data for a tag
@@ -447,13 +480,15 @@ load_region_enrichment_overlap <- function(project, rid, pipeline_path = '/pipel
 load_plot <- function(project, plotname, pipeline_path = '/pipeline/') {
   tryCatch({
     base <- paste0(pipeline_path, project, '_results/')
-    # Search intermediate/ and plots/ recursively
-    plot_paths <- c(
-      list.files(paste0(base, 'intermediate'), pattern = plotname,
+    # List all .qs files, then filter by pattern on full path
+    # (list.files pattern only matches basenames, but plotname may include directory components)
+    all_qs <- c(
+      list.files(paste0(base, 'intermediate'), pattern = '\\.qs$',
                  full.names = TRUE, recursive = TRUE),
-      list.files(paste0(base, 'plots'), pattern = plotname,
+      list.files(paste0(base, 'plots'), pattern = '\\.qs$',
                  full.names = TRUE, recursive = TRUE)
     )
+    plot_paths <- all_qs[grepl(plotname, all_qs)]
     if (length(plot_paths) == 0) {
       stop('NO FILE matching: ', plotname)
     }
@@ -948,6 +983,11 @@ server <- function(input, output, session) {
                   )
                 } else {
                   tagList(
+                    # Scan status summary
+                    fluidRow(
+                      column(12, uiOutput(paste0("hap_status_summary_", proj)))
+                    ),
+                    # Tag, Region, Trait selectors
                     fluidRow(
                       column(4, uiOutput(paste0("hap_tag_selector_ui_", proj))),
                       column(4, uiOutput(paste0("hap_region_selector_ui_", proj))),
@@ -1014,6 +1054,14 @@ server <- function(input, output, session) {
                           status = "warning", solidHeader = TRUE, collapsible = TRUE,
                           collapsed = TRUE,
                         DTOutput(paste0("hap_regions_dt_", proj))
+                      )
+                    ),
+                    # Scan status details
+                    fluidRow(
+                      box(width = 12, title = "Scan Status Details",
+                          status = "info", solidHeader = TRUE, collapsible = TRUE,
+                          collapsed = TRUE,
+                        DTOutput(paste0("hap_status_dt_", proj))
                       )
                     )
                   )
@@ -2647,6 +2695,38 @@ server <- function(input, output, session) {
                         selected = hap_tags_local[1])
           })
 
+          # Scan status summary (updates on tag change)
+          output[[paste0("hap_status_summary_", local_proj)]] <- renderUI({
+            tag <- input[[paste0("hap_tag_", local_proj)]]
+            if (is.null(tag) || tag == "") return(NULL)
+
+            status <- load_haplotype_status(local_proj, tag)
+            if (is.null(status)) {
+              return(div(style = "background: #f0ad4e; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;",
+                         icon("info-circle"), " No scan status available (run with updated scripts)"))
+            }
+
+            # Build informative summary box
+            if (status$n_success == 0) {
+              return(div(style = "background: #d9534f; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;",
+                         icon("exclamation-triangle"),
+                         strong(" All regions failed!"),
+                         p(paste0("Attempted: ", status$n_total, " regions")),
+                         p(paste0("Skipped (low SNPs): ", status$n_skipped)),
+                         p(paste0("Failed (haplotyping): ", status$n_failed)),
+                         p("Action: Increase region size, reduce MIN_SNPS config, or use different region source.")))
+            } else if (status$n_success < status$n_total) {
+              return(div(style = "background: #f0ad4e; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;",
+                         icon("info-circle"),
+                         strong(paste0(" Partial success: ", status$n_success, "/", status$n_total, " regions")),
+                         p(paste0("Skipped: ", status$n_skipped, " (low SNPs), Failed: ", status$n_failed))))
+            } else {
+              return(div(style = "background: #5cb85c; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;",
+                         icon("check-circle"),
+                         strong(paste0(" All ", status$n_success, " regions succeeded!"))))
+            }
+          })
+
           # Region selector (updates on tag change)
           observeEvent(input[[paste0("hap_tag_", local_proj)]], {
             tag <- input[[paste0("hap_tag_", local_proj)]]
@@ -2654,6 +2734,7 @@ server <- function(input, output, session) {
 
             region_ids <- find_hap_region_ids(local_proj, tag)
             hap_data <- load_haplotype_data(local_proj, tag)
+            status <- load_haplotype_status(local_proj, tag)
 
             # Update region dropdown
             output[[paste0("hap_region_selector_ui_", local_proj)]] <- renderUI({
@@ -2723,6 +2804,21 @@ server <- function(input, output, session) {
               datatable(hap_data$assignments, rownames = FALSE,
                 options = list(pageLength = 15, scrollX = TRUE),
                 selection = 'single')
+            })
+
+            # Status details table
+            output[[paste0("hap_status_dt_", local_proj)]] <- renderDT({
+              if (is.null(status) || is.null(status$detail)) return(NULL)
+
+              datatable(status$detail, rownames = FALSE,
+                        options = list(pageLength = 10, scrollX = TRUE),
+                        selection = 'single') %>%
+                formatStyle('status',
+                  backgroundColor = styleEqual(
+                    c('success', 'skipped_low_snps', 'failed_haplotyping',
+                      'failed_ld_computation', 'failed_vcf_extraction'),
+                    c('#d4edda', '#fff3cd', '#f8d7da', '#f8d7da', '#f8d7da')
+                  ))
             })
           })
 

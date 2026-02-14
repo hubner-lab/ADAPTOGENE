@@ -196,9 +196,10 @@ if PHENO_ASSOC_CONFIGS:
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
 # HAPLOTYPE parameters
-HAP_SCAN_SOURCE = config.get('HAPLOTYPE_SCAN_REGIONS_SOURCE', 'association_phenotypes')
+HAP_SCAN_SOURCE = config.get('HAPLOTYPE_SCAN_REGIONS_SOURCE', 'association')
 HAP_SCAN_REGIONS_FILE = config.get('HAPLOTYPE_SCAN_REGIONS_FILE', 'NULL')
 HAP_SCAN_TOP_REGIONS = config.get('HAPLOTYPE_SCAN_TOP_REGIONS', 5)
+HAP_SCAN_MIN_SNPS = int(config.get('HAPLOTYPE_SCAN_MIN_SNPS', 10))
 HAP_SCAN_MGMIN = config.get('HAPLOTYPE_SCAN_MGMIN', 50)
 HAP_SCAN_MINHAP = config.get('HAPLOTYPE_SCAN_MINHAP', 15)
 HAP_SCAN_EPSILON_RANGE = config.get('HAPLOTYPE_SCAN_EPSILON_RANGE', [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -231,7 +232,15 @@ def get_hap_sources():
         if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
             sources.append('overlapping')
         return sources if sources else ['association']
-    return [HAP_SCAN_SOURCE]
+    # Validate source against available configs
+    src = HAP_SCAN_SOURCE
+    if src == 'association_phenotypes' and not PHENO_ASSOC_CONFIGS:
+        raise ValueError(f"HAPLOTYPE_SCAN_REGIONS_SOURCE is '{src}' but PHENO_ASSOC_CONFIGS is not set. "
+                         f"Run mode=association_phenotypes first or change source to 'association'.")
+    if src == 'overlapping' and not (ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS):
+        raise ValueError(f"HAPLOTYPE_SCAN_REGIONS_SOURCE is '{src}' but both ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS are required. "
+                         f"Run mode=association and mode=association_phenotypes first.")
+    return [src]
 
 HAP_SOURCES = get_hap_sources()
 
@@ -1656,7 +1665,7 @@ rule manhattan_combined:
 #=============================================================================
 
 # --- PATH A: MEAN/MEDIAN mode (single sample set, all traits together) ---
-if PHENO_MISSING != 'DROP':
+if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
 
     rule prepare_phenotypes:
         """Extract phenotype traits, impute missing values."""
@@ -1720,7 +1729,7 @@ if PHENO_MISSING != 'DROP':
             """
 
 # --- PATH B: DROP mode (per-trait sample sets) ---
-if PHENO_MISSING == 'DROP':
+if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
 
     rule prepare_phenotypes:
         """Extract phenotype traits, create per-trait sample lists for DROP mode."""
@@ -1819,8 +1828,9 @@ if PHENO_MISSING == 'DROP':
             """
 
 # --- Downstream rules (shared by both paths, reuse existing scripts) ---
+if PHENO_ASSOC_CONFIGS:
 
-rule find_sig_snps_pheno:
+  rule find_sig_snps_pheno:
     """Find significant SNPs for phenotype association."""
     input: assoc = lambda wc: pheno_pvalues(wc.method)
     output: f"{TABLES}association_phenotypes/{{method}}/{{method}}_phenotypes_pvalues_K{K_BEST}_sigSNPs_{{adjust}}.tsv"
@@ -1837,362 +1847,363 @@ rule find_sig_snps_pheno:
             {wildcards.method} {threads} {output} > {log} 2>&1
         """
 
-rule combine_selected_snps_pheno:
-    """Combine significant SNPs from phenotype association methods."""
-    input:
-        sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
-    output: O['pheno_selected_snps']
-    params:
-        sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
-        method = PHENO_COMBINE_METHOD,
-        gap = PHENO_COMBINE_GAP,
-        predictors = PHENO_PREDICTORS
-    log: f"{LOGDIR}combine_selected_snps_pheno.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/combine_selected_snps.R \
-            "{params.sigsnps_str}" {params.method} {params.gap} \
-            {params.predictors} {output} > {log} 2>&1
-        """
-
-rule create_regions_pheno:
-    """Merge nearby significant SNPs into phenotype regions."""
-    input: selected_snps = O['pheno_selected_snps']
-    output:
-        per_trait = O['pheno_regions_per_trait'],
-        combined = O['pheno_regions_combined']
-    params: region_dist = PHENO_REGION_DISTANCE
-    log: f"{LOGDIR}create_regions_pheno.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/create_regions.R \
-            {input.selected_snps} {params.region_dist} \
-            {output.per_trait} {output.combined} > {log} 2>&1
-        """
-
-rule find_genes_pheno:
-    """Find genes overlapping phenotype per-trait regions."""
-    input:
-        regions = O['pheno_regions_per_trait'],
-        gff = W['gff_normalized'],
-        vcfsnp = W['vcfsnp_full']
-    output:
-        genes = O['pheno_genes_per_region'],
-        collapsed = O['pheno_genes_collapsed']
-    params:
-        feature = GFF_FEATURE,
-        promoter_len = PHENO_PROMOTER_LENGTH,
-        top_regions = PHENO_TOP_REGIONS
-    log: f"{LOGDIR}find_genes_pheno.log"
-    threads: CPU
-    shell:
-        """
-        Rscript /pipeline/scripts/find_genes_around_regions.R \
-            {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
-            {output.genes} {output.collapsed} > {log} 2>&1
-        """
-
-rule find_genes_combined_pheno:
-    """Find genes overlapping combined phenotype regions."""
-    input:
-        regions = O['pheno_regions_combined'],
-        gff = W['gff_normalized'],
-        vcfsnp = W['vcfsnp_full']
-    output: genes = O['pheno_genes_combined']
-    params:
-        feature = GFF_FEATURE,
-        promoter_len = PHENO_PROMOTER_LENGTH,
-        top_regions = PHENO_TOP_REGIONS
-    log: f"{LOGDIR}find_genes_combined_pheno.log"
-    threads: CPU
-    shell:
-        """
-        TEMP_COLLAPSED=$(mktemp)
-        Rscript /pipeline/scripts/find_genes_around_regions.R \
-            {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
-            {output.genes} $TEMP_COLLAPSED > {log} 2>&1
-        rm -f $TEMP_COLLAPSED
-        """
-
-rule run_enrichment_pheno:
-    """Run GO enrichment for phenotype association regions."""
-    input:
-        genes = O['pheno_genes_per_region'],
-        gff = W['gff_normalized']
-    output: W['pheno_enrichment_done']
-    params:
-        go_field = GO_FIELD,
-        feature = GFF_FEATURE,
-        tables_dir = f"{TABLES}association_phenotypes/enrichment/",
-        intermediate_dir = f"{INTER}enrichment_phenotypes/"
-    log: f"{LOGDIR}run_enrichment_pheno.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/run_enrichment.R \
-            {input.genes} {input.gff} {params.go_field} {params.feature} \
-            {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
-        touch {output}
-        """
-
-rule plot_enrichment_pheno:
-    """Generate enrichment plots for phenotype regions."""
-    input:
-        enrichment_done = W['pheno_enrichment_done'],
-        genes = O['pheno_genes_per_region'],
-        regions = O['pheno_regions_per_trait']
-    output: W['pheno_enrichment_plots_done']
-    params:
-        intermediate_dir = f"{INTER}enrichment_phenotypes/",
-        plots_dir = f"{PLOTS}association_phenotypes/enrichment/",
-        top_terms = ENRICHMENT_TOP_TERMS,
-        width = ENRICHMENT_PLOT_WIDTH,
-        height = ENRICHMENT_PLOT_HEIGHT,
-        cnet_label = ENRICHMENT_CNET_LABEL,
-        top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
-    log: f"{LOGDIR}plot_enrichment_pheno.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_enrichment.R \
-            {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-            {params.width} {params.height} {params.cnet_label} \
-            {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
-        touch {output}
-        """
-
-# Manhattan plots for phenotype traits
-rule manhattan_pheno:
-    """Generate Manhattan plot for a phenotype trait."""
-    input: assoc = lambda wc: pheno_pvalues(wc.method)
-    output:
-        png = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
-        svg = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
-    wildcard_constraints:
-        method = r"EMMAX",
-        trait = r"[a-zA-Z]\w*",
-        adjust = r"\w+_[\d.]+"
-    params:
-        k = K_BEST,
-        plot_dir = lambda wc: f"{PLOTS}association_phenotypes/{wc.method}/",
-        regions = "NULL",
-        selected_snps = "NULL",
-        scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
-    log: f"{LOGDIR}manhattan_pheno_{{method}}_{{trait}}_{{adjust}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_manhattan.R \
-            {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-            {params.scattermore_threshold} > {log} 2>&1
-        """
-
-rule manhattan_pheno_regions:
-    """Generate Manhattan plot with phenotype regions highlighted."""
-    input:
-        assoc = lambda wc: pheno_pvalues(wc.method),
-        regions = O['pheno_regions_per_trait'],
-        sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
-    output:
-        png = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
-        svg = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
-    wildcard_constraints:
-        method = r"EMMAX",
-        trait = r"[a-zA-Z]\w*",
-        adjust = r"\w+_[\d.]+"
-    params:
-        k = K_BEST,
-        plot_dir = lambda wc: f"{PLOTS}association_phenotypes/{wc.method}/",
-        sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-        scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
-    log: f"{LOGDIR}manhattan_pheno_regions_{{method}}_{{trait}}_{{adjust}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_manhattan.R \
-            {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-            {params.scattermore_threshold} > {log} 2>&1
-        """
-
-rule manhattan_combined_pheno:
-    """Generate combined Manhattan plots for all phenotype traits."""
-    input:
-        assoc_tables = [pheno_pvalues(method) for method in PHENO_ASSOC_CONFIGS],
-        regions = O['pheno_regions_combined']
-    output:
-        simple_png = O['pheno_manhattan_combined'],
-        simple_svg = f"{PLOTS}association_phenotypes/Manhattan_all_traits_combined_K{K_BEST}.svg",
-        regions_png = O['pheno_manhattan_combined_regions'],
-        regions_svg = f"{PLOTS}association_phenotypes/Manhattan_all_traits_combined_K{K_BEST}_regions.svg"
-    params:
-        assoc_str = ','.join([
-            f"{method}:{adjust}:{pheno_pvalues(method)}"
-            for method, adjust in PHENO_ASSOC_CONFIGS.items()
-        ]),
-        predictors = PHENO_PREDICTORS,
-        k = K_BEST,
-        plot_dir = f"{PLOTS}association_phenotypes/"
-    log: f"{LOGDIR}manhattan_combined_pheno.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_manhattan_combined.R \
-            "{params.assoc_str}" {params.predictors} {params.k} \
-            {input.regions} {params.plot_dir} > {log} 2>&1
-        touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg}
-        """
-
-rule piemap_pheno:
-    """Generate pie map for phenotype trait with trait-controlled pie sizes."""
-    input:
-        raster = W['climate_raster'],
-        metadata = O['metadata'],
-        clusters = clusters_table(K_BEST),
-        trait = f"{WORK_FILT}phenotypes/{{pheno_trait}}_site_means.tsv"
-    output:
-        png = f"{PLOTS}association_phenotypes/piemap/PhenoMap_{{pheno_trait}}.png",
-        svg = f"{PLOTS}association_phenotypes/piemap/PhenoMap_{{pheno_trait}}.svg"
-    wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
-    params:
-        raster_layer = get_predictors_list()[0] if get_predictors_list() else "1",
-        pie_alpha = PIEMAP_PIE_ALPHA,
-        pop_label = PIEMAP_POP_LABEL,
-        pop_label_size = PIEMAP_POP_LABEL_SIZE,
-        plot_dir = f"{PLOTS}association_phenotypes/piemap/",
-        inter_dir = INTER,
-        regionmap_extent = REGIONMAP_EXTENT,
-        pie_scale = PIEMAP_PIE_SCALE
-    log: f"{LOGDIR}piemap_pheno_{{pheno_trait}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_piemap.R \
-            {input.raster} {params.raster_layer} {params.raster_layer} \
-            {input.metadata} {input.clusters} \
-            {input.trait} "{wildcards.pheno_trait}" \
-            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
-            {params.plot_dir} {params.inter_dir} \
-            PhenoMap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
-        """
+  rule combine_selected_snps_pheno:
+      """Combine significant SNPs from phenotype association methods."""
+      input:
+          sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
+      output: O['pheno_selected_snps']
+      params:
+          sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
+          method = PHENO_COMBINE_METHOD,
+          gap = PHENO_COMBINE_GAP,
+          predictors = PHENO_PREDICTORS
+      log: f"{LOGDIR}combine_selected_snps_pheno.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/combine_selected_snps.R \
+              "{params.sigsnps_str}" {params.method} {params.gap} \
+              {params.predictors} {output} > {log} 2>&1
+          """
+  
+  rule create_regions_pheno:
+      """Merge nearby significant SNPs into phenotype regions."""
+      input: selected_snps = O['pheno_selected_snps']
+      output:
+          per_trait = O['pheno_regions_per_trait'],
+          combined = O['pheno_regions_combined']
+      params: region_dist = PHENO_REGION_DISTANCE
+      log: f"{LOGDIR}create_regions_pheno.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/create_regions.R \
+              {input.selected_snps} {params.region_dist} \
+              {output.per_trait} {output.combined} > {log} 2>&1
+          """
+  
+  rule find_genes_pheno:
+      """Find genes overlapping phenotype per-trait regions."""
+      input:
+          regions = O['pheno_regions_per_trait'],
+          gff = W['gff_normalized'],
+          vcfsnp = W['vcfsnp_full']
+      output:
+          genes = O['pheno_genes_per_region'],
+          collapsed = O['pheno_genes_collapsed']
+      params:
+          feature = GFF_FEATURE,
+          promoter_len = PHENO_PROMOTER_LENGTH,
+          top_regions = PHENO_TOP_REGIONS
+      log: f"{LOGDIR}find_genes_pheno.log"
+      threads: CPU
+      shell:
+          """
+          Rscript /pipeline/scripts/find_genes_around_regions.R \
+              {input.gff} {input.regions} {params.feature} \
+              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {output.genes} {output.collapsed} > {log} 2>&1
+          """
+  
+  rule find_genes_combined_pheno:
+      """Find genes overlapping combined phenotype regions."""
+      input:
+          regions = O['pheno_regions_combined'],
+          gff = W['gff_normalized'],
+          vcfsnp = W['vcfsnp_full']
+      output: genes = O['pheno_genes_combined']
+      params:
+          feature = GFF_FEATURE,
+          promoter_len = PHENO_PROMOTER_LENGTH,
+          top_regions = PHENO_TOP_REGIONS
+      log: f"{LOGDIR}find_genes_combined_pheno.log"
+      threads: CPU
+      shell:
+          """
+          TEMP_COLLAPSED=$(mktemp)
+          Rscript /pipeline/scripts/find_genes_around_regions.R \
+              {input.gff} {input.regions} {params.feature} \
+              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {output.genes} $TEMP_COLLAPSED > {log} 2>&1
+          rm -f $TEMP_COLLAPSED
+          """
+  
+  rule run_enrichment_pheno:
+      """Run GO enrichment for phenotype association regions."""
+      input:
+          genes = O['pheno_genes_per_region'],
+          gff = W['gff_normalized']
+      output: W['pheno_enrichment_done']
+      params:
+          go_field = GO_FIELD,
+          feature = GFF_FEATURE,
+          tables_dir = f"{TABLES}association_phenotypes/enrichment/",
+          intermediate_dir = f"{INTER}enrichment_phenotypes/"
+      log: f"{LOGDIR}run_enrichment_pheno.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/run_enrichment.R \
+              {input.genes} {input.gff} {params.go_field} {params.feature} \
+              {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
+          touch {output}
+          """
+  
+  rule plot_enrichment_pheno:
+      """Generate enrichment plots for phenotype regions."""
+      input:
+          enrichment_done = W['pheno_enrichment_done'],
+          genes = O['pheno_genes_per_region'],
+          regions = O['pheno_regions_per_trait']
+      output: W['pheno_enrichment_plots_done']
+      params:
+          intermediate_dir = f"{INTER}enrichment_phenotypes/",
+          plots_dir = f"{PLOTS}association_phenotypes/enrichment/",
+          top_terms = ENRICHMENT_TOP_TERMS,
+          width = ENRICHMENT_PLOT_WIDTH,
+          height = ENRICHMENT_PLOT_HEIGHT,
+          cnet_label = ENRICHMENT_CNET_LABEL,
+          top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
+      log: f"{LOGDIR}plot_enrichment_pheno.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_enrichment.R \
+              {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
+              {params.width} {params.height} {params.cnet_label} \
+              {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
+          touch {output}
+          """
+  
+  # Manhattan plots for phenotype traits
+  rule manhattan_pheno:
+      """Generate Manhattan plot for a phenotype trait."""
+      input: assoc = lambda wc: pheno_pvalues(wc.method)
+      output:
+          png = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
+          svg = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+      wildcard_constraints:
+          method = r"EMMAX",
+          trait = r"[a-zA-Z]\w*",
+          adjust = r"\w+_[\d.]+"
+      params:
+          k = K_BEST,
+          plot_dir = lambda wc: f"{PLOTS}association_phenotypes/{wc.method}/",
+          regions = "NULL",
+          selected_snps = "NULL",
+          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
+      log: f"{LOGDIR}manhattan_pheno_{{method}}_{{trait}}_{{adjust}}.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_manhattan.R \
+              {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
+              {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
+              {params.scattermore_threshold} > {log} 2>&1
+          """
+  
+  rule manhattan_pheno_regions:
+      """Generate Manhattan plot with phenotype regions highlighted."""
+      input:
+          assoc = lambda wc: pheno_pvalues(wc.method),
+          regions = O['pheno_regions_per_trait'],
+          sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
+      output:
+          png = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
+          svg = f"{PLOTS}association_phenotypes/{{method}}/Manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
+      wildcard_constraints:
+          method = r"EMMAX",
+          trait = r"[a-zA-Z]\w*",
+          adjust = r"\w+_[\d.]+"
+      params:
+          k = K_BEST,
+          plot_dir = lambda wc: f"{PLOTS}association_phenotypes/{wc.method}/",
+          sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
+          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
+      log: f"{LOGDIR}manhattan_pheno_regions_{{method}}_{{trait}}_{{adjust}}.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_manhattan.R \
+              {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
+              {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
+              {params.scattermore_threshold} > {log} 2>&1
+          """
+  
+  rule manhattan_combined_pheno:
+      """Generate combined Manhattan plots for all phenotype traits."""
+      input:
+          assoc_tables = [pheno_pvalues(method) for method in PHENO_ASSOC_CONFIGS],
+          regions = O['pheno_regions_combined']
+      output:
+          simple_png = O['pheno_manhattan_combined'],
+          simple_svg = f"{PLOTS}association_phenotypes/Manhattan_all_traits_combined_K{K_BEST}.svg",
+          regions_png = O['pheno_manhattan_combined_regions'],
+          regions_svg = f"{PLOTS}association_phenotypes/Manhattan_all_traits_combined_K{K_BEST}_regions.svg"
+      params:
+          assoc_str = ','.join([
+              f"{method}:{adjust}:{pheno_pvalues(method)}"
+              for method, adjust in PHENO_ASSOC_CONFIGS.items()
+          ]),
+          predictors = PHENO_PREDICTORS,
+          k = K_BEST,
+          plot_dir = f"{PLOTS}association_phenotypes/"
+      log: f"{LOGDIR}manhattan_combined_pheno.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_manhattan_combined.R \
+              "{params.assoc_str}" {params.predictors} {params.k} \
+              {input.regions} {params.plot_dir} > {log} 2>&1
+          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg}
+          """
+  
+  rule piemap_pheno:
+      """Generate pie map for phenotype trait with trait-controlled pie sizes."""
+      input:
+          raster = W['climate_raster'],
+          metadata = O['metadata'],
+          clusters = clusters_table(K_BEST),
+          trait = f"{WORK_FILT}phenotypes/{{pheno_trait}}_site_means.tsv"
+      output:
+          png = f"{PLOTS}association_phenotypes/piemap/PhenoMap_{{pheno_trait}}.png",
+          svg = f"{PLOTS}association_phenotypes/piemap/PhenoMap_{{pheno_trait}}.svg"
+      wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
+      params:
+          raster_layer = get_predictors_list()[0] if get_predictors_list() else "1",
+          pie_alpha = PIEMAP_PIE_ALPHA,
+          pop_label = PIEMAP_POP_LABEL,
+          pop_label_size = PIEMAP_POP_LABEL_SIZE,
+          plot_dir = f"{PLOTS}association_phenotypes/piemap/",
+          inter_dir = INTER,
+          regionmap_extent = REGIONMAP_EXTENT,
+          pie_scale = PIEMAP_PIE_SCALE
+      log: f"{LOGDIR}piemap_pheno_{{pheno_trait}}.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_piemap.R \
+              {input.raster} {params.raster_layer} {params.raster_layer} \
+              {input.metadata} {input.clusters} \
+              {input.trait} "{wildcards.pheno_trait}" \
+              {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+              {params.plot_dir} {params.inter_dir} \
+              PhenoMap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+          """
 
 #=============================================================================
 # MODULE 4C: OVERLAPPING REGIONS (GEA + GWAS COMBINED)
 #=============================================================================
+if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
 
-rule combine_overlap_snps:
-    """Combine GEA and GWAS significant SNPs, compute overlaps, create new combined regions."""
-    input:
-        gea_selected = O['selected_snps'],
-        gwas_selected = O['pheno_selected_snps'],
-        gea_regions = O['regions_combined'],
-        gwas_regions = O['pheno_regions_combined']
-    output:
-        selected = O['overlap_selected_snps'],
-        per_trait = O['overlap_regions_per_trait'],
-        combined = O['overlap_regions_combined'],
-        overlap = O['overlap_summary']
-    params:
-        overlap_rdist = OVERLAP_REGION_DISTANCE
-    log: f"{LOGDIR}combine_overlap_snps.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/combine_overlap_snps.R \
-            {input.gea_selected} {input.gwas_selected} \
-            {input.gea_regions} {input.gwas_regions} \
-            {params.overlap_rdist} \
-            {output.selected} {output.per_trait} {output.combined} \
-            {output.overlap} > {log} 2>&1
-        """
-
-rule find_genes_overlap:
-    """Find genes overlapping combined per-trait regions from GEA + GWAS."""
-    input:
-        regions = O['overlap_regions_per_trait'],
-        gff = W['gff_normalized'],
-        vcfsnp = W['vcfsnp_full']
-    output:
-        genes = O['overlap_genes_per_region'],
-        collapsed = O['overlap_genes_collapsed']
-    params:
-        feature = GFF_FEATURE,
-        promoter_len = OVERLAP_PROMOTER_LENGTH,
-        top_regions = OVERLAP_TOP_REGIONS
-    log: f"{LOGDIR}find_genes_overlap.log"
-    threads: CPU
-    shell:
-        """
-        Rscript /pipeline/scripts/find_genes_around_regions.R \
-            {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
-            {output.genes} {output.collapsed} > {log} 2>&1
-        """
-
-rule find_genes_combined_overlap:
-    """Find genes overlapping combined regions from GEA + GWAS (reference)."""
-    input:
-        regions = O['overlap_regions_combined'],
-        gff = W['gff_normalized'],
-        vcfsnp = W['vcfsnp_full']
-    output: genes = O['overlap_genes_combined']
-    params:
-        feature = GFF_FEATURE,
-        promoter_len = OVERLAP_PROMOTER_LENGTH,
-        top_regions = OVERLAP_TOP_REGIONS
-    log: f"{LOGDIR}find_genes_combined_overlap.log"
-    threads: CPU
-    shell:
-        """
-        TEMP_COLLAPSED=$(mktemp)
-        Rscript /pipeline/scripts/find_genes_around_regions.R \
-            {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
-            {output.genes} $TEMP_COLLAPSED > {log} 2>&1
-        rm -f $TEMP_COLLAPSED
-        """
-
-rule run_enrichment_overlap:
-    """Run GO enrichment for overlapping analysis regions."""
-    input:
-        genes = O['overlap_genes_per_region'],
-        gff = W['gff_normalized']
-    output: W['overlap_enrichment_done']
-    params:
-        go_field = GO_FIELD,
-        feature = GFF_FEATURE,
-        tables_dir = f"{TABLES}overlapping/enrichment/",
-        intermediate_dir = f"{INTER}enrichment_overlapping/"
-    log: f"{LOGDIR}run_enrichment_overlap.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/run_enrichment.R \
-            {input.genes} {input.gff} {params.go_field} {params.feature} \
-            {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
-        touch {output}
-        """
-
-rule plot_enrichment_overlap:
-    """Generate enrichment plots for overlapping analysis regions."""
-    input:
-        enrichment_done = W['overlap_enrichment_done'],
-        genes = O['overlap_genes_per_region'],
-        regions = O['overlap_regions_per_trait']
-    output: W['overlap_enrichment_plots_done']
-    params:
-        intermediate_dir = f"{INTER}enrichment_overlapping/",
-        plots_dir = f"{PLOTS}overlapping/enrichment/",
-        top_terms = ENRICHMENT_TOP_TERMS,
-        width = ENRICHMENT_PLOT_WIDTH,
-        height = ENRICHMENT_PLOT_HEIGHT,
-        cnet_label = ENRICHMENT_CNET_LABEL,
-        top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
-    log: f"{LOGDIR}plot_enrichment_overlap.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_enrichment.R \
-            {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-            {params.width} {params.height} {params.cnet_label} \
-            {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
-        touch {output}
-        """
-
+    rule combine_overlap_snps:
+      """Combine GEA and GWAS significant SNPs, compute overlaps, create new combined regions."""
+      input:
+          gea_selected = O['selected_snps'],
+          gwas_selected = O['pheno_selected_snps'],
+          gea_regions = O['regions_combined'],
+          gwas_regions = O['pheno_regions_combined']
+      output:
+          selected = O['overlap_selected_snps'],
+          per_trait = O['overlap_regions_per_trait'],
+          combined = O['overlap_regions_combined'],
+          overlap = O['overlap_summary']
+      params:
+          overlap_rdist = OVERLAP_REGION_DISTANCE
+      log: f"{LOGDIR}combine_overlap_snps.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/combine_overlap_snps.R \
+              {input.gea_selected} {input.gwas_selected} \
+              {input.gea_regions} {input.gwas_regions} \
+              {params.overlap_rdist} \
+              {output.selected} {output.per_trait} {output.combined} \
+              {output.overlap} > {log} 2>&1
+          """
+  
+    rule find_genes_overlap:
+      """Find genes overlapping combined per-trait regions from GEA + GWAS."""
+      input:
+          regions = O['overlap_regions_per_trait'],
+          gff = W['gff_normalized'],
+          vcfsnp = W['vcfsnp_full']
+      output:
+          genes = O['overlap_genes_per_region'],
+          collapsed = O['overlap_genes_collapsed']
+      params:
+          feature = GFF_FEATURE,
+          promoter_len = OVERLAP_PROMOTER_LENGTH,
+          top_regions = OVERLAP_TOP_REGIONS
+      log: f"{LOGDIR}find_genes_overlap.log"
+      threads: CPU
+      shell:
+          """
+          Rscript /pipeline/scripts/find_genes_around_regions.R \
+              {input.gff} {input.regions} {params.feature} \
+              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {output.genes} {output.collapsed} > {log} 2>&1
+          """
+  
+    rule find_genes_combined_overlap:
+      """Find genes overlapping combined regions from GEA + GWAS (reference)."""
+      input:
+          regions = O['overlap_regions_combined'],
+          gff = W['gff_normalized'],
+          vcfsnp = W['vcfsnp_full']
+      output: genes = O['overlap_genes_combined']
+      params:
+          feature = GFF_FEATURE,
+          promoter_len = OVERLAP_PROMOTER_LENGTH,
+          top_regions = OVERLAP_TOP_REGIONS
+      log: f"{LOGDIR}find_genes_combined_overlap.log"
+      threads: CPU
+      shell:
+          """
+          TEMP_COLLAPSED=$(mktemp)
+          Rscript /pipeline/scripts/find_genes_around_regions.R \
+              {input.gff} {input.regions} {params.feature} \
+              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {output.genes} $TEMP_COLLAPSED > {log} 2>&1
+          rm -f $TEMP_COLLAPSED
+          """
+  
+    rule run_enrichment_overlap:
+      """Run GO enrichment for overlapping analysis regions."""
+      input:
+          genes = O['overlap_genes_per_region'],
+          gff = W['gff_normalized']
+      output: W['overlap_enrichment_done']
+      params:
+          go_field = GO_FIELD,
+          feature = GFF_FEATURE,
+          tables_dir = f"{TABLES}overlapping/enrichment/",
+          intermediate_dir = f"{INTER}enrichment_overlapping/"
+      log: f"{LOGDIR}run_enrichment_overlap.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/run_enrichment.R \
+              {input.genes} {input.gff} {params.go_field} {params.feature} \
+              {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
+          touch {output}
+          """
+  
+    rule plot_enrichment_overlap:
+      """Generate enrichment plots for overlapping analysis regions."""
+      input:
+          enrichment_done = W['overlap_enrichment_done'],
+          genes = O['overlap_genes_per_region'],
+          regions = O['overlap_regions_per_trait']
+      output: W['overlap_enrichment_plots_done']
+      params:
+          intermediate_dir = f"{INTER}enrichment_overlapping/",
+          plots_dir = f"{PLOTS}overlapping/enrichment/",
+          top_terms = ENRICHMENT_TOP_TERMS,
+          width = ENRICHMENT_PLOT_WIDTH,
+          height = ENRICHMENT_PLOT_HEIGHT,
+          cnet_label = ENRICHMENT_CNET_LABEL,
+          top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
+      log: f"{LOGDIR}plot_enrichment_overlap.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_enrichment.R \
+              {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
+              {params.width} {params.height} {params.cnet_label} \
+              {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
+          touch {output}
+          """
+  
 #=============================================================================
 # MODULE 5: REGIONPLOT
 #=============================================================================
@@ -2592,6 +2603,7 @@ for _hap_tag in HAP_TAGS:
             clusters_file = clusters_table(K_BEST) if _hap_meta.startswith('cluster') else 'NULL',
             mgmin = HAP_SCAN_MGMIN,
             minhap = HAP_SCAN_MINHAP,
+            min_snps = HAP_SCAN_MIN_SNPS,
             epsilon_range = ','.join(str(e) for e in HAP_SCAN_EPSILON_RANGE),
             inter_dir = f"{INTER}haplotype_{_hap_tag}/",
             plots_dir = f"{PLOTS}haplotype_{_hap_tag}/clustree/",
@@ -2603,7 +2615,7 @@ for _hap_tag in HAP_TAGS:
                 {input.selected_regions} {input.vcf_filt} {input.vcf_ld} \
                 {input.metadata} {params.meta_type} {params.clusters_file} \
                 {params.mgmin} {params.minhap} {params.epsilon_range} \
-                {params.inter_dir} {params.plots_dir} > {log} 2>&1
+                {params.min_snps} {params.inter_dir} {params.plots_dir} > {log} 2>&1
             """
 
     # Rule: visualization at selected epsilon

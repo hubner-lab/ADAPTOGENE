@@ -310,13 +310,62 @@ if (MODE == 'processing') {
         row('haplotype_scan', 'n_tag_combos', length(tags_list))
     )
 
+    # Read scan_status.tsv for each tag and extract comprehensive stats
     for (tag in tags_list) {
-        regions_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Selected_regions.tsv"))
-        if (file.exists(regions_file)) {
-            reg <- fread(regions_file)
+        # Try to read scan status file
+        inter_base <- dirname(dirname(OUTPUT))  # Go up from tables/ to results/
+        status_file <- file.path(inter_base, 'intermediate', paste0('haplotype_', tag), 'scan_status.tsv')
+
+        if (file.exists(status_file)) {
+            status <- fread(status_file)
+            summary_row <- status[region_id == 'SUMMARY']
+            detail <- status[region_id != 'SUMMARY']
+
+            if (nrow(summary_row) > 0) {
+                n_total <- summary_row$start[1]
+                n_success <- summary_row$end[1]
+                n_skipped <- summary_row$snp_count[1]
+                n_failed <- as.integer(summary_row$status[1])
+            } else {
+                n_total <- nrow(detail)
+                n_success <- sum(detail$status == 'success')
+                n_skipped <- sum(detail$status == 'skipped_low_snps')
+                n_failed <- sum(grepl('failed', detail$status))
+            }
+
+            # Average SNPs per successful region
+            avg_snps <- if (n_success > 0) {
+                mean(detail[status == 'success']$snp_count, na.rm = TRUE)
+            } else { 0 }
+
+            # Most common failure reason
+            failure_counts <- detail[status != 'success', .N, by = failure_reason][order(-N)]
+            top_failure <- if (nrow(failure_counts) > 0) {
+                substr(failure_counts$failure_reason[1], 1, 100)
+            } else { '' }
+
             new_rows <- rbind(new_rows,
-                row('haplotype_scan', paste0('regions_', tag), nrow(reg))
+                row(paste0('haplotype_scan_', tag), 'regions_attempted', n_total),
+                row(paste0('haplotype_scan_', tag), 'regions_succeeded', n_success),
+                row(paste0('haplotype_scan_', tag), 'regions_skipped_low_snps', n_skipped),
+                row(paste0('haplotype_scan_', tag), 'regions_failed', n_failed),
+                row(paste0('haplotype_scan_', tag), 'avg_snps_per_success_region', sprintf('%.1f', avg_snps))
             )
+
+            if (top_failure != '') {
+                new_rows <- rbind(new_rows,
+                    row(paste0('haplotype_scan_', tag), 'most_common_failure', top_failure)
+                )
+            }
+        } else {
+            # Fallback: just count regions file if scan_status.tsv doesn't exist
+            regions_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Selected_regions.tsv"))
+            if (file.exists(regions_file)) {
+                reg <- fread(regions_file)
+                new_rows <- rbind(new_rows,
+                    row(paste0('haplotype_scan_', tag), 'regions_selected', nrow(reg))
+                )
+            }
         }
     }
 
