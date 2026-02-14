@@ -463,7 +463,9 @@ All parameters are defined in `config.yaml`. See the **[Configuration Reference]
 
 ## Interactive Results Viewer
 
-ADAPTOGENE includes a Shiny dashboard that auto-discovers all projects and organizes outputs into tabs: Structure, Structure K, Association, Phenotype Association, Overlapping Regions, Maladaptation. Interactive Manhattan plots support click-to-select-region with linked gene and GO enrichment tables.
+ADAPTOGENE includes a Shiny dashboard that auto-discovers all projects and organizes outputs into tabs: Structure, Structure K, Association, Phenotype Association, Haplotype Analysis, Overlapping Regions, Maladaptation.
+
+The interface is **region-centric**: selecting a genomic region (via click on the Manhattan plot or dropdown) reveals a consolidated detail panel with GO enrichment plots (dotplot + emapplot), gene annotations, enrichment tables, and haplotype analysis — all in one place, directly below the Manhattan plot. This lets researchers assess the biological importance and functional context of each region without switching between tabs.
 
 ```bash
 docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
