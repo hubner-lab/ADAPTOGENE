@@ -530,6 +530,148 @@ render_noplot_message <- function(local_proj, plotname){ #TODO further add the n
           }
         })
 }
+
+###############################################################################
+# REGION-CENTRIC UI HELPER FUNCTIONS
+###############################################################################
+
+# Load enrichment plot (.qs ggplot object) for a region
+# plot_type: "dotplot" or "emapplot"
+# enrichment_subdir: "association", "association_phenotypes", or "overlapping"
+load_enrichment_plot <- function(project, rid, plot_type, enrichment_subdir,
+                                 pipeline_path = '/pipeline/') {
+  plots_base <- paste0(pipeline_path, project, '_results/plots/',
+                        enrichment_subdir, '/enrichment')
+  if (!dir.exists(plots_base)) return(NULL)
+
+  trait_dirs <- list.dirs(plots_base, recursive = FALSE, full.names = TRUE)
+
+  # Try exact match first
+  for (tdir in trait_dirs) {
+    trait_name <- basename(tdir)
+    f <- file.path(tdir, paste0('Region_', rid, '_', plot_type, '.qs'))
+    if (file.exists(f)) {
+      return(tryCatch(qs::qread(f), error = function(e) NULL))
+    }
+    f2 <- file.path(tdir, paste0('Region_', rid, '_', trait_name, '_', plot_type, '.qs'))
+    if (file.exists(f2)) {
+      return(tryCatch(qs::qread(f2), error = function(e) NULL))
+    }
+  }
+
+  # Fallback: coordinate overlap match for combined regions
+  rid_parts <- regmatches(rid, regexec("^([^:]+):(\\d+)-(\\d+)", rid))[[1]]
+  if (length(rid_parts) == 4) {
+    rid_chr <- rid_parts[2]
+    rid_start <- as.numeric(rid_parts[3])
+    rid_end <- as.numeric(rid_parts[4])
+    best_file <- NULL
+    best_overlap <- 0
+    for (tdir in trait_dirs) {
+      qs_files <- list.files(tdir, pattern = paste0('_', plot_type, '\\.qs$'),
+                              full.names = TRUE)
+      for (qf in qs_files) {
+        f_parts <- regmatches(basename(qf),
+                               regexec("^Region_([^:]+):(\\d+)-(\\d+)", basename(qf)))[[1]]
+        if (length(f_parts) != 4) next
+        if (f_parts[2] != rid_chr) next
+        f_start <- as.numeric(f_parts[3])
+        f_end <- as.numeric(f_parts[4])
+        overlap <- min(rid_end, f_end) - max(rid_start, f_start)
+        if (overlap > best_overlap) {
+          best_overlap <- overlap
+          best_file <- qf
+        }
+      }
+    }
+    if (!is.null(best_file)) {
+      return(tryCatch(qs::qread(best_file), error = function(e) NULL))
+    }
+  }
+  NULL
+}
+
+# Check if haplotype data exists for a specific region
+check_haplotype_available <- function(project, rid, tag, pipeline_path = '/pipeline/') {
+  if (is.null(tag) || tag == '') return(FALSE)
+  f <- paste0(pipeline_path, project, '_results/intermediate/haplotype_', tag,
+              '/Region_', rid, '_HapObject.qs')
+  file.exists(f)
+}
+
+# Find a matching haplotype tag for an association source
+# source: "association", "association_phenotypes", or "overlapping"
+# Prefers "site_{source}", falls back to any "*_{source}" tag
+find_matching_hap_tag <- function(project, source, pipeline_path = '/pipeline/') {
+  tags <- find_haplotype_tags(project, pipeline_path)
+  if (length(tags) == 0) return(NULL)
+
+  # Prefer site_ prefix
+  preferred <- paste0('site_', source)
+  if (preferred %in% tags) return(preferred)
+
+  # Fall back to any tag ending with _{source}
+  pattern <- paste0('_', source, '$')
+  matches <- tags[grepl(pattern, tags)]
+  if (length(matches) > 0) return(matches[1])
+
+  NULL
+}
+
+# Build enriched region dropdown labels
+# Returns named vector: label -> region_id
+build_region_labels <- function(regions, genes_dt, enrichment_loader, project,
+                                hap_tag = NULL, pipeline_path = '/pipeline/') {
+  if (is.null(regions) || nrow(regions) == 0) return(character(0))
+
+  labels <- sapply(seq_len(nrow(regions)), function(i) {
+    r <- regions[i]
+    rid <- r$region_id
+
+    # SNP count
+    n_snps <- if ('snp_count' %in% names(r)) r$snp_count else 0
+
+    # Exon/promoter counts from genes table
+    n_exon <- 0; n_promo <- 0
+    if (!is.null(genes_dt) && nrow(genes_dt) > 0) {
+      # Match genes by region_id or coordinate overlap
+      g <- genes_dt[region_id == rid]
+      if (nrow(g) == 0 && all(c('chr', 'gene_start', 'gene_end') %in% names(genes_dt))) {
+        g <- genes_dt[chr == r$chr & gene_start <= r$end & gene_end >= r$start]
+      }
+      if (nrow(g) > 0) {
+        if ('exon_snp_count' %in% names(g)) n_exon <- sum(g$exon_snp_count, na.rm = TRUE)
+        if ('promoter_snp_count' %in% names(g)) n_promo <- sum(g$promoter_snp_count, na.rm = TRUE)
+      }
+    }
+
+    # GO term count
+    enrich <- enrichment_loader(project, rid, pipeline_path)
+    n_go <- if (!is.null(enrich)) nrow(enrich) else 0
+
+    # Haplotype marker
+    has_hap <- if (!is.null(hap_tag)) {
+      check_haplotype_available(project, rid, hap_tag, pipeline_path)
+    } else FALSE
+
+    # Format: "chr:start-end (N SNPs, XE YP, Z GO, [HAP])"
+    coord <- paste0(r$chr, ':', r$start, '-', r$end)
+    parts <- paste0(n_snps, ' SNPs, ', n_exon, 'E ', n_promo, 'P, ', n_go, ' GO')
+    if (has_hap) parts <- paste0(parts, ', [HAP]')
+    paste0(coord, ' (', parts, ')')
+  })
+
+  setNames(regions$region_id, labels)
+}
+
+# Check if a haplotype tag source is custom (not association/association_phenotypes/overlapping)
+is_custom_source <- function(tag) {
+  if (is.null(tag) || tag == '') return(TRUE)  # default to showing viz
+  # Extract source: everything after first underscore (or after cluster_K* prefix)
+  source <- sub('^(site|cluster_K\\d+)_', '', tag)
+  !source %in% c('association', 'association_phenotypes', 'overlapping')
+}
+
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "Pipeline Monitor"),
@@ -845,23 +987,8 @@ server <- function(input, output, session) {
                   ),
                   # Region info bar
                   uiOutput(paste0("assoc_region_info_", proj)),
-                  # Gene and Enrichment tables
-                  fluidRow(
-                    box(width = 6, title = "Genes in Selected Region",
-                        status = "info", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("assoc_genes_prompt_", proj)),
-                        DT::dataTableOutput(paste0("assoc_genes_dt_", proj))
-                      )
-                    ),
-                    box(width = 6, title = "GO Enrichment",
-                        status = "warning", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("assoc_enrich_prompt_", proj)),
-                        DT::dataTableOutput(paste0("assoc_enrich_dt_", proj))
-                      )
-                    )
-                  )
+                  # Region detail panel (enrichment plots, genes, GO, haplotype)
+                  uiOutput(paste0("assoc_region_detail_", proj))
                 )} # end tagList
               ),
 ###############################################################################
@@ -952,23 +1079,8 @@ server <- function(input, output, session) {
                   ),
                   # Region info bar
                   uiOutput(paste0("pheno_region_info_", proj)),
-                  # Gene and Enrichment tables
-                  fluidRow(
-                    box(width = 6, title = "Genes in Selected Region",
-                        status = "info", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("pheno_genes_prompt_", proj)),
-                        DT::dataTableOutput(paste0("pheno_genes_dt_", proj))
-                      )
-                    ),
-                    box(width = 6, title = "GO Enrichment",
-                        status = "warning", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("pheno_enrich_prompt_", proj)),
-                        DT::dataTableOutput(paste0("pheno_enrich_dt_", proj))
-                      )
-                    )
-                  )
+                  # Region detail panel (enrichment plots, genes, GO, haplotype)
+                  uiOutput(paste0("pheno_region_detail_", proj))
                 )} # end tagList
               ),
 ###############################################################################
@@ -1019,38 +1131,8 @@ server <- function(input, output, session) {
                         )
                       )
                     ),
-                    fluidRow(
-                      box(width = 12, title = "crosshap Visualization",
-                          status = "success", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 600px;",
-                          plotOutput(paste0("hap_viz_", proj), height = "900px"),
-                          uiOutput(paste0("hap_viz_msg_", proj))
-                        )
-                      )
-                    ),
-                    fluidRow(
-                      box(width = 6, title = "Phenotype Boxplot",
-                          status = "info", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 300px;",
-                          plotOutput(paste0("hap_boxplot_", proj), height = "400px"),
-                          uiOutput(paste0("hap_boxplot_msg_", proj))
-                        )
-                      ),
-                      box(width = 6, title = "Haplotype PieMap",
-                          status = "info", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 300px;",
-                          plotOutput(paste0("hap_piemap_", proj), height = "400px"),
-                          uiOutput(paste0("hap_piemap_msg_", proj))
-                        )
-                      )
-                    ),
-                    fluidRow(
-                      box(width = 12, title = "Haplotype Assignments",
-                          status = "warning", solidHeader = TRUE, collapsible = TRUE,
-                          collapsed = TRUE,
-                        DTOutput(paste0("hap_assign_dt_", proj))
-                      )
-                    ),
+                    # Per-region viz: only shown for custom sources (non-association tabs)
+                    uiOutput(paste0("hap_custom_viz_section_", proj)),
                     fluidRow(
                       box(width = 12, title = "Selected Regions",
                           status = "warning", solidHeader = TRUE, collapsible = TRUE,
@@ -1140,24 +1222,7 @@ server <- function(input, output, session) {
                   ),
                   # Region info bar
                   uiOutput(paste0("ov_region_info_", proj)),
-                  # Genes + Enrichment tables
-                  fluidRow(
-                    box(width = 6, title = "Genes in Selected Region",
-                        status = "info", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("ov_genes_prompt_", proj)),
-                        DT::dataTableOutput(paste0("ov_genes_dt_", proj))
-                      )
-                    ),
-                    box(width = 6, title = "GO Enrichment",
-                        status = "warning", solidHeader = TRUE,
-                      div(style = "min-height: 280px;",
-                        uiOutput(paste0("ov_enrich_prompt_", proj)),
-                        DT::dataTableOutput(paste0("ov_enrich_dt_", proj))
-                      )
-                    )
-                  ),
-                  # Overlap pairs table
+                  # Overlap pairs table (above region detail — not region-specific)
                   fluidRow(
                     box(width = 12, title = "Overlap Pairs (GEA vs GWAS regions)",
                         status = "success", solidHeader = TRUE, collapsible = TRUE,
@@ -1165,7 +1230,9 @@ server <- function(input, output, session) {
                         DT::dataTableOutput(paste0("ov_overlap_dt_", proj))
                       )
                     )
-                  )
+                  ),
+                  # Region detail panel (enrichment plots, genes, GO, haplotype)
+                  uiOutput(paste0("ov_region_detail_", proj))
                 )} # end tagList
               ),
 ###############################################################################
@@ -1349,6 +1416,9 @@ server <- function(input, output, session) {
           t_colors <- if (length(trait_names) > 0) generate_trait_colors(trait_names) else character(0)
           m_symbols <- if (length(method_names) > 0) generate_method_symbols(method_names) else character(0)
 
+          # Resolve matching haplotype tag for association source
+          assoc_hap_tag <- find_matching_hap_tag(local_proj, 'association')
+
           # Reactive value for selected region
           sel_region <- reactiveVal(NULL)
 
@@ -1376,17 +1446,10 @@ server <- function(input, output, session) {
             if (is.null(rt)) return()
             regions <- if (rt == "combined") ad$regions_combined else ad$regions_trait
             if (is.null(regions) || nrow(regions) == 0) return()
-            regions <- regions[order(min_pvalue)]
-            # Region length (already extended by REGION_DISTANCE in pipeline)
-            fmt_len <- ifelse(regions$length >= 1e6,
-                              paste0(round(regions$length / 1e6, 1), ' Mb'),
-                       ifelse(regions$length >= 1e3,
-                              paste0(round(regions$length / 1e3, 1), ' kb'),
-                              paste0(regions$length, ' bp')))
-            ch <- c("(click SNP or select)" = "",
-                    setNames(regions$region_id,
-                             paste0(regions$region_id, ' (', regions$snp_count,
-                                    ' SNPs, ', fmt_len, ')')))
+            regions <- regions[order(-snp_count, min_pvalue)]
+            rlabels <- build_region_labels(regions, ad$genes, load_region_enrichment,
+                                            local_proj, assoc_hap_tag)
+            ch <- c("(click SNP or select)" = "", rlabels)
             updateSelectInput(session, paste0("assoc_region_select_", local_proj), choices = ch)
           })
 
@@ -1591,10 +1654,22 @@ server <- function(input, output, session) {
             if (is.null(regions)) return(NULL)
             r <- regions[region_id == rid]
             if (nrow(r) == 0) return(NULL)
-            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
             fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
                        else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
                        else paste0(r$length[1], ' bp')
+            # Aggregate exon/promoter counts
+            genes <- ad$genes
+            n_exon <- 0; n_promo <- 0
+            if (!is.null(genes) && nrow(genes) > 0) {
+              rg <- genes[region_id == rid]
+              if (nrow(rg) == 0) rg <- genes[as.character(chr) == as.character(r$chr[1]) &
+                                               gene_end >= r$start[1] & gene_start <= r$end[1]]
+              if (nrow(rg) > 0) {
+                rg <- unique(rg, by = 'gene_id')
+                if ('exon_snp_count' %in% names(rg)) n_exon <- sum(rg$exon_snp_count, na.rm = TRUE)
+                if ('promoter_snp_count' %in% names(rg)) n_promo <- sum(rg$promoter_snp_count, na.rm = TRUE)
+              }
+            }
             div(style = paste0("background: #d9edf7; padding: 12px; margin: 5px 15px;",
                                " border-left: 4px solid #31708f; border-radius: 3px;"),
               strong(paste0("Region: ", rid)),
@@ -1603,29 +1678,127 @@ server <- function(input, output, session) {
                            format(r$end[1], big.mark = ","),
                            " (", fmt_ext, ")",
                            " | ", r$snp_count[1], " SNPs",
+                           " | ", n_exon, " exon, ", n_promo, " promoter",
                            " | min p = ", formatC(r$min_pvalue[1],
                                                    format = "e", digits = 2))))
           })
 
-          # ---- GENES TABLE ----
-          output[[paste0("assoc_genes_prompt_", local_proj)]] <- renderUI({
+          # ---- REGION DETAIL PANEL ----
+          output[[paste0("assoc_region_detail_", local_proj)]] <- renderUI({
             rid <- sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view genes"))
+            if (is.null(rid) || rid == "") return(NULL)
+
+            # Build panel sections
+            sections <- tagList()
+
+            # 1. GO Enrichment Plots (dotplot + emapplot)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Plots", status = "success",
+                    solidHeader = TRUE, collapsible = TRUE,
+                  fluidRow(
+                    column(6,
+                      plotOutput(paste0("assoc_dotplot_", local_proj), height = "450px")
+                    ),
+                    column(6,
+                      plotOutput(paste0("assoc_emapplot_", local_proj), height = "450px")
+                    )
+                  )
+                )
+              )
+            )
+
+            # 2. Genes Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "Genes in Region", status = "info",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("assoc_genes_dt_", local_proj))
+                )
+              )
+            )
+
+            # 3. GO Enrichment Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Table", status = "warning",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("assoc_enrich_dt_", local_proj))
+                )
+              )
+            )
+
+            # 4. Haplotype Analysis (only if data exists for this region)
+            if (!is.null(assoc_hap_tag) &&
+                check_haplotype_available(local_proj, rid, assoc_hap_tag)) {
+              sections <- tagList(sections,
+                fluidRow(
+                  box(width = 12, title = "Haplotype Analysis", status = "primary",
+                      solidHeader = TRUE, collapsible = TRUE,
+                    fluidRow(
+                      column(4, uiOutput(paste0("assoc_hap_trait_ui_", local_proj)))
+                    ),
+                    fluidRow(
+                      box(width = 12, title = NULL,
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("assoc_hap_viz_", local_proj), height = "900px"),
+                          uiOutput(paste0("assoc_hap_viz_msg_", local_proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("assoc_hap_boxplot_", local_proj), height = "400px"),
+                          uiOutput(paste0("assoc_hap_boxplot_msg_", local_proj))
+                        )
+                      ),
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("assoc_hap_piemap_", local_proj), height = "400px"),
+                          uiOutput(paste0("assoc_hap_piemap_msg_", local_proj))
+                        )
+                      )
+                    )
+                  )
+                )
+              )
             }
+
+            sections
           })
 
+          # Enrichment plot renderers (react to region selection)
+          output[[paste0("assoc_dotplot_", local_proj)]] <- renderPlot({
+            rid <- sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'dotplot', 'association')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No dotplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          output[[paste0("assoc_emapplot_", local_proj)]] <- renderPlot({
+            rid <- sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'emapplot', 'association')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No emapplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          # Genes table renderer
           output[[paste0("assoc_genes_dt_", local_proj)]] <- renderDT({
             rid <- sel_region()
             req(rid, rid != "")
             genes <- ad$genes
             if (is.null(genes) || nrow(genes) == 0) return(NULL)
 
-            # Try exact match on region_id
             rg <- genes[region_id == rid]
-            # Fallback: match by coordinates (for combined regions)
             if (nrow(rg) == 0) {
               rt <- input[[paste0("assoc_region_type_", local_proj)]]
               regions_tbl <- if (rt == "combined") ad$regions_combined else ad$regions_trait
@@ -1645,21 +1818,11 @@ server <- function(input, output, session) {
                 'exon_snp_count', 'promoter_snp_count', 'biotype', 'ontology'),
               names(rg))
             datatable(rg[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single')
           })
 
-          # ---- ENRICHMENT TABLE ----
-          output[[paste0("assoc_enrich_prompt_", local_proj)]] <- renderUI({
-            rid <- sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view enrichment"))
-            }
-          })
-
+          # Enrichment table renderer
           output[[paste0("assoc_enrich_dt_", local_proj)]] <- renderDT({
             rid <- sel_region()
             req(rid, rid != "")
@@ -1674,11 +1837,60 @@ server <- function(input, output, session) {
                 'gene_count', 'gene_ids'),
               names(enrich))
             datatable(enrich[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single') %>%
               formatSignif(columns = intersect(c('pvalue', 'p_adjust'), dcols),
                            digits = 3)
+          })
+
+          # Haplotype section renderers (react to region + trait)
+          observe({
+            rid <- sel_region()
+            if (is.null(rid) || rid == "" || is.null(assoc_hap_tag)) return()
+            if (!check_haplotype_available(local_proj, rid, assoc_hap_tag)) return()
+
+            # Trait selector
+            traits <- find_hap_traits(local_proj, assoc_hap_tag, rid)
+            output[[paste0("assoc_hap_trait_ui_", local_proj)]] <- renderUI({
+              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+              selectInput(paste0("assoc_hap_trait_", local_proj),
+                          "Haplotype trait:", choices = traits,
+                          selected = traits[1])
+            })
+
+            # crosshap_viz
+            output[[paste0("assoc_hap_viz_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            output[[paste0("assoc_hap_viz_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+          })
+
+          # Haplotype trait change -> update boxplot and piemap
+          observeEvent(input[[paste0("assoc_hap_trait_", local_proj)]], {
+            rid <- sel_region()
+            trait <- input[[paste0("assoc_hap_trait_", local_proj)]]
+            if (is.null(assoc_hap_tag) || is.null(rid) || is.null(trait)) return()
+            if (rid == "" || trait == "") return()
+
+            output[[paste0("assoc_hap_boxplot_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+            output[[paste0("assoc_hap_boxplot_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+
+            output[[paste0("assoc_hap_piemap_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
+            output[[paste0("assoc_hap_piemap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', assoc_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
           })
 
         } # end if has_assoc_data
@@ -1808,6 +2020,9 @@ server <- function(input, output, session) {
           p_t_colors <- if (length(p_trait_names) > 0) generate_trait_colors(p_trait_names) else character(0)
           p_m_symbols <- if (length(p_method_names) > 0) generate_method_symbols(p_method_names) else character(0)
 
+          # Resolve matching haplotype tag for phenotype source
+          pheno_hap_tag <- find_matching_hap_tag(local_proj, 'association_phenotypes')
+
           # Reactive value for selected region
           pheno_sel_region <- reactiveVal(NULL)
 
@@ -1844,17 +2059,10 @@ server <- function(input, output, session) {
             if (is.null(rt)) return()
             regions <- if (rt == "combined") pad$regions_combined else pad$regions_trait
             if (is.null(regions) || nrow(regions) == 0) return()
-            regions <- regions[order(min_pvalue)]
-            # Region length (already extended by REGION_DISTANCE in pipeline)
-            fmt_len <- ifelse(regions$length >= 1e6,
-                              paste0(round(regions$length / 1e6, 1), ' Mb'),
-                       ifelse(regions$length >= 1e3,
-                              paste0(round(regions$length / 1e3, 1), ' kb'),
-                              paste0(regions$length, ' bp')))
-            ch <- c("(click SNP or select)" = "",
-                    setNames(regions$region_id,
-                             paste0(regions$region_id, ' (', regions$snp_count,
-                                    ' SNPs, ', fmt_len, ')')))
+            regions <- regions[order(-snp_count, min_pvalue)]
+            rlabels <- build_region_labels(regions, pad$genes, load_region_enrichment_pheno,
+                                            local_proj, pheno_hap_tag)
+            ch <- c("(click SNP or select)" = "", rlabels)
             updateSelectInput(session, paste0("pheno_region_select_", local_proj), choices = ch)
           })
 
@@ -2116,10 +2324,22 @@ server <- function(input, output, session) {
             if (is.null(regions)) return(NULL)
             r <- regions[region_id == rid]
             if (nrow(r) == 0) return(NULL)
-            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
             fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
                        else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
                        else paste0(r$length[1], ' bp')
+            # Aggregate exon/promoter counts
+            genes <- pad$genes
+            n_exon <- 0; n_promo <- 0
+            if (!is.null(genes) && nrow(genes) > 0) {
+              rg <- genes[region_id == rid]
+              if (nrow(rg) == 0) rg <- genes[as.character(chr) == as.character(r$chr[1]) &
+                                               gene_end >= r$start[1] & gene_start <= r$end[1]]
+              if (nrow(rg) > 0) {
+                rg <- unique(rg, by = 'gene_id')
+                if ('exon_snp_count' %in% names(rg)) n_exon <- sum(rg$exon_snp_count, na.rm = TRUE)
+                if ('promoter_snp_count' %in% names(rg)) n_promo <- sum(rg$promoter_snp_count, na.rm = TRUE)
+              }
+            }
             div(style = paste0("background: #fcf8e3; padding: 12px; margin: 5px 15px;",
                                " border-left: 4px solid #8a6d3b; border-radius: 3px;"),
               strong(paste0("Region: ", rid)),
@@ -2128,20 +2348,119 @@ server <- function(input, output, session) {
                            format(r$end[1], big.mark = ","),
                            " (", fmt_ext, ")",
                            " | ", r$snp_count[1], " SNPs",
+                           " | ", n_exon, " exon, ", n_promo, " promoter",
                            " | min p = ", formatC(r$min_pvalue[1],
                                                    format = "e", digits = 2))))
           })
 
-          # ---- PHENOTYPE GENES TABLE ----
-          output[[paste0("pheno_genes_prompt_", local_proj)]] <- renderUI({
+          # ---- PHENOTYPE REGION DETAIL PANEL ----
+          output[[paste0("pheno_region_detail_", local_proj)]] <- renderUI({
             rid <- pheno_sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view genes"))
+            if (is.null(rid) || rid == "") return(NULL)
+
+            sections <- tagList()
+
+            # 1. GO Enrichment Plots
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Plots", status = "success",
+                    solidHeader = TRUE, collapsible = TRUE,
+                  fluidRow(
+                    column(6,
+                      plotOutput(paste0("pheno_dotplot_", local_proj), height = "450px")
+                    ),
+                    column(6,
+                      plotOutput(paste0("pheno_emapplot_", local_proj), height = "450px")
+                    )
+                  )
+                )
+              )
+            )
+
+            # 2. Genes Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "Genes in Region", status = "info",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("pheno_genes_dt_", local_proj))
+                )
+              )
+            )
+
+            # 3. GO Enrichment Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Table", status = "warning",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("pheno_enrich_dt_", local_proj))
+                )
+              )
+            )
+
+            # 4. Haplotype Analysis (only if data exists)
+            if (!is.null(pheno_hap_tag) &&
+                check_haplotype_available(local_proj, rid, pheno_hap_tag)) {
+              sections <- tagList(sections,
+                fluidRow(
+                  box(width = 12, title = "Haplotype Analysis", status = "primary",
+                      solidHeader = TRUE, collapsible = TRUE,
+                    fluidRow(
+                      column(4, uiOutput(paste0("pheno_hap_trait_ui_", local_proj)))
+                    ),
+                    fluidRow(
+                      box(width = 12, title = NULL,
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("pheno_hap_viz_", local_proj), height = "900px"),
+                          uiOutput(paste0("pheno_hap_viz_msg_", local_proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("pheno_hap_boxplot_", local_proj), height = "400px"),
+                          uiOutput(paste0("pheno_hap_boxplot_msg_", local_proj))
+                        )
+                      ),
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("pheno_hap_piemap_", local_proj), height = "400px"),
+                          uiOutput(paste0("pheno_hap_piemap_msg_", local_proj))
+                        )
+                      )
+                    )
+                  )
+                )
+              )
             }
+
+            sections
           })
 
+          # Enrichment plot renderers
+          output[[paste0("pheno_dotplot_", local_proj)]] <- renderPlot({
+            rid <- pheno_sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'dotplot', 'association_phenotypes')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No dotplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          output[[paste0("pheno_emapplot_", local_proj)]] <- renderPlot({
+            rid <- pheno_sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'emapplot', 'association_phenotypes')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No emapplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          # Genes table renderer
           output[[paste0("pheno_genes_dt_", local_proj)]] <- renderDT({
             rid <- pheno_sel_region()
             req(rid, rid != "")
@@ -2155,7 +2474,6 @@ server <- function(input, output, session) {
               if (!is.null(regions_tbl)) {
                 r <- regions_tbl[region_id == rid]
                 if (nrow(r) > 0) {
-                  # Region boundaries already extended in pipeline
                   rg <- genes[as.character(chr) == as.character(r$chr[1]) &
                               gene_end >= r$start[1] &
                               gene_start <= r$end[1]]
@@ -2170,21 +2488,11 @@ server <- function(input, output, session) {
                 'exon_snp_count', 'promoter_snp_count', 'biotype', 'ontology'),
               names(rg))
             datatable(rg[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single')
           })
 
-          # ---- PHENOTYPE ENRICHMENT TABLE ----
-          output[[paste0("pheno_enrich_prompt_", local_proj)]] <- renderUI({
-            rid <- pheno_sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view enrichment"))
-            }
-          })
-
+          # Enrichment table renderer
           output[[paste0("pheno_enrich_dt_", local_proj)]] <- renderDT({
             rid <- pheno_sel_region()
             req(rid, rid != "")
@@ -2199,11 +2507,57 @@ server <- function(input, output, session) {
                 'gene_count', 'gene_ids'),
               names(enrich))
             datatable(enrich[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single') %>%
               formatSignif(columns = intersect(c('pvalue', 'p_adjust'), dcols),
                            digits = 3)
+          })
+
+          # Haplotype section renderers
+          observe({
+            rid <- pheno_sel_region()
+            if (is.null(rid) || rid == "" || is.null(pheno_hap_tag)) return()
+            if (!check_haplotype_available(local_proj, rid, pheno_hap_tag)) return()
+
+            traits <- find_hap_traits(local_proj, pheno_hap_tag, rid)
+            output[[paste0("pheno_hap_trait_ui_", local_proj)]] <- renderUI({
+              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+              selectInput(paste0("pheno_hap_trait_", local_proj),
+                          "Haplotype trait:", choices = traits,
+                          selected = traits[1])
+            })
+
+            output[[paste0("pheno_hap_viz_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            output[[paste0("pheno_hap_viz_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+          })
+
+          observeEvent(input[[paste0("pheno_hap_trait_", local_proj)]], {
+            rid <- pheno_sel_region()
+            trait <- input[[paste0("pheno_hap_trait_", local_proj)]]
+            if (is.null(pheno_hap_tag) || is.null(rid) || is.null(trait)) return()
+            if (rid == "" || trait == "") return()
+
+            output[[paste0("pheno_hap_boxplot_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+            output[[paste0("pheno_hap_boxplot_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+
+            output[[paste0("pheno_hap_piemap_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
+            output[[paste0("pheno_hap_piemap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', pheno_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
           })
 
         } # end if has_pheno_data
@@ -2218,6 +2572,9 @@ server <- function(input, output, session) {
 
         if (has_overlap_file && has_assoc_data && has_pheno_data) {
           ovd <- load_overlap_data(local_proj)
+
+          # Resolve matching haplotype tag for overlapping source
+          ov_hap_tag <- find_matching_hap_tag(local_proj, 'overlapping')
 
           # Parse overlap summary stats from SUMMARY rows
           ov_summary_rows <- if (!is.null(ovd$overlap_summary))
@@ -2317,18 +2674,10 @@ server <- function(input, output, session) {
             if (is.null(rt)) return()
             regions <- if (rt == "combined") ovd$regions_combined else ovd$regions_trait
             if (is.null(regions) || nrow(regions) == 0) return()
-            regions <- regions[order(min_pvalue)]
-            # Region length (already extended by REGION_DISTANCE in pipeline)
-            fmt_len <- ifelse(regions$length >= 1e6,
-                              paste0(round(regions$length / 1e6, 1), ' Mb'),
-                       ifelse(regions$length >= 1e3,
-                              paste0(round(regions$length / 1e3, 1), ' kb'),
-                              paste0(regions$length, ' bp')))
-            src_label <- if ('source' %in% names(regions)) paste0(' [', regions$source, ']') else ''
-            ch <- c("(click SNP or select)" = "",
-                    setNames(regions$region_id,
-                             paste0(regions$region_id, ' (', regions$snp_count,
-                                    ' SNPs, ', fmt_len, src_label, ')')))
+            regions <- regions[order(-snp_count, min_pvalue)]
+            rlabels <- build_region_labels(regions, ovd$genes, load_region_enrichment_overlap,
+                                            local_proj, ov_hap_tag)
+            ch <- c("(click SNP or select)" = "", rlabels)
             updateSelectInput(session, paste0("ov_region_select_", local_proj), choices = ch)
           })
 
@@ -2554,13 +2903,25 @@ server <- function(input, output, session) {
             if (is.null(regions)) return(NULL)
             r <- regions[region_id == rid]
             if (nrow(r) == 0) return(NULL)
-            # Region boundaries (already extended by REGION_DISTANCE in pipeline)
             fmt_ext <- if (r$length[1] >= 1e6) paste0(round(r$length[1]/1e6, 2), ' Mb')
                        else if (r$length[1] >= 1e3) paste0(round(r$length[1]/1e3, 1), ' kb')
                        else paste0(r$length[1], ' bp')
             src <- if ('source' %in% names(r)) as.character(r$source[1]) else ''
             traits <- if ('traits' %in% names(r)) as.character(r$traits[1]) else
                       if ('trait' %in% names(r)) as.character(r$trait[1]) else ''
+            # Aggregate exon/promoter counts
+            genes <- ovd$genes
+            n_exon <- 0; n_promo <- 0
+            if (!is.null(genes) && nrow(genes) > 0) {
+              rg <- genes[region_id == rid]
+              if (nrow(rg) == 0) rg <- genes[as.character(chr) == as.character(r$chr[1]) &
+                                               gene_end >= r$start[1] & gene_start <= r$end[1]]
+              if (nrow(rg) > 0) {
+                rg <- unique(rg, by = 'gene_id')
+                if ('exon_snp_count' %in% names(rg)) n_exon <- sum(rg$exon_snp_count, na.rm = TRUE)
+                if ('promoter_snp_count' %in% names(rg)) n_promo <- sum(rg$promoter_snp_count, na.rm = TRUE)
+              }
+            }
             div(style = paste0("background: #d9edf7; padding: 12px; margin: 5px 15px;",
                                " border-left: 4px solid #31708f; border-radius: 3px;"),
               strong(paste0("Region: ", rid)),
@@ -2571,20 +2932,119 @@ server <- function(input, output, session) {
                            " | Source: ", src,
                            " | Traits: ", traits,
                            " | ", r$snp_count[1], " SNPs",
+                           " | ", n_exon, " exon, ", n_promo, " promoter",
                            " | min p = ", formatC(r$min_pvalue[1],
                                                    format = "e", digits = 2))))
           })
 
-          # ---- GENES TABLE ----
-          output[[paste0("ov_genes_prompt_", local_proj)]] <- renderUI({
+          # ---- OVERLAP REGION DETAIL PANEL ----
+          output[[paste0("ov_region_detail_", local_proj)]] <- renderUI({
             rid <- ov_sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view genes"))
+            if (is.null(rid) || rid == "") return(NULL)
+
+            sections <- tagList()
+
+            # 1. GO Enrichment Plots
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Plots", status = "success",
+                    solidHeader = TRUE, collapsible = TRUE,
+                  fluidRow(
+                    column(6,
+                      plotOutput(paste0("ov_dotplot_", local_proj), height = "450px")
+                    ),
+                    column(6,
+                      plotOutput(paste0("ov_emapplot_", local_proj), height = "450px")
+                    )
+                  )
+                )
+              )
+            )
+
+            # 2. Genes Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "Genes in Region", status = "info",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("ov_genes_dt_", local_proj))
+                )
+              )
+            )
+
+            # 3. GO Enrichment Table (collapsed)
+            sections <- tagList(sections,
+              fluidRow(
+                box(width = 12, title = "GO Enrichment Table", status = "warning",
+                    solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                  DT::dataTableOutput(paste0("ov_enrich_dt_", local_proj))
+                )
+              )
+            )
+
+            # 4. Haplotype Analysis (only if data exists)
+            if (!is.null(ov_hap_tag) &&
+                check_haplotype_available(local_proj, rid, ov_hap_tag)) {
+              sections <- tagList(sections,
+                fluidRow(
+                  box(width = 12, title = "Haplotype Analysis", status = "primary",
+                      solidHeader = TRUE, collapsible = TRUE,
+                    fluidRow(
+                      column(4, uiOutput(paste0("ov_hap_trait_ui_", local_proj)))
+                    ),
+                    fluidRow(
+                      box(width = 12, title = NULL,
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("ov_hap_viz_", local_proj), height = "900px"),
+                          uiOutput(paste0("ov_hap_viz_msg_", local_proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("ov_hap_boxplot_", local_proj), height = "400px"),
+                          uiOutput(paste0("ov_hap_boxplot_msg_", local_proj))
+                        )
+                      ),
+                      column(6,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("ov_hap_piemap_", local_proj), height = "400px"),
+                          uiOutput(paste0("ov_hap_piemap_msg_", local_proj))
+                        )
+                      )
+                    )
+                  )
+                )
+              )
             }
+
+            sections
           })
 
+          # Enrichment plot renderers
+          output[[paste0("ov_dotplot_", local_proj)]] <- renderPlot({
+            rid <- ov_sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'dotplot', 'overlapping')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No dotplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          output[[paste0("ov_emapplot_", local_proj)]] <- renderPlot({
+            rid <- ov_sel_region()
+            req(rid, rid != "")
+            p <- load_enrichment_plot(local_proj, rid, 'emapplot', 'overlapping')
+            if (!is.null(p)) p else {
+              ggplot() + theme_void() +
+                annotate("text", x = 0.5, y = 0.5, label = "No emapplot available",
+                         size = 5, color = "#999")
+            }
+          }, res = 96)
+
+          # Genes table renderer
           output[[paste0("ov_genes_dt_", local_proj)]] <- renderDT({
             rid <- ov_sel_region()
             req(rid, rid != "")
@@ -2592,7 +3052,6 @@ server <- function(input, output, session) {
             genes <- if (!is.null(rt) && rt == "combined") ovd$genes_combined else ovd$genes
             if (is.null(genes) || nrow(genes) == 0) return(NULL)
             rg <- genes[region_id == rid]
-            # Fallback: coordinate-based matching
             if (nrow(rg) == 0) {
               regions_tbl <- if (!is.null(rt) && rt == "combined") ovd$regions_combined else ovd$regions_trait
               if (!is.null(regions_tbl)) {
@@ -2610,21 +3069,11 @@ server <- function(input, output, session) {
                 'exon_snp_count', 'promoter_snp_count', 'biotype', 'ontology'),
               names(rg))
             datatable(rg[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single')
           })
 
-          # ---- ENRICHMENT TABLE ----
-          output[[paste0("ov_enrich_prompt_", local_proj)]] <- renderUI({
-            rid <- ov_sel_region()
-            if (is.null(rid) || rid == "") {
-              div(style = "text-align: center; padding: 40px; color: #999;",
-                icon("hand-pointer-o"),
-                h5("Click a significant SNP or select a region to view enrichment"))
-            }
-          })
-
+          # Enrichment table renderer
           output[[paste0("ov_enrich_dt_", local_proj)]] <- renderDT({
             rid <- ov_sel_region()
             req(rid, rid != "")
@@ -2639,11 +3088,57 @@ server <- function(input, output, session) {
                 'gene_count', 'gene_ids'),
               names(enrich))
             datatable(enrich[, ..dcols], rownames = FALSE,
-              options = list(pageLength = 5, scrollX = TRUE,
-                             scrollY = "220px", scrollCollapse = TRUE),
+              options = list(pageLength = 10, scrollX = TRUE),
               selection = 'single') %>%
               formatSignif(columns = intersect(c('pvalue', 'p_adjust'), dcols),
                            digits = 3)
+          })
+
+          # Haplotype section renderers
+          observe({
+            rid <- ov_sel_region()
+            if (is.null(rid) || rid == "" || is.null(ov_hap_tag)) return()
+            if (!check_haplotype_available(local_proj, rid, ov_hap_tag)) return()
+
+            traits <- find_hap_traits(local_proj, ov_hap_tag, rid)
+            output[[paste0("ov_hap_trait_ui_", local_proj)]] <- renderUI({
+              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+              selectInput(paste0("ov_hap_trait_", local_proj),
+                          "Haplotype trait:", choices = traits,
+                          selected = traits[1])
+            })
+
+            output[[paste0("ov_hap_viz_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            output[[paste0("ov_hap_viz_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+          })
+
+          observeEvent(input[[paste0("ov_hap_trait_", local_proj)]], {
+            rid <- ov_sel_region()
+            trait <- input[[paste0("ov_hap_trait_", local_proj)]]
+            if (is.null(ov_hap_tag) || is.null(rid) || is.null(trait)) return()
+            if (rid == "" || trait == "") return()
+
+            output[[paste0("ov_hap_boxplot_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+            output[[paste0("ov_hap_boxplot_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/Region_', rid,
+                       '_boxplot_', trait, '\\.qs$'))
+
+            output[[paste0("ov_hap_piemap_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
+            output[[paste0("ov_hap_piemap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', ov_hap_tag, '/HaplotypePieMap_Region_', rid,
+                       '_', trait, '\\.qs$'))
           })
 
           # ---- OVERLAP PAIRS TABLE ----
@@ -2729,6 +3224,52 @@ server <- function(input, output, session) {
             }
           })
 
+          # Custom viz section renderUI (conditional on source type)
+          output[[paste0("hap_custom_viz_section_", local_proj)]] <- renderUI({
+            tag <- input[[paste0("hap_tag_", local_proj)]]
+            if (is.null(tag) || tag == "" || !is_custom_source(tag)) {
+              return(div(style = "padding: 15px; margin: 10px 0; background: #f5f5f5; border-radius: 4px; text-align: center;",
+                p(style = "color: #666;",
+                  "Per-region visualization (crosshap, boxplots, piemaps) for this source is shown ",
+                  "in the corresponding Association / Phenotype Association / Overlapping tab.")))
+            }
+            # Full per-region viz for custom sources
+            tagList(
+              fluidRow(
+                box(width = 12, title = "crosshap Visualization",
+                    status = "success", solidHeader = TRUE, collapsible = TRUE,
+                  div(style = "position: relative; min-height: 600px;",
+                    plotOutput(paste0("hap_viz_", local_proj), height = "900px"),
+                    uiOutput(paste0("hap_viz_msg_", local_proj))
+                  )
+                )
+              ),
+              fluidRow(
+                box(width = 6, title = "Phenotype Boxplot",
+                    status = "info", solidHeader = TRUE, collapsible = TRUE,
+                  div(style = "position: relative; min-height: 300px;",
+                    plotOutput(paste0("hap_boxplot_", local_proj), height = "400px"),
+                    uiOutput(paste0("hap_boxplot_msg_", local_proj))
+                  )
+                ),
+                box(width = 6, title = "Haplotype PieMap",
+                    status = "info", solidHeader = TRUE, collapsible = TRUE,
+                  div(style = "position: relative; min-height: 300px;",
+                    plotOutput(paste0("hap_piemap_", local_proj), height = "400px"),
+                    uiOutput(paste0("hap_piemap_msg_", local_proj))
+                  )
+                )
+              ),
+              fluidRow(
+                box(width = 12, title = "Haplotype Assignments",
+                    status = "warning", solidHeader = TRUE, collapsible = TRUE,
+                    collapsed = TRUE,
+                  DTOutput(paste0("hap_assign_dt_", local_proj))
+                )
+              )
+            )
+          })
+
           # Region selector (updates on tag change)
           observeEvent(input[[paste0("hap_tag_", local_proj)]], {
             tag <- input[[paste0("hap_tag_", local_proj)]]
@@ -2746,10 +3287,11 @@ server <- function(input, output, session) {
                           selected = region_ids[1])
             })
 
-            # Trait selector
+            # Trait selector (only for custom sources)
             traits <- find_hap_traits(local_proj, tag,
                                        if (length(region_ids) > 0) region_ids[1] else "")
             output[[paste0("hap_trait_selector_ui_", local_proj)]] <- renderUI({
+              if (!is_custom_source(tag)) return(NULL)
               if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
               selectInput(paste0("hap_trait_", local_proj),
                           "Phenotype trait:", choices = traits,
@@ -2824,25 +3366,13 @@ server <- function(input, output, session) {
             })
           })
 
-          # Region change -> update plots
+          # Region change -> update clustree (always) + per-region viz (custom sources only)
           observeEvent(input[[paste0("hap_region_", local_proj)]], {
             tag <- input[[paste0("hap_tag_", local_proj)]]
             rid <- input[[paste0("hap_region_", local_proj)]]
             if (is.null(tag) || is.null(rid) || tag == "" || rid == "") return()
 
-            # Update trait selector for this region
-            traits <- find_hap_traits(local_proj, tag, rid)
-            output[[paste0("hap_trait_selector_ui_", local_proj)]] <- renderUI({
-              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
-              selectInput(paste0("hap_trait_", local_proj),
-                          "Phenotype trait:", choices = traits,
-                          selected = traits[1])
-            })
-
-            # Clustree plots (always available after scan)
-            plots_base <- paste0('/pipeline/', local_proj,
-                                  '_results/plots/haplotype_', tag, '/clustree/')
-
+            # Clustree plots (always available after scan, regardless of source)
             output[[paste0("hap_clustree_mg_", local_proj)]] <-
               render_plot(local_proj,
                 paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_MG\\.qs$'))
@@ -2857,24 +3387,36 @@ server <- function(input, output, session) {
               render_noplot_message(local_proj,
                 paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_hap\\.qs$'))
 
-            # crosshap_viz (available after mode=haplotype)
-            output[[paste0("hap_viz_", local_proj)]] <-
-              render_plot(local_proj,
-                paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
-            output[[paste0("hap_viz_msg_", local_proj)]] <-
-              render_noplot_message(local_proj,
-                paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            # Per-region viz only for custom sources
+            if (is_custom_source(tag)) {
+              # Update trait selector
+              traits <- find_hap_traits(local_proj, tag, rid)
+              output[[paste0("hap_trait_selector_ui_", local_proj)]] <- renderUI({
+                if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+                selectInput(paste0("hap_trait_", local_proj),
+                            "Phenotype trait:", choices = traits,
+                            selected = traits[1])
+              })
+
+              # crosshap_viz
+              output[[paste0("hap_viz_", local_proj)]] <-
+                render_plot(local_proj,
+                  paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+              output[[paste0("hap_viz_msg_", local_proj)]] <-
+                render_noplot_message(local_proj,
+                  paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            }
           })
 
-          # Trait change -> update boxplot and piemap
+          # Trait change -> update boxplot and piemap (custom sources only)
           observeEvent(input[[paste0("hap_trait_", local_proj)]], {
             tag <- input[[paste0("hap_tag_", local_proj)]]
             rid <- input[[paste0("hap_region_", local_proj)]]
             trait <- input[[paste0("hap_trait_", local_proj)]]
             if (is.null(tag) || is.null(rid) || is.null(trait)) return()
             if (tag == "" || rid == "" || trait == "") return()
+            if (!is_custom_source(tag)) return()
 
-            # Boxplot
             output[[paste0("hap_boxplot_", local_proj)]] <-
               render_plot(local_proj,
                 paste0('haplotype_', tag, '/Region_', rid, '_boxplot_', trait, '\\.qs$'))
@@ -2882,7 +3424,6 @@ server <- function(input, output, session) {
               render_noplot_message(local_proj,
                 paste0('haplotype_', tag, '/Region_', rid, '_boxplot_', trait, '\\.qs$'))
 
-            # Piemap
             output[[paste0("hap_piemap_", local_proj)]] <-
               render_plot(local_proj,
                 paste0('haplotype_', tag, '/HaplotypePieMap_Region_', rid, '_', trait, '\\.qs$'))
