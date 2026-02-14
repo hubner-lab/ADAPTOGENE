@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     libproj-dev \
     libudunits2-dev \
     libglpk40 \
+    bcftools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -147,6 +148,9 @@ RUN Rscript -e " \
     remotes::install_version('ggraph', version = '2.2.1'); \
 "
 
+# Haplotype analysis packages
+RUN Rscript -e "remotes::install_version('crosshap', version = '1.4.0')"
+
 # gradientForest from r-forge (version 0.1-37)
 # Requires patching for R 4.5 (Calloc/Free -> R_Calloc/R_Free)
 RUN git clone --depth 1 https://github.com/r-forge/gradientforest.git /tmp/gf && \
@@ -163,5 +167,6 @@ RUN Rscript -e " \
     stopifnot(packageVersion('topr') >= '2.0.0'); \
     stopifnot(packageVersion('ggplot2') >= '3.5.0'); \
     stopifnot(requireNamespace('gradientForest', quietly = TRUE)); \
+    stopifnot(requireNamespace('crosshap', quietly = TRUE)); \
     cat('All package version checks passed.\n'); \
 "

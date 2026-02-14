@@ -195,6 +195,49 @@ if PHENO_ASSOC_CONFIGS:
     PHENO_TRAITS = _header[4:]  # columns after longitude
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
+# HAPLOTYPE parameters
+HAP_SCAN_SOURCE = config.get('HAPLOTYPE_SCAN_REGIONS_SOURCE', 'association_phenotypes')
+HAP_SCAN_REGIONS_FILE = config.get('HAPLOTYPE_SCAN_REGIONS_FILE', 'NULL')
+HAP_SCAN_TOP_REGIONS = config.get('HAPLOTYPE_SCAN_TOP_REGIONS', 5)
+HAP_SCAN_MGMIN = config.get('HAPLOTYPE_SCAN_MGMIN', 50)
+HAP_SCAN_MINHAP = config.get('HAPLOTYPE_SCAN_MINHAP', 15)
+HAP_SCAN_EPSILON_RANGE = config.get('HAPLOTYPE_SCAN_EPSILON_RANGE', [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
+HAP_SCAN_META_TYPE = config.get('HAPLOTYPE_SCAN_METADATA_TYPE', 'site')
+HAP_EPSILON_SELECTED = config.get('HAPLOTYPE_EPSILON_SELECTED', 'NULL')
+
+# Expand metadata types: 'both' -> ['site', 'cluster_K{K_BEST}']
+def get_hap_meta_types():
+    if HAP_SCAN_META_TYPE == 'site':
+        return ['site']
+    elif HAP_SCAN_META_TYPE == 'cluster':
+        return [f'cluster_K{K_BEST}'] if K_BEST else ['cluster']
+    elif HAP_SCAN_META_TYPE == 'both':
+        types = ['site']
+        if K_BEST:
+            types.append(f'cluster_K{K_BEST}')
+        return types
+    return ['site']
+
+HAP_META_TYPES = get_hap_meta_types()
+
+# Expand region sources: 'all' -> every available source
+def get_hap_sources():
+    if HAP_SCAN_SOURCE == 'all':
+        sources = []
+        if ASSOC_CONFIGS:
+            sources.append('association')
+        if PHENO_ASSOC_CONFIGS:
+            sources.append('association_phenotypes')
+        if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
+            sources.append('overlapping')
+        return sources if sources else ['association']
+    return [HAP_SCAN_SOURCE]
+
+HAP_SOURCES = get_hap_sources()
+
+# Build list of (meta_tag, source) combos as combined tags
+HAP_TAGS = [f"{mt}_{src}" for mt in HAP_META_TYPES for src in HAP_SOURCES]
+
 #=============================================================================
 # PATH DEFINITIONS
 #=============================================================================
@@ -374,6 +417,18 @@ def add_overlap_paths():
 
 add_overlap_paths()
 
+# Haplotype analysis paths
+def add_haplotype_paths():
+    """Add haplotype analysis paths to W and O dictionaries."""
+    if K_BEST is None:
+        return
+    for tag in HAP_TAGS:
+        W[f'hap_scan_done_{tag}'] = f"{INTER}haplotype_{tag}/scan_done.flag"
+        W[f'hap_viz_done_{tag}'] = f"{INTER}haplotype_{tag}/viz_done.flag"
+        O[f'hap_selected_regions_{tag}'] = f"{TABLES}haplotype_{tag}/Selected_regions.tsv"
+
+add_haplotype_paths()
+
 # Maladaptation paths
 def add_maladaptation_paths():
     """Add maladaptation-specific paths to W and O dictionaries."""
@@ -491,6 +546,13 @@ if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
     dirs_to_create.append(f"{TABLES}overlapping/enrichment/")
     dirs_to_create.append(f"{PLOTS}overlapping/")
     dirs_to_create.append(f"{PLOTS}overlapping/enrichment/")
+
+# Add haplotype analysis directories
+for tag in HAP_TAGS:
+    dirs_to_create.append(f"{TABLES}haplotype_{tag}/")
+    dirs_to_create.append(f"{PLOTS}haplotype_{tag}/")
+    dirs_to_create.append(f"{PLOTS}haplotype_{tag}/clustree/")
+    dirs_to_create.append(f"{INTER}haplotype_{tag}/")
 
 # Add regionmap directories if zoom is enabled
 if HAS_REGIONMAP:
@@ -724,8 +786,27 @@ def get_targets(mode):
         targets.append(W['summary_done'])
         return targets
 
+    elif mode == 'haplotype_scan':
+        check_numeric(K_BEST, 'K_BEST')
+        targets = []
+        for tag in HAP_TAGS:
+            targets.append(O[f'hap_selected_regions_{tag}'])
+            targets.append(W[f'hap_scan_done_{tag}'])
+        targets.append(W['summary_done'])
+        return targets
+
+    elif mode == 'haplotype':
+        check_numeric(K_BEST, 'K_BEST')
+        if str(HAP_EPSILON_SELECTED) == 'NULL':
+            raise ValueError("Set HAPLOTYPE_EPSILON_SELECTED after reviewing clustree plots from haplotype_scan mode")
+        targets = []
+        for tag in HAP_TAGS:
+            targets.append(W[f'hap_viz_done_{tag}'])
+        targets.append(W['summary_done'])
+        return targets
+
     elif mode is None:
-        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=overlapping")
+        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=overlapping or mode=haplotype_scan or mode=haplotype")
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
@@ -2430,7 +2511,141 @@ rule plot_gf_offset_piemap_diversity:
         """
 
 #=============================================================================
-# MODULE 7: PIPELINE SUMMARY
+# MODULE 8: HAPLOTYPE ANALYSIS (crosshap)
+#=============================================================================
+
+def get_hap_regions_input(source):
+    """Get the regions file path for a given haplotype source."""
+    if source == 'association':
+        return O.get('regions_combined', '')
+    elif source == 'association_phenotypes':
+        return O.get('pheno_regions_combined', '')
+    elif source == 'overlapping':
+        return O.get('overlap_regions_combined', '')
+    elif source == 'custom':
+        # Custom path is relative to pipeline root, convert to absolute
+        return os.path.join('/pipeline', HAP_SCAN_REGIONS_FILE) if HAP_SCAN_REGIONS_FILE != 'NULL' else ''
+    return ''
+
+def get_hap_meta_type_from_tag(tag):
+    """Extract metadata type ('site' or 'cluster_K{N}') from a combined tag."""
+    # tag = "site_association" or "cluster_K5_association_phenotypes"
+    for mt in HAP_META_TYPES:
+        if tag.startswith(mt + '_'):
+            return mt
+    return 'site'
+
+def get_hap_source_from_tag(tag):
+    """Extract source from a combined tag."""
+    for mt in HAP_META_TYPES:
+        prefix = mt + '_'
+        if tag.startswith(prefix):
+            return tag[len(prefix):]
+    return tag
+
+# Generate haplotype rules for each (meta_tag, source) combination
+for _hap_tag in HAP_TAGS:
+    _hap_meta = get_hap_meta_type_from_tag(_hap_tag)
+    _hap_source = get_hap_source_from_tag(_hap_tag)
+    _hap_regions_input = get_hap_regions_input(_hap_source)
+
+    # Rule: select top regions for haplotype analysis
+    rule:
+        name: f"haplotype_select_regions_{_hap_tag}"
+        input:
+            regions = _hap_regions_input,
+            metadata = O['metadata']
+        output: O[f'hap_selected_regions_{_hap_tag}']
+        params:
+            top_regions = HAP_SCAN_TOP_REGIONS,
+            source = _hap_source,
+            tag = _hap_tag
+        log: f"{LOGDIR}haplotype_select_regions_{_hap_tag}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/select_haplotype_regions.R \
+                {input.regions} {output} {params.top_regions} \
+                {params.source} > {log} 2>&1
+            """
+
+    # Rule: scan with epsilon range (crosshap haplotyping + clustree)
+    _scan_inputs = {
+        'selected_regions': O[f'hap_selected_regions_{_hap_tag}'],
+        'vcf_filt': W['vcf_filt'],
+        'metadata': O['metadata'],
+    }
+    # Add imputed VCF if available (from association mode), else use filtered
+    if 'vcf_imp_full' in W:
+        _scan_inputs['vcf_ld'] = W['vcf_imp_full']
+    else:
+        _scan_inputs['vcf_ld'] = W['vcf_filt']
+    # Add clusters file for cluster metadata type
+    if _hap_meta.startswith('cluster'):
+        _scan_inputs['clusters'] = clusters_table(K_BEST)
+
+    rule:
+        name: f"haplotype_scan_{_hap_tag}"
+        input: **_scan_inputs
+        output: touch(W[f'hap_scan_done_{_hap_tag}'])
+        params:
+            meta_type = _hap_meta,
+            clusters_file = clusters_table(K_BEST) if _hap_meta.startswith('cluster') else 'NULL',
+            mgmin = HAP_SCAN_MGMIN,
+            minhap = HAP_SCAN_MINHAP,
+            epsilon_range = ','.join(str(e) for e in HAP_SCAN_EPSILON_RANGE),
+            inter_dir = f"{INTER}haplotype_{_hap_tag}/",
+            plots_dir = f"{PLOTS}haplotype_{_hap_tag}/clustree/",
+            tag = _hap_tag
+        log: f"{LOGDIR}haplotype_scan_{_hap_tag}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/run_haplotype_scan.R \
+                {input.selected_regions} {input.vcf_filt} {input.vcf_ld} \
+                {input.metadata} {params.meta_type} {params.clusters_file} \
+                {params.mgmin} {params.minhap} {params.epsilon_range} \
+                {params.inter_dir} {params.plots_dir} > {log} 2>&1
+            """
+
+    # Rule: visualization at selected epsilon
+    _viz_inputs = {
+        'scan_done': W[f'hap_scan_done_{_hap_tag}'],
+        'selected_regions': O[f'hap_selected_regions_{_hap_tag}'],
+        'metadata': O['metadata'],
+        'raster': W.get('climate_raster', ''),
+        'clusters': clusters_table(K_BEST) if K_BEST else '',
+    }
+
+    rule:
+        name: f"haplotype_viz_{_hap_tag}"
+        input: **_viz_inputs
+        output: touch(W[f'hap_viz_done_{_hap_tag}'])
+        params:
+            epsilon = HAP_EPSILON_SELECTED,
+            meta_type = _hap_meta,
+            tag = _hap_tag,
+            inter_dir = f"{INTER}haplotype_{_hap_tag}/",
+            plots_dir = f"{PLOTS}haplotype_{_hap_tag}/",
+            tables_dir = f"{TABLES}haplotype_{_hap_tag}/",
+            raster_layer = get_predictors_list()[0] if get_predictors_list() else "1",
+            pie_alpha = PIEMAP_PIE_ALPHA,
+            pop_label = PIEMAP_POP_LABEL,
+            pop_label_size = PIEMAP_POP_LABEL_SIZE,
+            regionmap_extent = REGIONMAP_EXTENT,
+            pie_scale = PIEMAP_PIE_SCALE
+        log: f"{LOGDIR}haplotype_viz_{_hap_tag}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/run_haplotype_viz.R \
+                {input.selected_regions} {input.metadata} \
+                {params.epsilon} {params.meta_type} {params.tag} \
+                {params.inter_dir} {params.plots_dir} {params.tables_dir} \
+                {input.raster} {params.raster_layer} \
+                {params.pie_alpha},{params.pop_label},{params.pop_label_size},{params.pie_scale} \
+                {params.regionmap_extent} {input.clusters} > {log} 2>&1
+            """
+
+#=============================================================================
+# MODULE 9: PIPELINE SUMMARY
 #=============================================================================
 
 # Summary rule uses ruleorder to resolve ambiguity - only the matching mode runs
@@ -2572,5 +2787,49 @@ elif MODE == 'overlapping':
                 overlapping {params.summary_tsv} \
                 {input.overlap_summary} {input.selected_snps} {input.regions_per_trait} \
                 {input.regions_combined} {input.genes} {params.enrichment_path} > {log} 2>&1
+            touch {output}
+            """
+
+elif MODE == 'haplotype_scan':
+    _hap_scan_inputs = {}
+    for i, tag in enumerate(HAP_TAGS):
+        _hap_scan_inputs[f'scan_done_{i}'] = W[f'hap_scan_done_{tag}']
+        _hap_scan_inputs[f'regions_{i}'] = O[f'hap_selected_regions_{tag}']
+
+    rule write_summary:
+        """Write haplotype_scan mode summary to Pipeline_summary.tsv."""
+        input: **_hap_scan_inputs
+        output: W['summary_done']
+        params:
+            summary_tsv = O['summary'],
+            tags = ','.join(HAP_TAGS)
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                haplotype_scan {params.summary_tsv} \
+                {params.tags} > {log} 2>&1
+            touch {output}
+            """
+
+elif MODE == 'haplotype':
+    _hap_viz_inputs = {}
+    for i, tag in enumerate(HAP_TAGS):
+        _hap_viz_inputs[f'viz_done_{i}'] = W[f'hap_viz_done_{tag}']
+
+    rule write_summary:
+        """Write haplotype mode summary to Pipeline_summary.tsv."""
+        input: **_hap_viz_inputs
+        output: W['summary_done']
+        params:
+            summary_tsv = O['summary'],
+            tags = ','.join(HAP_TAGS),
+            epsilon = HAP_EPSILON_SELECTED
+        log: f"{LOGDIR}write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                haplotype {params.summary_tsv} \
+                {params.tags} {params.epsilon} > {log} 2>&1
             touch {output}
             """

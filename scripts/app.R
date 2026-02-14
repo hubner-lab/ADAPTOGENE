@@ -108,6 +108,52 @@ find_gf_zooms <- function(project, suffix, pipeline_path = '/pipeline/') {
 }
 
 ###############################################################################
+# HAPLOTYPE ANALYSIS HELPER FUNCTIONS
+###############################################################################
+
+# Discover available haplotype tags from intermediate directories
+find_haplotype_tags <- function(project, pipeline_path = '/pipeline/') {
+  inter <- paste0(pipeline_path, project, '_results/intermediate/')
+  if (!dir.exists(inter)) return(character(0))
+  dirs <- list.dirs(inter, recursive = FALSE, full.names = FALSE)
+  hap_dirs <- dirs[grepl('^haplotype_', dirs)]
+  # Return tags that have scan_done.flag (at minimum scan has been run)
+  tags <- sub('^haplotype_', '', hap_dirs)
+  tags[file.exists(paste0(inter, 'haplotype_', tags, '/scan_done.flag'))]
+}
+
+# Load haplotype data for a tag
+load_haplotype_data <- function(project, tag, pipeline_path = '/pipeline/') {
+  base_tables <- paste0(pipeline_path, project, '_results/tables/haplotype_', tag, '/')
+  base_inter <- paste0(pipeline_path, project, '_results/intermediate/haplotype_', tag, '/')
+
+  safe_fread <- function(path) {
+    if (file.exists(path)) data.table::fread(path) else NULL
+  }
+
+  list(
+    regions = safe_fread(paste0(base_tables, 'Selected_regions.tsv')),
+    assignments = safe_fread(paste0(base_tables, 'Haplotype_assignments.tsv')),
+    frequencies = safe_fread(paste0(base_tables, 'Haplotype_frequencies.tsv')),
+    has_viz = file.exists(paste0(base_inter, 'viz_done.flag'))
+  )
+}
+
+# Find available region IDs for a tag
+find_hap_region_ids <- function(project, tag, pipeline_path = '/pipeline/') {
+  inter <- paste0(pipeline_path, project, '_results/intermediate/haplotype_', tag, '/')
+  files <- list.files(inter, pattern = '^Region_.*_HapObject\\.qs$')
+  sub('^Region_(.*)_HapObject\\.qs$', '\\1', files)
+}
+
+# Find available traits from haplotype boxplot files
+find_hap_traits <- function(project, tag, region_id, pipeline_path = '/pipeline/') {
+  plots_dir <- paste0(pipeline_path, project, '_results/plots/haplotype_', tag, '/')
+  files <- list.files(plots_dir, pattern = paste0('^Region_', region_id, '_boxplot_.*\\.qs$'))
+  sub(paste0('^Region_', region_id, '_boxplot_(.*)\\.qs$'), '\\1', files)
+}
+
+###############################################################################
 # ASSOCIATION ANALYSIS HELPER FUNCTIONS
 ###############################################################################
 
@@ -400,8 +446,14 @@ load_region_enrichment_overlap <- function(project, rid, pipeline_path = '/pipel
 # Function to load plot from .qs file (plotname is a regex pattern)
 load_plot <- function(project, plotname, pipeline_path = '/pipeline/') {
   tryCatch({
-    plot_paths <- list.files(paste0(pipeline_path, project, '_results/intermediate'),
-                             pattern = plotname, full.names = TRUE)
+    base <- paste0(pipeline_path, project, '_results/')
+    # Search intermediate/ and plots/ recursively
+    plot_paths <- c(
+      list.files(paste0(base, 'intermediate'), pattern = plotname,
+                 full.names = TRUE, recursive = TRUE),
+      list.files(paste0(base, 'plots'), pattern = plotname,
+                 full.names = TRUE, recursive = TRUE)
+    )
     if (length(plot_paths) == 0) {
       stop('NO FILE matching: ', plotname)
     }
@@ -544,6 +596,10 @@ server <- function(input, output, session) {
           if (is.na(ov_top_n_default)) ov_top_n_default <- 10L
         }
       }
+
+      # Haplotype analysis detection
+      hap_tags <- find_haplotype_tags(proj)
+      has_haplotype <- length(hap_tags) > 0
 
       tabItem(
         tabName = paste0("project_", proj),
@@ -883,12 +939,85 @@ server <- function(input, output, session) {
 ###############################################################################
               tabPanel(
                 "Haplotype Analysis",
-                h3("Haplotype Analysis"),
-                div(style = "text-align: center; padding: 60px; color: #999;",
-                  icon("dna", "fa-3x"),
-                  h4("Coming Soon"),
-                  p("Haplotype analysis will be available in a future update.")
-                )
+                h3("Haplotype Analysis (crosshap)"),
+                if (!has_haplotype) {
+                  div(style = "text-align: center; padding: 60px; color: #999;",
+                    icon("dna", "fa-3x"),
+                    h4("No Haplotype Data"),
+                    p("Run mode=haplotype_scan first, then mode=haplotype for visualization.")
+                  )
+                } else {
+                  tagList(
+                    fluidRow(
+                      column(4, uiOutput(paste0("hap_tag_selector_ui_", proj))),
+                      column(4, uiOutput(paste0("hap_region_selector_ui_", proj))),
+                      column(4, uiOutput(paste0("hap_trait_selector_ui_", proj)))
+                    ),
+                    fluidRow(
+                      valueBoxOutput(paste0("hap_n_regions_", proj), width = 3),
+                      valueBoxOutput(paste0("hap_n_haps_", proj), width = 3),
+                      valueBoxOutput(paste0("hap_meta_type_", proj), width = 3),
+                      valueBoxOutput(paste0("hap_source_", proj), width = 3)
+                    ),
+                    fluidRow(
+                      box(width = 12, title = "Clustree: Marker Groups",
+                          status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("hap_clustree_mg_", proj), height = "500px"),
+                          uiOutput(paste0("hap_clustree_mg_msg_", proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      box(width = 12, title = "Clustree: Haplotypes",
+                          status = "primary", solidHeader = TRUE, collapsible = TRUE,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("hap_clustree_hap_", proj), height = "500px"),
+                          uiOutput(paste0("hap_clustree_hap_msg_", proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      box(width = 12, title = "crosshap Visualization",
+                          status = "success", solidHeader = TRUE, collapsible = TRUE,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("hap_viz_", proj), height = "500px"),
+                          uiOutput(paste0("hap_viz_msg_", proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      box(width = 6, title = "Phenotype Boxplot",
+                          status = "info", solidHeader = TRUE, collapsible = TRUE,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("hap_boxplot_", proj), height = "400px"),
+                          uiOutput(paste0("hap_boxplot_msg_", proj))
+                        )
+                      ),
+                      box(width = 6, title = "Haplotype PieMap",
+                          status = "info", solidHeader = TRUE, collapsible = TRUE,
+                        div(style = "position: relative; min-height: 300px;",
+                          plotOutput(paste0("hap_piemap_", proj), height = "400px"),
+                          uiOutput(paste0("hap_piemap_msg_", proj))
+                        )
+                      )
+                    ),
+                    fluidRow(
+                      box(width = 12, title = "Haplotype Assignments",
+                          status = "warning", solidHeader = TRUE, collapsible = TRUE,
+                          collapsed = TRUE,
+                        DTOutput(paste0("hap_assign_dt_", proj))
+                      )
+                    ),
+                    fluidRow(
+                      box(width = 12, title = "Selected Regions",
+                          status = "warning", solidHeader = TRUE, collapsible = TRUE,
+                          collapsed = TRUE,
+                        DTOutput(paste0("hap_regions_dt_", proj))
+                      )
+                    )
+                  )
+                }
               ),
 ###############################################################################
 # OVERLAPPING REGIONS TAB
@@ -2486,6 +2615,185 @@ server <- function(input, output, session) {
           })
 
         } # end if has_overlap_file
+
+        ###############################################################
+        # HAPLOTYPE ANALYSIS TAB SERVER LOGIC
+        ###############################################################
+        hap_tags_local <- find_haplotype_tags(local_proj)
+        if (length(hap_tags_local) > 0) {
+
+          # Format tag labels: "site_association_phenotypes" -> "site / association_phenotypes"
+          hap_tag_labels <- setNames(hap_tags_local,
+            sapply(hap_tags_local, function(t) {
+              # Split into meta_type and source at first underscore boundary
+              # Tags like: site_association, cluster_K5_association_phenotypes
+              parts <- strsplit(t, '_', fixed = TRUE)[[1]]
+              if (parts[1] == 'cluster' && length(parts) >= 3) {
+                meta <- paste(parts[1:2], collapse = '_')
+                source <- paste(parts[3:length(parts)], collapse = '_')
+              } else {
+                meta <- parts[1]
+                source <- paste(parts[2:length(parts)], collapse = '_')
+              }
+              paste(meta, '/', source)
+            })
+          )
+
+          # Tag selector
+          output[[paste0("hap_tag_selector_ui_", local_proj)]] <- renderUI({
+            selectInput(paste0("hap_tag_", local_proj),
+                        "Analysis configuration:",
+                        choices = hap_tag_labels,
+                        selected = hap_tags_local[1])
+          })
+
+          # Region selector (updates on tag change)
+          observeEvent(input[[paste0("hap_tag_", local_proj)]], {
+            tag <- input[[paste0("hap_tag_", local_proj)]]
+            if (is.null(tag) || tag == "") return()
+
+            region_ids <- find_hap_region_ids(local_proj, tag)
+            hap_data <- load_haplotype_data(local_proj, tag)
+
+            # Update region dropdown
+            output[[paste0("hap_region_selector_ui_", local_proj)]] <- renderUI({
+              if (length(region_ids) == 0) return(p("No regions found"))
+              selectInput(paste0("hap_region_", local_proj),
+                          "Region:", choices = region_ids,
+                          selected = region_ids[1])
+            })
+
+            # Trait selector
+            traits <- find_hap_traits(local_proj, tag,
+                                       if (length(region_ids) > 0) region_ids[1] else "")
+            output[[paste0("hap_trait_selector_ui_", local_proj)]] <- renderUI({
+              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+              selectInput(paste0("hap_trait_", local_proj),
+                          "Phenotype trait:", choices = traits,
+                          selected = traits[1])
+            })
+
+            # Summary value boxes
+            output[[paste0("hap_n_regions_", local_proj)]] <- renderValueBox({
+              valueBox(length(region_ids), "Regions Analyzed",
+                       icon = icon("map-marker"), color = "blue")
+            })
+
+            n_haps <- 0
+            if (!is.null(hap_data$assignments) && nrow(hap_data$assignments) > 0) {
+              n_haps <- length(unique(hap_data$assignments$haplotype))
+            }
+            output[[paste0("hap_n_haps_", local_proj)]] <- renderValueBox({
+              valueBox(n_haps, "Haplotype Groups",
+                       icon = icon("layer-group"), color = "green")
+            })
+
+            # Extract meta type and source from tag
+            tag_parts <- strsplit(tag, '_', fixed = TRUE)[[1]]
+            if (tag_parts[1] == 'cluster' && length(tag_parts) >= 3) {
+              meta_type <- paste(tag_parts[1:2], collapse = '_')
+              source_name <- paste(tag_parts[3:length(tag_parts)], collapse = '_')
+            } else {
+              meta_type <- tag_parts[1]
+              source_name <- paste(tag_parts[2:length(tag_parts)], collapse = '_')
+            }
+
+            output[[paste0("hap_meta_type_", local_proj)]] <- renderValueBox({
+              valueBox(meta_type, "Grouping", icon = icon("users"), color = "yellow")
+            })
+            output[[paste0("hap_source_", local_proj)]] <- renderValueBox({
+              valueBox(source_name, "Region Source", icon = icon("database"), color = "purple")
+            })
+
+            # Regions table
+            output[[paste0("hap_regions_dt_", local_proj)]] <- renderDT({
+              if (is.null(hap_data$regions)) return(NULL)
+              datatable(hap_data$regions, rownames = FALSE,
+                options = list(pageLength = 10, scrollX = TRUE),
+                selection = 'single')
+            })
+
+            # Assignments table
+            output[[paste0("hap_assign_dt_", local_proj)]] <- renderDT({
+              if (is.null(hap_data$assignments)) {
+                return(datatable(
+                  data.frame(Message = "Run mode=haplotype to generate assignments"),
+                  rownames = FALSE, options = list(dom = 't')))
+              }
+              datatable(hap_data$assignments, rownames = FALSE,
+                options = list(pageLength = 15, scrollX = TRUE),
+                selection = 'single')
+            })
+          })
+
+          # Region change -> update plots
+          observeEvent(input[[paste0("hap_region_", local_proj)]], {
+            tag <- input[[paste0("hap_tag_", local_proj)]]
+            rid <- input[[paste0("hap_region_", local_proj)]]
+            if (is.null(tag) || is.null(rid) || tag == "" || rid == "") return()
+
+            # Update trait selector for this region
+            traits <- find_hap_traits(local_proj, tag, rid)
+            output[[paste0("hap_trait_selector_ui_", local_proj)]] <- renderUI({
+              if (length(traits) == 0) return(p("No traits (run mode=haplotype)"))
+              selectInput(paste0("hap_trait_", local_proj),
+                          "Phenotype trait:", choices = traits,
+                          selected = traits[1])
+            })
+
+            # Clustree plots (always available after scan)
+            plots_base <- paste0('/pipeline/', local_proj,
+                                  '_results/plots/haplotype_', tag, '/clustree/')
+
+            output[[paste0("hap_clustree_mg_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_MG\\.qs$'))
+            output[[paste0("hap_clustree_mg_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_MG\\.qs$'))
+
+            output[[paste0("hap_clustree_hap_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_hap\\.qs$'))
+            output[[paste0("hap_clustree_hap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', tag, '/clustree/Region_', rid, '_clustree_hap\\.qs$'))
+
+            # crosshap_viz (available after mode=haplotype)
+            output[[paste0("hap_viz_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+            output[[paste0("hap_viz_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', tag, '/Region_', rid, '_crosshap_viz\\.qs$'))
+          })
+
+          # Trait change -> update boxplot and piemap
+          observeEvent(input[[paste0("hap_trait_", local_proj)]], {
+            tag <- input[[paste0("hap_tag_", local_proj)]]
+            rid <- input[[paste0("hap_region_", local_proj)]]
+            trait <- input[[paste0("hap_trait_", local_proj)]]
+            if (is.null(tag) || is.null(rid) || is.null(trait)) return()
+            if (tag == "" || rid == "" || trait == "") return()
+
+            # Boxplot
+            output[[paste0("hap_boxplot_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', tag, '/Region_', rid, '_boxplot_', trait, '\\.qs$'))
+            output[[paste0("hap_boxplot_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', tag, '/Region_', rid, '_boxplot_', trait, '\\.qs$'))
+
+            # Piemap
+            output[[paste0("hap_piemap_", local_proj)]] <-
+              render_plot(local_proj,
+                paste0('haplotype_', tag, '/HaplotypePieMap_Region_', rid, '_', trait, '\\.qs$'))
+            output[[paste0("hap_piemap_msg_", local_proj)]] <-
+              render_noplot_message(local_proj,
+                paste0('haplotype_', tag, '/HaplotypePieMap_Region_', rid, '_', trait, '\\.qs$'))
+          })
+
+        } # end if has haplotype data
 
       })
     }

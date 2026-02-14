@@ -80,8 +80,11 @@ Run modes sequentially. Each mode is invoked via `--config mode=<MODE>`.
 | 6 | `overlapping` | GEA ∩ GWAS overlap analysis | `OVERLAP_*` | Miami plot, overlap stats, combined regions |
 | 7 | `regionplot` | Regional Manhattan + gene annotations | `REGIONPLOT_*` | Publication-ready region figures |
 | 8 | `maladaptation` | Gradient Forest → genetic offset | `GF_*`, `FUTURE_*` | Offset maps, importance plots, site scores |
+| 9 | `haplotype_scan` | crosshap epsilon scanning | `HAPLOTYPE_SCAN_*` | HapObjects, clustree plots |
+| 10 | `haplotype` | Haplotype viz at selected epsilon | `HAPLOTYPE_EPSILON_SELECTED` | crosshap_viz, boxplots, piemaps |
 
 > **After mode 2**: inspect the cross-entropy plot and set `SNMF_K_BEST` in `config.yaml` before continuing.
+> **After mode 9**: inspect clustree plots and set `HAPLOTYPE_EPSILON_SELECTED` before running mode 10.
 
 ### Pipeline Flow
 
@@ -105,12 +108,16 @@ flowchart TB
     overlap["6 · overlapping\nGEA ∩ GWAS → combined regions"]:::assoc
     regplot["7 · regionplot\nRegional Manhattan + genes"]:::assoc
     malad["8 · maladaptation\nGradient Forest → offset"]:::malad
+    hapscan["9 · haplotype_scan\ncrosshap epsilon scan"]:::assoc
+    hapviz["10 · haplotype\ncrosshap viz + boxplots"]:::assoc
 
     VCF & META & GFF --> proc --> struct
     struct -. "Set K_BEST" .-> structK
     structK --> assoc & pheno
     assoc --> regplot & malad
     assoc & pheno --> overlap
+    assoc & pheno & overlap -.-> hapscan
+    hapscan -. "Set epsilon" .-> hapviz
 ```
 
 ### Detailed Rule DAGs

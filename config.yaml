@@ -148,3 +148,19 @@ GF_RANDOM_MODEL: TRUE           # Also build neutral model for comparison
 # OVERLAP_REGION_DISTANCE: 2000000
 # OVERLAP_TOP_REGIONS: 10
 # OVERLAP_PROMOTER_LENGTH: 10000
+
+#-----------------------------------------------------------------------------
+# HAPLOTYPE SCAN: Region extraction and crosshap epsilon scanning
+#-----------------------------------------------------------------------------
+# HAPLOTYPE_SCAN_REGIONS_SOURCE: 'association_phenotypes'  # 'association', 'association_phenotypes', 'overlapping', 'all', 'custom'
+# HAPLOTYPE_SCAN_REGIONS_FILE: 'NULL'      # Path to custom regions TSV (when source='custom')
+# HAPLOTYPE_SCAN_TOP_REGIONS: 5            # Number of top regions to analyze per source
+# HAPLOTYPE_SCAN_MGMIN: 50                 # DBSCAN MinPts (marker group minimum size)
+# HAPLOTYPE_SCAN_MINHAP: 15               # Minimum haplotype group size
+# HAPLOTYPE_SCAN_EPSILON_RANGE: [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+# HAPLOTYPE_SCAN_METADATA_TYPE: 'site'     # 'site', 'cluster', or 'both'
+
+#-----------------------------------------------------------------------------
+# HAPLOTYPE: Visualization at selected epsilon
+#-----------------------------------------------------------------------------
+# HAPLOTYPE_EPSILON_SELECTED: 'NULL'       # Set after reviewing clustree plots from haplotype_scan

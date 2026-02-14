@@ -301,6 +301,48 @@ if (MODE == 'processing') {
         row('overlapping', 'enrichment_status', enrichment_summary)
     )
 
+} else if (MODE == 'haplotype_scan') {
+    TAGS <- args[3]
+    tags_list <- strsplit(TAGS, ",")[[1]]
+
+    new_rows <- rbind(
+        row('haplotype_scan', 'tags_analyzed', paste(tags_list, collapse = "; ")),
+        row('haplotype_scan', 'n_tag_combos', length(tags_list))
+    )
+
+    for (tag in tags_list) {
+        regions_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Selected_regions.tsv"))
+        if (file.exists(regions_file)) {
+            reg <- fread(regions_file)
+            new_rows <- rbind(new_rows,
+                row('haplotype_scan', paste0('regions_', tag), nrow(reg))
+            )
+        }
+    }
+
+} else if (MODE == 'haplotype') {
+    TAGS <- args[3]
+    EPSILON <- args[4]
+    tags_list <- strsplit(TAGS, ",")[[1]]
+
+    new_rows <- rbind(
+        row('haplotype', 'epsilon_selected', EPSILON),
+        row('haplotype', 'tags_analyzed', paste(tags_list, collapse = "; "))
+    )
+
+    for (tag in tags_list) {
+        assign_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Haplotype_assignments.tsv"))
+        if (file.exists(assign_file)) {
+            assigns <- fread(assign_file)
+            n_haps <- if ('haplotype' %in% names(assigns)) n_distinct(assigns$haplotype) else 0
+            n_regions <- if ('region_id' %in% names(assigns)) n_distinct(assigns$region_id) else 0
+            new_rows <- rbind(new_rows,
+                row('haplotype', paste0('haplotype_groups_', tag), n_haps),
+                row('haplotype', paste0('regions_with_results_', tag), n_regions)
+            )
+        }
+    }
+
 } else {
     message(paste0('WARNING: Unknown mode "', MODE, '", skipping summary'))
     quit(save = "no", status = 0)
