@@ -125,6 +125,10 @@ create_emapplot <- function(enrich_obj, n_terms, output_base) {
         ggsave(paste0(output_base, '.svg'), plot = p, width = PLOT_WIDTH, height = PLOT_HEIGHT)
         message(paste0('INFO: Saved emapplot SVG to ', output_base, '.svg'))
 
+        # Save qs for Shiny loading
+        qs::qsave(p, paste0(output_base, '.qs'))
+        message(paste0('INFO: Saved emapplot .qs to ', output_base, '.qs'))
+
     }, error = function(e) {
         message(paste0('WARNING: Could not create emapplot: ', e$message))
         message('INFO: This may occur if there are too few terms or terms are not related')
@@ -170,6 +174,10 @@ create_dotplot <- function(enrich_obj, n_terms, output_base) {
         # Save SVG
         ggsave(paste0(output_base, '.svg'), plot = p, width = PLOT_WIDTH, height = PLOT_HEIGHT)
         message(paste0('INFO: Saved dotplot SVG to ', output_base, '.svg'))
+
+        # Save qs for Shiny loading
+        qs::qsave(p, paste0(output_base, '.qs'))
+        message(paste0('INFO: Saved dotplot .qs to ', output_base, '.qs'))
 
     }, error = function(e) {
         message(paste0('WARNING: Could not create dotplot: ', e$message))
