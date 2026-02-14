@@ -154,7 +154,7 @@ for (i in seq_len(nrow(regions))) {
         next
       }
 
-      p_box <- ggplot(plot_data, aes(x = haplotype, y = get(trait), fill = haplotype)) +
+      p_box <- ggplot(plot_data, aes(x = haplotype, y = .data[[trait]], fill = haplotype)) +
         ggdist::stat_halfeye(
           adjust = 0.5, width = 0.6, .width = 0, justification = -0.2,
           point_colour = NA, alpha = 0.6
@@ -199,8 +199,7 @@ for (i in seq_len(nrow(regions))) {
         site = assignments[[site_col]]
       )
       for (h in seq_along(hap_levels)) {
-        col_name <- paste0("C", h)
-        hap_clusters[, (col_name) := as.integer(assignments$haplotype == hap_levels[h])]
+        hap_clusters[, (hap_levels[h]) := as.integer(assignments$haplotype == hap_levels[h])]
       }
 
       # Write clusters file for piemap
@@ -226,7 +225,7 @@ for (i in seq_len(nrow(regions))) {
           trait_file, " \"", trait, "\" ",
           pie_alpha, " ", pop_label, " ", pop_label_size, " ",
           plots_dir, " ", intermediate_dir, " ",
-          piemap_prefix, " ", regionmap_extent, " ", pie_scale
+          piemap_prefix, " ", regionmap_extent, " ", pie_scale, " Haplotypes"
         )
         message("  Generating piemap: ", piemap_prefix)
         system(cmd)

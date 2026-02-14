@@ -8,6 +8,8 @@ library(data.table)
 library(stringr)
 library(qs)  # for reading qs files
 library(ggplot2)  # for rendering ggplot objects
+library(ggdist)   # for stat_halfeye in haplotype boxplots
+library(ggpubr)   # for stat_compare_means in haplotype boxplots
 library(ggplotify) # for as.ggplot object load
 library(gridExtra) # grid.arrange
 library(plotly)
@@ -1002,8 +1004,8 @@ server <- function(input, output, session) {
                     fluidRow(
                       box(width = 12, title = "Clustree: Marker Groups",
                           status = "primary", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 300px;",
-                          plotOutput(paste0("hap_clustree_mg_", proj), height = "500px"),
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("hap_clustree_mg_", proj), height = "800px"),
                           uiOutput(paste0("hap_clustree_mg_msg_", proj))
                         )
                       )
@@ -1011,8 +1013,8 @@ server <- function(input, output, session) {
                     fluidRow(
                       box(width = 12, title = "Clustree: Haplotypes",
                           status = "primary", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 300px;",
-                          plotOutput(paste0("hap_clustree_hap_", proj), height = "500px"),
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("hap_clustree_hap_", proj), height = "800px"),
                           uiOutput(paste0("hap_clustree_hap_msg_", proj))
                         )
                       )
@@ -1020,8 +1022,8 @@ server <- function(input, output, session) {
                     fluidRow(
                       box(width = 12, title = "crosshap Visualization",
                           status = "success", solidHeader = TRUE, collapsible = TRUE,
-                        div(style = "position: relative; min-height: 300px;",
-                          plotOutput(paste0("hap_viz_", proj), height = "500px"),
+                        div(style = "position: relative; min-height: 600px;",
+                          plotOutput(paste0("hap_viz_", proj), height = "900px"),
                           uiOutput(paste0("hap_viz_msg_", proj))
                         )
                       )

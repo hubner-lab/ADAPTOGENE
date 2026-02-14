@@ -30,6 +30,7 @@ INTER_DIR = args[12]
 OUTPUT_PREFIX = args[13]
 REGIONMAP_EXTENT = if (length(args) >= 14) args[14] else "NULL"  # Optional: "xmin,xmax,ymin,ymax" or "NULL"
 PIE_SCALE = if (length(args) >= 15) as.numeric(args[15]) else 1.0  # Pie size scale factor (1.0 = 100%)
+PIE_FILL_LABEL = if (length(args) >= 16) args[16] else "Clusters"  # Legend label for pie slices
 #################################
 
 set.seed(42)
@@ -113,15 +114,16 @@ create_piemap <- function(samples,
                           pie_alpha = 0.6,
                           pop_labels = FALSE,
                           pop_label_size = 5,
-                          legend_map_title = 'Value') {
+                          legend_map_title = 'Value',
+                          pie_fill_label = 'Clusters') {
 
   # Calculate pie size range if not provided
   if (is.null(pie_size_range)) {
     pie_size_range <- calculate_pie_size_range(raster_layer)
   }
 
-  # Get cluster columns
-  cluster_cols <- grep('C[0-9]+', colnames(clusters), value = TRUE)
+  # Get cluster/haplotype columns (everything except sample and site)
+  cluster_cols <- setdiff(colnames(clusters), c('sample', 'site'))
   n_clust <- length(cluster_cols)
 
   # Process cluster info by population
@@ -166,7 +168,7 @@ create_piemap <- function(samples,
                     alpha = pie_alpha) +
     scale_fill_manual(values = my_colors[1:n_clust]) +
     theme_bw() +
-    labs(fill = 'Clusters')
+    labs(fill = pie_fill_label)
 
   # Add population labels
   if (pop_labels) {
@@ -302,7 +304,8 @@ gPlot <- create_piemap(
   pie_alpha = PIE_ALPHA,
   pop_labels = pop_labels,
   pop_label_size = POP_LABEL_SIZE,
-  legend_map_title = RASTER_LEGEND
+  legend_map_title = RASTER_LEGEND,
+  pie_fill_label = PIE_FILL_LABEL
 )
 
 # Save outputs (full extent)
@@ -375,7 +378,8 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
             pie_alpha = PIE_ALPHA,
             pop_labels = pop_labels,  # Keep same label setting
             pop_label_size = POP_LABEL_SIZE,
-            legend_map_title = paste0(RASTER_LEGEND, " (Zoomed)")
+            legend_map_title = paste0(RASTER_LEGEND, " (Zoomed)"),
+            pie_fill_label = PIE_FILL_LABEL
         )
 
         # Create coordinate subdirectory for zoomed plots
