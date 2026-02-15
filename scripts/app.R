@@ -39,15 +39,14 @@ find_bio_values <- function(project, pipeline_path = '/pipeline/') {
   # Get all files in the intermediate directory
   files <- list.files(paste0(pipeline_path, project, '_results/intermediate'))
 
-  # Extract K values from different plot types
+  # Extract bio numbers from ALL PieMap files (not just TajimaD)
+  # Matches PieMap_bio_N.qs, PieMap_bio_N_TajimaD.qs, PieMap_bio_N_zoom_*.qs, etc.
   bio_values <- unique(as.numeric(stringr::str_extract(
-    grep("PieMap_bio_[0-9]+_TajimaD.qs",
-         files, value = TRUE),
-    "PieMap_bio_([0-9]+)_TajimaD.qs", group = 1
+    grep("^PieMap_bio_\\d+[_.]", files, value = TRUE),
+    "PieMap_bio_(\\d+)", group = 1
   )))
 
-  # Sort K values
-  bio_values <- sort(bio_values)
+  bio_values <- sort(bio_values[!is.na(bio_values)])
 
   return(bio_values)
 }
@@ -56,15 +55,20 @@ find_metric_values <- function(project, pipeline_path = '/pipeline/') {
   # Get all files in the intermediate directory
   files <- list.files(paste0(pipeline_path, project, '_results/intermediate'))
 
-  # Extract K values from different plot types
+  # Extract metric suffixes from PieMap files, excluding zoom variants
+  # Matches PieMap_bio_N_METRIC.qs but not PieMap_bio_N_zoom_*.qs or PieMap_bio_N.qs
+  metric_files <- grep("^PieMap_bio_\\d+_(?!zoom)[A-Za-z].*\\.qs$",
+                        files, value = TRUE, perl = TRUE)
   metric_values <- unique(stringr::str_extract(
-    grep("^PieMap_bio_\\d+_.*\\.qs$",
-         files, value = TRUE),
+    metric_files,
     "^PieMap_bio_\\d+_(.*)\\.qs$", group = 1
   ))
-							message(metric_values)
-  # Sort K values
-  metric_values <- metric_values
+
+  # If no metric-specific piemaps exist (POP_CALC_STATS=FALSE), add "none"
+  # so the selector still works — the plot will use PieMap_bio_N.qs directly
+  if (length(metric_values) == 0) {
+    metric_values <- "none"
+  }
 
   return(metric_values)
 }
@@ -685,17 +689,7 @@ ui <- dashboardPage(
   ),
   
   dashboardBody(
-    tabItems(
-      # Home tab
-      tabItem(
-        tabName = "home",
-        h2("Welcome to Pipeline Monitor"),
-        p("Select a project from the sidebar to begin.")
-      ),
-      
-      # Dynamic project content will be rendered here
-      uiOutput("dynamic_content")
-    )
+    uiOutput("dynamic_content")
   )
 )
 
@@ -726,17 +720,33 @@ server <- function(input, output, session) {
   output$dynamic_content <- renderUI({
     # Get current selected tab
     current_tab <- input$sidebar
-    
+
+    # Home tab
+    if (is.null(current_tab) || current_tab == "home") {
+      return(div(style = "padding: 15px;",
+        h2("Welcome to Pipeline Monitor"),
+        p("Select a project from the sidebar to begin.")
+      ))
+    }
+
     # If it's a project tab
     if (grepl("^project_", current_tab)) {
       proj <- sub("^project_", "", current_tab)
+      message("[renderUI] Building UI for project: ", proj)
+      tryCatch({
+      message("[renderUI] Finding k_values...")
       k_values <- find_k_values(proj)
+      message("[renderUI] k_values: ", paste(k_values, collapse=","))
       bio_values <- find_bio_values(proj)
+      message("[renderUI] bio_values: ", paste(bio_values, collapse=","))
       metric_values <- find_metric_values(proj)
+      message("[renderUI] metric_values: ", paste(metric_values, collapse=","))
       assoc_k <- find_assoc_k(proj)
       has_assoc <- !is.null(assoc_k) && length(assoc_k) > 0
+      message("[renderUI] has_assoc: ", has_assoc)
       gf_suffixes <- find_gf_suffixes(proj)
       has_malad <- length(gf_suffixes) > 0
+      message("[renderUI] has_malad: ", has_malad)
 
       # Read top N regions default from project config
       assoc_top_n_default <- 10L
@@ -780,8 +790,8 @@ server <- function(input, output, session) {
       hap_tags <- find_haplotype_tags(proj)
       has_haplotype <- length(hap_tags) > 0
 
-      tabItem(
-        tabName = paste0("project_", proj),
+      message("[renderUI] Building content for: ", proj)
+      div(style = "padding: 15px;",
         fluidRow(
           box(
             width = 12,
@@ -827,7 +837,7 @@ server <- function(input, output, session) {
 					)
               			),
 		        # New section for K-dependent plots
-                fluidRow(
+                if (length(k_values) > 0) fluidRow(
                   box(
                     width = 12,
                     title = "K-dependent Analysis",
@@ -882,7 +892,7 @@ server <- function(input, output, session) {
                                    )
                                ) # add new column here
 			), # add new rows here
-		fluidRow(
+		if (length(bio_values) > 0) fluidRow(
 			 box(
 			     width = 12,
 			     title = 'Bio dependent analysis',
@@ -915,7 +925,7 @@ server <- function(input, output, session) {
                         			   uiOutput(paste0("PieMap_message_", proj))
                            			    )
                       	    		      )
-                    		     	     )	
+                    		     	     )
 			    )
 			)
 	              ),
@@ -1318,10 +1328,18 @@ server <- function(input, output, session) {
             )
           )
         )
-      )
+      ) # end div
+      }, error = function(e) {
+        message("[renderUI ERROR] ", proj, ": ", e$message)
+        fluidRow(
+          box(width = 12, status = "danger", solidHeader = TRUE,
+              title = "Error loading project",
+              p(paste("Failed to load project", proj, ":", e$message)))
+        )
+      })
     }
   })
-  
+
   # Create plot outputs for the currently selected project only
   observe({
     current_tab <- input$sidebar
@@ -1388,11 +1406,16 @@ server <- function(input, output, session) {
           output[[paste0("BioDensity_message_", local_proj)]] <-
             render_noplot_message(local_proj, paste0('DensityPlot_bio_', bio_value, '.qs')) 
 
-          # Structure Pie plot Tajima
+          # Structure Pie plot (with metric suffix, or plain PieMap_bio_N.qs if metric is "none")
+          piemap_file <- if (metric_value == "none") {
+            paste0('PieMap_bio_', bio_value, '.qs')
+          } else {
+            paste0('PieMap_bio_', bio_value, '_', metric_value, '.qs')
+          }
           output[[paste0("PieMap_plot_", local_proj)]] <-
-            render_plot(local_proj, paste0('PieMap_bio_', bio_value, '_', metric_value, '.qs'))
+            render_plot(local_proj, piemap_file)
           output[[paste0("PieMap_message_", local_proj)]] <-
-            render_noplot_message(local_proj, paste0('PieMap_bio_', bio_value, '_', metric_value, '.qs'))
+            render_noplot_message(local_proj, piemap_file)
 
         })
 
