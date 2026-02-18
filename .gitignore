@@ -9,4 +9,7 @@ SIMDATA_logs/
 CLAUDE.md
 Snakefile_old
 config_SIMDATA.yaml
-WBDC_*
+config_WBDC.yaml
+WBDC*
+ANALYSIS/
+TEMP/
