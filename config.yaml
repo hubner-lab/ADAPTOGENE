@@ -62,6 +62,7 @@ PIEMAP_ALPHA: 0.6               # Pie chart transparency (0-1)
 PIEMAP_SHOW_LABELS: 'F'         # Show population labels (T/F)
 PIEMAP_LABEL_SIZE: 8            # Label font size
 PIEMAP_PIE_SCALE: 1.0           # Pie chart size scale factor (1.0=100%, 0.5=50%, 2.0=200%)
+PIEMAP_USE_POINTS: FALSE        # Use small colored points instead of pie charts (TRUE/FALSE)
 
 #-----------------------------------------------------------------------------
 # ASSOC: Association analysis settings (GWAS/GEA)

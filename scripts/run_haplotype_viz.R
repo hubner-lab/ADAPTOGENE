@@ -36,6 +36,7 @@ pie_alpha     <- as.numeric(piemap_args[1])
 pop_label     <- piemap_args[2]
 pop_label_size <- as.numeric(piemap_args[3])
 pie_scale     <- if (length(piemap_args) >= 4) as.numeric(piemap_args[4]) else 1.0
+use_points    <- if (length(piemap_args) >= 5) piemap_args[5] else "F"
 
 library(data.table)
 library(crosshap)
@@ -225,7 +226,7 @@ for (i in seq_len(nrow(regions))) {
           trait_file, " \"", trait, "\" ",
           pie_alpha, " ", pop_label, " ", pop_label_size, " ",
           plots_dir, " ", intermediate_dir, " ",
-          piemap_prefix, " ", regionmap_extent, " ", pie_scale, " Haplotypes"
+          piemap_prefix, " ", regionmap_extent, " ", pie_scale, " Haplotypes ", use_points
         )
         message("  Generating piemap: ", piemap_prefix)
         system(cmd)

@@ -31,6 +31,7 @@ OUTPUT_PREFIX = args[13]
 REGIONMAP_EXTENT = if (length(args) >= 14) args[14] else "NULL"  # Optional: "xmin,xmax,ymin,ymax" or "NULL"
 PIE_SCALE = if (length(args) >= 15) as.numeric(args[15]) else 1.0  # Pie size scale factor (1.0 = 100%)
 PIE_FILL_LABEL = if (length(args) >= 16) args[16] else "Clusters"  # Legend label for pie slices
+USE_POINTS = if (length(args) >= 17) toupper(substr(args[17], 1, 1)) == 'T' else FALSE  # Use points instead of pie charts
 #################################
 
 set.seed(42)
@@ -115,7 +116,8 @@ create_piemap <- function(samples,
                           pop_labels = FALSE,
                           pop_label_size = 5,
                           legend_map_title = 'Value',
-                          pie_fill_label = 'Clusters') {
+                          pie_fill_label = 'Clusters',
+                          use_points = FALSE) {
 
   # Calculate pie size range if not provided
   if (is.null(pie_size_range)) {
@@ -159,16 +161,35 @@ create_piemap <- function(samples,
   gPlot <- ggplot() +
     layer_spatial(raster_layer, aes(fill = after_stat(band1))) +
     scale_fill_viridis_c(option = "plasma", na.value = NA) +
-    labs(fill = legend_map_title) +
-    ggnewscale::new_scale_fill() +
-    geom_scatterpie(data = clusters_by_pop,
-                    aes(x = longitude, y = latitude, group = site, r = pie_radius),
-                    cols = cluster_cols,
-                    color = 'black',
-                    alpha = pie_alpha) +
-    scale_fill_manual(values = my_colors[1:n_clust]) +
-    theme_bw() +
-    labs(fill = pie_fill_label)
+    labs(fill = legend_map_title)
+
+  if (use_points) {
+    # Point mode: small single-color dots to show sample locations
+    # without distracting from the raster signal.
+    # Size = PIE_SCALE * base (3pt), floor at 0.8pt to stay visible.
+    # Cyan contrasts well across the entire plasma palette (no blues/cyans in plasma).
+    point_size <- max(0.8, 3.0 * PIE_SCALE)
+
+    gPlot <- gPlot +
+      geom_point(data = clusters_by_pop,
+                 aes(x = longitude, y = latitude),
+                 shape = 21, fill = 'cyan3', color = 'grey30',
+                 size = point_size, stroke = 0.3, alpha = pie_alpha) +
+      theme_bw()
+
+    message(paste0('INFO: Using point mode (size=', round(point_size, 2), ', PIE_SCALE=', PIE_SCALE, ')'))
+  } else {
+    gPlot <- gPlot +
+      ggnewscale::new_scale_fill() +
+      geom_scatterpie(data = clusters_by_pop,
+                      aes(x = longitude, y = latitude, group = site, r = pie_radius),
+                      cols = cluster_cols,
+                      color = 'black',
+                      alpha = pie_alpha) +
+      scale_fill_manual(values = my_colors[1:n_clust]) +
+      theme_bw() +
+      labs(fill = pie_fill_label)
+  }
 
   # Add population labels
   if (pop_labels) {
@@ -305,7 +326,8 @@ gPlot <- create_piemap(
   pop_labels = pop_labels,
   pop_label_size = POP_LABEL_SIZE,
   legend_map_title = RASTER_LEGEND,
-  pie_fill_label = PIE_FILL_LABEL
+  pie_fill_label = PIE_FILL_LABEL,
+  use_points = USE_POINTS
 )
 
 # Save outputs (full extent)
@@ -379,7 +401,8 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
             pop_labels = pop_labels,  # Keep same label setting
             pop_label_size = POP_LABEL_SIZE,
             legend_map_title = paste0(RASTER_LEGEND, " (Zoomed)"),
-            pie_fill_label = PIE_FILL_LABEL
+            pie_fill_label = PIE_FILL_LABEL,
+            use_points = USE_POINTS
         )
 
         # Create coordinate subdirectory for zoomed plots

@@ -100,6 +100,7 @@ PIEMAP_PIE_ALPHA = config.get('PIEMAP_ALPHA', 0.6)
 PIEMAP_POP_LABEL = config.get('PIEMAP_SHOW_LABELS', 'F')
 PIEMAP_POP_LABEL_SIZE = config.get('PIEMAP_LABEL_SIZE', 10)
 PIEMAP_PIE_SCALE = config.get('PIEMAP_PIE_SCALE', 1.0)
+PIEMAP_USE_POINTS = 'T' if config.get('PIEMAP_USE_POINTS', False) else 'F'
 
 # ASSOC parameters
 GFF = config.get('INPUT_GFF', '')
@@ -1246,6 +1247,7 @@ rule piemap_plot:
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
@@ -1259,7 +1261,7 @@ rule piemap_plot:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio}_TajimaD {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+            PieMap_{params.bio}_TajimaD {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
 
         # PiDiversity piemap
         Rscript /pipeline/scripts/plot_piemap.R \
@@ -1268,7 +1270,7 @@ rule piemap_plot:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio}_PiDiversity {params.regionmap_extent} {params.pie_scale} >> {log} 2>&1
+            PieMap_{params.bio}_PiDiversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} >> {log} 2>&1
         """
 
 rule piemap_simple:
@@ -1285,6 +1287,7 @@ rule piemap_simple:
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{PLOTS}piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
@@ -1297,7 +1300,7 @@ rule piemap_simple:
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            PieMap_{params.bio} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+            PieMap_{params.bio} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 #=============================================================================
@@ -2070,7 +2073,8 @@ if PHENO_ASSOC_CONFIGS:
           plot_dir = f"{PLOTS}association_phenotypes/piemap/",
           inter_dir = INTER,
           regionmap_extent = REGIONMAP_EXTENT,
-          pie_scale = PIEMAP_PIE_SCALE
+          pie_scale = PIEMAP_PIE_SCALE,
+          use_points = PIEMAP_USE_POINTS
       log: f"{LOGDIR}piemap_pheno_{{pheno_trait}}.log"
       shell:
           """
@@ -2080,7 +2084,7 @@ if PHENO_ASSOC_CONFIGS:
               {input.trait} "{wildcards.pheno_trait}" \
               {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
               {params.plot_dir} {params.inter_dir} \
-              PhenoMap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+              PhenoMap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
           """
 
 #=============================================================================
@@ -2447,6 +2451,7 @@ rule plot_gf_offset_piemap:
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
@@ -2460,7 +2465,7 @@ rule plot_gf_offset_piemap:
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix} {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_tajima:
@@ -2476,6 +2481,7 @@ rule plot_gf_offset_piemap_tajima:
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
@@ -2489,7 +2495,7 @@ rule plot_gf_offset_piemap_tajima:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix}_TajimaD {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix}_TajimaD {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_diversity:
@@ -2505,6 +2511,7 @@ rule plot_gf_offset_piemap_diversity:
         pop_label = PIEMAP_POP_LABEL,
         pop_label_size = PIEMAP_POP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{PLOTS}gradientForest/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
@@ -2518,7 +2525,7 @@ rule plot_gf_offset_piemap_diversity:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            GeneticOffsetPieMap_{params.suffix}_PiDiversity {params.regionmap_extent} {params.pie_scale} > {log} 2>&1
+            GeneticOffsetPieMap_{params.suffix}_PiDiversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 #=============================================================================
@@ -2643,7 +2650,8 @@ for _hap_tag in HAP_TAGS:
             pop_label = PIEMAP_POP_LABEL,
             pop_label_size = PIEMAP_POP_LABEL_SIZE,
             regionmap_extent = REGIONMAP_EXTENT,
-            pie_scale = PIEMAP_PIE_SCALE
+            pie_scale = PIEMAP_PIE_SCALE,
+            use_points = PIEMAP_USE_POINTS
         log: f"{LOGDIR}haplotype_viz_{_hap_tag}.log"
         shell:
             """
@@ -2652,7 +2660,7 @@ for _hap_tag in HAP_TAGS:
                 {params.epsilon} {params.meta_type} {params.tag} \
                 {params.inter_dir} {params.plots_dir} {params.tables_dir} \
                 {input.raster} {params.raster_layer} \
-                {params.pie_alpha},{params.pop_label},{params.pop_label_size},{params.pie_scale} \
+                {params.pie_alpha},{params.pop_label},{params.pop_label_size},{params.pie_scale},{params.use_points} \
                 {params.regionmap_extent} {input.clusters} > {log} 2>&1
             """
 
