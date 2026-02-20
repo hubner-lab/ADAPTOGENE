@@ -11,10 +11,11 @@ PLOT_DIR = args[3]
 INTER_DIR = args[4]
 #################################
 
-# Colors
-my.colors = c("#f3c300", "#a1caf1", "#be0032", "#8db600", "#e68fac", "#0067a5", "#f38400", "#222222",
-              "#b3446c", "#2b3d26", "#dcd300", "#875692", "#848482", "#c2b280", "#882d17", "#654522",
-              "#e25822", "#008856", "#f99379", "#604e97", "#f6a600")
+# Colors — colorblind-safe (Wong 2011 + Paul Tol), visible on yellow/orange climate rasters
+my.colors = c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9",
+              "#332288", "#882255", "#44AA99", "#AA4499", "#999933",
+              "#E69F00", "#661100", "#88CCEE", "#CC6677", "#117733",
+              "#DDDDDD", "#855C75", "#D9AF6B", "#736F4C", "#526A83", "#625377")
 
 # Load clusters
 clusters <- fread(CLUSTERS)
