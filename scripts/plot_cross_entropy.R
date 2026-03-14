@@ -9,9 +9,13 @@ args = commandArgs(trailingOnly=TRUE)
 SNMF_PROJECT = args[1]
 K_START = args[2] %>% as.numeric
 K_END = args[3] %>% as.numeric
-PLOT_DIR = args[4]
+OUT_PNG = args[4]
 INTER_DIR = args[5]
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Plot theme
 plot_theme <-
@@ -40,7 +44,6 @@ gCrossEntropy <-
          y = 'Cross-entropy')
 
 # Save outputs
-ggsave(paste0(PLOT_DIR, 'cross_entropy_K', K_START, '-', K_END, '.png'), gCrossEntropy)
-ggsave(paste0(PLOT_DIR, 'cross_entropy_K', K_START, '-', K_END, '.svg'), gCrossEntropy,
-       device = svglite::svglite, bg = 'transparent')
-qsave(gCrossEntropy, paste0(INTER_DIR, 'cross_entropy_K', K_START, '-', K_END, '.qs'))
+ggsave(OUT_PNG, gCrossEntropy)
+ggsave(OUT_SVG, gCrossEntropy, device = svglite::svglite, bg = 'transparent')
+qsave(gCrossEntropy, OUT_QS)

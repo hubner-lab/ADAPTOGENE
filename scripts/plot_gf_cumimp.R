@@ -9,10 +9,13 @@ args = commandArgs(trailingOnly=TRUE)
 GF_ADAPTIVE_PATH = args[1]
 GF_RANDOM_PATH = args[2]    # path or "NULL"
 PREDICTORS_SELECTED = args[3] %>% str_split(',') %>% unlist
-PLOT_DIR = args[4]
+OUT_PNG = args[4]
 INTER_DIR = args[5]
-SUFFIX = args[6]
 ###############
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 message('INFO: Plotting Cumulative Importance')
 
@@ -59,9 +62,8 @@ nrows <- ceiling(n / ncols)
 
 gCumImp <- ggarrange(plotlist = gList, nrow = nrows, ncol = ncols, common.legend = TRUE)
 
-ggsave(paste0(PLOT_DIR, 'cumulative_importance_', SUFFIX, '.png'), gCumImp)
-ggsave(paste0(PLOT_DIR, 'cumulative_importance_', SUFFIX, '.svg'), gCumImp,
-       device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
-qsave(gCumImp, paste0(INTER_DIR, 'cumulative_importance_', SUFFIX, '.qs'))
+ggsave(OUT_PNG, gCumImp)
+ggsave(OUT_SVG, gCumImp, device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
+qsave(gCumImp, OUT_QS)
 
 message('INFO: Cumulative importance plot complete')

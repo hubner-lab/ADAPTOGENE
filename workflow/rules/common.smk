@@ -669,6 +669,7 @@ def manhattan_plot_regions(method, trait, adjust): return f"{MOD_ASSOC}plots/man
 
 # Templates for phenotype association outputs
 def pheno_pvalues(method): return f"{MOD_PHENO}tables/{method}_phenotypes_pvalues_K{K_BEST}.tsv"
+def pheno_qvalues(method): return f"{MOD_PHENO}tables/{method}_phenotypes_qvalues_K{K_BEST}.tsv"
 def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/{method}/{method}_phenotypes_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def pheno_manhattan(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def pheno_manhattan_regions(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"

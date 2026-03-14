@@ -10,10 +10,14 @@ args = commandArgs(trailingOnly=TRUE)
 SNMF_PROJECT = args[1]
 K = args[2] %>% as.numeric
 PLOIDY = args[3] %>% as.numeric
-PLOT_DIR = args[4]
+OUT_PNG = args[4]
 INTER_DIR = args[5]
 SCATTERMORE_THRESHOLD = args[6] %>% as.numeric
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Plot theme
 plot_theme <-
@@ -73,7 +77,7 @@ gPval <- gPval +
 gGrid <- ggarrange(gHist, gPval, nrow = 2)
 
 # Save
-ggsave(paste0(PLOT_DIR, 'pop_diff_K', K, '.png'), gGrid, width = 2 * 6.4, height = 9.6)
-ggsave(paste0(PLOT_DIR, 'pop_diff_K', K, '.svg'), gGrid, width = 2 * 6.4, height = 9.6,
+ggsave(OUT_PNG, gGrid, width = 2 * 6.4, height = 9.6)
+ggsave(OUT_SVG, gGrid, width = 2 * 6.4, height = 9.6,
        device = svglite::svglite, bg = "transparent")
-qsave(gGrid, paste0(INTER_DIR, 'pop_diff_K', K, '.qs'))
+qsave(gGrid, OUT_QS)

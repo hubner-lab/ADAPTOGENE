@@ -8,9 +8,16 @@ args = commandArgs(trailingOnly=TRUE)
 #################################
 LFMM = args[1]
 SAMPLES = args[2]
-PLOT_DIR = args[3]
-INTER_DIR = args[4]
+OUT_PCA_PNG = args[3]
+OUT_TRACY_PNG = args[4]
+INTER_DIR = args[5]
 #################################
+
+# Derive SVG and QS paths from PNG paths
+OUT_PCA_SVG <- sub("\\.png$", ".svg", OUT_PCA_PNG)
+OUT_PCA_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PCA_PNG)))
+OUT_TRACY_SVG <- sub("\\.png$", ".svg", OUT_TRACY_PNG)
+OUT_TRACY_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_TRACY_PNG)))
 
 # Load samples info
 samples.df <- fread(SAMPLES,
@@ -39,9 +46,9 @@ gPCA <- ggplot(isrPCA, aes(x = PC1, y = PC2,
         guides(color = guide_legend(ncol=2)) +
         theme_bw()
 
-ggsave(paste0(PLOT_DIR, "pca.png"), gPCA)
-ggsave(paste0(PLOT_DIR, "pca.svg"), gPCA, device = svglite::svglite, bg = 'transparent')
-qsave(gPCA, paste0(INTER_DIR, "pca.qs"))
+ggsave(OUT_PCA_PNG, gPCA)
+ggsave(OUT_PCA_SVG, gPCA, device = svglite::svglite, bg = 'transparent')
+qsave(gPCA, OUT_PCA_QS)
 
 # Tracy-Widom test
 tw <- tracy.widom(pc)
@@ -53,6 +60,6 @@ gTW <- ggplot(data = tw, aes(x = N, y = percentage)) +
        ggtitle("Tracy Widom") +
        theme(plot.title = element_text(hjust = 0.5))
 
-ggsave(paste0(PLOT_DIR, "tracy_widom.png"), gTW)
-ggsave(paste0(PLOT_DIR, "tracy_widom.svg"), gTW, device = svglite::svglite, bg = 'transparent')
-qsave(gTW, paste0(INTER_DIR, "tracy_widom.qs"))
+ggsave(OUT_TRACY_PNG, gTW)
+ggsave(OUT_TRACY_SVG, gTW, device = svglite::svglite, bg = 'transparent')
+qsave(gTW, OUT_TRACY_QS)

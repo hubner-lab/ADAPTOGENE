@@ -25,25 +25,25 @@ rule pca_plot:
         tracy = O['tracy'],
         projections = W['pca_projections'],
         eigenvalues = W['pca_eigenvalues']
-    params: plot_dir = f"{MOD_STRUCT}plots/", inter_dir = INTER
+    params: inter_dir = INTER
     log:    f"{LOGDIR}structure/pca_plot.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_pca.R \
-            {input.lfmm} {input.meta} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.lfmm} {input.meta} {output.pca} {output.tracy} {params.inter_dir} > {log} 2>&1
         """
 
 rule cross_entropy_plot:
     """Plot cross-entropy for K selection."""
     input:  snmf = W['snmf']
     output: O['cross_entropy']
-    params: ks = K_START, ke = K_END, plot_dir = f"{MOD_STRUCT}plots/", inter_dir = INTER
+    params: ks = K_START, ke = K_END, inter_dir = INTER
     log:    f"{LOGDIR}structure/cross_entropy.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_cross_entropy.R \
             {input.snmf} {params.ks} {params.ke} \
-            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule extract_clusters:
@@ -64,12 +64,12 @@ rule structure_barplot:
     input:  clusters = clusters_table("{k}")
     output: structure_plot("{k}")
     wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k, plot_dir = f"{MOD_STRUCT}plots/", inter_dir = INTER
+    params: k = lambda wc: wc.k, inter_dir = INTER
     log:    f"{LOGDIR}structure/structure_plot_K{{k}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_structure.R \
-            {input.clusters} {params.k} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.clusters} {params.k} {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule pca_structure_plot:
@@ -80,13 +80,13 @@ rule pca_structure_plot:
         eigenvalues = W['pca_eigenvalues']
     output: pca_struct_plot("{k}")
     wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k, plot_dir = f"{MOD_STRUCT}plots/", inter_dir = INTER
+    params: k = lambda wc: wc.k, inter_dir = INTER
     log:    f"{LOGDIR}structure/pca_structure_K{{k}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_pca_structure.R \
             {input.clusters} {input.projections} {input.eigenvalues} \
-            {params.k} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {params.k} {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule pop_diff_test:
@@ -97,7 +97,6 @@ rule pop_diff_test:
     params:
         k = lambda wc: wc.k,
         ploidy = PLOIDY,
-        plot_dir = f"{MOD_STRUCT}plots/",
         inter_dir = INTER,
         scattermore_threshold = SCATTERMORE_THRESHOLD
     log:    f"{LOGDIR}structure/pop_diff_K{{k}}.log"
@@ -105,5 +104,5 @@ rule pop_diff_test:
         """
         Rscript /pipeline/scripts/plot_pop_diff.R \
             {input.snmf} {params.k} {params.ploidy} \
-            {params.plot_dir} {params.inter_dir} {params.scattermore_threshold} > {log} 2>&1
+            {output} {params.inter_dir} {params.scattermore_threshold} > {log} 2>&1
         """

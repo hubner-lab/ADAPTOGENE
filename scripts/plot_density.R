@@ -10,10 +10,13 @@ args = commandArgs(trailingOnly=TRUE)
 #################################
 CLIMATE = args[1]       # climate site values TSV
 PREDICTORS = args[2]    # comma-separated list of bio variables (e.g., "bio_1,bio_2,bio_3")
-PLOT_DIR = args[3]
+OUT_PNG = args[3]
 INTER_DIR = args[4]
-FILENAME_PREFIX = if (length(args) >= 5) args[5] else 'density_plot_combined'
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Parse predictors
 bio_vars <- strsplit(PREDICTORS, ",")[[1]]
@@ -87,12 +90,10 @@ fig_width <- ncol * 3.5
 fig_height <- nrow * 3
 
 # Save combined plot
-ggsave(paste0(PLOT_DIR, FILENAME_PREFIX, '.png'), combined_plot,
-       width = fig_width, height = fig_height, dpi = 300)
-ggsave(paste0(PLOT_DIR, FILENAME_PREFIX, '.svg'), combined_plot,
-       device = svglite::svglite, bg = 'transparent',
+ggsave(OUT_PNG, combined_plot, width = fig_width, height = fig_height, dpi = 300)
+ggsave(OUT_SVG, combined_plot, device = svglite::svglite, bg = 'transparent',
        width = fig_width, height = fig_height)
-qsave(combined_plot, paste0(INTER_DIR, FILENAME_PREFIX, '.qs'))
+qsave(combined_plot, OUT_QS)
 
 message(paste0('INFO: Saved combined density plot (', ncol, 'x', nrow, ' grid)'))
 message('INFO: Complete')

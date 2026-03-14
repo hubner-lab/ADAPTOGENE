@@ -10,9 +10,13 @@ CLUSTERS = args[1]
 PROJECTIONS = args[2]  # LEA PCA projections file
 EIGENVALUES = args[3]  # LEA PCA eigenvalues file
 K = args[4] %>% as.numeric
-PLOT_DIR = args[5]
+OUT_PNG = args[5]
 INTER_DIR = args[6]
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Colors — colorblind-safe (Wong 2011 + Paul Tol), visible on yellow/orange climate rasters
 my.colors = c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9",
@@ -68,9 +72,8 @@ gPCA <- ggplot(df, aes(PC1, PC2, label = as.factor(site))) +
   plot_theme
 
 # Save
-ggsave(paste0(PLOT_DIR, 'pca_structure_K', K, '.png'), gPCA)
-ggsave(paste0(PLOT_DIR, 'pca_structure_K', K, '.svg'), gPCA,
-       device = svglite::svglite, bg = "transparent")
-qsave(gPCA, paste0(INTER_DIR, 'pca_structure_K', K, '.qs'))
+ggsave(OUT_PNG, gPCA)
+ggsave(OUT_SVG, gPCA, device = svglite::svglite, bg = "transparent")
+qsave(gPCA, OUT_QS)
 
 message('INFO: PCA structure plot complete')

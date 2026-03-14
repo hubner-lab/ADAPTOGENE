@@ -7,9 +7,13 @@ args = commandArgs(trailingOnly=TRUE)
 #################################
 CLUSTERS = args[1]
 K = args[2] %>% as.numeric
-PLOT_DIR = args[3]
+OUT_PNG = args[3]
 INTER_DIR = args[4]
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Colors — colorblind-safe (Wong 2011 + Paul Tol), visible on yellow/orange climate rasters
 my.colors = c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9",
@@ -45,7 +49,7 @@ gStructure <-
     guides(fill = guide_legend(title = "Clusters"))
 
 # Save
-ggsave(paste0(PLOT_DIR, 'structure_K', K, '.png'), gStructure, width = 3 * 6.4, height = 4.8)
-ggsave(paste0(PLOT_DIR, 'structure_K', K, '.svg'), gStructure, width = 3 * 6.4, height = 4.8,
+ggsave(OUT_PNG, gStructure, width = 3 * 6.4, height = 4.8)
+ggsave(OUT_SVG, gStructure, width = 3 * 6.4, height = 4.8,
        device = svglite::svglite, bg = "transparent")
-qsave(gStructure, paste0(INTER_DIR, 'structure_K', K, '.qs'))
+qsave(gStructure, OUT_QS)

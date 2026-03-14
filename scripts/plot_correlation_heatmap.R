@@ -8,9 +8,13 @@ args = commandArgs(trailingOnly=TRUE)
 #################################
 CLIMATE = args[1]    # climate factors from sites
 SAMPLES = args[2]    # samples with traits if exists
-PLOT_DIR = args[3]
+OUT_PNG = args[3]
 INTER_DIR = args[4]
 #################################
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 # Plot theme
 plot_theme <-
@@ -58,7 +62,7 @@ width <- ncol(traits) * scale_factor
 height <- ncol(traits) * scale_factor
 
 # Save
-ggsave(paste0(PLOT_DIR, 'correlation_heatmap.png'), gHM, width = width, height = height, units = "in")
-ggsave(paste0(PLOT_DIR, 'correlation_heatmap.svg'), gHM, width = width, height = height, units = "in",
+ggsave(OUT_PNG, gHM, width = width, height = height, units = "in")
+ggsave(OUT_SVG, gHM, width = width, height = height, units = "in",
        device = svglite::svglite, bg = 'transparent')
-qsave(gHM, paste0(INTER_DIR, 'correlation_heatmap.qs'))
+qsave(gHM, OUT_QS)

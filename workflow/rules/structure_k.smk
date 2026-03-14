@@ -54,15 +54,12 @@ rule density_plot:
     output: DENSITY_PLOT_COMBINED
     params:
         predictors = PREDICTORS_SELECTED,
-        plot_dir = f"{MOD_CLIMATE}plots/",
-        inter_dir = INTER,
-        prefix = "density_plot_present"
+        inter_dir = INTER
     log:    f"{LOGDIR}structure_k/density_plot.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_density.R \
-            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} \
-            {params.prefix} > {log} 2>&1
+            {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule tajima_d:
@@ -110,12 +107,12 @@ rule correlation_heatmap:
     """Generate correlation heatmap of climate variables and traits."""
     input:  climate = O['climate_site'], meta = O['metadata']
     output: O['corr_heatmap']
-    params: plot_dir = f"{MOD_CLIMATE}plots/", inter_dir = INTER
+    params: inter_dir = INTER
     log:    f"{LOGDIR}structure_k/correlation_heatmap.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_correlation_heatmap.R \
-            {input.climate} {input.meta} {params.plot_dir} {params.inter_dir} > {log} 2>&1
+            {input.climate} {input.meta} {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule mantel_test:

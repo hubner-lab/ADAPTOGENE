@@ -11,6 +11,7 @@ args = commandArgs(trailingOnly=TRUE)
 ################
 FILES_STR = args[1]   # space-separated list of per-trait p-value TSV paths
 OUTPUT = args[2]       # output file path for combined p-values
+QVAL_OUTPUT = args[3]  # output file path for combined q-values
 ################
 
 # Parse input files
@@ -47,6 +48,5 @@ qval_dt <- lapply(pval_dt %>% dplyr::select(-SNPID, -chr, -pos), function(pvals)
 fwrite(pval_dt, OUTPUT, sep = '\t')
 message(paste0('INFO: Saved combined p-values to ', OUTPUT))
 
-qval_path <- OUTPUT %>% str_replace('pvalues', 'qvalues')
-fwrite(qval_dt, qval_path, sep = '\t')
-message(paste0('INFO: Saved combined q-values to ', qval_path))
+fwrite(qval_dt, QVAL_OUTPUT, sep = '\t')
+message(paste0('INFO: Saved combined q-values to ', QVAL_OUTPUT))

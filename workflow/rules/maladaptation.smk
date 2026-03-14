@@ -52,15 +52,12 @@ rule density_plot_future:
     output: O['density_future']
     params:
         predictors = PREDICTORS_SELECTED,
-        plot_dir = f"{MOD_CLIMATE}plots/",
-        inter_dir = INTER,
-        prefix = f"density_plot_future_ssp{SSP}_{YEAR}"
+        inter_dir = INTER
     log: f"{LOGDIR}maladaptation/density_plot_future.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_density.R \
-            {input.climate} {params.predictors} {params.plot_dir} {params.inter_dir} \
-            {params.prefix} > {log} 2>&1
+            {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
 # Gradient Forest - adaptive model
@@ -149,15 +146,13 @@ rule plot_gf_cumimp:
     params:
         gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
         predictors = PREDICTORS_SELECTED,
-        plot_dir = f"{MOD_MALAD}plots/",
-        inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM_TAG}"
+        inter_dir = INTER
     log: f"{LOGDIR}maladaptation/plot_gf_cumimp.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_gf_cumimp.R \
             {input.gf} {params.gf_random_path} {params.predictors} \
-            {params.plot_dir} {params.inter_dir} {params.suffix} > {log} 2>&1
+            {output} {params.inter_dir} > {log} 2>&1
         """
 
 # Overall importance plot
@@ -169,15 +164,13 @@ rule plot_gf_importance:
     output: O['gf_importance']
     params:
         gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
-        plot_dir = f"{MOD_MALAD}plots/",
-        inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM_TAG}"
+        inter_dir = INTER
     log: f"{LOGDIR}maladaptation/plot_gf_importance.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_gf_importance.R \
             {input.gf} {params.gf_random_path} \
-            {params.plot_dir} {params.inter_dir} {params.suffix} > {log} 2>&1
+            {output} {params.inter_dir} > {log} 2>&1
         """
 
 # Genetic offset PieMap

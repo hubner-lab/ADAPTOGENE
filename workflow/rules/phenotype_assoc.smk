@@ -156,13 +156,15 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
     rule combine_pheno_pvalues:
         """Merge per-trait p-value files into combined table (DROP mode)."""
         input: expand(f"{MOD_PHENO}tables/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
-        output: pheno_pvalues("EMMAX")
+        output:
+            pvals = pheno_pvalues("EMMAX"),
+            qvals = pheno_qvalues("EMMAX")
         params: files_str = lambda wc, input: ' '.join(input)
         log: f"{LOGDIR}phenotype_association/combine_pheno_pvalues.log"
         shell:
             """
             Rscript /pipeline/scripts/combine_pheno_pvalues.R \
-                "{params.files_str}" {output} > {log} 2>&1
+                "{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1
             """
 
 # --- Downstream rules (shared by both paths, reuse existing scripts) ---

@@ -10,10 +10,13 @@ args = commandArgs(trailingOnly=TRUE)
 ###############
 GF_ADAPTIVE_PATH = args[1]
 GF_RANDOM_PATH = args[2]    # path or "NULL"
-PLOT_DIR = args[3]
+OUT_PNG = args[3]
 INTER_DIR = args[4]
-SUFFIX = args[5]
 ###############
+
+# Derive SVG and QS paths from PNG path
+OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
+OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
 message('INFO: Plotting Overall Importance')
 
@@ -59,9 +62,8 @@ if (has_random) {
   gImp <- gAdapt
 }
 
-ggsave(paste0(PLOT_DIR, 'overall_importance_', SUFFIX, '.png'), gImp)
-ggsave(paste0(PLOT_DIR, 'overall_importance_', SUFFIX, '.svg'), gImp,
-       device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
-qsave(gImp, paste0(INTER_DIR, 'overall_importance_', SUFFIX, '.qs'))
+ggsave(OUT_PNG, gImp)
+ggsave(OUT_SVG, gImp, device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
+qsave(gImp, OUT_QS)
 
 message('INFO: Overall importance plot complete')
