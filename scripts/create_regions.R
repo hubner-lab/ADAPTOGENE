@@ -10,7 +10,7 @@
 # and SNP_B is within REGION_DISTANCE of SNP_C, then all three belong to the same region,
 # even if SNP_A and SNP_C are far apart.
 #
-# Output region_id format: CHR:START-END_TRAIT (e.g., "1:1000000-2500000_bio_1")
+# Output region_id format: CHR_START-END_TRAIT (e.g., "1_1000000-2500000_bio_1")
 
 library(data.table)
 library(dplyr)
@@ -94,9 +94,9 @@ create_regions_from_snps <- function(snps_dt, trait_label = NULL) {
 
         # Create region ID (uses extended boundaries)
         region_id <- if (!is.null(trait_label)) {
-            paste0(region_chr, ':', region_start, '-', region_end, '_', trait_label)
+            paste0(region_chr, '_', region_start, '-', region_end, '_', trait_label)
         } else {
-            paste0(region_chr, ':', region_start, '-', region_end)
+            paste0(region_chr, '_', region_start, '-', region_end)
         }
 
         data.table(

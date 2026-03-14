@@ -13,3 +13,4 @@ config_WBDC.yaml
 WBDC*
 ANALYSIS/
 TEMP/
+docs/

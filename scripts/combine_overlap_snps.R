@@ -77,9 +77,9 @@ create_regions_from_snps <- function(snps_dt, rdist, trait_label = NULL) {
 
         # Region ID uses extended boundaries
         region_id <- if (!is.null(trait_label)) {
-            paste0(region_chr, ':', region_start, '-', region_end, '_', trait_label)
+            paste0(region_chr, '_', region_start, '-', region_end, '_', trait_label)
         } else {
-            paste0(region_chr, ':', region_start, '-', region_end)
+            paste0(region_chr, '_', region_start, '-', region_end)
         }
 
         data.table(

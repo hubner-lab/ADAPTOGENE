@@ -78,7 +78,7 @@ data.table(
             AMOVA$results$Df[2],
             AMOVA$results$Df[3])
 ) %>%
-  fwrite(paste0(TABLES_DIR, 'AMOVA.tsv'), sep = '\t')
+  fwrite(paste0(TABLES_DIR, 'amova.tsv'), sep = '\t')
 
 # Create data frame for the pie chart
 variations <- data.frame(
@@ -113,12 +113,12 @@ pie_chart <- pie_chart +
             position = position_stack(vjust = 0.5))
 
 # Save outputs
-ggsave(paste0(PLOT_DIR, "AMOVA.png"), pie_chart)
-ggsave(paste0(PLOT_DIR, "AMOVA.svg"), pie_chart,
+ggsave(paste0(PLOT_DIR, "amova.png"), pie_chart)
+ggsave(paste0(PLOT_DIR, "amova.svg"), pie_chart,
        device = svglite::svglite, bg = 'transparent')
 
 # Save AMOVA results as qs
 AMOVA_result <- list(AMOVA = AMOVA,
                      AMOVAsignif = AMOVAsignif)
-qsave(AMOVA_result, paste0(INTER_DIR, 'AMOVA_result.qs'))
-qsave(pie_chart, paste0(INTER_DIR, 'AMOVA_plot.qs'))
+qsave(AMOVA_result, paste0(INTER_DIR, 'amova_result.qs'))
+qsave(pie_chart, paste0(INTER_DIR, 'amova_plot.qs'))

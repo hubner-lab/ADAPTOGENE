@@ -206,7 +206,11 @@ if (nrow(regions) == 0) {
     region_chr <- as.character(region$chr)
     region_start <- region$start
     region_end <- region$end
-    region_traits <- str_split(region$traits, ',')[[1]]
+    region_traits <- if ('traits' %in% colnames(regions)) {
+      str_split(region$traits, ',')[[1]]
+    } else {
+      region$trait
+    }
 
     message(paste0('INFO: Region ', i, '/', nrow(regions), ': ', region_id))
 
@@ -223,7 +227,7 @@ if (nrow(regions) == 0) {
     # One plot per trait
     for (trait in region_traits) {
       message(paste0('INFO:   Trait: ', trait))
-      filename_base <- paste0(PLOT_DIR, 'regionPlot_', region_safe, '_', trait)
+      filename_base <- paste0(PLOT_DIR, 'regionplot_', region_safe, '_', trait)
       plot_region_trait(region_str, trait, assoc_list, gff_table, filename_base)
     }
   }
@@ -273,7 +277,7 @@ if (!is.null(CUSTOM_REGION) && CUSTOM_REGION != 'NULL' && CUSTOM_REGION != '') {
   # One plot per trait
   for (trait in custom_trait_list) {
     message(paste0('INFO:   Custom trait: ', trait))
-    filename_base <- paste0(PLOT_DIR, 'regionPlot_custom_', region_safe, '_', trait)
+    filename_base <- paste0(PLOT_DIR, 'regionplot_custom_', region_safe, '_', trait)
     plot_region_trait(region_str, trait, custom_assoc_list, gff_table, filename_base)
   }
 }

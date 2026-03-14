@@ -12,7 +12,7 @@ CLIMATE = args[1]       # climate site values TSV
 PREDICTORS = args[2]    # comma-separated list of bio variables (e.g., "bio_1,bio_2,bio_3")
 PLOT_DIR = args[3]
 INTER_DIR = args[4]
-FILENAME_PREFIX = if (length(args) >= 5) args[5] else 'DensityPlot_combined'
+FILENAME_PREFIX = if (length(args) >= 5) args[5] else 'density_plot_combined'
 #################################
 
 # Parse predictors
@@ -48,7 +48,7 @@ for (bio in bio_vars) {
   plot_list[[bio]] <- gDens
 
   # Save individual plot to intermediate for potential reuse
-  qsave(gDens, paste0(INTER_DIR, 'DensityPlot_', bio, '.qs'))
+  qsave(gDens, paste0(INTER_DIR, 'density_plot_', bio, '.qs'))
 }
 
 message(paste0('INFO: Created ', length(plot_list), ' density plots'))

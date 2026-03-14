@@ -200,9 +200,9 @@ results <- analyze_mantel(geo, env, clust)
 gMantel <- create_variance_pie(results)
 
 # Save
-ggsave(paste0(PLOT_DIR, 'MantelTest.png'), gMantel, width = 10, height = 8, dpi = 300)
-ggsave(paste0(PLOT_DIR, 'MantelTest.svg'), gMantel,
+ggsave(paste0(PLOT_DIR, 'mantel_test.png'), gMantel, width = 10, height = 8, dpi = 300)
+ggsave(paste0(PLOT_DIR, 'mantel_test.svg'), gMantel,
        device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
-qsave(results, paste0(INTER_DIR, 'MantelTest.qs'))
+qsave(results, paste0(INTER_DIR, 'mantel_test.qs'))
 
 message('INFO: Mantel test complete')

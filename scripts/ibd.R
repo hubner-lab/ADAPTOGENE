@@ -85,12 +85,11 @@ ibd <- FUN_ibd(clusters, samples, CPU)
 
 # Save
 ibd$raw %>%
-	fwrite(paste0(TABLES_DIR, 'IBD_raw.tsv'), sep = '\t')
-				#			message(ibd$not_ibd %>% str)
+	fwrite(paste0(TABLES_DIR, 'ibd_raw.tsv'), sep = '\t')
 ibd$not_ibd %>%
 	do.call(rbind, . ) %>%
 	as.data.table %>%
 	dplyr::rename(pop1 = V1, pop2 = V2) %>%
-	fwrite(paste0(TABLES_DIR, 'IBD_notIsolated.tsv'), sep = '\t') # not isolated 
+	fwrite(paste0(TABLES_DIR, 'ibd_pairs.tsv'), sep = '\t')
 
 #TODO plot heatmap

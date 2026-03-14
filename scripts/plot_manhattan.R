@@ -270,7 +270,7 @@ p_simple <- p_simple +
     theme_manhattan()
 
 # Save simple plot in PNG and SVG formats
-simple_base <- paste0("Manhattan_", TRAIT, "_K", Kbest, "_", ADJUST)
+simple_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST)
 
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_simple,
        width = 10, height = 4, dpi = 300)
@@ -544,7 +544,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 guides(color = guide_legend(ncol = 1, override.aes = list(size = 2)))
 
             # Save regions plot in PNG and SVG formats
-            regions_base <- paste0("Manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions")
+            regions_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions")
             ggsave(file.path(PLOT_DIR, paste0(regions_base, ".png")), p_regions,
                    width = 12, height = 4.5, dpi = 300)
             ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_regions,
@@ -568,7 +568,7 @@ if (!regions_generated) {
     message('INFO: Saving simple plot as regions version (no regions to highlight)')
     p_no_regions <- p_simple +
         labs(subtitle = paste0("K = ", Kbest, ", threshold: ", adjustment, " ", original_threshold, " (no significant regions)"))
-    regions_base <- paste0("Manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions")
+    regions_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions")
     ggsave(file.path(PLOT_DIR, paste0(regions_base, ".png")), p_no_regions,
            width = 10, height = 4, dpi = 300)
     ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_no_regions,

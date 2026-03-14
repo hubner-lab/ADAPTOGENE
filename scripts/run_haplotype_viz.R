@@ -218,7 +218,7 @@ for (i in seq_len(nrow(regions))) {
         fwrite(trait_data, trait_file, sep = "\t", quote = FALSE)
 
         # Call plot_piemap.R
-        piemap_prefix <- paste0("HaplotypePieMap_Region_", rid, "_", trait)
+        piemap_prefix <- paste0("haplotype_piemap_region_", rid, "_", trait)
         cmd <- paste0(
           "Rscript /pipeline/scripts/plot_piemap.R ",
           raster_path, " ", raster_layer_name, " ", raster_layer_name, " ",

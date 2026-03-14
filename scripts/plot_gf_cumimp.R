@@ -59,9 +59,9 @@ nrows <- ceiling(n / ncols)
 
 gCumImp <- ggarrange(plotlist = gList, nrow = nrows, ncol = ncols, common.legend = TRUE)
 
-ggsave(paste0(PLOT_DIR, 'CumulativeImportance_', SUFFIX, '.png'), gCumImp)
-ggsave(paste0(PLOT_DIR, 'CumulativeImportance_', SUFFIX, '.svg'), gCumImp,
+ggsave(paste0(PLOT_DIR, 'cumulative_importance_', SUFFIX, '.png'), gCumImp)
+ggsave(paste0(PLOT_DIR, 'cumulative_importance_', SUFFIX, '.svg'), gCumImp,
        device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
-qsave(gCumImp, paste0(INTER_DIR, 'CumulativeImportance_', SUFFIX, '.qs'))
+qsave(gCumImp, paste0(INTER_DIR, 'cumulative_importance_', SUFFIX, '.qs'))
 
 message('INFO: Cumulative importance plot complete')

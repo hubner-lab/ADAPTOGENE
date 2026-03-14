@@ -138,15 +138,15 @@ if (nrow(genes) == 0) {
 
 message(paste0('INFO: Loaded ', nrow(genes), ' region-gene pairs'))
 
-# Extract trait from region_id (format: chr:start-end_trait)
-# region_id examples: "1:10238549-10683918_bio_12", "2:25222568-25222568_bio_1"
-# Extract everything after the first underscore (which comes after genomic coordinates)
+# Extract trait from region_id (format: chr_start-end_trait)
+# region_id examples: "1_10238549-10683918_bio_12", "2_25222568-25222568_bio_1"
+# Extract everything after the coordinates part (chr_start-end_)
 genes <- genes %>%
-    dplyr::mutate(trait = sub("^[^_]+_", "", region_id))
+    dplyr::mutate(trait = sub("^[^_]+_\\d+-\\d+_", "", region_id))
 
 # Check if trait extraction worked
 if (all(is.na(genes$trait))) {
-    message('ERROR: Could not extract trait from region_id. Expected format: chr:start-end_TRAIT')
+    message('ERROR: Could not extract trait from region_id. Expected format: chr_start-end_TRAIT')
     message('Example region_id from data: ', genes$region_id[1])
     quit(save = "no", status = 1)
 }

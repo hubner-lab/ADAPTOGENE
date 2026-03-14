@@ -59,9 +59,9 @@ if (has_random) {
   gImp <- gAdapt
 }
 
-ggsave(paste0(PLOT_DIR, 'OverallImportance_', SUFFIX, '.png'), gImp)
-ggsave(paste0(PLOT_DIR, 'OverallImportance_', SUFFIX, '.svg'), gImp,
+ggsave(paste0(PLOT_DIR, 'overall_importance_', SUFFIX, '.png'), gImp)
+ggsave(paste0(PLOT_DIR, 'overall_importance_', SUFFIX, '.svg'), gImp,
        device = svglite::svglite, bg = "transparent", fix_text_size = FALSE)
-qsave(gImp, paste0(INTER_DIR, 'OverallImportance_', SUFFIX, '.qs'))
+qsave(gImp, paste0(INTER_DIR, 'overall_importance_', SUFFIX, '.qs'))
 
 message('INFO: Overall importance plot complete')

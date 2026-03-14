@@ -347,7 +347,7 @@ p_simple <- ggplot() +
     )
 
 # Save simple plot
-simple_base <- paste0("Manhattan_all_traits_combined_K", Kbest)
+simple_base <- paste0("manhattan_combined_K", Kbest)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_simple,
        width = 14, height = 5, dpi = 300)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_simple,
@@ -520,7 +520,7 @@ if (file.exists(REGIONS_FILE)) {
             )
 
         # Save regions plot
-        regions_base <- paste0("Manhattan_all_traits_combined_K", Kbest, "_regions")
+        regions_base <- paste0("manhattan_combined_K", Kbest, "_regions")
         ggsave(file.path(PLOT_DIR, paste0(regions_base, ".png")), p_regions,
                width = 15, height = 5.5, dpi = 300)
         ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_regions,
