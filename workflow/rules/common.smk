@@ -243,7 +243,8 @@ def get_zoom_suffix():
     return f"_zoom_{coords}"
 
 # CLIMATE parameters
-PREDICTORS_SELECTED = _cfg('climate', 'predictors', '')
+CLIMATE_ENABLED = _cfg('climate', 'enabled', True)
+PREDICTORS_SELECTED = _cfg('climate', 'predictors', '') if CLIMATE_ENABLED else ''
 
 # POP parameters
 CALC_POP_STATS = _cfg('pop', 'calc_stats', False)
@@ -691,7 +692,7 @@ dirs_to_create = [
     # Module directories
     f"{MOD_PROC}tables/",
     f"{MOD_STRUCT}plots/", f"{MOD_STRUCT}tables/",
-    f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}rasters/present/",
+    *([ f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}rasters/present/" ] if CLIMATE_ENABLED else []),
     f"{MOD_STRUCTK}plots/piemap/", f"{MOD_STRUCTK}tables/",
     # Log subdirectories
     f"{LOGDIR}processing/", f"{LOGDIR}structure/", f"{LOGDIR}structure_k/",
@@ -713,12 +714,13 @@ dirs_to_create.append(f"{INTER}enrichment/association/")
 # Add regionplot directory
 dirs_to_create.append(f"{MOD_REGPLOT}plots/")
 
-# Add maladaptation directories
-dirs_to_create.append(f"{MOD_MALAD}plots/")
-dirs_to_create.append(f"{MOD_MALAD}tables/")
-dirs_to_create.append(f"{INTER}gradient_forest/")
-dirs_to_create.append(f"{MOD_CLIMATE}rasters/future/")
-dirs_to_create.append(f"{MOD_CLIMATE}tables/future/")
+# Add maladaptation directories (require climate)
+if CLIMATE_ENABLED:
+    dirs_to_create.append(f"{MOD_MALAD}plots/")
+    dirs_to_create.append(f"{MOD_MALAD}tables/")
+    dirs_to_create.append(f"{INTER}gradient_forest/")
+    dirs_to_create.append(f"{MOD_CLIMATE}rasters/future/")
+    dirs_to_create.append(f"{MOD_CLIMATE}tables/future/")
 
 # Add phenotype association directories
 if PHENO_ASSOC_CONFIGS:
@@ -805,44 +807,41 @@ def get_targets(mode):
     
     elif mode == 'structure_K':
         check_numeric(K_BEST, 'K_BEST')
-        predictors = get_predictors_list()
-        if not predictors:
-            raise ValueError("PREDICTORS_SELECTED must be set for structure_K mode")
 
-        targets = (
-            # Imputed data
-            [W['lfmm_imp'], W['vcf_imp']] +
-            # Climate data
-            [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']] +
-            # Combined density plot for all predictors
-            [DENSITY_PLOT_COMBINED] +
-            # Correlation heatmap (doesn't require pop stats)
-            [O['corr_heatmap']]
-        )
+        # Imputed data (always needed)
+        targets = [W['lfmm_imp'], W['vcf_imp']]
 
-        # Simple PieMaps (uniform pie size) - always generated
-        targets += [piemap_notrait(bio) for bio in predictors]
+        # Climate-dependent targets
+        if CLIMATE_ENABLED:
+            predictors = get_predictors_list()
+            if not predictors:
+                raise ValueError("climate.predictors must be set when climate.enabled is true")
+            targets += [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']]
+            targets += [DENSITY_PLOT_COMBINED]
+            targets += [O['corr_heatmap']]
+            # Simple PieMaps (uniform pie size)
+            targets += [piemap_notrait(bio) for bio in predictors]
 
         # Population statistics (requires >= 3 samples per population)
         if CALC_POP_STATS:
-            targets += (
-                # Population metrics
-                [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']] +
-                # Summary plots requiring pop stats
-                [O['mantel'], O['amova'], O['amova_plot']] +
-                # PieMaps with trait overlays (in addition to simple piemaps)
-                [piemap_tajima(bio) for bio in predictors] +
-                [piemap_diversity(bio) for bio in predictors]
-            )
+            targets += [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']]
+            targets += [O['amova'], O['amova_plot']]
+            if CLIMATE_ENABLED:
+                targets += [O['mantel']]  # mantel test needs climate predictors
+                # PieMaps with trait overlays
+                targets += [piemap_tajima(bio) for bio in predictors]
+                targets += [piemap_diversity(bio) for bio in predictors]
 
         targets.append(W['summary_done'])
         return targets
 
     elif mode == 'association':
+        if not CLIMATE_ENABLED:
+            raise ValueError("association mode requires climate.enabled: true (GEA uses climate predictors as traits)")
         check_numeric(K_BEST, 'K_BEST')
         predictors = get_predictors_list()
         if not predictors:
-            raise ValueError("PREDICTORS_SELECTED must be set for association mode")
+            raise ValueError("climate.predictors must be set for association mode")
         if not ASSOC_CONFIGS:
             raise ValueError("ASSOCIATION_CONFIGS must be set for association mode")
         if GFF:
@@ -892,6 +891,8 @@ def get_targets(mode):
         return [O['regionplot_done']]
 
     elif mode == 'maladaptation':
+        if not CLIMATE_ENABLED:
+            raise ValueError("maladaptation mode requires climate.enabled: true")
         check_numeric(K_BEST, 'K_BEST')
         check_numeric(SSP, 'SSP')
         check_numeric(NTREE, 'NTREE')
@@ -955,9 +956,10 @@ def get_targets(mode):
             O['pheno_manhattan_combined'], O['pheno_manhattan_combined_regions'],
         ])
 
-        # Phenotype piemaps
-        for trait in PHENO_TRAITS:
-            targets.append(f"{MOD_PHENO}plots/piemap/phenomap_{trait}.png")
+        # Phenotype piemaps (require climate raster for background)
+        if CLIMATE_ENABLED:
+            for trait in PHENO_TRAITS:
+                targets.append(f"{MOD_PHENO}plots/piemap/phenomap_{trait}.png")
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
@@ -967,6 +969,8 @@ def get_targets(mode):
         return targets
 
     elif mode == 'overlapping':
+        if not CLIMATE_ENABLED:
+            raise ValueError("overlapping mode requires climate.enabled: true (needs GEA results)")
         check_numeric(K_BEST, 'K_BEST')
         if not ASSOC_CONFIGS:
             raise ValueError("ASSOC_CONFIGS must be set (run mode=association first)")

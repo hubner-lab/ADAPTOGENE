@@ -53,6 +53,7 @@ map:
 # CLIMATE: Bioclimatic variables for association and offset analyses
 #-----------------------------------------------------------------------------
 climate:
+  enabled: true                    # Set false to skip all climate-dependent analysis (GEA, maladaptation)
   predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
 
 #-----------------------------------------------------------------------------

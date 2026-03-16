@@ -1,0 +1,147 @@
+#=============================================================================
+# Arabidopsis 1001 Genomes — Full Pipeline Benchmark
+#=============================================================================
+# Source: The 1001 Genomes Consortium, 2016, Cell 166(2):481-491
+# 1,135 accessions from 52 countries, ~50K SNPs (thinned from 11M)
+# VCF from 1001genomes.org, phenotypes from AraPheno
+#
+# Ground truth: FRI (chr4:269k), FLC (chr5:3.17M) for flowering time
+# Pipeline test: Full pipeline (all modes except haplotype)
+# Phenotypes: FT10 (flowering at 10C), FT16 (flowering at 16C)
+
+#-----------------------------------------------------------------------------
+# INPUT
+#-----------------------------------------------------------------------------
+input:
+  dir: "data/"
+  vcf: 'Arabidopsis_1001G.vcf'
+  metadata: 'Arabidopsis_1001G_metadata.tsv'
+  gff: 'Arabidopsis_1001G.gff3'
+
+project_name: 'Arabidopsis'
+cpu: 10
+
+#-----------------------------------------------------------------------------
+# FILTER
+#-----------------------------------------------------------------------------
+filter:
+  maf: 0.05
+  snp_miss: 0.1
+  sample_miss: 0.5
+
+#-----------------------------------------------------------------------------
+# LD
+#-----------------------------------------------------------------------------
+ld:
+  window: 50
+  step: 10
+  r2: 0.2
+
+#-----------------------------------------------------------------------------
+# SNMF
+#-----------------------------------------------------------------------------
+snmf:
+  k_start: 2
+  k_end: 12
+  k_best: 8                     # Complex structure — adjust after cross-entropy
+  ploidy: 2
+  repeats: 10
+
+#-----------------------------------------------------------------------------
+# MAP
+#-----------------------------------------------------------------------------
+map:
+  climate_extent: "auto"
+  gap: 2.0                      # Global distribution (Europe + Asia + Americas)
+  resolution: 2.5
+  zoom_extent: "NULL"
+
+#-----------------------------------------------------------------------------
+# CLIMATE
+#-----------------------------------------------------------------------------
+climate:
+  enabled: true
+  predictors: "bio_1,bio_4,bio_12,bio_15"
+
+#-----------------------------------------------------------------------------
+# POPULATION STATS
+#-----------------------------------------------------------------------------
+pop:
+  calc_stats: TRUE
+  window_size: 100000            # Small genome (~135 Mb), 50K SNPs
+  custom_trait_file: 'NULL'
+
+#-----------------------------------------------------------------------------
+# PIEMAP
+#-----------------------------------------------------------------------------
+piemap:
+  alpha: 0.6
+  show_labels: 'F'
+  label_size: 8
+  pie_scale: 1.0
+
+#-----------------------------------------------------------------------------
+# ASSOCIATION (GEA — climate)
+#-----------------------------------------------------------------------------
+association:
+  configs:
+    - method: "EMMAX"
+      adjust: "bonf"
+      threshold: '0.05'
+    - method: "LFMM"
+      adjust: "bonf"
+      threshold: '0.05'
+  combine_method: 'Sum'
+  combine_gap: 50000
+  sig_snp_distance: 50000
+  region_distance: 500000        # Small genome — tighter regions
+  top_regions: 10
+  promoter_length: 2000          # Arabidopsis has compact promoters
+  go_field: 'Ontology_term'     # Ensembl attribute (no GO terms available)
+  scattermore_threshold: 30000
+
+#-----------------------------------------------------------------------------
+# GFF
+#-----------------------------------------------------------------------------
+gff:
+  feature: 'mRNA'
+  gene_name: 'description'
+  biotype: 'biotype'
+
+#-----------------------------------------------------------------------------
+# ENRICHMENT
+#-----------------------------------------------------------------------------
+enrichment:
+  top_terms: 20
+  plot_width: 12
+  plot_height: 10
+  cnet_label: "gene_id"
+  top_plot_regions: 5
+
+#-----------------------------------------------------------------------------
+# PHENOTYPE ASSOCIATION (GWAS — FT10, FT16)
+#-----------------------------------------------------------------------------
+phenotype_association:
+  configs:
+    - method: "EMMAX"
+      adjust: "bonf"
+      threshold: '0.05'
+  missing_strategy: "DROP"       # Drop samples without phenotype values
+
+#-----------------------------------------------------------------------------
+# FUTURE CLIMATE
+#-----------------------------------------------------------------------------
+future:
+  ssp: '585'
+  year: '2061-2080'
+  models: 'MPI-ESM1-2-HR'
+
+#-----------------------------------------------------------------------------
+# GRADIENT FOREST
+#-----------------------------------------------------------------------------
+gradient_forest:
+  ntree: '1000'
+  cor_threshold: '0.5'
+  spatial_correction: 'with'
+  suffix: 'Arabidopsis_EMMAX'
+  random_model: TRUE

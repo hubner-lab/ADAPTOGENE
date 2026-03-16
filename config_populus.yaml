@@ -1,0 +1,137 @@
+#=============================================================================
+# Populus balsamifera — GEA + Maladaptation Benchmark
+#=============================================================================
+# Source: Fitzpatrick et al. 2021 Molecular Ecology Resources
+# 336 accessions from 42 populations across North American latitudinal transect
+# VCF from github.com/stephenrkeller/Fitzpatrick_etal_MER_2021
+# GFF: Populus trichocarpa (reference genome for P. balsamifera)
+#
+# Ground truth: GF genetic offset validated by common garden experiments
+# Pipeline test: GEA + maladaptation (modes: processing → association → maladaptation)
+
+#-----------------------------------------------------------------------------
+# INPUT
+#-----------------------------------------------------------------------------
+input:
+  dir: "data/"
+  vcf: 'Populus_balsamifera.vcf'
+  metadata: 'Populus_balsamifera_metadata.tsv'
+  gff: 'Populus_balsamifera.gff3'
+
+project_name: 'Populus'
+cpu: 10
+
+#-----------------------------------------------------------------------------
+# FILTER
+#-----------------------------------------------------------------------------
+filter:
+  maf: 0.05
+  snp_miss: 0.1
+  sample_miss: 0.5
+
+#-----------------------------------------------------------------------------
+# LD
+#-----------------------------------------------------------------------------
+ld:
+  window: 100
+  step: 20
+  r2: 0.2
+
+#-----------------------------------------------------------------------------
+# SNMF
+#-----------------------------------------------------------------------------
+snmf:
+  k_start: 2
+  k_end: 6
+  k_best: 3                     # Approximate — set after reviewing cross-entropy
+  ploidy: 2
+  repeats: 10
+
+#-----------------------------------------------------------------------------
+# MAP
+#-----------------------------------------------------------------------------
+map:
+  climate_extent: "auto"
+  gap: 2.0                      # Broad latitudinal transect across North America
+  resolution: 2.5               # Lower resolution for large extent
+  zoom_extent: "NULL"
+
+#-----------------------------------------------------------------------------
+# CLIMATE
+#-----------------------------------------------------------------------------
+climate:
+  enabled: true
+  predictors: "bio_1,bio_2,bio_4,bio_12,bio_15"
+
+#-----------------------------------------------------------------------------
+# POPULATION STATS
+#-----------------------------------------------------------------------------
+pop:
+  calc_stats: TRUE
+  window_size: 500000
+  custom_trait_file: 'NULL'
+
+#-----------------------------------------------------------------------------
+# PIEMAP
+#-----------------------------------------------------------------------------
+piemap:
+  alpha: 0.6
+  show_labels: 'F'
+  label_size: 8
+  pie_scale: 1.0
+
+#-----------------------------------------------------------------------------
+# ASSOCIATION (GEA)
+#-----------------------------------------------------------------------------
+association:
+  configs:
+    - method: "EMMAX"
+      adjust: "bonf"
+      threshold: '0.05'
+    - method: "LFMM"
+      adjust: "bonf"
+      threshold: '0.05'
+  combine_method: 'Sum'
+  combine_gap: 100000
+  sig_snp_distance: 100000
+  region_distance: 2000000
+  top_regions: 10
+  promoter_length: 10000
+  go_field: 'Ontology_term'     # Ensembl Plants GFF3 attribute name
+  scattermore_threshold: 30000
+
+#-----------------------------------------------------------------------------
+# GFF
+#-----------------------------------------------------------------------------
+gff:
+  feature: 'mRNA'
+  gene_name: 'description'
+  biotype: 'biotype'
+
+#-----------------------------------------------------------------------------
+# ENRICHMENT
+#-----------------------------------------------------------------------------
+enrichment:
+  top_terms: 20
+  plot_width: 12
+  plot_height: 10
+  cnet_label: "gene_id"
+  top_plot_regions: 5
+
+#-----------------------------------------------------------------------------
+# FUTURE CLIMATE
+#-----------------------------------------------------------------------------
+future:
+  ssp: '585'
+  year: '2061-2080'
+  models: 'MPI-ESM1-2-HR'
+
+#-----------------------------------------------------------------------------
+# GRADIENT FOREST
+#-----------------------------------------------------------------------------
+gradient_forest:
+  ntree: '1000'
+  cor_threshold: '0.5'
+  spatial_correction: 'with'
+  suffix: 'Populus_EMMAX'
+  random_model: TRUE

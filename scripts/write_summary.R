@@ -96,17 +96,18 @@ if (MODE == 'processing') {
     CLIMATE_SITE = args[4]
     PREDICTORS = args[5]
 
-    predictors_list <- str_split(PREDICTORS, ',')[[1]]
+    new_rows <- rbind(row('structure_K', 'K_best', K_BEST))
 
-    # Count climate variables
-    climate <- fread(CLIMATE_SITE)
-    n_climate_vars <- ncol(climate) - 4  # Subtract site, sample, lat, lon columns
+    if (CLIMATE_SITE != 'NULL') {
+        predictors_list <- str_split(PREDICTORS, ',')[[1]]
+        climate <- fread(CLIMATE_SITE)
+        n_climate_vars <- ncol(climate) - 4  # Subtract site, sample, lat, lon columns
 
-    new_rows <- rbind(
-        row('structure_K', 'K_best', K_BEST),
-        row('structure_K', 'climate_predictors', PREDICTORS),
-        row('structure_K', 'n_climate_variables', n_climate_vars)
-    )
+        new_rows <- rbind(new_rows,
+            row('structure_K', 'climate_predictors', PREDICTORS),
+            row('structure_K', 'n_climate_variables', n_climate_vars)
+        )
+    }
 
 } else if (MODE == 'association') {
     # args: MODE OUTPUT selected_snps regions_per_trait regions_combined genes_per_region

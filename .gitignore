@@ -14,3 +14,6 @@ WBDC*
 ANALYSIS/
 TEMP/
 docs/
+benchmarks/.cache/
+*_results/
+*_logs/
