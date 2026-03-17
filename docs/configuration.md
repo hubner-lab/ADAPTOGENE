@@ -93,12 +93,15 @@ MAP_REGIONMAP_EXTENT: "NULL"
 ### CLIMATE — Bioclimatic variables
 
 ```yaml
-CLIMATE_PREDICTORS: "bio_1,bio_12,bio_15"
+climate:
+  enabled: true
+  predictors: "bio_1,bio_12,bio_15"
 ```
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `CLIMATE_PREDICTORS` | Comma-separated WorldClim bioclimatic variables (bio_1 through bio_19) | — |
+| `climate.enabled` | Enable climate data download and climate-dependent analyses. Set `false` to skip GEA, maladaptation, and overlapping modes. Structure K runs without climate plots/piemaps (only imputation + pop stats). Phenotype association runs without piemaps. | `true` |
+| `climate.predictors` | Comma-separated WorldClim bioclimatic variables (bio_1 through bio_19). Ignored when `enabled: false`. | — |
 
 ### POP — Population statistics (optional)
 
