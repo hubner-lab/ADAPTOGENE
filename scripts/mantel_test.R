@@ -186,12 +186,24 @@ if (any(is.na(geo))) {
 message(sprintf('INFO: Geographic data - Longitude: [%.2f, %.2f], Latitude: [%.2f, %.2f]',
                 min(geo$longitude), max(geo$longitude), min(geo$latitude), max(geo$latitude)))
 
-env <- fread(ENV) %>%
-  dplyr::select(all_of(PREDICTORS_SELECTED)) %>%
-  scale()
+env_raw <- fread(ENV) %>%
+  dplyr::select(all_of(PREDICTORS_SELECTED))
 
 clust <- fread(CLUSTERS) %>%
   dplyr::select(-sample, -site)
+
+# Remove rows with NA climate values (affects geo, env, clust equally)
+complete_rows <- complete.cases(env_raw)
+if (any(!complete_rows)) {
+  n_removed <- sum(!complete_rows)
+  message(sprintf('WARNING: Removing %d samples with missing climate values (%d remain)',
+                  n_removed, sum(complete_rows)))
+  env_raw <- env_raw[complete_rows, ]
+  geo <- geo[complete_rows, ]
+  clust <- clust[complete_rows, ]
+}
+
+env <- scale(env_raw)
 
 # Run Mantel analysis
 results <- analyze_mantel(geo, env, clust)

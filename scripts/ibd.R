@@ -28,17 +28,13 @@ FUN_ibd <- function(clusters, samples, CPU){
   ibd <-
     mclapply(samples$site %>% unique, function(i){
       mclapply(samples$site %>% unique, function(i2){
-
+        tryCatch({
           # Select populations
           clust_df = clusters[clusters$site %in% c(i,i2),] %>% dplyr::select(starts_with('C'))
           geo_df = samples[samples$site %in% c(i,i2),] %>% dplyr::select(latitude, longitude)
-#							message(paste0('INFO: clust: ', clust_df %>% str))
-#	  						message(paste0('INFO: geo: ', geo_df %>% str))
-          clust_dist = vegdist(clust_df, method = 'jaccard')
-#							message(paste0('INFO: clust_dist: ', clust_dist %>% str))
-          geo_dist = distm(geo_df, fun=distVincentyEllipsoid) # In this case, it uses the Vincenty distance, which is a method for calculating the distance between two points on the surface of an ellipsoid. It is considered to be the most accurate method for calculating distances on the Earth's surface, and it's recommended when the accuracy is important.
-#	  						message(paste0('INFO: geo_dist: ',geo_dist %>% str))
 
+          clust_dist = vegdist(clust_df, method = 'jaccard')
+          geo_dist = distm(geo_df, fun=distVincentyEllipsoid)
 
           # Perform Mantel test for cheking IBD
           ibd = mantel(clust_dist, geo_dist,
@@ -50,8 +46,12 @@ FUN_ibd <- function(clusters, samples, CPU){
                      IBD_stat = ibd$statistic)
 
 	  return(res_dt)
-      }, mc.cores = CPU, mc.allow.recursive = T) %>% do.call(rbind, .)
-    }, mc.cores = CPU, mc.allow.recursive = T) %>% do.call(rbind, . ) %>%
+        }, error = function(e) {
+          warning(paste("IBD error for", i, "vs", i2, ":", e$message))
+          return(NULL)
+        })
+      }, mc.cores = CPU, mc.allow.recursive = T) %>% Filter(Negate(is.null), .) %>% do.call(rbind, .)
+    }, mc.cores = CPU, mc.allow.recursive = T) %>% Filter(Negate(is.null), .) %>% do.call(rbind, . ) %>%
     na.omit								
 								message("INFO: IBD calculation completed, process the result")
 								message(ibd %>% str)

@@ -55,9 +55,14 @@ sample_col <- names(meta)[2]  # sample column
 site_col   <- names(meta)[1]  # site column
 
 # Phenotype: use first numeric trait (column 5+)
-trait_cols <- names(meta)[5:ncol(meta)]
-first_trait <- trait_cols[1]
-message("Using trait '", first_trait, "' for crosshap phenotype input")
+if (ncol(meta) >= 5) {
+  trait_cols <- names(meta)[5:ncol(meta)]
+  first_trait <- trait_cols[1]
+} else {
+  trait_cols <- character(0)
+  first_trait <- NULL
+}
+message("Using trait '", ifelse(is.null(first_trait), "NONE (dummy)", first_trait), "' for crosshap phenotype input")
 
 # Prepare metadata grouping
 if (metadata_type == "site") {
@@ -185,8 +190,13 @@ for (i in seq_len(nrow(regions))) {
 
   # Prepare phenotype file (two columns, no header: ind | value)
   pheno_file <- file.path(tmp_dir, "pheno.txt")
-  pheno_data <- meta[, .(ind = get(sample_col), value = get(first_trait))]
-  pheno_data <- pheno_data[!is.na(value)]
+  if (!is.null(first_trait)) {
+    pheno_data <- meta[, .(ind = get(sample_col), value = get(first_trait))]
+    pheno_data <- pheno_data[!is.na(value)]
+  } else {
+    # No phenotype columns — use dummy values for crosshap
+    pheno_data <- meta[, .(ind = get(sample_col), value = 0)]
+  }
   fwrite(pheno_data, pheno_file, sep = "\t", col.names = FALSE, quote = FALSE)
 
   # Prepare metadata file (two columns, no header: ind | group)

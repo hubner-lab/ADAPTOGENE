@@ -88,10 +88,10 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, WORK_DIR, kinship = TRUE, for
     COVAR <- paste0(OUT, 'EMMAX_covariates_', traitname, '.tsv')
     EMMAXOUT <- paste0(OUT, 'EMMAX_OUT_', traitname)
 
-    # Prepare phenotype file
-    emmax.phen <- trait %>%
-        dplyr::mutate(FAMID = SampleName, INDID = SampleName) %>%
-        dplyr::select(FAMID, INDID, everything()) %T>%
+    # Prepare phenotype file — use FID/IID from TFAM to ensure exact match
+    tfam_ids <- fread(tfam, header = FALSE, select = list(character = 1:2),
+                      col.names = c("FAMID", "INDID"))
+    emmax.phen <- cbind(tfam_ids, trait) %T>%
         write.table(PHEN, sep = '\t', col.names = F, row.names = F, quote = F)
 
     if (!is.null(covariates) & !is.null(kinship)) {

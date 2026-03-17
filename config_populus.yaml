@@ -135,3 +135,12 @@ gradient_forest:
   spatial_correction: 'with'
   suffix: 'Populus_EMMAX'
   random_model: TRUE
+
+#-----------------------------------------------------------------------------
+# REGIONPLOT
+#-----------------------------------------------------------------------------
+regionplot:
+  region: '12:10965547-15673977'
+  traits: 'bio_1'
+  method: 'LFMM'
+  genes: 5

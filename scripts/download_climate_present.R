@@ -53,14 +53,22 @@ FUN_download_worldclim <- function(data_dir, resolution = 0.5) {
     url <- paste0("https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_",
                   resolution_format, "_bio.zip")
     message(paste0("INFO: Downloading WorldClim bioclimatic data from: ", url))
+    old_timeout <- getOption("timeout")
+    options(timeout = 600)
+    on.exit(options(timeout = old_timeout), add = TRUE)
     download.file(url, zip_file, mode = "wb", quiet = FALSE)
   } else {
     message("INFO: Zip file already exists, skipping download")
   }
 
-  # Unzip
+  # Unzip using system unzip (R's unzip can fail on large files)
   message("INFO: Extracting tif files...")
-  unzip(zip_file, exdir = tif_dir)
+  exit_code <- system2("unzip", args = c("-o", "-j", shQuote(zip_file), "-d", shQuote(tif_dir)), stdout = TRUE, stderr = TRUE)
+  if (!is.null(attr(exit_code, "status")) && attr(exit_code, "status") != 0) {
+    # Fallback to R unzip
+    warning("System unzip failed, trying R unzip...")
+    unzip(zip_file, exdir = tif_dir)
+  }
 
   return(tif_dir)
 }
