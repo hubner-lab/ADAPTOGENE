@@ -37,13 +37,13 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
             """
 
     rule kinship_pheno:
-        """Compute kinship matrix for phenotype EMMAX."""
+        """Compute BN kinship matrix for phenotype EMMAX."""
         input: tped = W['pheno_tped']
         output: W['pheno_kinship']
         params: prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}"
         log: f"{LOGDIR}phenotype_association/kinship_pheno.log"
         shell:
-            "/pipeline/scripts/emmax-kin-intel64 -v -s -d 10 -x {params.prefix} > {log} 2>&1"
+            "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
     rule emmax_pheno:
         """Run EMMAX for all phenotype traits (MEAN/MEDIAN mode)."""
@@ -65,6 +65,34 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
                 {input.vcf} {params.tped_prefix} {input.kinship} {input.pca} \
                 {params.k} {input.phenotypes} {params.tables_dir} NULL {output} > {log} 2>&1
             """
+
+    if PHENO_GAPIT_CONFIGS:
+        rule gapit_pheno:
+            """Run GAPIT for all phenotype traits (MEAN/MEDIAN mode)."""
+            input:
+                gd = W['gapit_gd'],
+                gm = W['gapit_gm'],
+                pca = W['pca_projections'],
+                kinship = W['pheno_kinship'],
+                phenotypes = W['pheno_all_phenotypes'],
+                metadata = O['metadata']
+            output: [pheno_pvalues(model) for model in PHENO_GAPIT_CONFIGS]
+            params:
+                k = K_BEST,
+                models = ','.join(PHENO_GAPIT_CONFIGS.keys()),
+                workdir = W['pheno_gapit_work'],
+                tables_dir = f"{MOD_PHENO}tables/",
+                predictors = PHENO_PREDICTORS,
+                native_outdir = f"{MOD_PHENO}GAPIT/"
+            log: f"{LOGDIR}phenotype_association/gapit_pheno.log"
+            shell:
+                """
+                Rscript /pipeline/scripts/gapit.R \
+                    {input.gd} {input.gm} {input.phenotypes} {input.pca} \
+                    {input.kinship} {params.k} {params.models} \
+                    {params.workdir} {params.tables_dir} {params.predictors} \
+                    {input.metadata} {params.native_outdir} NULL > {log} 2>&1
+                """
 
 # --- PATH B: DROP mode (per-trait sample sets) ---
 if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
@@ -121,20 +149,20 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
             """
 
     rule kinship_pheno_trait:
-        """Compute kinship matrix for per-trait sample set."""
+        """Compute BN kinship matrix for per-trait sample set."""
         input: tped = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.tped"
-        output: f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aIBS.kinf"
+        output: f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aBN.kinf"
         wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
         params: prefix = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}"
         log: f"{LOGDIR}phenotype_association/kinship_pheno_trait_{{pheno_trait}}.log"
         shell:
-            "/pipeline/scripts/emmax-kin-intel64 -v -s -d 10 -x {params.prefix} > {log} 2>&1"
+            "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
     rule emmax_pheno_trait:
         """Run EMMAX for a single phenotype trait (DROP mode)."""
         input:
             vcf = f"{WORK_FILT}phenotypes/{{pheno_trait}}/{VCF_BASE}.vcf",
-            kinship = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aIBS.kinf",
+            kinship = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aBN.kinf",
             pca = W['pca_projections'],
             phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv"
         output: f"{MOD_PHENO}tables/EMMAX/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
@@ -167,6 +195,53 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
                 "{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1
             """
 
+    if PHENO_GAPIT_CONFIGS:
+        rule gapit_pheno_trait:
+            """Run GAPIT for a single phenotype trait (DROP mode).
+            Uses full-dataset GD and kinship; gapit.R subsets internally."""
+            input:
+                gd = W['gapit_gd'],
+                gm = W['gapit_gm'],
+                pca = W['pca_projections'],
+                kinship = W['assoc_kinship'],
+                phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv",
+                samples = f"{WORK_FILT}phenotypes/{{pheno_trait}}_samples.list",
+                metadata = O['metadata']
+            output: [f"{MOD_PHENO}tables/{model}/{{pheno_trait}}_pvalues_K{K_BEST}.tsv" for model in PHENO_GAPIT_CONFIGS]
+            wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
+            params:
+                k = K_BEST,
+                models = ','.join(PHENO_GAPIT_CONFIGS.keys()),
+                workdir = lambda wc: f"{INTER}gapit/phenotype_association/{wc.pheno_trait}/",
+                tables_dir = f"{MOD_PHENO}tables/",
+                native_outdir = f"{MOD_PHENO}GAPIT/"
+            log: f"{LOGDIR}phenotype_association/gapit_pheno_trait_{{pheno_trait}}.log"
+            shell:
+                """
+                Rscript /pipeline/scripts/gapit.R \
+                    {input.gd} {input.gm} {input.phenotype} {input.pca} \
+                    {input.kinship} {params.k} {params.models} \
+                    {params.workdir} {params.tables_dir} {wildcards.pheno_trait} \
+                    {input.metadata} {params.native_outdir} {input.samples} \
+                    {wildcards.pheno_trait} > {log} 2>&1
+                """
+
+        rule combine_gapit_pheno_pvalues:
+            """Merge per-trait GAPIT p-value files into combined table (DROP mode)."""
+            input: lambda wc: expand(f"{MOD_PHENO}tables/{wc.method}/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
+            output:
+                pvals = f"{MOD_PHENO}tables/{{method}}_phenotypes_pvalues_K{K_BEST}.tsv",
+                qvals = f"{MOD_PHENO}tables/{{method}}_phenotypes_qvalues_K{K_BEST}.tsv"
+            wildcard_constraints:
+                method = '|'.join(PHENO_GAPIT_CONFIGS.keys())
+            params: files_str = lambda wc, input: ' '.join(input)
+            log: f"{LOGDIR}phenotype_association/combine_pheno_pvalues_{{method}}.log"
+            shell:
+                """
+                Rscript /pipeline/scripts/combine_pheno_pvalues.R \
+                    "{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1
+                """
+
 # --- Downstream rules (shared by both paths, reuse existing scripts) ---
 if PHENO_ASSOC_CONFIGS:
 
@@ -175,7 +250,7 @@ if PHENO_ASSOC_CONFIGS:
     input: assoc = lambda wc: pheno_pvalues(wc.method)
     output: f"{MOD_PHENO}tables/{{method}}/{{method}}_phenotypes_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
     wildcard_constraints:
-        method = r"EMMAX",
+        method = PHENO_METHOD_REGEX,
         adjust = r"\w+_[\d.]+"
     params: snp_dist = PHENO_SNP_DISTANCE
     log: f"{LOGDIR}phenotype_association/find_sig_snps_pheno_{{method}}_{{adjust}}.log"
@@ -319,7 +394,7 @@ if PHENO_ASSOC_CONFIGS:
           png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
           svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
       wildcard_constraints:
-          method = r"EMMAX",
+          method = PHENO_METHOD_REGEX,
           trait = r"[a-zA-Z]\w*",
           adjust = r"\w+_[\d.]+"
       params:
@@ -347,7 +422,7 @@ if PHENO_ASSOC_CONFIGS:
           png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
           svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
       wildcard_constraints:
-          method = r"EMMAX",
+          method = PHENO_METHOD_REGEX,
           trait = r"[a-zA-Z]\w*",
           adjust = r"\w+_[\d.]+"
       params:

@@ -151,6 +151,17 @@ RUN Rscript -e " \
 # Haplotype analysis packages
 RUN Rscript -e "remotes::install_version('crosshap', version = '1.4.0')"
 
+# GAPIT3 association models (GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK)
+RUN Rscript -e "BiocManager::install('multtest', version = '3.22', ask = FALSE)"
+RUN Rscript -e " \
+    remotes::install_version('EMMREML', version = '3.1'); \
+    remotes::install_version('bigmemory', version = '4.6.4'); \
+    remotes::install_version('gplots', version = '3.1.3.1'); \
+    remotes::install_version('scatterplot3d', version = '0.3-44'); \
+    remotes::install_version('snowfall', version = '1.84-6.3'); \
+"
+RUN Rscript -e "remotes::install_github('jiabowang/GAPIT@GAPIT3.5')"
+
 # gradientForest from r-forge (version 0.1-37)
 # Requires patching for R 4.5 (Calloc/Free -> R_Calloc/R_Free)
 RUN git clone --depth 1 https://github.com/r-forge/gradientforest.git /tmp/gf && \
@@ -168,5 +179,6 @@ RUN Rscript -e " \
     stopifnot(packageVersion('ggplot2') >= '3.5.0'); \
     stopifnot(requireNamespace('gradientForest', quietly = TRUE)); \
     stopifnot(requireNamespace('crosshap', quietly = TRUE)); \
+    stopifnot(requireNamespace('GAPIT', quietly = TRUE)); \
     cat('All package version checks passed.\n'); \
 "

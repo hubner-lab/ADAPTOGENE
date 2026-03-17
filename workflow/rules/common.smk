@@ -319,9 +319,25 @@ def parse_association_configs(configs_list):
 
 ASSOC_CONFIGS = parse_association_configs(_assoc.get('configs', []))
 
+# GAPIT model detection — auto-route methods to GAPIT or legacy (EMMAX/LFMM) engine
+GAPIT_MODELS = {'GLM', 'MLM', 'CMLM', 'ECMLM', 'SUPER', 'MLMM', 'FarmCPU', 'BLINK'}
+
+def split_configs_by_engine(configs):
+    """Split configs into GAPIT and non-GAPIT (legacy) engines."""
+    gapit = {m: a for m, a in configs.items() if m in GAPIT_MODELS}
+    other = {m: a for m, a in configs.items() if m not in GAPIT_MODELS}
+    return gapit, other
+
+ASSOC_GAPIT_CONFIGS, ASSOC_OTHER_CONFIGS = split_configs_by_engine(ASSOC_CONFIGS)
+
+# Dynamic wildcard constraint regex for association methods
+ASSOC_METHOD_REGEX = '|'.join(ASSOC_CONFIGS.keys()) if ASSOC_CONFIGS else 'EMMAX'
+
 # PHENOTYPE ASSOCIATION parameters (inherits from association.* by default)
 _pheno = config.get('phenotype_association', {})
 PHENO_ASSOC_CONFIGS = parse_association_configs(_pheno.get('configs', []))
+PHENO_GAPIT_CONFIGS, PHENO_OTHER_CONFIGS = split_configs_by_engine(PHENO_ASSOC_CONFIGS)
+PHENO_METHOD_REGEX = '|'.join(PHENO_ASSOC_CONFIGS.keys()) if PHENO_ASSOC_CONFIGS else 'EMMAX'
 PHENO_MISSING = _pheno.get('missing_strategy', 'DROP')
 if PHENO_ASSOC_CONFIGS:
     check_in_list(PHENO_MISSING, ['MEAN', 'MEDIAN', 'DROP'], 'phenotype_association.missing_strategy')
@@ -522,8 +538,16 @@ def add_association_paths():
     W['lfmm_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.lfmm"
     W['vcf_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.vcf"
 
-    # EMMAX work directory (kinship, tped, tfam files)
+    # EMMAX work directory and pre-computed TPED/kinship
     W['emmax_work'] = f"{WORK_FILT}emmax/"
+    W['assoc_tped'] = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
+    W['assoc_tfam'] = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
+    W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
+
+    # GAPIT numeric format (GD + GM)
+    W['gapit_gd'] = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
+    W['gapit_gm'] = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
+    W['gapit_work'] = f"{INTER}gapit/association/"
 
     # Combined outputs - association
     O['selected_snps'] = f"{MOD_ASSOC}tables/selected_snps.tsv"
@@ -556,11 +580,23 @@ def add_pheno_association_paths():
     # Working paths
     W['pheno_work'] = PHENO_WORK
     W['pheno_emmax_work'] = f"{PHENO_WORK}emmax/"
+    W['pheno_gapit_work'] = f"{INTER}gapit/phenotype_association/"
+
+    # Ensure GAPIT paths exist even if association mode isn't configured
+    if PHENO_GAPIT_CONFIGS and 'gapit_gd' not in W:
+        W['gapit_gd'] = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
+        W['gapit_gm'] = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
+        W['gapit_work'] = f"{INTER}gapit/association/"
+    if PHENO_GAPIT_CONFIGS and 'assoc_kinship' not in W:
+        W['emmax_work'] = f"{WORK_FILT}emmax/"
+        W['assoc_tped'] = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
+        W['assoc_tfam'] = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
+        W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
 
     # Path A (MEAN/MEDIAN) — single set of TPED/kinship
     W['pheno_tped'] = f"{PHENO_WORK}emmax/{VCF_BASE}.tped"
     W['pheno_tfam'] = f"{PHENO_WORK}emmax/{VCF_BASE}.tfam"
-    W['pheno_kinship'] = f"{PHENO_WORK}emmax/{VCF_BASE}.aIBS.kinf"
+    W['pheno_kinship'] = f"{PHENO_WORK}emmax/{VCF_BASE}.aBN.kinf"
     W['pheno_all_phenotypes'] = f"{PHENO_WORK}all_phenotypes.tsv"
 
     # Prep outputs
@@ -679,8 +715,8 @@ def pheno_manhattan_regions(method, trait, adjust): return f"{MOD_PHENO}plots/ma
 def pheno_trait_vcf(trait): return f"{WORK_FILT}phenotypes/{trait}/{VCF_BASE}.vcf"
 def pheno_trait_tped(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tped"
 def pheno_trait_tfam(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tfam"
-def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aIBS.kinf"
-def pheno_trait_pvalues(trait): return f"{MOD_PHENO}tables/EMMAX/{trait}_pvalues_K{K_BEST}.tsv"
+def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aBN.kinf"
+def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/{method}/{trait}_pvalues_K{K_BEST}.tsv"
 
 #=============================================================================
 # CREATE DIRECTORIES
@@ -711,6 +747,14 @@ dirs_to_create.append(f"{MOD_ASSOC}plots/")
 dirs_to_create.append(f"{MOD_ASSOC}plots/enrichment/")
 dirs_to_create.append(f"{INTER}enrichment/association/")
 
+# Add GAPIT directories
+if ASSOC_GAPIT_CONFIGS:
+    dirs_to_create.append(f"{WORK_FILT}gapit/")
+    dirs_to_create.append(f"{INTER}gapit/association/")
+    dirs_to_create.append(f"{MOD_ASSOC}GAPIT/")
+    for model in ASSOC_GAPIT_CONFIGS:
+        dirs_to_create.append(f"{MOD_ASSOC}GAPIT/{model}/")
+
 # Add regionplot directory
 dirs_to_create.append(f"{MOD_REGPLOT}plots/")
 
@@ -737,6 +781,14 @@ if PHENO_ASSOC_CONFIGS:
     if PHENO_MISSING == 'DROP':
         for trait in PHENO_TRAITS:
             dirs_to_create.append(f"{WORK_FILT}phenotypes/{trait}/emmax/")
+    if PHENO_GAPIT_CONFIGS:
+        dirs_to_create.append(f"{INTER}gapit/phenotype_association/")
+        dirs_to_create.append(f"{MOD_PHENO}GAPIT/")
+        for model in PHENO_GAPIT_CONFIGS:
+            dirs_to_create.append(f"{MOD_PHENO}GAPIT/{model}/")
+        if not ASSOC_GAPIT_CONFIGS:
+            # GAPIT numeric dir needed even when only pheno uses GAPIT
+            dirs_to_create.append(f"{WORK_FILT}gapit/")
 
 # Add overlapping analysis directories
 if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:

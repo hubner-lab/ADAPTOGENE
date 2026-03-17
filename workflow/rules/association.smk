@@ -50,11 +50,37 @@ rule lfmm2vcf_full:
         Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} {params.blocksize} > {log} 2>&1
         """
 
+# TPED/kinship for association (shared by EMMAX and GAPIT)
+rule tped_assoc:
+    """Convert filtered VCF to TPED/TFAM for association EMMAX."""
+    input: vcf = W['vcf_filt']
+    output: tped = W['assoc_tped'], tfam = W['assoc_tfam']
+    params: prefix = f"{WORK_FILT}emmax/{VCF_BASE}"
+    log: f"{LOGDIR}association/tped_assoc.log"
+    shell:
+        """
+        plink --vcf {input.vcf} --allow-extra-chr --recode12 transpose \
+            --output-missing-genotype 0 --out {params.prefix} > {log} 2>&1
+        awk '{{split($1,a,"_"); split($2,b,"_"); if(a[1]==b[1]){{$1=a[1];$2=a[1]}} print}}' \
+            {output.tfam} > {params.prefix}_tmp.tfam && mv {params.prefix}_tmp.tfam {output.tfam}
+        """
+
+rule kinship_assoc:
+    """Compute BN kinship matrix for association analysis."""
+    input: tped = W['assoc_tped']
+    output: W['assoc_kinship']
+    params: prefix = f"{WORK_FILT}emmax/{VCF_BASE}"
+    log: f"{LOGDIR}association/kinship_assoc.log"
+    shell:
+        "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
+
 # EMMAX analysis
 rule emmax_analysis:
     """Run EMMAX association analysis for all traits."""
     input:
         vcf = W['vcf_filt'],
+        tped = W['assoc_tped'],
+        kinship = W['assoc_kinship'],
         traits = O['climate_site_scaled'],
         covariates = W['pca_projections'],  # LEA PCA projections
         metadata = O['metadata']
@@ -64,14 +90,14 @@ rule emmax_analysis:
         predictors = PREDICTORS_SELECTED,
         inter_dir = INTER,
         tables_dir = f"{MOD_ASSOC}tables/EMMAX/",
-        emmax_work = W['emmax_work']
+        tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}"
     log: f"{LOGDIR}association/emmax_analysis.log"
     shell:
         """
         Rscript /pipeline/scripts/emmax.R \
             {input.vcf} {params.k} {input.traits} {input.covariates} \
             {params.predictors} {params.inter_dir} {input.metadata} \
-            {params.tables_dir} {params.emmax_work} > {log} 2>&1
+            {params.tables_dir} {params.tped_prefix} {input.kinship} > {log} 2>&1
         """
 
 # LFMM analysis
@@ -96,6 +122,49 @@ rule lfmm_analysis:
             {params.tables_dir} > {log} 2>&1
         """
 
+# VCF to GAPIT numeric (shared by GEA and GWAS GAPIT models)
+if ASSOC_GAPIT_CONFIGS or PHENO_GAPIT_CONFIGS:
+
+    rule vcf_to_numeric:
+        """Convert imputed VCF to GAPIT numeric format (GD + GM)."""
+        input: vcf = W['vcf_imp_full']
+        output:
+            gd = W['gapit_gd'],
+            gm = W['gapit_gm']
+        log: f"{LOGDIR}association/vcf_to_numeric.log"
+        shell:
+            "Rscript /pipeline/scripts/vcf_to_gapit_numeric.R {input.vcf} {output.gd} {output.gm} > {log} 2>&1"
+
+# GAPIT GEA analysis (GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK)
+if ASSOC_GAPIT_CONFIGS:
+
+    rule gapit_analysis:
+        """Run GAPIT association analysis for all GAPIT models and traits."""
+        input:
+            gd = W['gapit_gd'],
+            gm = W['gapit_gm'],
+            traits = O['climate_site_scaled'],
+            pca = W['pca_projections'],
+            kinship = W['assoc_kinship'],
+            metadata = O['metadata']
+        output: [assoc_pvalues(model) for model in ASSOC_GAPIT_CONFIGS]
+        params:
+            k = K_BEST,
+            models = ','.join(ASSOC_GAPIT_CONFIGS.keys()),
+            workdir = W['gapit_work'],
+            tables_dir = f"{MOD_ASSOC}tables/",
+            predictors = PREDICTORS_SELECTED,
+            native_outdir = f"{MOD_ASSOC}GAPIT/"
+        log: f"{LOGDIR}association/gapit_analysis.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/gapit.R \
+                {input.gd} {input.gm} {input.traits} {input.pca} \
+                {input.kinship} {params.k} {params.models} \
+                {params.workdir} {params.tables_dir} {params.predictors} \
+                {input.metadata} {params.native_outdir} NULL > {log} 2>&1
+            """
+
 # Manhattan plots - simple version (runs early, no region dependency)
 # Produces both PNG and SVG in a single run
 rule manhattan_plot:
@@ -105,7 +174,7 @@ rule manhattan_plot:
         png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
         svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
     wildcard_constraints:
-        method = r"EMMAX|LFMM",
+        method = ASSOC_METHOD_REGEX,
         trait = r"bio_\d+",
         adjust = r"\w+_[\d.]+"
     params:
@@ -138,7 +207,7 @@ rule manhattan_plot_regions:
         png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
         svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
     wildcard_constraints:
-        method = r"EMMAX|LFMM",
+        method = ASSOC_METHOD_REGEX,
         trait = r"bio_\d+",
         adjust = r"\w+_[\d.]+"
     params:
@@ -161,7 +230,7 @@ rule find_sig_snps:
     input: assoc = lambda wc: assoc_pvalues(wc.method)
     output: f"{MOD_ASSOC}tables/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
     wildcard_constraints:
-        method = r"EMMAX|LFMM",
+        method = ASSOC_METHOD_REGEX,
         adjust = r"\w+_[\d.]+"
     params: snp_dist = SNP_DISTANCE
     log: f"{LOGDIR}association/find_sig_snps_{{method}}_{{adjust}}.log"
