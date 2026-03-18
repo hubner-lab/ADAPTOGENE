@@ -22,6 +22,7 @@ PLOT_DIR = args[6]      # output directory
 REGIONS_FILE = args[7]  # optional: Regions.tsv for highlighting (can be "NULL")
 SIGSNPS_FILES = args[8] # comma-separated list of sigSNPs files from all methods
 SCATTERMORE_THRESHOLD = args[9] %>% as.numeric  # Use scattermore when SNPs > this
+ALL_PREDICTORS = args[10]  # Comma-separated list of all trait names (for consistent Okabe-Ito colors)
 ################################
 
 # Handle optional files
@@ -37,6 +38,17 @@ message(paste0('INFO: K = ', Kbest))
 message(paste0('INFO: Adjustment: ', ADJUST))
 
 ################################ Functions
+
+# Okabe-Ito colorblind-safe palette for traits
+get_trait_colors <- function(traits) {
+    okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                   "#0072B2", "#D55E00", "#CC79A7", "#999999")
+    if (length(traits) <= 8) {
+        setNames(okabe_ito[1:length(traits)], traits)
+    } else {
+        setNames(viridis::turbo(length(traits)), traits)
+    }
+}
 
 FUN_max_pvalue_fdr <- function(pvalues, pval_threshold) {
     qvalues_result <- qvalue(pvalues)
@@ -132,7 +144,7 @@ get_region_colors <- function(n_regions) {
 #   pointsize: for scattermore, use 3-4 for visibility (non-integers like 3.2 look better)
 #   pixels: raster resolution, should match output size (width*dpi, height*dpi)
 add_scatter_layer <- function(data, chr_colors, alpha = 0.7, size = 0.8,
-                              use_scattermore = FALSE, pointsize = 10) {
+                              use_scattermore = FALSE, pointsize = 20) {
     if (nrow(data) == 0) {
         return(geom_blank())
     }
@@ -151,6 +163,15 @@ add_scatter_layer <- function(data, chr_colors, alpha = 0.7, size = 0.8,
                    alpha = alpha, size = size)
     }
 }
+
+################################ Compute trait color
+
+# Parse all predictors and compute trait-specific Okabe-Ito color
+all_traits <- str_split(ALL_PREDICTORS, ',')[[1]] %>% str_trim()
+all_trait_colors <- get_trait_colors(all_traits)
+sig_color <- unname(all_trait_colors[TRAIT])
+if (is.na(sig_color)) sig_color <- "#E69F00"  # fallback
+message(paste0('INFO: Trait color: ', sig_color))
 
 ################################ Main
 
@@ -245,10 +266,10 @@ if (use_scattermore) {
 }
 
 p_simple <- p_simple +
-    # Significant SNPs (red, larger) - always use geom_point for proper styling
+    # Significant SNPs (trait-colored, larger) - always use geom_point for proper styling
     geom_point(data = plot_df %>% filter(is_significant),
                aes(x = pos_cum, y = log10p),
-               color = "red", alpha = 0.9, size = 1.8) +
+               color = sig_color, alpha = 0.9, size = 1.8) +
     scale_x_continuous(
         labels = chr_info$chr_f,
         breaks = chr_info$center,
@@ -475,10 +496,10 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             }
 
             p_regions <- p_regions +
-                # Significant SNPs not in any region (red)
+                # Significant SNPs not in any region (trait-colored)
                 geom_point(data = df_sig_not_region,
                           aes(x = pos_cum, y = log10p),
-                          color = "red", alpha = 0.8, size = 1.5) +
+                          color = sig_color, alpha = 0.8, size = 1.5) +
                 # SNPs in regions - colored by region, shaped by source method
                 ggnewscale::new_scale_color()
 

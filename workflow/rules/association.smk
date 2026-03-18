@@ -182,14 +182,15 @@ rule manhattan_plot:
         plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
         regions = "NULL",  # No regions for simple plot
         selected_snps = "NULL",  # No selected SNPs for simple plot
-        scattermore_threshold = SCATTERMORE_THRESHOLD
+        scattermore_threshold = SCATTERMORE_THRESHOLD,
+        predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}association/manhattan_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
             {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-            {params.scattermore_threshold} > {log} 2>&1
+            {params.scattermore_threshold} {params.predictors} > {log} 2>&1
         """
 
 # Manhattan plots with regions highlighted (runs after regions are created)
@@ -214,14 +215,15 @@ rule manhattan_plot_regions:
         k = K_BEST,
         plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
         sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-        scattermore_threshold = SCATTERMORE_THRESHOLD
+        scattermore_threshold = SCATTERMORE_THRESHOLD,
+        predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}association/manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
             {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-            {params.scattermore_threshold} > {log} 2>&1
+            {params.scattermore_threshold} {params.predictors} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method

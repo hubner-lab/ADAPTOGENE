@@ -402,14 +402,15 @@ if PHENO_ASSOC_CONFIGS:
           plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
           regions = "NULL",
           selected_snps = "NULL",
-          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
+          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD,
+          predictors = PHENO_PREDICTORS
       log: f"{LOGDIR}phenotype_association/manhattan_pheno_{{method}}_{{trait}}_{{adjust}}.log"
       shell:
           """
           Rscript /pipeline/scripts/plot_manhattan.R \
               {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
               {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-              {params.scattermore_threshold} > {log} 2>&1
+              {params.scattermore_threshold} {params.predictors} > {log} 2>&1
           """
   
   rule manhattan_pheno_regions:
@@ -429,14 +430,15 @@ if PHENO_ASSOC_CONFIGS:
           k = K_BEST,
           plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
           sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD
+          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD,
+          predictors = PHENO_PREDICTORS
       log: f"{LOGDIR}phenotype_association/manhattan_pheno_regions_{{method}}_{{trait}}_{{adjust}}.log"
       shell:
           """
           Rscript /pipeline/scripts/plot_manhattan.R \
               {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
               {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-              {params.scattermore_threshold} > {log} 2>&1
+              {params.scattermore_threshold} {params.predictors} > {log} 2>&1
           """
   
   rule manhattan_combined_pheno:

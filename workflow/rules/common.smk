@@ -633,6 +633,11 @@ def add_overlap_paths():
     O['overlap_genes_combined'] = f"{MOD_OVERLAP}tables/genes_combined.tsv"
     W['overlap_enrichment_done'] = f"{INTER}flags/overlap_enrichment_done.flag"
     W['overlap_enrichment_plots_done'] = f"{INTER}flags/overlap_enrichment_plots_done.flag"
+    # Miami plots (static GEA vs GWAS)
+    O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
+    O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
+    O['overlap_miami_regions'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.png"
+    O['overlap_miami_regions_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.svg"
 
 add_overlap_paths()
 
@@ -1040,6 +1045,12 @@ def get_targets(mode):
             O['overlap_genes_collapsed'],
             O['overlap_genes_combined'],
         ]
+
+        # Miami plots
+        targets.extend([
+            O['overlap_miami'], O['overlap_miami_svg'],
+            O['overlap_miami_regions'], O['overlap_miami_regions_svg'],
+        ])
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':

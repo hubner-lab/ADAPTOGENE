@@ -1,10 +1,11 @@
 #!/usr/bin/env Rscript
 # Combined Manhattan plot for all traits and methods
 # Shows all GWAS results on a single plot with:
-# - Different colors for different traits
-# - Different shapes for different methods
+# - Color = trait (Okabe-Ito colorblind-safe palette)
+# - Shape = method (up to 10 distinct shapes)
+# - Every (SNP, trait, method) detection shown individually (no "Multi" collapse)
 # - Regions marked with rectangles (from Regions_climate_combined.tsv)
-# - Always uses scattermore for performance
+# - Always uses scattermore for background SNPs
 
 library(dplyr)
 library(data.table)
@@ -70,6 +71,24 @@ FUN_max_pvalue_top <- function(pvalues, topN) {
     return(max(sorted_pvalues[1:topN]))
 }
 
+# Okabe-Ito colorblind-safe palette for traits
+get_trait_colors <- function(traits) {
+    okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                   "#0072B2", "#D55E00", "#CC79A7", "#999999")
+    if (length(traits) <= 8) {
+        setNames(okabe_ito[1:length(traits)], traits)
+    } else {
+        setNames(viridis::turbo(length(traits)), traits)
+    }
+}
+
+# Distinct shapes for methods (up to 10)
+get_method_shapes <- function(methods) {
+    shapes <- c(16, 17, 15, 18, 3, 4, 8, 6, 9, 14)
+    # circle, triangle, square, diamond, cross, X, star, inv-triangle, diamond+cross, square+triangle
+    setNames(shapes[1:length(methods)], methods)
+}
+
 # Create cumulative position for Manhattan plot
 prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_col) {
     # Get chromosome order (natural sort)
@@ -116,33 +135,6 @@ theme_manhattan <- function() {
         plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40"),
         plot.margin = margin(10, 15, 10, 10)
     )
-}
-
-# Generate color palette for trait-method combinations
-get_trait_method_colors <- function(traits, methods) {
-    # Define distinct colors for each trait-method combination
-    # Use colorblind-friendly palette
-    all_combos <- expand.grid(trait = traits, method = methods, stringsAsFactors = FALSE)
-    all_combos$combo <- paste0(all_combos$trait, "_", all_combos$method)
-
-    # Assign colors - using a mix of warm and cool colors
-    if (nrow(all_combos) <= 4) {
-        combo_colors <- c(
-            "#E41A1C",  # Red
-            "#FF7F00",  # Orange
-            "#377EB8",  # Blue
-            "#4DAF4A"   # Green
-        )
-    } else {
-        combo_colors <- scales::hue_pal()(nrow(all_combos))
-    }
-
-    names(combo_colors) <- all_combos$combo[1:length(combo_colors)]
-
-    # Add special color for multi-association
-    combo_colors["Multi"] <- "#000000"  # Black for multiple associations
-
-    return(combo_colors)
 }
 
 # Generate color palette for chromosomes (background) - light pastel colors
@@ -253,8 +245,9 @@ plot_data_all <- plot_data_all %>%
               by = "chr") %>%
     dplyr::mutate(pos_cum = pos + tot)
 
-# Get colors
-trait_method_colors <- get_trait_method_colors(traits, names(assoc_info))
+# Get palettes
+trait_colors <- get_trait_colors(traits)
+method_shapes <- get_method_shapes(names(assoc_info))
 chr_colors <- get_chr_colors(length(unique(chr_info$chr_f)))
 names(chr_colors) <- levels(chr_info$chr_f)
 
@@ -263,63 +256,36 @@ y_max <- max(plot_data_all$log10p, na.rm = TRUE) * 1.1
 
 message('INFO: Generating combined Manhattan plot (simple version)')
 
-# Add trait-method combination column
-plot_data_all <- plot_data_all %>%
-    dplyr::mutate(trait_method = paste0(trait, "_", method))
-
-# Simple plot - background SNPs only (non-significant)
+# Background SNPs: non-significant, from first method only (avoid overplotting)
 df_background <- plot_data_all %>%
     dplyr::filter(!is_significant) %>%
-    # Take only one method per trait to avoid overplotting background
     dplyr::filter(method == names(assoc_info)[1])
-
-# Create chromosome background colors for df_background
 df_background$point_color <- chr_colors[as.character(df_background$chr)]
 
-# Significant SNPs - determine if multi-association
-# For each unique SNP position, count how many trait-method combinations it's significant in
-sig_snp_summary <- plot_data_all %>%
-    dplyr::filter(is_significant) %>%
-    group_by(SNPID, chr, pos, pos_cum) %>%
-    summarise(
-        n_associations = n(),
-        trait_methods = paste(trait_method, collapse = ","),
-        max_log10p = max(log10p),
-        .groups = 'drop'
-    ) %>%
-    dplyr::mutate(
-        display_color = ifelse(n_associations > 1, "Multi",
-                              strsplit(trait_methods, ",")[[1]][1])
-    )
+# Significant SNPs: every (SNP, trait, method) combination shown individually
+df_significant <- plot_data_all %>%
+    dplyr::filter(is_significant)
 
-# Join back to get colors
-df_significant <- sig_snp_summary %>%
-    dplyr::mutate(
-        color_group = display_color,
-        log10p = max_log10p
-    )
-
-n_sig_snps <- nrow(df_significant)
-n_multi <- sum(df_significant$color_group == "Multi")
-message(paste0('INFO: Total unique significant SNPs: ', n_sig_snps))
-message(paste0('INFO: Multi-association SNPs: ', n_multi))
+n_sig_points <- nrow(df_significant)
+n_sig_unique <- length(unique(df_significant$SNPID))
+message(paste0('INFO: Total significant points (SNP x trait x method): ', n_sig_points))
+message(paste0('INFO: Unique significant SNPs: ', n_sig_unique))
 
 # Simple plot
 p_simple <- ggplot() +
     # Background SNPs (chromosome colors) - always use scattermore
     geom_scattermore(data = df_background,
                      aes(x = pos_cum, y = log10p, color = point_color),
-                     alpha = 0.9, pointsize = 5,
+                     alpha = 0.9, pointsize = 10,
                      pixels = c(4000, 1500), interpolate = FALSE) +
     scale_color_identity() +
-    # Significant SNPs - colored by trait-method combination
+    # Significant SNPs - color by trait, shape by method
     ggnewscale::new_scale_color() +
     geom_point(data = df_significant,
-               aes(x = pos_cum, y = log10p, color = color_group),
-               alpha = 0.9, size = 2.5, shape = 16) +
-    scale_color_manual(values = trait_method_colors,
-                      name = "Trait-Method",
-                      breaks = names(trait_method_colors)) +
+               aes(x = pos_cum, y = log10p, color = trait, shape = method),
+               alpha = 0.9, size = 2.5, stroke = 0.5) +
+    scale_color_manual(values = trait_colors, name = "Trait") +
+    scale_shape_manual(values = method_shapes, name = "Method") +
     scale_x_continuous(
         labels = chr_info$chr_f,
         breaks = chr_info$center,
@@ -333,8 +299,9 @@ p_simple <- ggplot() +
                color = "red", linewidth = 0.5, alpha = 0.5) +
     labs(
         title = "Combined Association Analysis (All Traits & Methods)",
-        subtitle = paste0("K = ", Kbest, " | ", n_sig_snps, " significant SNPs (",
-                         n_multi, " multi-association)"),
+        subtitle = paste0("K = ", Kbest, " | ", n_sig_unique, " significant SNPs, ",
+                         n_sig_points, " detections across ",
+                         length(names(assoc_info)), " methods"),
         x = "Chromosome",
         y = expression(-log[10](p-value))
     ) +
@@ -344,6 +311,10 @@ p_simple <- ggplot() +
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 9, face = "bold"),
         legend.key.size = unit(0.5, "cm")
+    ) +
+    guides(
+        color = guide_legend(order = 1),
+        shape = guide_legend(order = 2)
     )
 
 # Save simple plot
@@ -398,7 +369,7 @@ if (file.exists(REGIONS_FILE)) {
             ) %>%
             dplyr::select(-region_center, -region_half_width)
 
-        # Mark SNPs in regions
+        # Mark SNPs in regions (all method-trait combinations)
         plot_data_regions <- plot_data_all %>%
             dplyr::mutate(
                 in_region = FALSE,
@@ -407,7 +378,6 @@ if (file.exists(REGIONS_FILE)) {
 
         for (i in 1:nrow(regions)) {
             r <- regions[i, ]
-            # Find significant SNPs in this region
             in_this_region <- as.character(plot_data_regions$chr) == as.character(r$chr) &
                               plot_data_regions$pos >= (r$start - 500000) &
                               plot_data_regions$pos <= (r$end + 500000) &
@@ -423,7 +393,7 @@ if (file.exists(REGIONS_FILE)) {
         names(region_colors) <- region_ids
 
         n_in_regions <- sum(plot_data_regions$in_region)
-        message(paste0('INFO: ', n_in_regions, ' significant SNPs in regions'))
+        message(paste0('INFO: ', n_in_regions, ' significant detection points in regions'))
 
         # Prepare data subsets
         df_background_reg <- plot_data_regions %>%
@@ -431,31 +401,13 @@ if (file.exists(REGIONS_FILE)) {
             dplyr::filter(method == names(assoc_info)[1])
         df_background_reg$point_color <- chr_colors[as.character(df_background_reg$chr)]
 
-        # For significant SNPs, aggregate by position to handle multi-associations
-        sig_snps_regions <- plot_data_regions %>%
-            dplyr::filter(is_significant) %>%
-            group_by(SNPID, chr, pos, pos_cum, in_region, region_id) %>%
-            summarise(
-                n_associations = n(),
-                trait_methods = paste(trait_method, collapse = ","),
-                max_log10p = max(log10p),
-                .groups = 'drop'
-            ) %>%
-            dplyr::mutate(
-                display_color = ifelse(n_associations > 1, "Multi",
-                                      strsplit(trait_methods, ",")[[1]][1]),
-                log10p = max_log10p
-            )
+        # Sig SNPs NOT in regions: color by trait, shape by method
+        df_sig_not_region <- plot_data_regions %>%
+            dplyr::filter(is_significant & !in_region)
 
-        df_sig_not_region <- sig_snps_regions %>%
-            dplyr::filter(!in_region)
-
-        df_in_region <- sig_snps_regions %>%
-            dplyr::filter(in_region)
-
-        # Calculate statistics
-        n_sig_unique <- nrow(sig_snps_regions)
-        n_multi_regions <- sum(sig_snps_regions$display_color == "Multi")
+        # Sig SNPs IN regions: color by region, shape by method
+        df_in_region <- plot_data_regions %>%
+            dplyr::filter(is_significant & in_region)
 
         # Plot with regions
         message('INFO: Generating combined Manhattan plot with regions')
@@ -470,20 +422,21 @@ if (file.exists(REGIONS_FILE)) {
             # Background SNPs - always scattermore
             geom_scattermore(data = df_background_reg,
                              aes(x = pos_cum, y = log10p, color = point_color),
-                             alpha = 0.9, pointsize = 5,
+                             alpha = 0.9, pointsize = 10,
                              pixels = c(4000, 1500), interpolate = FALSE) +
             scale_color_identity() +
-            # Significant SNPs NOT in regions - colored by trait-method
+            # Significant SNPs NOT in regions - color by trait, shape by method
             ggnewscale::new_scale_color() +
             geom_point(data = df_sig_not_region,
-                      aes(x = pos_cum, y = log10p, color = display_color),
-                      alpha = 0.8, size = 2.0, shape = 16) +
-            scale_color_manual(values = trait_method_colors, name = "Trait-Method") +
-            # SNPs IN regions - colored by region (larger)
+                      aes(x = pos_cum, y = log10p, color = trait, shape = method),
+                      alpha = 0.8, size = 2.0, stroke = 0.4) +
+            scale_color_manual(values = trait_colors, name = "Trait") +
+            scale_shape_manual(values = method_shapes, name = "Method") +
+            # SNPs IN regions - colored by region, shaped by method
             ggnewscale::new_scale_color() +
             geom_point(data = df_in_region,
-                      aes(x = pos_cum, y = log10p, color = region_id),
-                      alpha = 0.95, size = 3.0, shape = 18) +
+                      aes(x = pos_cum, y = log10p, color = region_id, shape = method),
+                      alpha = 0.95, size = 3.0, stroke = 0.5) +
             scale_color_manual(values = region_colors, name = "Region") +
             # Threshold line
             geom_hline(yintercept = min_threshold, linetype = "dashed",
@@ -500,9 +453,8 @@ if (file.exists(REGIONS_FILE)) {
             ) +
             labs(
                 title = "Combined Association Analysis with Regions (All Traits & Methods)",
-                subtitle = paste0("K = ", Kbest, " | ", n_sig_unique, " significant SNPs (",
-                                 n_multi_regions, " multi-association) | ",
-                                 nrow(regions), " regions highlighted"),
+                subtitle = paste0("K = ", Kbest, " | ", n_in_regions, " detections in ",
+                                 length(region_ids), " regions | color=region, shape=method"),
                 x = "Chromosome",
                 y = expression(-log[10](p-value))
             ) +
@@ -516,7 +468,8 @@ if (file.exists(REGIONS_FILE)) {
             ) +
             guides(
                 fill = "none",
-                color = guide_legend(ncol = 1, override.aes = list(size = 2))
+                color = guide_legend(ncol = 1, override.aes = list(size = 2)),
+                shape = guide_legend(ncol = 1, override.aes = list(size = 2))
             )
 
         # Save regions plot
