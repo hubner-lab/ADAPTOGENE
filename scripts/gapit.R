@@ -166,11 +166,11 @@ for (model in MODELS) {
 
         gwas <- fread(result_file)
 
-        # GAPIT result columns: SNP, Chromosome, Position, P.value, MAF, nobs, ...
+        # GAPIT result columns: SNP, Chr, Pos, P.value, MAF, nobs, ...
         pvals <- data.table(
-            SNPID = paste0(gwas$Chromosome, ":", gwas$Position),
-            chr = as.character(gwas$Chromosome),
-            pos = as.integer(gwas$Position)
+            SNPID = gwas$SNP,
+            chr = as.character(gwas$Chr),
+            pos = as.integer(gwas$Pos)
         )
         pvals[[trait]] <- gwas$P.value
 
