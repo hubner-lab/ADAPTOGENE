@@ -125,26 +125,36 @@ dir.create(WORKDIR, recursive = TRUE, showWarnings = FALSE)
 old_wd <- getwd()
 setwd(WORKDIR)
 
-# --- Run GAPIT ---
+# --- Run GAPIT (one model at a time to avoid GAPIT internal state corruption) ---
 message("INFO: Running GAPIT with models: ", paste(MODELS, collapse = ", "))
-tryCatch({
-    gapit_result <- GAPIT(
-        Y = as.data.frame(myY),
-        GD = as.data.frame(myGD),
-        GM = as.data.frame(myGM),
-        CV = as.data.frame(myCV),
-        KI = as.data.frame(myKI),
-        model = MODELS,
-        PCA.total = 0,  # We provide our own PCA via CV
-        file.output = TRUE
-    )
-}, error = function(e) {
-    message("ERROR: GAPIT failed: ", e$message)
-    setwd(old_wd)
-    stop(e)
-})
+failed_models <- c()
+for (model in MODELS) {
+    message("INFO: Running model: ", model)
+    tryCatch({
+        gapit_result <- GAPIT(
+            Y = as.data.frame(myY),
+            GD = as.data.frame(myGD),
+            GM = as.data.frame(myGM),
+            CV = as.data.frame(myCV),
+            KI = as.data.frame(myKI),
+            model = model,
+            PCA.total = 0,  # We provide our own PCA via CV
+            file.output = TRUE
+        )
+    }, error = function(e) {
+        message("WARNING: GAPIT model ", model, " failed: ", e$message)
+        failed_models <<- c(failed_models, model)
+    })
+}
 
 setwd(old_wd)
+
+if (length(failed_models) == length(MODELS)) {
+    stop("All GAPIT models failed: ", paste(failed_models, collapse = ", "))
+}
+if (length(failed_models) > 0) {
+    message("WARNING: Failed models: ", paste(failed_models, collapse = ", "))
+}
 
 # --- Parse GAPIT output and create standardized pvalue tables ---
 message("INFO: Parsing GAPIT results")

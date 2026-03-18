@@ -49,7 +49,7 @@ sigSNPs_vec %<>% setNames(methods_vec)
 # Load tables, filter by climate traits
 sigSNPs_lst <- lapply(sigSNPs_vec, function(x) {
     dt <- fread(x)
-    if (nrow(dt) == 0) return(dt)
+    if (nrow(dt) == 0) return(data.table(SNPID = character(), chr = character(), pos = integer(), trait = character(), method = character(), pvalue = numeric()))
     dt$chr <- as.character(dt$chr)
     dt %>%
         dplyr::filter(trait %in% !!PREDICTORS_SELECTED) %>%
