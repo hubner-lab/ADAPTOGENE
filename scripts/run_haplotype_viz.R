@@ -52,7 +52,7 @@ message("Tag: ", tag)
 
 # Read regions and metadata
 regions <- fread(selected_regions)
-meta <- fread(metadata_file)
+meta <- fread(metadata_file, colClasses = c("site" = "character", "sample" = "character"))
 sample_col <- names(meta)[2]
 site_col   <- names(meta)[1]
 trait_cols  <- names(meta)[5:ncol(meta)]

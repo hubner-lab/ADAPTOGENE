@@ -1,5 +1,5 @@
 library(geodata)
-library(raster)
+library(terra)
 library(data.table)
 library(dplyr)
 library(stringr)
@@ -13,7 +13,7 @@ SSP = args[5]
 YEAR = args[6]
 MODEL = args[7]  # single model name
 RESOLUTION = args[8] %>% as.numeric
-OUTPUT = args[9]  # output .grd file path
+OUTPUT = args[9]  # output .tif file path
 #################################
 
 # Load samples for crop region
@@ -40,6 +40,7 @@ message(paste0('INFO: Crop region: minLon=', crop_region[1], ', maxLon=', crop_r
                ', minLat=', crop_region[3], ', maxLat=', crop_region[4]))
 
 # Download CMIP6 bioclimatic data for this model
+# geodata::cmip6_world returns a SpatRaster (terra)
 clim_model <- cmip6_world(
   lon = crop_region[1:2],
   lat = crop_region[3:4],
@@ -49,17 +50,15 @@ clim_model <- cmip6_world(
   var = 'bioc',
   res = RESOLUTION,
   path = INDIR
-) %>%
-  raster::crop(., crop_region) %>%
-  setNames(
-    names(.) %>%
-      str_split('_') %>%
-      lapply(function(x) x %>% rev %>% .[1]) %>%
-      unlist %>%
-      paste0('bio_', .)
-  ) %>%
-  stack %>%
-  raster::crop(., crop_region)
+)
+
+# Crop and rename layers
+clim_model <- terra::crop(clim_model, ext(crop_region))
+names(clim_model) <- names(clim_model) %>%
+  str_split('_') %>%
+  lapply(function(x) x %>% rev %>% .[1]) %>%
+  unlist %>%
+  paste0('bio_', .)
 
 message(paste0('INFO: Download complete for model: ', MODEL))
 message(paste0('INFO: Layers: ', paste(names(clim_model), collapse = ', ')))
@@ -67,8 +66,7 @@ message(paste0('INFO: Layers: ', paste(names(clim_model), collapse = ', ')))
 # Save per-model raster
 writeRaster(clim_model,
             filename = OUTPUT,
-            format = "raster",
             overwrite = TRUE,
-            options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+            gdal = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 message(paste0('INFO: Saved raster to: ', OUTPUT))

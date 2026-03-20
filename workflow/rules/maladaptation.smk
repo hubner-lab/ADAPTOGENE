@@ -6,7 +6,7 @@
 rule download_climate_future_model:
     """Download CMIP6 future climate data for a single model."""
     input: samples = O['metadata']
-    output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.grd"
+    output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.tif"
     wildcard_constraints: model = r"[A-Za-z0-9_-]+"
     params:
         crop = CROP_REGION,
@@ -27,7 +27,7 @@ rule merge_climate_future:
     """Average future climate across models and extract site values."""
     input:
         samples = O['metadata'],
-        model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.grd" for model in MODELS_LIST],
+        model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif" for model in MODELS_LIST],
         present_raster = W['climate_raster'],
         present_all = O['climate_all']
     output:

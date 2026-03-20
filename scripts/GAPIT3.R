@@ -33,7 +33,7 @@ KINSHIP_alg = args[7]
 WORKDIR = paste0(getwd(), '/', args[8]) ; mkdir(WORKDIR) # NAME OF THE DIR THAT WILL BE CREATED IN CURRENT DIRECTORY
 #################################
 
-samples = fread(SAMPLES, header = F)$V1
+samples = fread(SAMPLES, header = F, colClasses = "character")$V1
 
 # Create/Load files
 ## GD

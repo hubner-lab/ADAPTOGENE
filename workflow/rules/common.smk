@@ -523,7 +523,7 @@ def add_kbest_paths():
     W['vcf_imp'] = f"{WORK_LD}{VCF_BASE}_K{K_BEST}imp.vcf"
 
     # Climate rasters
-    W['climate_raster'] = f"{MOD_CLIMATE}rasters/present/climate_present_rasterstack.grd"
+    W['climate_raster'] = f"{MOD_CLIMATE}rasters/present/climate_present_rasterstack.tif"
 
     # Tables - climate
     O['climate_site'] = f"{MOD_CLIMATE}tables/present/climate_present_site.tsv"
@@ -699,10 +699,10 @@ def add_maladaptation_paths():
 
     # Per-model future climate rasters
     for model in MODELS_LIST:
-        W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.grd"
+        W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif"
 
     # Merged future climate
-    W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.grd"
+    W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.tif"
     O['climate_future_all'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_all.tsv"
     O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
 
@@ -711,7 +711,7 @@ def add_maladaptation_paths():
     W['gf_random'] = f"{INTER}gradient_forest/gradientforest_random_{SUFFIX}.qs"
 
     # Genetic offset outputs
-    W['gf_offset_raster'] = f"{INTER}gradient_forest/genetic_offset_{SUFFIX}.grd"
+    W['gf_offset_raster'] = f"{INTER}gradient_forest/genetic_offset_{SUFFIX}.tif"
     O['gf_offset_map_values'] = f"{MOD_MALAD}tables/genetic_offset_map_{SUFFIX}.tsv"
     O['gf_offset_site_values'] = f"{MOD_MALAD}tables/genetic_offset_site_{SUFFIX}.tsv"
 

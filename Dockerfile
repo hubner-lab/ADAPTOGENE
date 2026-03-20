@@ -106,6 +106,7 @@ RUN Rscript -e " \
 # Spatial and geographic packages
 RUN Rscript -e " \
     remotes::install_version('sp', version = '2.1-4'); \
+    remotes::install_version('terra', version = '1.8-5'); \
     remotes::install_version('raster', version = '3.6-30'); \
     remotes::install_version('geodata', version = '0.6-2'); \
     remotes::install_version('geosphere', version = '1.5-20'); \

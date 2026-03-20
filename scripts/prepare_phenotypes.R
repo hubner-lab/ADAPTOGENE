@@ -19,7 +19,7 @@ message(paste0('INFO: Missing strategy: ', MISSING_STRATEGY))
 message(paste0('INFO: Output directory: ', OUTPUT_DIR))
 
 # Read metadata
-meta <- fread(METADATA, sep = '\t')
+meta <- fread(METADATA, sep = '\t', colClasses = c("site" = "character", "sample" = "character"))
 message(paste0('INFO: Loaded ', nrow(meta), ' samples, ', ncol(meta), ' columns'))
 
 # Extract trait columns (everything after site, sample, latitude, longitude)

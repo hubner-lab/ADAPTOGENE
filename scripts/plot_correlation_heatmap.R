@@ -28,7 +28,7 @@ plot_theme <-
 
 #################################
 
-samples = fread(SAMPLES)
+samples = fread(SAMPLES, colClasses = c("site" = "character", "sample" = "character"))
 climate = fread(CLIMATE)
 
 # Combine climate with phenotypic traits if available

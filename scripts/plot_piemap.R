@@ -6,7 +6,7 @@ library(data.table)
 library(dplyr)
 library(ggplot2)
 library(ggrepel)
-library(raster)
+library(terra)
 library(ggspatial)
 library(scatterpie)
 library(ggnewscale)
@@ -15,7 +15,7 @@ library(viridis)
 
 args = commandArgs(trailingOnly=TRUE)
 #################################
-RASTER_PATH = args[1]       # path to .grd file
+RASTER_PATH = args[1]       # path to .tif file
 RASTER_LAYER = args[2]      # layer name (e.g., "bio_1") or "1" for single-layer rasters
 RASTER_LEGEND = args[3]     # legend title for raster (e.g., "bio_1" or "Genetic Offset")
 SAMPLES = args[4]           # metadata file
@@ -48,12 +48,12 @@ my_colors <- c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9",
 ############################# Functions
 
 #' Calculate autoscaled pie size range based on map extent
-#' @param raster_layer Raster layer to get extent from
+#' @param raster_layer SpatRaster layer to get extent from
 #' @return List with min_radius, max_radius, mid_radius (in map units)
 calculate_pie_size_range <- function(raster_layer) {
-  map_extent <- extent(raster_layer)
-  x_range <- map_extent@xmax - map_extent@xmin
-  y_range <- map_extent@ymax - map_extent@ymin
+  map_extent <- ext(raster_layer)
+  x_range <- xmax(map_extent) - xmin(map_extent)
+  y_range <- ymax(map_extent) - ymin(map_extent)
 
   # Use the smaller dimension to ensure pies fit well
   map_size <- min(c(x_range, y_range))
@@ -99,7 +99,7 @@ scale_trait_to_radius <- function(trait_values, min_radius, max_radius) {
 #' Create a PieMap plot
 #' @param samples Sample metadata with site, sample, latitude, longitude
 #' @param clusters Cluster assignments per sample
-#' @param raster_layer Raster layer for background
+#' @param raster_layer SpatRaster layer for background
 #' @param trait Optional data.frame with site and trait value columns for pie sizing
 #' @param trait_name Name for size legend (e.g., "Tajima's D")
 #' @param pie_size_range List with min_radius, max_radius, mid_radius
@@ -260,14 +260,10 @@ create_piemap <- function(samples,
 ################################# MAIN
 
 # Load raster
-raster_data <- tryCatch({
-  brick(RASTER_PATH)
-}, error = function(e) {
-  raster(RASTER_PATH)
-})
+raster_data <- rast(RASTER_PATH)
 
 # Extract layer
-if (nlayers(raster_data) > 1) {
+if (nlyr(raster_data) > 1) {
   # Multi-layer raster (e.g., climate stack)
   if (!RASTER_LAYER %in% names(raster_data)) {
     stop(paste0("ERROR: Layer '", RASTER_LAYER, "' not found in raster. Available: ",
@@ -350,21 +346,21 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
         stop("ERROR: REGIONMAP_EXTENT must be 'xmin,xmax,ymin,ymax', got: ", REGIONMAP_EXTENT)
     }
 
-    xmin <- coords[1]
-    xmax <- coords[2]
-    ymin <- coords[3]
-    ymax <- coords[4]
+    xmin_val <- coords[1]
+    xmax_val <- coords[2]
+    ymin_val <- coords[3]
+    ymax_val <- coords[4]
 
     # Create extent object for cropping
-    zoom_extent <- extent(xmin, xmax, ymin, ymax)
+    zoom_extent <- ext(xmin_val, xmax_val, ymin_val, ymax_val)
 
     # Crop raster to zoom extent
     rlayer_zoom <- crop(rlayer, zoom_extent)
 
     # Filter samples to those within zoom extent
     samples_zoom <- samples %>%
-        filter(longitude >= xmin & longitude <= xmax) %>%
-        filter(latitude >= ymin & latitude <= ymax)
+        filter(longitude >= xmin_val & longitude <= xmax_val) %>%
+        filter(latitude >= ymin_val & latitude <= ymax_val)
 
     if (nrow(samples_zoom) == 0) {
         message("WARNING: No samples within zoom extent, skipping zoomed plot")

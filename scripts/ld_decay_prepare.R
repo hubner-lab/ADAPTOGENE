@@ -32,7 +32,7 @@ dir.create(CHR_VCFS_DIR, recursive = TRUE, showWarnings = FALSE)
 #=============================================================================
 # READ METADATA AND ASSIGN GROUPS
 #=============================================================================
-meta <- fread(METADATA_PATH)
+meta <- fread(METADATA_PATH, colClasses = c("site" = "character", "sample" = "character"))
 # Standardize column names
 colnames(meta)[1:2] <- c("site", "sample")
 

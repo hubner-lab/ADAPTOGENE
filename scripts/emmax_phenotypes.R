@@ -56,7 +56,7 @@ message(paste0("INFO: PCA matrix: ", nrow(cov_raw), " rows x ", ncol(cov_raw), "
 if (nrow(cov_raw) > length(SampleName) && !is.null(SAMPLES_ORDER)) {
     # DROP mode: PCA is from whole dataset, VCF is per-trait subset
     message("INFO: PCA has more rows than VCF samples — subsetting (DROP mode)")
-    all_samples <- fread(SAMPLES_ORDER, header = FALSE)$V1
+    all_samples <- fread(SAMPLES_ORDER, header = FALSE, colClasses = "character")$V1
     message(paste0("INFO: Full sample order: ", length(all_samples), " samples"))
     keep_idx <- which(all_samples %in% SampleName)
     cov_raw <- cov_raw[keep_idx, ]
@@ -73,7 +73,7 @@ covariates <- cov_raw[, 1:K_BEST] %>% setNames(paste0('PC', 1:K_BEST))
 
 # --- Read phenotype file ---
 message("INFO: Reading phenotype file")
-pheno <- fread(PHENOTYPE_FILE, sep = '\t', header = TRUE)
+pheno <- fread(PHENOTYPE_FILE, sep = '\t', header = TRUE, colClasses = c("sample" = "character"))
 trait_cols <- colnames(pheno)[colnames(pheno) != 'sample']
 message(paste0("INFO: Traits: ", paste(trait_cols, collapse = ', ')))
 message(paste0("INFO: Phenotype samples: ", nrow(pheno)))

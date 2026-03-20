@@ -120,7 +120,7 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, TPED_PREFIX, KINSHIP_FILE) {
 trait <- trait %>% dplyr::select(!!PREDICTORS_SELECTED)
 
 # Add phenotype traits if present in metadata
-samples <- fread(SAMPLES_FILE)
+samples <- fread(SAMPLES_FILE, colClasses = c("site" = "character", "sample" = "character"))
 if (ncol(samples) > 4) {
     trait <- cbind(trait, samples %>% dplyr::select(-site, -sample, -latitude, -longitude))
 }

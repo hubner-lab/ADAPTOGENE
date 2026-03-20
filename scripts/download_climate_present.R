@@ -1,4 +1,4 @@
-library(raster)
+library(terra)
 library(data.table)
 library(dplyr)
 library(stringr)
@@ -97,33 +97,30 @@ FUN_present_climate <- function(samples,
     stop(paste0("ERROR: No bioclimatic tif files found in ", tif_dir))
   }
 
-  # Stack from tif
-  clim.layer <- stack(clim.list)
-  message('INFO: Present climate stack of tif files loaded')
+  # Load as SpatRaster
+  clim.layer <- rast(clim.list)
+  message('INFO: Present climate SpatRaster loaded')
   message(samples %>% str)
 
-  # Extract coordinates
-  coords <- data.frame(long = samples$longitude,
-                       lat = samples$latitude)
-  coordinates(coords) <- ~ long + lat
+  # Create SpatVector for site coordinates
+  coords <- vect(data.frame(long = samples$longitude, lat = samples$latitude),
+                 geom = c("long", "lat"), crs = "EPSG:4326")
 
   # Crop
   if (length(crop_region) == 1 && crop_region == 'world') {
     clim.present <- clim.layer
   } else {
-    clim.present <- raster::crop(clim.layer, crop_region)
+    clim.present <- terra::crop(clim.layer, ext(crop_region))
   }
 
   names(clim.present) <- gsub(paste0("wc2\\.1_", resolution_format, "_"), "", names(clim.present))
 
   # Extract data for coordinates
-  clim.present.coords <- raster::extract(clim.present, coords) %>%
+  clim.present.coords <- terra::extract(clim.present, coords)[, -1] %>%
     as.data.frame
 
-  # Extract each pixel values
-  clim.land <- raster::extract(clim.present,
-                               1:ncell(clim.present),
-                               df = TRUE) %>%
+  # Extract all pixel values
+  clim.land <- terra::extract(clim.present, 1:ncell(clim.present)) %>%
     na.omit %>%
     setNames(c('ID', names(clim.present)))
 
@@ -164,22 +161,39 @@ clim_present <- FUN_present_climate(samples,
 message('INFO: Loading climate present data complete, saving to the disk')
 message(clim_present %>% str)
 
+# Validate: check for samples with NA climate values
+site_values <- clim_present$SiteValues
+na_rows <- which(rowSums(is.na(site_values)) > 0)
+if (length(na_rows) > 0) {
+    bad_samples <- samples[na_rows, ]
+    message("ERROR: Climate extraction returned NA for the following samples:")
+    for (i in seq_len(nrow(bad_samples))) {
+        msg <- if (bad_samples$latitude[i] == 0 && bad_samples$longitude[i] == 0) {
+            "likely placeholder (0,0)"
+        } else {
+            "falls on ocean/NoData pixel"
+        }
+        message(paste0("  - ", bad_samples$sample[i], " (", bad_samples$site[i],
+                       ") at (", bad_samples$latitude[i], ", ", bad_samples$longitude[i], "): ", msg))
+    }
+    stop(paste0("Climate extraction failed for ", length(na_rows), " samples. ",
+                "Fix coordinates in input metadata or remove these samples."))
+}
+
 # Save raster
 writeRaster(clim_present$RasterStack,
-            filename = paste0(RASTER_DIR, 'climate_present_rasterstack.grd'),
-            format = "raster",
+            filename = paste0(RASTER_DIR, 'climate_present_rasterstack.tif'),
             overwrite = TRUE,
-            options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+            gdal = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 
 # Save all values
 clim_present$AllValues %>%
   fwrite(paste0(TABLES_DIR, 'climate_present_all.tsv'), sep = '\t')
 
-# Save site values
-clim_present$SiteValues %>%
+# Save site values (with sample column for traceability)
+cbind(sample = samples$sample, site_values) %>%
   fwrite(paste0(TABLES_DIR, 'climate_present_site.tsv'), sep = '\t')
 
-# Save site values scaled
-clim_present$SiteValues %>%
-  dplyr::mutate_all(scale) %>%
+# Save site values scaled (with sample column)
+cbind(sample = samples$sample, site_values %>% dplyr::mutate_all(scale)) %>%
   fwrite(paste0(TABLES_DIR, 'climate_present_site_scaled.tsv'), sep = '\t')

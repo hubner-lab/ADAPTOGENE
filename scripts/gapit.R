@@ -60,7 +60,7 @@ sample_names <- myGD$Taxa
 # --- Subset if DROP mode ---
 if (!is.null(SAMPLES_SUBSET)) {
     message("INFO: DROP mode — subsetting to sample list: ", SAMPLES_SUBSET)
-    keep_samples <- fread(SAMPLES_SUBSET, header = FALSE)$V1
+    keep_samples <- fread(SAMPLES_SUBSET, header = FALSE, colClasses = "character")$V1
 
     # Subset GD
     keep_idx <- which(sample_names %in% keep_samples)
@@ -92,7 +92,7 @@ if ("sample" %in% colnames(traits)) {
 } else {
     # Traits are in same order as samples (from metadata)
     # Need to load samples file to match order
-    all_samples <- fread(SAMPLES_FILE, header = TRUE)
+    all_samples <- fread(SAMPLES_FILE, header = TRUE, colClasses = c("site" = "character", "sample" = "character"))
     if ("sample" %in% colnames(all_samples)) {
         traits_with_sample <- cbind(data.table(sample = all_samples$sample), traits)
         traits_ordered <- data.table(sample = sample_names) %>%

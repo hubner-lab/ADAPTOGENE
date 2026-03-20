@@ -1,7 +1,7 @@
 library(qs)
 library(data.table)
 library(dplyr)
-library(raster)
+library(terra)
 library(stringr)
 library(gradientForest)
 args = commandArgs(trailingOnly=TRUE)
@@ -44,16 +44,15 @@ message(paste0('INFO: Genetic offset range: ', round(min(genetic_offset, na.rm =
                ' - ', round(max(genetic_offset, na.rm = TRUE), 4)))
 
 # Create genetic offset raster
-clim_present <- brick(PRESENT_RASTER)
+clim_present <- rast(PRESENT_RASTER)
 rast_offset <- clim_present[[PREDICTORS_SELECTED[1]]]
 rast_offset[present_climate_all$ID] <- genetic_offset
 
 # Save offset raster
 writeRaster(rast_offset,
             filename = OUTPUT_RASTER,
-            format = "raster",
             overwrite = TRUE,
-            options = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
+            gdal = c("INTERLEAVE=BAND", "COMPRESS=LZW"))
 message(paste0('INFO: Saved offset raster: ', OUTPUT_RASTER))
 
 # Save GO values for whole map (matrix format)
@@ -69,10 +68,10 @@ samples <- fread(SAMPLES,
                                 'sample' = 'character',
                                 'latitude' = 'numeric',
                                 'longitude' = 'numeric'))
-coords <- data.frame(long = samples$longitude, lat = samples$latitude)
-coordinates(coords) <- ~long + lat
+coords <- vect(data.frame(long = samples$longitude, lat = samples$latitude),
+               geom = c("long", "lat"), crs = "EPSG:4326")
 
-go_site <- raster::extract(rast_offset, coords) %>%
+go_site <- terra::extract(rast_offset, coords)[, -1] %>%
   as.data.frame %>%
   cbind(samples[, c('site', 'sample')] %>% unique, .) %>%
   setNames(c('site', 'sample', 'genetic_offset')) %>%

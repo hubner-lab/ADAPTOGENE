@@ -163,7 +163,7 @@ create_variance_pie <- function(results) {
 ########################################## Main
 
 # Load + process
-geo_raw <- fread(SAMPLES)
+geo_raw <- fread(SAMPLES, colClasses = c("site" = "character", "sample" = "character"))
 geo_cols <- colnames(geo_raw)
 
 lat_col <- geo_cols[grepl("^lat", geo_cols, ignore.case = TRUE)]

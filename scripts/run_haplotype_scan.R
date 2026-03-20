@@ -50,7 +50,7 @@ regions <- fread(selected_regions)
 message("Processing ", nrow(regions), " regions")
 
 # Read metadata for phenotype and grouping
-meta <- fread(metadata_file)
+meta <- fread(metadata_file, colClasses = c("site" = "character", "sample" = "character"))
 sample_col <- names(meta)[2]  # sample column
 site_col   <- names(meta)[1]  # site column
 
@@ -244,9 +244,16 @@ for (i in seq_len(nrow(regions))) {
 
   }, error = function(e) {
     full_error <- conditionMessage(e)
-    message("ERROR: Haplotyping failed for region ", rid, ": ", full_error)
-    add_status(rid, chr, start_pos, end_pos, n_snps, 'failed_haplotyping',
-               substr(full_error, 1, 200), '')  # Truncate long errors
+    if (grepl("must be an array|subscript out of bounds|Varfile", full_error)) {
+      message("WARNING: No haplotype structure found for region ", rid,
+              " (zero marker groups — SNPs may be in linkage equilibrium)")
+      add_status(rid, chr, start_pos, end_pos, n_snps, 'failed_haplotyping',
+                 'No haplotype structure (zero marker groups); try higher epsilon or lower MGmin', '')
+    } else {
+      message("ERROR: Haplotyping failed for region ", rid, ": ", full_error)
+      add_status(rid, chr, start_pos, end_pos, n_snps, 'failed_haplotyping',
+                 substr(full_error, 1, 200), '')
+    }
     return(NULL)
   })
 
