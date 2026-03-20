@@ -267,17 +267,22 @@ rule combine_selected_snps:
 rule create_regions:
     """Merge nearby significant SNPs into regions.
     Produces two outputs: per-trait regions and combined climate regions."""
-    input: selected_snps = O['selected_snps']
+    input:
+        selected_snps = O['selected_snps'],
+        ld_decay = ld_decay_input(REGION_DISTANCE_AUTO)
     output:
         per_trait = O['regions_per_trait'],
         combined = O['regions_combined']
-    params: region_dist = REGION_DISTANCE
+    params:
+        region_dist = REGION_DISTANCE,
+        ld_decay_path = O.get('ld_decay_table', 'NULL') if REGION_DISTANCE_AUTO else 'NULL'
     log: f"{LOGDIR}association/create_regions.log"
     shell:
         """
         Rscript /pipeline/scripts/create_regions.R \
             {input.selected_snps} {params.region_dist} \
-            {output.per_trait} {output.combined} > {log} 2>&1
+            {output.per_trait} {output.combined} \
+            {params.ld_decay_path} > {log} 2>&1
         """
 
 # Find genes around regions

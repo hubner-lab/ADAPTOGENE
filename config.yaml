@@ -75,6 +75,15 @@ piemap:
   use_points: FALSE             # Use small colored points instead of pie charts (TRUE/FALSE)
 
 #-----------------------------------------------------------------------------
+# LD_DECAY: Linkage disequilibrium decay analysis
+#-----------------------------------------------------------------------------
+ld_decay:
+  group_by: "site"          # "site" (metadata col 1) or "cluster" (sNMF K_BEST clusters)
+  min_samples: 10            # Groups below this are skipped with warning
+  max_distance: 500          # Max pairwise distance in kb (PopLDdecay -MaxDist)
+  scope: "both"              # "genome_wide", "per_chromosome", or "both"
+
+#-----------------------------------------------------------------------------
 # ASSOCIATION: Association analysis settings (GEA)
 #-----------------------------------------------------------------------------
 association:
@@ -88,7 +97,7 @@ association:
   combine_method: 'Sum'          # How to combine methods: Sum/Overlap/EMMAX/LFMM
   combine_gap: 100000            # Max distance (bp) to consider SNPs overlapping
   sig_snp_distance: 100000       # Distance to merge nearby significant SNPs
-  region_distance: 2000000       # Distance to merge SNPs into regions AND extend regions to find genes
+  region_distance: 2000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   top_regions: 10                # Top N regions for gene analysis (0 = all)
   promoter_length: 10000         # Promoter region length for SNP annotation
   go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)

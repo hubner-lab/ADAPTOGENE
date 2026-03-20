@@ -282,17 +282,22 @@ if PHENO_ASSOC_CONFIGS:
   
   rule create_regions_pheno:
       """Merge nearby significant SNPs into phenotype regions."""
-      input: selected_snps = O['pheno_selected_snps']
+      input:
+          selected_snps = O['pheno_selected_snps'],
+          ld_decay = ld_decay_input(PHENO_REGION_DISTANCE_AUTO)
       output:
           per_trait = O['pheno_regions_per_trait'],
           combined = O['pheno_regions_combined']
-      params: region_dist = PHENO_REGION_DISTANCE
+      params:
+          region_dist = PHENO_REGION_DISTANCE,
+          ld_decay_path = O.get('ld_decay_table', 'NULL') if PHENO_REGION_DISTANCE_AUTO else 'NULL'
       log: f"{LOGDIR}phenotype_association/create_regions_pheno.log"
       shell:
           """
           Rscript /pipeline/scripts/create_regions.R \
               {input.selected_snps} {params.region_dist} \
-              {output.per_trait} {output.combined} > {log} 2>&1
+              {output.per_trait} {output.combined} \
+              {params.ld_decay_path} > {log} 2>&1
           """
   
   rule find_genes_pheno:

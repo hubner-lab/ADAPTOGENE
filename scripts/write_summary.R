@@ -91,10 +91,13 @@ if (MODE == 'processing') {
     )
 
 } else if (MODE == 'structure_K') {
-    # args: MODE OUTPUT K_BEST climate_site predictors
+    # args: MODE OUTPUT K_BEST climate_site predictors ld_decay_path ld_decay_group_by ld_decay_scope
     K_BEST = args[3]
     CLIMATE_SITE = args[4]
     PREDICTORS = args[5]
+    LD_DECAY_PATH = if (length(args) >= 6) args[6] else "NULL"
+    LD_DECAY_GROUP_BY = if (length(args) >= 7) args[7] else "NULL"
+    LD_DECAY_SCOPE_VAL = if (length(args) >= 8) args[8] else "NULL"
 
     new_rows <- rbind(row('structure_K', 'K_best', K_BEST))
 
@@ -106,6 +109,23 @@ if (MODE == 'processing') {
         new_rows <- rbind(new_rows,
             row('structure_K', 'climate_predictors', PREDICTORS),
             row('structure_K', 'n_climate_variables', n_climate_vars)
+        )
+    }
+
+    # LD decay summary
+    if (LD_DECAY_PATH != 'NULL' && file.exists(LD_DECAY_PATH)) {
+        ld_table <- fread(LD_DECAY_PATH)
+        gw_all <- ld_table[group == 'All' & scope == 'genome_wide']
+        if (nrow(gw_all) > 0) {
+            new_rows <- rbind(new_rows,
+                row('structure_K', 'ld_decay_half_decay_genome_wide', gw_all$half_decay_bp[1]),
+                row('structure_K', 'ld_decay_r2_02_genome_wide', gw_all$r2_02_bp[1])
+            )
+        }
+        new_rows <- rbind(new_rows,
+            row('structure_K', 'ld_decay_group_by', LD_DECAY_GROUP_BY),
+            row('structure_K', 'ld_decay_groups_analyzed', nrow(ld_table[scope == 'genome_wide'])),
+            row('structure_K', 'ld_decay_scope', LD_DECAY_SCOPE_VAL)
         )
     }
 

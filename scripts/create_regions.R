@@ -21,10 +21,27 @@ args = commandArgs(trailingOnly=TRUE)
 options(scipen = 99999)
 ################
 SELECTED_SNPS = args[1]  # Selected_SNPs.tsv
-REGION_DISTANCE = args[2] %>% as.numeric
+REGION_DISTANCE_RAW = args[2]  # numeric or "auto"
 OUTPUT_PER_TRAIT = args[3]  # Regions_per_trait.tsv
 OUTPUT_COMBINED = args[4]   # Regions_climate_combined.tsv
+LD_DECAY_PATH = if (length(args) >= 5) args[5] else "NULL"
 ################
+
+# Resolve "auto" region distance from LD decay table
+if (tolower(REGION_DISTANCE_RAW) == "auto") {
+    if (LD_DECAY_PATH == "NULL" || !file.exists(LD_DECAY_PATH)) {
+        stop("region_distance='auto' but LD decay table not found: ", LD_DECAY_PATH)
+    }
+    ld_table <- data.table::fread(LD_DECAY_PATH)
+    auto_val <- ld_table[group == "All" & scope == "genome_wide", r2_02_bp]
+    if (length(auto_val) == 0 || is.na(auto_val[1])) {
+        stop("No genome-wide r2<0.2 distance found in LD decay table for 'All' group")
+    }
+    REGION_DISTANCE <- as.numeric(auto_val[1])
+    message(paste0('INFO: AUTO region_distance from LD decay: ', REGION_DISTANCE, ' bp'))
+} else {
+    REGION_DISTANCE <- as.numeric(REGION_DISTANCE_RAW)
+}
 
 message('INFO: Creating regions from selected SNPs using single-linkage clustering')
 message(paste0('INFO: Maximum gap between neighboring SNPs: ', REGION_DISTANCE))

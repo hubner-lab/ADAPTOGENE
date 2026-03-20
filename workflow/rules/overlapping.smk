@@ -9,14 +9,16 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           gea_selected = O['selected_snps'],
           gwas_selected = O['pheno_selected_snps'],
           gea_regions = O['regions_combined'],
-          gwas_regions = O['pheno_regions_combined']
+          gwas_regions = O['pheno_regions_combined'],
+          ld_decay = ld_decay_input(OVERLAP_REGION_DISTANCE_AUTO)
       output:
           selected = O['overlap_selected_snps'],
           per_trait = O['overlap_regions_per_trait'],
           combined = O['overlap_regions_combined'],
           overlap = O['overlap_summary']
       params:
-          overlap_rdist = OVERLAP_REGION_DISTANCE
+          overlap_rdist = OVERLAP_REGION_DISTANCE,
+          ld_decay_path = O.get('ld_decay_table', 'NULL') if OVERLAP_REGION_DISTANCE_AUTO else 'NULL'
       log: f"{LOGDIR}overlapping/combine_overlap_snps.log"
       shell:
           """
@@ -25,7 +27,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
               {input.gea_regions} {input.gwas_regions} \
               {params.overlap_rdist} \
               {output.selected} {output.per_trait} {output.combined} \
-              {output.overlap} > {log} 2>&1
+              {output.overlap} {params.ld_decay_path} > {log} 2>&1
           """
   
     rule find_genes_overlap:

@@ -258,6 +258,15 @@ PIEMAP_LABEL_SIZE = _cfg('piemap', 'label_size', 10)
 PIEMAP_PIE_SCALE = _cfg('piemap', 'pie_scale', 1.0)
 PIEMAP_USE_POINTS = 'T' if _cfg('piemap', 'use_points', False) else 'F'
 
+# LD DECAY parameters
+_ld_decay = config.get('ld_decay', {})
+LD_DECAY_GROUP_BY = _ld_decay.get('group_by', 'site')
+check_in_list(LD_DECAY_GROUP_BY, ['site', 'cluster'], 'ld_decay.group_by')
+LD_DECAY_MIN_SAMPLES = int(_ld_decay.get('min_samples', 10))
+LD_DECAY_MAX_DISTANCE = int(_ld_decay.get('max_distance', 500))
+LD_DECAY_SCOPE = _ld_decay.get('scope', 'both')
+check_in_list(LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome', 'both'], 'ld_decay.scope')
+
 # GFF parameters
 GFF = _cfg('input', 'gff', '')
 GFF_FEATURE = _cfg('gff', 'feature', 'mRNA')
@@ -270,7 +279,9 @@ SNP_DISTANCE = _assoc.get('sig_snp_distance', 100000)
 PROMOTER_LENGTH = _assoc.get('promoter_length', 10000)
 SIGSNPS_METHOD = _assoc.get('combine_method', 'EMMAX')
 SIGSNPS_GAP = _assoc.get('combine_gap', 100000)
-REGION_DISTANCE = _assoc.get('region_distance', 2000000)
+_region_distance_raw = _assoc.get('region_distance', 2000000)
+REGION_DISTANCE_AUTO = (str(_region_distance_raw).lower() == 'auto')
+REGION_DISTANCE = 'auto' if REGION_DISTANCE_AUTO else int(_region_distance_raw)
 GO_FIELD = _assoc.get('go_field', 'NULL')
 TOP_REGIONS = _assoc.get('top_regions', 10)
 SCATTERMORE_THRESHOLD = _assoc.get('scattermore_threshold', 30000)
@@ -345,17 +356,27 @@ if PHENO_ASSOC_CONFIGS:
 PHENO_COMBINE_METHOD = _pheno.get('combine_method', SIGSNPS_METHOD)
 PHENO_COMBINE_GAP = _pheno.get('combine_gap', SIGSNPS_GAP)
 PHENO_SNP_DISTANCE = _pheno.get('sig_snp_distance', SNP_DISTANCE)
-PHENO_REGION_DISTANCE = _pheno.get('region_distance', REGION_DISTANCE)
+_pheno_rdist_raw = _pheno.get('region_distance', _region_distance_raw)
+PHENO_REGION_DISTANCE_AUTO = (str(_pheno_rdist_raw).lower() == 'auto')
+PHENO_REGION_DISTANCE = 'auto' if PHENO_REGION_DISTANCE_AUTO else int(_pheno_rdist_raw)
 PHENO_TOP_REGIONS = _pheno.get('top_regions', TOP_REGIONS)
 PHENO_PROMOTER_LENGTH = _pheno.get('promoter_length', PROMOTER_LENGTH)
 PHENO_SCATTERMORE_THRESHOLD = _pheno.get('scattermore_threshold', SCATTERMORE_THRESHOLD)
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('overlap', {})
-OVERLAP_REGION_DISTANCE = _overlap.get('region_distance', None)
-# Default: use the larger of GEA and GWAS region distances
-if OVERLAP_REGION_DISTANCE is None:
-    OVERLAP_REGION_DISTANCE = max(REGION_DISTANCE, PHENO_REGION_DISTANCE)
+_overlap_rdist_raw = _overlap.get('region_distance', None)
+if _overlap_rdist_raw is None:
+    # Default: inherit auto if either source is auto, otherwise use max of both
+    if REGION_DISTANCE_AUTO or PHENO_REGION_DISTANCE_AUTO:
+        OVERLAP_REGION_DISTANCE_AUTO = True
+        OVERLAP_REGION_DISTANCE = 'auto'
+    else:
+        OVERLAP_REGION_DISTANCE_AUTO = False
+        OVERLAP_REGION_DISTANCE = max(REGION_DISTANCE, PHENO_REGION_DISTANCE)
+else:
+    OVERLAP_REGION_DISTANCE_AUTO = (str(_overlap_rdist_raw).lower() == 'auto')
+    OVERLAP_REGION_DISTANCE = 'auto' if OVERLAP_REGION_DISTANCE_AUTO else int(_overlap_rdist_raw)
 OVERLAP_TOP_REGIONS = _overlap.get('top_regions', None)
 if OVERLAP_TOP_REGIONS is None:
     OVERLAP_TOP_REGIONS = max(TOP_REGIONS, PHENO_TOP_REGIONS)
@@ -520,6 +541,21 @@ def add_kbest_paths():
     # Plots - structure_k
     O['mantel'] = f"{MOD_STRUCTK}plots/pop_stats/mantel_test.png"
     O['amova_plot'] = f"{MOD_STRUCTK}plots/pop_stats/amova.png"
+
+    # LD decay paths
+    W['ld_decay_work'] = f"{INTER}ld_decay/"
+    W['ld_decay_sample_lists'] = f"{INTER}ld_decay/sample_lists/"
+    W['ld_decay_chr_vcfs'] = f"{INTER}ld_decay/chr_vcfs/"
+    W['ld_decay_stat_gw'] = f"{INTER}ld_decay/stat_gw/"
+    W['ld_decay_stat_chr'] = f"{INTER}ld_decay/stat_chr/"
+    W['ld_decay_prep_done'] = f"{INTER}ld_decay/prep_done.flag"
+    W['ld_decay_gw_done'] = f"{INTER}ld_decay/gw_done.flag"
+    W['ld_decay_chr_done'] = f"{INTER}ld_decay/chr_done.flag"
+    O['ld_decay_table'] = f"{MOD_STRUCTK}tables/ld_decay_half_distances.tsv"
+    O['ld_decay_plot_gw'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.png"
+    O['ld_decay_plot_gw_svg'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.svg"
+    O['ld_decay_plot_chr'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_per_chromosome.png"
+    O['ld_decay_plot_chr_svg'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_per_chromosome.svg"
 
 add_kbest_paths()
 
@@ -814,6 +850,14 @@ for tag in HAP_TAGS:
 dirs_to_create.append(f"{LOGDIR}haplotype_scan/")
 dirs_to_create.append(f"{LOGDIR}haplotype/")
 
+# Add LD decay directories
+if K_BEST is not None:
+    dirs_to_create.append(f"{INTER}ld_decay/")
+    dirs_to_create.append(f"{INTER}ld_decay/sample_lists/")
+    dirs_to_create.append(f"{INTER}ld_decay/chr_vcfs/")
+    dirs_to_create.append(f"{INTER}ld_decay/stat_gw/")
+    dirs_to_create.append(f"{INTER}ld_decay/stat_chr/")
+
 # Add pop stats directories if enabled
 if CALC_POP_STATS:
     dirs_to_create.append(f"{MOD_STRUCTK}plots/pop_stats/")
@@ -888,6 +932,13 @@ def get_targets(mode):
                 # PieMaps with trait overlays
                 targets += [piemap_tajima(bio) for bio in predictors]
                 targets += [piemap_diversity(bio) for bio in predictors]
+
+        # LD decay — table always produced
+        targets.append(O['ld_decay_table'])
+        if LD_DECAY_SCOPE in ('genome_wide', 'both'):
+            targets += [O['ld_decay_plot_gw'], O['ld_decay_plot_gw_svg']]
+        if LD_DECAY_SCOPE in ('per_chromosome', 'both'):
+            targets += [O['ld_decay_plot_chr'], O['ld_decay_plot_chr_svg']]
 
         targets.append(W['summary_done'])
         return targets
@@ -1082,6 +1133,11 @@ def get_targets(mode):
         raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=phenotype_association or mode=overlapping or mode=haplotype_scan or mode=haplotype")
     else:
         raise ValueError(f"Unknown mode: {mode}")
+
+# Helper: provide LD decay table as input when region_distance is "auto"
+def ld_decay_input(auto_flag):
+    """Return LD decay table path as input dependency when auto mode is enabled."""
+    return O.get('ld_decay_table', []) if auto_flag else []
 
 #=============================================================================
 # MAIN RULE

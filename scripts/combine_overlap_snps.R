@@ -20,11 +20,28 @@ GEA_SELECTED   = args[1]  # association/Selected_SNPs.tsv (climate)
 GWAS_SELECTED  = args[2]  # association_phenotypes/Selected_SNPs.tsv (phenotype)
 GEA_REGIONS    = args[3]  # association/Regions_climate_combined.tsv
 GWAS_REGIONS   = args[4]  # association_phenotypes/Regions_phenotype_combined.tsv
-OVERLAP_RDIST  = as.numeric(args[5])  # OVERLAP_REGION_DISTANCE (for new combined regions)
+OVERLAP_RDIST_RAW = args[5]  # OVERLAP_REGION_DISTANCE or "auto"
 OUT_SELECTED   = args[6]  # Selected_SNPs_all.tsv
 OUT_PER_TRAIT  = args[7]  # Regions_per_trait_all.tsv
 OUT_COMBINED   = args[8]  # Regions_all_combined.tsv
 OUT_OVERLAP    = args[9]  # Overlap_summary.tsv
+LD_DECAY_PATH  = if (length(args) >= 10) args[10] else "NULL"
+
+# Resolve "auto" region distance from LD decay table
+if (tolower(OVERLAP_RDIST_RAW) == "auto") {
+    if (LD_DECAY_PATH == "NULL" || !file.exists(LD_DECAY_PATH)) {
+        stop("region_distance='auto' but LD decay table not found: ", LD_DECAY_PATH)
+    }
+    ld_table <- data.table::fread(LD_DECAY_PATH)
+    auto_val <- ld_table[group == "All" & scope == "genome_wide", r2_02_bp]
+    if (length(auto_val) == 0 || is.na(auto_val[1])) {
+        stop("No genome-wide r2<0.2 distance found in LD decay table for 'All' group")
+    }
+    OVERLAP_RDIST <- as.numeric(auto_val[1])
+    message(paste0('INFO: AUTO overlap_region_distance from LD decay: ', OVERLAP_RDIST, ' bp'))
+} else {
+    OVERLAP_RDIST <- as.numeric(OVERLAP_RDIST_RAW)
+}
 ################
 
 message('INFO: Combining GEA (climate) and GWAS (phenotype) significant SNPs')

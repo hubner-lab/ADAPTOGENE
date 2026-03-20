@@ -44,19 +44,24 @@ elif MODE == 'structure_K':
     rule write_summary:
         """Write structure_K mode summary to Pipeline_summary.tsv."""
         input:
-            climate_site = O['climate_site'] if CLIMATE_ENABLED else []
+            climate_site = O['climate_site'] if CLIMATE_ENABLED else [],
+            ld_decay = O['ld_decay_table']
         output: W['summary_done']
         params:
             k = K_BEST,
             predictors = PREDICTORS_SELECTED if CLIMATE_ENABLED else 'NULL',
             climate_site_path = O['climate_site'] if CLIMATE_ENABLED else 'NULL',
-            summary_tsv = O['summary']
+            summary_tsv = O['summary'],
+            ld_decay_path = O['ld_decay_table'],
+            ld_decay_group_by = LD_DECAY_GROUP_BY,
+            ld_decay_scope = LD_DECAY_SCOPE
         log: f"{LOGDIR}structure_k/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 structure_K {params.summary_tsv} \
-                {params.k} {params.climate_site_path} {params.predictors} > {log} 2>&1
+                {params.k} {params.climate_site_path} {params.predictors} \
+                {params.ld_decay_path} {params.ld_decay_group_by} {params.ld_decay_scope} > {log} 2>&1
             touch {output}
             """
 

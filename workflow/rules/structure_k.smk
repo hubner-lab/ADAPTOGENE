@@ -218,3 +218,136 @@ rule piemap_simple:
             {params.plot_dir} {params.inter_dir} \
             piemap_{params.bio} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
+
+#=============================================================================
+# LD DECAY ANALYSIS
+#=============================================================================
+
+rule ld_decay_prepare:
+    """Create sample lists per group and split VCF by chromosome if needed."""
+    input:
+        vcf = W['vcf_filt'],
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST) if LD_DECAY_GROUP_BY == 'cluster' else []
+    output:
+        flag = touch(W['ld_decay_prep_done'])
+    params:
+        group_by = LD_DECAY_GROUP_BY,
+        min_samples = LD_DECAY_MIN_SAMPLES,
+        scope = LD_DECAY_SCOPE,
+        sample_lists_dir = W['ld_decay_sample_lists'],
+        chr_vcfs_dir = W['ld_decay_chr_vcfs'],
+        clusters_path = clusters_table(K_BEST) if LD_DECAY_GROUP_BY == 'cluster' else 'NULL'
+    log: f"{LOGDIR}structure_k/ld_decay_prepare.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/ld_decay_prepare.R \
+            {input.vcf} {input.meta} {params.group_by} \
+            {params.min_samples} {params.scope} \
+            {params.sample_lists_dir} {params.chr_vcfs_dir} \
+            {params.clusters_path} > {log} 2>&1
+        """
+
+rule ld_decay_run_gw:
+    """Run PopLDdecay genome-wide for each group + All."""
+    input:
+        vcf = W['vcf_filt'],
+        prep = W['ld_decay_prep_done']
+    output:
+        flag = touch(W['ld_decay_gw_done'])
+    params:
+        max_dist = LD_DECAY_MAX_DISTANCE,
+        sample_lists_dir = W['ld_decay_sample_lists'],
+        stat_dir = W['ld_decay_stat_gw']
+    log: f"{LOGDIR}structure_k/ld_decay_run_gw.log"
+    shell:
+        """
+        mkdir -p {params.stat_dir}
+        LDFLAGS="-MAF 0 -Miss 1 -Het 1"
+
+        # Run for "All" (no -SubPop)
+        PopLDdecay -InVCF {input.vcf} \
+            -OutStat {params.stat_dir}/All \
+            -MaxDist {params.max_dist} $LDFLAGS \
+            >> {log} 2>&1
+
+        # Run per group
+        for sample_list in {params.sample_lists_dir}/*.txt; do
+            group=$(basename "$sample_list" .txt)
+            [ "$group" = "manifest" ] && continue
+            [ "$group" = "All" ] && continue
+            PopLDdecay -InVCF {input.vcf} \
+                -OutStat {params.stat_dir}/"$group" \
+                -MaxDist {params.max_dist} $LDFLAGS \
+                -SubPop "$sample_list" \
+                >> {log} 2>&1
+        done
+        """
+
+if LD_DECAY_SCOPE in ('per_chromosome', 'both'):
+    rule ld_decay_run_chr:
+        """Run PopLDdecay per chromosome for each group."""
+        input:
+            prep = W['ld_decay_prep_done']
+        output:
+            flag = touch(W['ld_decay_chr_done'])
+        params:
+            max_dist = LD_DECAY_MAX_DISTANCE,
+            sample_lists_dir = W['ld_decay_sample_lists'],
+            chr_vcfs_dir = W['ld_decay_chr_vcfs'],
+            stat_dir = W['ld_decay_stat_chr']
+        log: f"{LOGDIR}structure_k/ld_decay_run_chr.log"
+        shell:
+            """
+            mkdir -p {params.stat_dir}
+            LDFLAGS="-MAF 0 -Miss 1 -Het 1"
+
+            while IFS= read -r chr; do
+                # Run for "All" (no -SubPop)
+                PopLDdecay -InVCF {params.chr_vcfs_dir}/"$chr".vcf \
+                    -OutStat {params.stat_dir}/All_"$chr" \
+                    -MaxDist {params.max_dist} $LDFLAGS \
+                    >> {log} 2>&1
+
+                # Run per group
+                for sample_list in {params.sample_lists_dir}/*.txt; do
+                    group=$(basename "$sample_list" .txt)
+                    [ "$group" = "manifest" ] && continue
+                    [ "$group" = "All" ] && continue
+                    PopLDdecay -InVCF {params.chr_vcfs_dir}/"$chr".vcf \
+                        -OutStat {params.stat_dir}/"$group"_"$chr" \
+                        -MaxDist {params.max_dist} $LDFLAGS \
+                        -SubPop "$sample_list" \
+                        >> {log} 2>&1
+                done
+            done < {params.chr_vcfs_dir}/chromosomes.txt
+            """
+
+rule ld_decay_analyze:
+    """Read PopLDdecay outputs, fit Hill-Weir curves, extract half-decay distances, plot."""
+    input:
+        gw = W['ld_decay_gw_done'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        chr = W['ld_decay_chr_done'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else []
+    output:
+        table = O['ld_decay_table'],
+        plot_gw = O['ld_decay_plot_gw'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        plot_gw_svg = O['ld_decay_plot_gw_svg'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        plot_chr = O['ld_decay_plot_chr'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else [],
+        plot_chr_svg = O['ld_decay_plot_chr_svg'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else []
+    params:
+        scope = LD_DECAY_SCOPE,
+        stat_gw_dir = W['ld_decay_stat_gw'],
+        stat_chr_dir = W['ld_decay_stat_chr'],
+        manifest = f"{W['ld_decay_sample_lists']}manifest.tsv",
+        chr_list = f"{W['ld_decay_chr_vcfs']}chromosomes.txt",
+        plot_gw_path = O.get('ld_decay_plot_gw', 'NULL'),
+        plot_chr_path = O.get('ld_decay_plot_chr', 'NULL')
+    log: f"{LOGDIR}structure_k/ld_decay_analyze.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/ld_decay_analyze.R \
+            {params.scope} {params.stat_gw_dir} {params.stat_chr_dir} \
+            {params.manifest} {params.chr_list} \
+            {output.table} {params.plot_gw_path} {params.plot_chr_path} \
+            > {log} 2>&1
+        """

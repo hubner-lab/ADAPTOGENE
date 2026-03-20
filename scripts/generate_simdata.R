@@ -173,6 +173,130 @@ for (chr in chromosomes) {
   }
 }
 
+#=============================================================================
+# LD FILLER SNPS (non-significant, for LD decay testing)
+#=============================================================================
+# Creates blocks of correlated SNPs at increasing distances from anchor points.
+# Different base flip rates per population create distinct LD decay curves:
+#   Negev:   slow decay (~150-200kb half-decay, bottleneck simulation)
+#   TelAviv: medium decay (~100-120kb)
+#   Galilee: fast decay (~60-80kb)
+
+message("INFO: Generating LD filler SNPs")
+
+ld_distances <- c(2000, 5000, 10000, 25000, 50000, 100000, 200000, 350000, 500000)
+ld_blocks_per_chr <- 5
+
+# Excluded zones: cluster regions (avoid placing LD blocks in sig SNP clusters)
+excluded_zones <- list(
+  list(chr = "chr1", start = 9500000, end = 11500000),   # cluster1
+  list(chr = "chr2", start = 19500000, end = 21500000),   # cluster2
+  list(chr = "chr3", start = 14500000, end = 16500000)    # cluster3
+)
+
+# Population-specific flip rate: determines how fast LD decays
+flip_rate <- function(distance_bp, population) {
+  base_rate <- switch(as.character(population),
+    "1" = 0.003,   # Negev: slow decay
+    "2" = 0.005,   # TelAviv: medium
+    "3" = 0.008    # Galilee: fast decay
+  )
+  pmin(0.5, base_rate * distance_bp / 1000)
+}
+
+# Flip genotype alleles with given probability
+flip_genotypes <- function(anchor_gts, distance_bp, pop_assign, n_samples) {
+  flipped <- anchor_gts
+  for (i in 1:n_samples) {
+    rate <- flip_rate(distance_bp, pop_assign[i])
+    # Parse genotype
+    alleles <- strsplit(anchor_gts[i], "/")[[1]]
+    if (any(alleles == ".")) { flipped[i] <- "./."; next }
+    a1 <- as.integer(alleles[1])
+    a2 <- as.integer(alleles[2])
+    # Flip each allele independently
+    if (runif(1) < rate) a1 <- 1 - a1
+    if (runif(1) < rate) a2 <- 1 - a2
+    flipped[i] <- paste0(a1, "/", a2)
+  }
+  flipped
+}
+
+# Check if position is in an excluded zone
+is_excluded <- function(chr, pos, zones) {
+  for (z in zones) {
+    if (z$chr == chr && pos >= z$start && pos <= z$end) return(TRUE)
+  }
+  FALSE
+}
+
+ld_snp_count <- 0
+for (chr in chromosomes) {
+  # Find safe anchor positions for this chromosome
+  for (block in 1:ld_blocks_per_chr) {
+    # Try to find a non-excluded anchor position
+    max_anchor <- 45000000 - max(ld_distances) - 1000  # leave room for linked SNPs
+    attempts <- 0
+    repeat {
+      anchor_pos <- sample(2000000:max_anchor, 1)
+      if (!is_excluded(chr, anchor_pos, excluded_zones)) break
+      attempts <- attempts + 1
+      if (attempts > 100) { anchor_pos <- 2000000 + block * 5000000; break }
+    }
+
+    # Generate anchor genotype (random allele freq per population)
+    anchor_gts <- generate_genotypes(pop_assign, "random", n_samples)
+    # Add missingness to anchor (low rate, no high-miss sample treatment for LD SNPs)
+    for (i in 1:n_samples) {
+      if (sample_names[i] == high_miss_sample) {
+        if (runif(1) < high_miss_rate) anchor_gts[i] <- "./."
+      } else {
+        if (runif(1) < 0.03) anchor_gts[i] <- "./."
+      }
+    }
+
+    # Add anchor SNP
+    snp_id <- snp_id + 1
+    ld_snp_count <- ld_snp_count + 1
+    ref <- sample(c("A", "C", "G", "T"), 1)
+    alt <- sample(setdiff(c("A", "C", "G", "T"), ref), 1)
+    record <- paste(chr, anchor_pos, paste0("snp", snp_id), ref, alt, ".", "PASS", "DP=100", "GT",
+                    paste(anchor_gts, collapse = "\t"), sep = "\t")
+    vcf_records[[length(vcf_records) + 1]] <- record
+
+    # Add linked SNPs at each distance
+    for (dist in ld_distances) {
+      linked_pos <- anchor_pos + dist
+      linked_gts <- flip_genotypes(anchor_gts, dist, pop_assign, n_samples)
+      snp_id <- snp_id + 1
+      ld_snp_count <- ld_snp_count + 1
+      ref <- sample(c("A", "C", "G", "T"), 1)
+      alt <- sample(setdiff(c("A", "C", "G", "T"), ref), 1)
+      record <- paste(chr, linked_pos, paste0("snp", snp_id), ref, alt, ".", "PASS", "DP=100", "GT",
+                      paste(linked_gts, collapse = "\t"), sep = "\t")
+      vcf_records[[length(vcf_records) + 1]] <- record
+    }
+  }
+}
+message(paste0("INFO: Added ", ld_snp_count, " LD filler SNPs (",
+               length(chromosomes) * ld_blocks_per_chr, " blocks x ",
+               length(ld_distances) + 1, " SNPs)"))
+
+#=============================================================================
+# SORT VCF RECORDS AND WRITE
+#=============================================================================
+# VCF records need to be sorted by chromosome then position
+# Parse chr and pos from each record to sort
+parse_chr_pos <- function(record) {
+  fields <- strsplit(record, "\t")[[1]]
+  list(chr = fields[1], pos = as.integer(fields[2]))
+}
+record_info <- lapply(vcf_records, parse_chr_pos)
+record_chrs <- sapply(record_info, `[[`, "chr")
+record_pos <- sapply(record_info, `[[`, "pos")
+sort_order <- order(match(record_chrs, chromosomes), record_pos)
+vcf_records <- vcf_records[sort_order]
+
 # Write VCF
 vcf_file <- paste0(OUTDIR, "SIMDATA.vcf")
 writeLines(c(vcf_header, unlist(vcf_records)), vcf_file)
@@ -326,12 +450,15 @@ message("\n=== SIMDATA Summary ===")
 message(paste0("Samples: ", n_samples, " (", samples_per_pop, " per population)"))
 message(paste0("Populations: ", paste(populations, collapse = ", ")))
 message(paste0("High-missingness sample: ", high_miss_sample, " (~", high_miss_rate*100, "% missing)"))
-message(paste0("SNPs: ", length(vcf_records)))
+message(paste0("SNPs: ", length(vcf_records), " (", total_snps, " original + ", ld_snp_count, " LD filler)"))
 message(paste0("Chromosomes: ", paste(chromosomes, collapse = ", ")))
 message("\nSNP Clusters:")
 message("  Cluster 1 (chr1:10-11Mb): Desert adaptation, GO:0009414")
 message("  Cluster 2 (chr2:20-21Mb): Mixed pattern, no enrichment")
 message("  Cluster 3 (chr3:15-16Mb): Cold adaptation, GO:0009409")
+message(paste0("\nLD Blocks: ", length(chromosomes) * ld_blocks_per_chr, " blocks (",
+               ld_blocks_per_chr, " per chromosome)"))
+message("  Per-population LD decay: Negev=slow, TelAviv=medium, Galilee=fast")
 message("\nGenes: ", length(genes))
 message("  - 5 genes with GO:0009414 (response to water deprivation)")
 message("  - 5 genes with GO:0009409 (response to cold)")

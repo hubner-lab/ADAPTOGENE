@@ -162,6 +162,12 @@ RUN Rscript -e " \
 "
 RUN Rscript -e "remotes::install_github('jiabowang/GAPIT@GAPIT3.5')"
 
+# PopLDdecay v3.43 (pinned) — fast LD decay computation from VCF
+RUN git clone --branch v3.43 --depth 1 https://github.com/hewm2008/PopLDdecay.git /tmp/PopLDdecay \
+    && cd /tmp/PopLDdecay/src && make \
+    && cp /tmp/PopLDdecay/bin/PopLDdecay /usr/local/bin/PopLDdecay \
+    && rm -rf /tmp/PopLDdecay
+
 # gradientForest from r-forge (version 0.1-37)
 # Requires patching for R 4.5 (Calloc/Free -> R_Calloc/R_Free)
 RUN git clone --depth 1 https://github.com/r-forge/gradientforest.git /tmp/gf && \
