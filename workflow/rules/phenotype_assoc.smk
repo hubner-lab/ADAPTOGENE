@@ -230,8 +230,8 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
             """Merge per-trait GAPIT p-value files into combined table (DROP mode)."""
             input: lambda wc: expand(f"{MOD_PHENO}tables/{wc.method}/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
             output:
-                pvals = f"{MOD_PHENO}tables/{{method}}_phenotypes_pvalues_K{K_BEST}.tsv",
-                qvals = f"{MOD_PHENO}tables/{{method}}_phenotypes_qvalues_K{K_BEST}.tsv"
+                pvals = f"{MOD_PHENO}tables/{{method}}/{{method}}_pvalues_K{K_BEST}.tsv",
+                qvals = f"{MOD_PHENO}tables/{{method}}/{{method}}_qvalues_K{K_BEST}.tsv"
             wildcard_constraints:
                 method = '|'.join(PHENO_GAPIT_CONFIGS.keys())
             params: files_str = lambda wc, input: ' '.join(input)
@@ -248,7 +248,7 @@ if PHENO_ASSOC_CONFIGS:
   rule find_sig_snps_pheno:
     """Find significant SNPs for phenotype association."""
     input: assoc = lambda wc: pheno_pvalues(wc.method)
-    output: f"{MOD_PHENO}tables/{{method}}/{{method}}_phenotypes_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
+    output: f"{MOD_PHENO}tables/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
     wildcard_constraints:
         method = PHENO_METHOD_REGEX,
         adjust = r"\w+_[\d.]+"

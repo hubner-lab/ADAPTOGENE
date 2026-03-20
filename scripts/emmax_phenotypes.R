@@ -171,8 +171,10 @@ if (!is.null(OUTPUT_PVALUES)) {
     pval_path <- OUTPUT_PVALUES
     qval_path <- sub('pvalues', 'qvalues', OUTPUT_PVALUES)
 } else {
-    pval_path <- file.path(TABLES_DIR, paste0("EMMAX_phenotypes_pvalues_K", K_BEST, ".tsv"))
-    qval_path <- file.path(TABLES_DIR, paste0("EMMAX_phenotypes_qvalues_K", K_BEST, ".tsv"))
+    emmax_dir <- file.path(TABLES_DIR, "EMMAX")
+    dir.create(emmax_dir, recursive = TRUE, showWarnings = FALSE)
+    pval_path <- file.path(emmax_dir, paste0("EMMAX_pvalues_K", K_BEST, ".tsv"))
+    qval_path <- file.path(emmax_dir, paste0("EMMAX_qvalues_K", K_BEST, ".tsv"))
 }
 
 fwrite(pval_dt, pval_path, sep = '\t')

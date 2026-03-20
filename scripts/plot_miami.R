@@ -73,7 +73,7 @@ get_method_shapes <- function(methods) {
     setNames(shapes[1:length(methods)], methods)
 }
 
-# Create cumulative position for Manhattan plot
+# Create cumulative position for Manhattan plot with inter-chromosome gaps
 prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_col) {
     chr_order <- df[[chr_col]] %>% unique() %>%
         .[order(as.numeric(str_extract(., "\\d+")))]
@@ -85,11 +85,16 @@ prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_co
         group_by(chr_f) %>%
         summarise(chr_len = max(.data[[pos_col]]), .groups = 'drop')
 
+    # Add gaps between chromosomes (2% of mean chr length)
+    chr_gap <- mean(chr_lengths$chr_len) * 0.02
+
     chr_lengths <- chr_lengths %>%
         dplyr::mutate(
-            tot = cumsum(as.numeric(chr_len)) - chr_len,
+            chr_idx = dplyr::row_number(),
+            tot = cumsum(as.numeric(chr_len)) - chr_len + (chr_idx - 1) * chr_gap,
             center = tot + chr_len / 2
-        )
+        ) %>%
+        dplyr::select(-chr_idx)
 
     df <- df %>%
         left_join(chr_lengths %>% dplyr::select(chr_f, tot), by = "chr_f") %>%
@@ -288,15 +293,6 @@ gwas_bg <- gwas_data %>%
     dplyr::filter(!is_significant) %>%
     dplyr::filter(method == names(gwas_info)[1])
 
-# Chromosome alternating colors (different tints for GEA vs GWAS)
-chr_levels <- levels(chr_info$chr_f)
-n_chr <- length(chr_levels)
-gea_chr_colors <- setNames(rep(c("#B3D9FF", "#E6F2FF"), length.out = n_chr), chr_levels)
-gwas_chr_colors <- setNames(rep(c("#D4D4D4", "#ECECEC"), length.out = n_chr), chr_levels)
-
-gea_bg$point_color <- gea_chr_colors[as.character(gea_bg$chr)]
-gwas_bg$point_color <- gwas_chr_colors[as.character(gwas_bg$chr)]
-
 # Sig SNPs
 gea_sig <- gea_data %>% dplyr::filter(is_significant)
 gwas_sig <- gwas_data %>% dplyr::filter(is_significant)
@@ -306,19 +302,36 @@ n_gwas_sig <- length(unique(gwas_sig$SNPID))
 message(paste0('INFO: GEA significant: ', n_gea_sig, ' unique SNPs, ', nrow(gea_sig), ' detections'))
 message(paste0('INFO: GWAS significant: ', n_gwas_sig, ' unique SNPs, ', nrow(gwas_sig), ' detections'))
 
-p_miami <- ggplot() +
-    # GEA background (top, light blue)
-    geom_scattermore(data = gea_bg,
-                     aes(x = pos_cum, y = miami_y, color = point_color),
-                     alpha = 0.9, pointsize = 10,
-                     pixels = c(4000, 2400), interpolate = FALSE) +
-    # GWAS background (bottom, light grey)
-    geom_scattermore(data = gwas_bg,
-                     aes(x = pos_cum, y = miami_y, color = point_color),
-                     alpha = 0.9, pointsize = 10,
-                     pixels = c(4000, 2400), interpolate = FALSE) +
+# Simple Miami — per-trait background scattermore (chr gaps for separation)
+p_miami <- ggplot()
+
+# 2. GEA background per trait
+first_gea_method <- names(gea_info)[1]
+for (t in gea_traits) {
+    df_t <- gea_bg %>% dplyr::filter(trait == t)
+    df_t$point_color <- unname(trait_colors[t])
+    p_miami <- p_miami +
+        geom_scattermore(data = df_t,
+                         aes(x = pos_cum, y = miami_y, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 2400), interpolate = FALSE)
+}
+
+# 3. GWAS background per trait
+first_gwas_method <- names(gwas_info)[1]
+for (t in gwas_traits) {
+    df_t <- gwas_bg %>% dplyr::filter(trait == t)
+    df_t$point_color <- unname(trait_colors[t])
+    p_miami <- p_miami +
+        geom_scattermore(data = df_t,
+                         aes(x = pos_cum, y = miami_y, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 2400), interpolate = FALSE)
+}
+
+p_miami <- p_miami +
     scale_color_identity() +
-    # GEA sig SNPs
+    # 4. GEA sig SNPs
     ggnewscale::new_scale_color() +
     geom_point(data = gea_sig,
                aes(x = pos_cum, y = miami_y, color = trait, shape = method),
@@ -422,71 +435,66 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             ) %>%
             dplyr::select(-region_center, -region_half_width)
 
-        # Region colors
+        # Region colors with chr:start-end labels for legend
         region_ids <- unique(regions$region_id)
         region_colors <- get_region_colors(length(region_ids))
         names(region_colors) <- region_ids
 
-        # Mark sig SNPs in regions for both panels
-        mark_regions <- function(df) {
-            df <- df %>% dplyr::mutate(in_region = FALSE, region_id = NA_character_)
-            for (i in 1:nrow(regions)) {
-                r <- regions[i, ]
-                in_this <- as.character(df$chr) == as.character(r$chr) &
-                           df$pos >= (r$start - 500000) &
-                           df$pos <= (r$end + 500000) &
-                           df$is_significant
-                df$in_region[in_this] <- TRUE
-                df$region_id[in_this] <- r$region_id
-            }
-            return(df)
-        }
+        # Create display labels: chr:start-end
+        region_labels <- regions %>%
+            dplyr::distinct(region_id, .keep_all = TRUE) %>%
+            dplyr::mutate(label = paste0(chr, ":", scales::comma(start), "-", scales::comma(end))) %>%
+            dplyr::select(region_id, label)
+        region_label_map <- setNames(region_labels$label, region_labels$region_id)
 
-        gea_data_r <- mark_regions(gea_data)
-        gwas_data_r <- mark_regions(gwas_data)
+        # Remap region_id to display label in data and colors
+        regions$region_id <- region_label_map[regions$region_id]
+        region_colors <- setNames(region_colors, region_label_map[names(region_colors)])
 
-        # Subsets
-        gea_sig_not_r <- gea_data_r %>% dplyr::filter(is_significant & !in_region)
-        gea_in_r <- gea_data_r %>% dplyr::filter(is_significant & in_region)
-        gwas_sig_not_r <- gwas_data_r %>% dplyr::filter(is_significant & !in_region)
-        gwas_in_r <- gwas_data_r %>% dplyr::filter(is_significant & in_region)
+        # Sig SNPs (all, colored by trait — regions shown as rectangles only)
+        gea_sig_r <- gea_data %>% dplyr::filter(is_significant)
+        gwas_sig_r <- gwas_data %>% dplyr::filter(is_significant)
 
-        n_gea_in_r <- nrow(gea_in_r)
-        n_gwas_in_r <- nrow(gwas_in_r)
-        message(paste0('INFO: GEA detections in regions: ', n_gea_in_r))
-        message(paste0('INFO: GWAS detections in regions: ', n_gwas_in_r))
-
+        # Regions Miami — per-trait background + region rectangles (chr gaps for separation)
         p_miami_r <- ggplot() +
-            # Region rectangles (span full y range)
+            # 1. Region rectangles (with legend)
             geom_rect(data = regions,
                      aes(xmin = start_cum, xmax = end_cum,
                          ymin = -y_limit, ymax = y_limit, fill = region_id),
                      alpha = 0.15) +
-            scale_fill_manual(values = region_colors, guide = "none") +
-            # GEA background
-            geom_scattermore(data = gea_bg,
-                             aes(x = pos_cum, y = miami_y, color = point_color),
-                             alpha = 0.9, pointsize = 10,
-                             pixels = c(4000, 2400), interpolate = FALSE) +
-            # GWAS background
-            geom_scattermore(data = gwas_bg,
-                             aes(x = pos_cum, y = miami_y, color = point_color),
-                             alpha = 0.9, pointsize = 10,
-                             pixels = c(4000, 2400), interpolate = FALSE) +
+            scale_fill_manual(values = region_colors, name = "Region")
+
+        # 3. GEA background per trait
+        for (t in gea_traits) {
+            df_t <- gea_bg %>% dplyr::filter(trait == t)
+            df_t$point_color <- unname(trait_colors[t])
+            p_miami_r <- p_miami_r +
+                geom_scattermore(data = df_t,
+                                 aes(x = pos_cum, y = miami_y, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 2400), interpolate = FALSE)
+        }
+
+        # 4. GWAS background per trait
+        for (t in gwas_traits) {
+            df_t <- gwas_bg %>% dplyr::filter(trait == t)
+            df_t$point_color <- unname(trait_colors[t])
+            p_miami_r <- p_miami_r +
+                geom_scattermore(data = df_t,
+                                 aes(x = pos_cum, y = miami_y, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 2400), interpolate = FALSE)
+        }
+
+        p_miami_r <- p_miami_r +
             scale_color_identity() +
-            # Sig SNPs NOT in regions - color by trait
+            # 5. All sig SNPs - color by trait, shape by method
             ggnewscale::new_scale_color() +
-            geom_point(data = bind_rows(gea_sig_not_r, gwas_sig_not_r),
+            geom_point(data = bind_rows(gea_sig_r, gwas_sig_r),
                       aes(x = pos_cum, y = miami_y, color = trait, shape = method),
-                      alpha = 0.8, size = 2.0, stroke = 0.4) +
+                      alpha = 0.9, size = 2.5, stroke = 0.5) +
             scale_color_manual(values = trait_colors, name = "Trait") +
             scale_shape_manual(values = method_shapes, name = "Method") +
-            # Sig SNPs IN regions - color by region
-            ggnewscale::new_scale_color() +
-            geom_point(data = bind_rows(gea_in_r, gwas_in_r),
-                      aes(x = pos_cum, y = miami_y, color = region_id, shape = method),
-                      alpha = 0.95, size = 3.0, stroke = 0.5) +
-            scale_color_manual(values = region_colors, name = "Region") +
             # Threshold lines
             geom_hline(yintercept = gea_threshold, linetype = "dashed",
                        color = "red", linewidth = 0.4, alpha = 0.5) +
@@ -507,8 +515,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             ) +
             labs(
                 title = "Miami Plot with Regions: GEA (top) vs GWAS (bottom)",
-                subtitle = paste0("K = ", Kbest, " | ", length(region_ids), " regions | ",
-                                 "GEA: ", n_gea_in_r, " | GWAS: ", n_gwas_in_r, " detections in regions"),
+                subtitle = paste0("K = ", Kbest, " | ", length(region_ids), " regions | color=trait, shape=method"),
                 x = "Chromosome",
                 y = expression(-log[10](p-value))
             ) +
@@ -525,9 +532,9 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 legend.box = "vertical"
             ) +
             guides(
-                fill = "none",
-                color = guide_legend(ncol = 1, override.aes = list(size = 2)),
-                shape = guide_legend(ncol = 1, override.aes = list(size = 2))
+                fill = guide_legend(ncol = 1, order = 3, override.aes = list(alpha = 0.3)),
+                color = guide_legend(ncol = 1, order = 1, override.aes = list(size = 2)),
+                shape = guide_legend(ncol = 1, order = 2, override.aes = list(size = 2))
             )
 
         # Save regions Miami

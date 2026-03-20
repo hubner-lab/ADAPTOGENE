@@ -137,12 +137,6 @@ theme_manhattan <- function() {
     )
 }
 
-# Generate color palette for chromosomes (background) - light pastel colors
-get_chr_colors <- function(n_chr) {
-    # Light pastel alternating colors for subtle but visible background
-    rep(c("#B3D9FF", "#E6F2FF"), length.out = n_chr)
-}
-
 # Generate color palette for regions
 get_region_colors <- function(n_regions) {
     if (n_regions <= 10) {
@@ -248,8 +242,14 @@ plot_data_all <- plot_data_all %>%
 # Get palettes
 trait_colors <- get_trait_colors(traits)
 method_shapes <- get_method_shapes(names(assoc_info))
-chr_colors <- get_chr_colors(length(unique(chr_info$chr_f)))
-names(chr_colors) <- levels(chr_info$chr_f)
+
+# Chromosome strips for visual separation (alternating grey/white)
+chr_strips <- chr_info %>%
+    dplyr::mutate(
+        xmin = tot,
+        xmax = tot + chr_len,
+        strip_fill = ifelse(dplyr::row_number() %% 2 == 1, "grey92", "white")
+    )
 
 # Calculate y-axis limit
 y_max <- max(plot_data_all$log10p, na.rm = TRUE) * 1.1
@@ -260,7 +260,6 @@ message('INFO: Generating combined Manhattan plot (simple version)')
 df_background <- plot_data_all %>%
     dplyr::filter(!is_significant) %>%
     dplyr::filter(method == names(assoc_info)[1])
-df_background$point_color <- chr_colors[as.character(df_background$chr)]
 
 # Significant SNPs: every (SNP, trait, method) combination shown individually
 df_significant <- plot_data_all %>%
@@ -271,15 +270,29 @@ n_sig_unique <- length(unique(df_significant$SNPID))
 message(paste0('INFO: Total significant points (SNP x trait x method): ', n_sig_points))
 message(paste0('INFO: Unique significant SNPs: ', n_sig_unique))
 
-# Simple plot
+# Simple plot — chromosome strips + per-trait background scattermore
 p_simple <- ggplot() +
-    # Background SNPs (chromosome colors) - always use scattermore
-    geom_scattermore(data = df_background,
-                     aes(x = pos_cum, y = log10p, color = point_color),
-                     alpha = 0.9, pointsize = 10,
-                     pixels = c(4000, 1500), interpolate = FALSE) +
+    # 1. Chromosome background strips
+    annotate("rect",
+             xmin = chr_strips$xmin, xmax = chr_strips$xmax,
+             ymin = 0, ymax = y_max,
+             fill = chr_strips$strip_fill)
+
+# 2. Per-trait background SNPs (scattermore, first method only)
+first_method <- names(assoc_info)[1]
+for (t in traits) {
+    df_t <- df_background %>% dplyr::filter(trait == t)
+    df_t$point_color <- unname(trait_colors[t])
+    p_simple <- p_simple +
+        geom_scattermore(data = df_t,
+                         aes(x = pos_cum, y = log10p, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 1500), interpolate = FALSE)
+}
+
+p_simple <- p_simple +
     scale_color_identity() +
-    # Significant SNPs - color by trait, shape by method
+    # 3. Significant SNPs - color by trait, shape by method
     ggnewscale::new_scale_color() +
     geom_point(data = df_significant,
                aes(x = pos_cum, y = log10p, color = trait, shape = method),
@@ -369,75 +382,55 @@ if (file.exists(REGIONS_FILE)) {
             ) %>%
             dplyr::select(-region_center, -region_half_width)
 
-        # Mark SNPs in regions (all method-trait combinations)
-        plot_data_regions <- plot_data_all %>%
-            dplyr::mutate(
-                in_region = FALSE,
-                region_id = NA_character_
-            )
-
-        for (i in 1:nrow(regions)) {
-            r <- regions[i, ]
-            in_this_region <- as.character(plot_data_regions$chr) == as.character(r$chr) &
-                              plot_data_regions$pos >= (r$start - 500000) &
-                              plot_data_regions$pos <= (r$end + 500000) &
-                              plot_data_regions$is_significant
-
-            plot_data_regions$in_region[in_this_region] <- TRUE
-            plot_data_regions$region_id[in_this_region] <- r$region_id
-        }
-
         # Region colors
         region_ids <- unique(regions$region_id)
         region_colors <- get_region_colors(length(region_ids))
         names(region_colors) <- region_ids
 
-        n_in_regions <- sum(plot_data_regions$in_region)
-        message(paste0('INFO: ', n_in_regions, ' significant detection points in regions'))
-
-        # Prepare data subsets
-        df_background_reg <- plot_data_regions %>%
+        # Prepare data subsets (same as simple version)
+        df_background_reg <- plot_data_all %>%
             dplyr::filter(!is_significant) %>%
             dplyr::filter(method == names(assoc_info)[1])
-        df_background_reg$point_color <- chr_colors[as.character(df_background_reg$chr)]
 
-        # Sig SNPs NOT in regions: color by trait, shape by method
-        df_sig_not_region <- plot_data_regions %>%
-            dplyr::filter(is_significant & !in_region)
+        df_sig_reg <- plot_data_all %>%
+            dplyr::filter(is_significant)
 
-        # Sig SNPs IN regions: color by region, shape by method
-        df_in_region <- plot_data_regions %>%
-            dplyr::filter(is_significant & in_region)
-
-        # Plot with regions
+        # Plot with regions — chr strips + per-trait background + region rectangles
         message('INFO: Generating combined Manhattan plot with regions')
 
         p_regions <- ggplot() +
-            # Region rectangles (background)
+            # 1. Chromosome background strips
+            annotate("rect",
+                     xmin = chr_strips$xmin, xmax = chr_strips$xmax,
+                     ymin = 0, ymax = y_max,
+                     fill = chr_strips$strip_fill) +
+            # 2. Region rectangles
             geom_rect(data = regions,
                      aes(xmin = start_cum, xmax = end_cum,
                          ymin = 0, ymax = y_max, fill = region_id),
                      alpha = 0.15) +
-            scale_fill_manual(values = region_colors, guide = "none") +
-            # Background SNPs - always scattermore
-            geom_scattermore(data = df_background_reg,
-                             aes(x = pos_cum, y = log10p, color = point_color),
-                             alpha = 0.9, pointsize = 10,
-                             pixels = c(4000, 1500), interpolate = FALSE) +
+            scale_fill_manual(values = region_colors, guide = "none")
+
+        # 3. Per-trait background SNPs
+        for (t in traits) {
+            df_t <- df_background_reg %>% dplyr::filter(trait == t)
+            df_t$point_color <- unname(trait_colors[t])
+            p_regions <- p_regions +
+                geom_scattermore(data = df_t,
+                                 aes(x = pos_cum, y = log10p, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 1500), interpolate = FALSE)
+        }
+
+        p_regions <- p_regions +
             scale_color_identity() +
-            # Significant SNPs NOT in regions - color by trait, shape by method
+            # 4. All significant SNPs - color by trait, shape by method
             ggnewscale::new_scale_color() +
-            geom_point(data = df_sig_not_region,
+            geom_point(data = df_sig_reg,
                       aes(x = pos_cum, y = log10p, color = trait, shape = method),
-                      alpha = 0.8, size = 2.0, stroke = 0.4) +
+                      alpha = 0.9, size = 2.5, stroke = 0.5) +
             scale_color_manual(values = trait_colors, name = "Trait") +
             scale_shape_manual(values = method_shapes, name = "Method") +
-            # SNPs IN regions - colored by region, shaped by method
-            ggnewscale::new_scale_color() +
-            geom_point(data = df_in_region,
-                      aes(x = pos_cum, y = log10p, color = region_id, shape = method),
-                      alpha = 0.95, size = 3.0, stroke = 0.5) +
-            scale_color_manual(values = region_colors, name = "Region") +
             # Threshold line
             geom_hline(yintercept = min_threshold, linetype = "dashed",
                       color = "red", linewidth = 0.5, alpha = 0.5) +
@@ -453,8 +446,7 @@ if (file.exists(REGIONS_FILE)) {
             ) +
             labs(
                 title = "Combined Association Analysis with Regions (All Traits & Methods)",
-                subtitle = paste0("K = ", Kbest, " | ", n_in_regions, " detections in ",
-                                 length(region_ids), " regions | color=region, shape=method"),
+                subtitle = paste0("K = ", Kbest, " | ", length(region_ids), " regions | color=trait, shape=method"),
                 x = "Chromosome",
                 y = expression(-log[10](p-value))
             ) +

@@ -353,127 +353,17 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 ) %>%
                 dplyr::select(-region_center, -region_half_width)
 
-            # Load sigSNPs from all methods for per-trait method attribution
-            method_snps <- list()
-            if (!is.null(SIGSNPS_FILES)) {
-                message('INFO: Loading sigSNPs files for per-trait method attribution')
-                sigsnps_vec <- str_split(SIGSNPS_FILES, ',')[[1]]
-                sigsnps_vec <- sigsnps_vec[sigsnps_vec != ""]
-
-                for (sigfile in sigsnps_vec) {
-                    if (file.exists(sigfile)) {
-                        dt <- fread(sigfile)
-                        if ('chr' %in% colnames(dt)) dt$chr <- as.character(dt$chr)
-                        if (nrow(dt) > 0) {
-                            # Extract method from filename (e.g., "EMMAX" from "EMMAX_pvalues_K5_sigSNPs_bonf_0.05.tsv")
-                            file_method <- basename(sigfile) %>% str_extract("^[A-Z]+")
-                            # Filter for current trait only
-                            dt_trait <- dt %>% dplyr::filter(trait == TRAIT)
-                            if (nrow(dt_trait) > 0) {
-                                method_snps[[file_method]] <- dt_trait$SNPID
-                                message(paste0('INFO: ', file_method, ' has ', nrow(dt_trait), ' sigSNPs for ', TRAIT))
-                            }
-                        }
-                    }
-                }
-            }
-
-            # Build per-trait method attribution lookup
-            snp_method_lookup <- NULL
-            if (length(method_snps) > 0) {
-                all_sig_snps <- unique(unlist(method_snps))
-                snp_method_lookup <- data.frame(
-                    SNPID = all_sig_snps,
-                    stringsAsFactors = FALSE
-                )
-                # Determine which methods detected each SNP for this trait
-                snp_method_lookup$source_method <- sapply(all_sig_snps, function(snp) {
-                    methods_with_snp <- names(method_snps)[sapply(method_snps, function(m) snp %in% m)]
-                    paste(methods_with_snp, collapse = ',')
-                })
-                message(paste0('INFO: Built method lookup for ', nrow(snp_method_lookup), ' sigSNPs for ', TRAIT))
-            }
-
-            # Initialize region marking
-            plot_df_regions <- plot_df %>%
-                dplyr::mutate(
-                    in_region = FALSE,
-                    region_id = NA_character_,
-                    source_method = NA_character_  # Which method(s) detected this SNP for THIS trait
-                )
-
-            # Mark SNPs that are in regions
-            for (i in 1:nrow(regions_trait)) {
-                r <- regions_trait[i, ]
-
-                # Find SNPs within the region boundaries (with some padding)
-                in_this_region <- as.character(plot_df_regions$chr) == as.character(r$chr) &
-                                  plot_df_regions$pos >= (r$start - 500000) &
-                                  plot_df_regions$pos <= (r$end + 500000)
-
-                # If we have per-trait method lookup, use it
-                if (!is.null(snp_method_lookup) && nrow(snp_method_lookup) > 0) {
-                    # Get SNPs that are significant (in any method) for this trait AND in this region
-                    region_sig_snps <- snp_method_lookup %>%
-                        dplyr::filter(SNPID %in% plot_df_regions$SNPID[in_this_region])
-
-                    # Mark SNPs with their trait-specific method attribution
-                    for (j in seq_len(nrow(region_sig_snps))) {
-                        snp_row <- which(plot_df_regions$SNPID == region_sig_snps$SNPID[j])
-                        if (length(snp_row) > 0) {
-                            plot_df_regions$in_region[snp_row] <- TRUE
-                            plot_df_regions$region_id[snp_row] <- r$region_id
-                            plot_df_regions$source_method[snp_row] <- region_sig_snps$source_method[j]
-                        }
-                    }
-                } else {
-                    # No method lookup - use only significant SNPs for current method
-                    snps_to_mark <- in_this_region & plot_df_regions$is_significant
-                    plot_df_regions$in_region[snps_to_mark] <- TRUE
-                    plot_df_regions$region_id[snps_to_mark] <- r$region_id
-                    plot_df_regions$source_method[snps_to_mark] <- METHOD
-                }
-            }
-
-            # Determine shape based on source method
-            # Circle (16) = current method only
-            # Triangle (17) = other method only
-            # Diamond (18) = both methods
-            plot_df_regions <- plot_df_regions %>%
-                dplyr::mutate(
-                    point_shape = case_when(
-                        !in_region ~ NA_integer_,
-                        is.na(source_method) ~ 16L,  # Default circle
-                        source_method == METHOD ~ 16L,  # Current method only = circle
-                        str_detect(source_method, METHOD) & str_detect(source_method, ",") ~ 18L,  # Both methods = diamond
-                        str_detect(source_method, ",") ~ 18L,  # Multiple methods = diamond
-                        TRUE ~ 17L  # Other method only = triangle
-                    )
-                )
-
             # Create region colors
-            region_ids <- unique(na.omit(plot_df_regions$region_id))
+            region_ids <- unique(regions_trait$region_id)
             region_colors <- get_region_colors(length(region_ids))
             names(region_colors) <- region_ids
-
-            n_in_regions <- sum(plot_df_regions$in_region)
-            message(paste0('INFO: ', n_in_regions, ' SNPs to highlight in regions'))
-
-            # Count by source (per-trait method attribution)
-            if (!is.null(snp_method_lookup) && n_in_regions > 0) {
-                n_current <- sum(plot_df_regions$in_region & plot_df_regions$source_method == METHOD, na.rm = TRUE)
-                n_both <- sum(plot_df_regions$in_region & str_detect(plot_df_regions$source_method, ","), na.rm = TRUE)
-                n_other <- n_in_regions - n_current - n_both
-                message(paste0('INFO: Per-trait sources for ', TRAIT, ': ', METHOD, '=', n_current, ', other=', n_other, ', both=', n_both))
-            }
 
             # Create the plot with region highlighting
             message('INFO: Generating Manhattan plot with regions')
 
             # Prepare data subsets
-            df_background <- plot_df_regions %>% filter(!in_region & !is_significant)
-            df_sig_not_region <- plot_df_regions %>% filter(is_significant & !in_region)
-            df_in_region <- plot_df_regions %>% filter(in_region)
+            df_background <- plot_df %>% filter(!is_significant)
+            df_sig_reg <- plot_df %>% filter(is_significant)
 
             p_regions <- ggplot() +
                 # Region rectangles (background highlight) - draw first
@@ -482,7 +372,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                              ymin = 0, ymax = y_max, fill = region_id),
                          alpha = 0.15) +
                 scale_fill_manual(values = region_colors, guide = "none") +
-                # Background SNPs (non-significant, not in region) - use scattermore if large
+                # Background SNPs (non-significant) - use scattermore if large
                 add_scatter_layer(data = df_background,
                                   chr_colors = chr_colors,
                                   alpha = 0.5, size = 0.6,
@@ -496,45 +386,10 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             }
 
             p_regions <- p_regions +
-                # Significant SNPs not in any region (trait-colored)
-                geom_point(data = df_sig_not_region,
+                # All significant SNPs - trait-colored
+                geom_point(data = df_sig_reg,
                           aes(x = pos_cum, y = log10p),
-                          color = sig_color, alpha = 0.8, size = 1.5) +
-                # SNPs in regions - colored by region, shaped by source method
-                ggnewscale::new_scale_color()
-
-            # Add region SNPs with different shapes
-            if (nrow(df_in_region) > 0) {
-                # Current method (circle)
-                df_current <- df_in_region %>% filter(point_shape == 16)
-                if (nrow(df_current) > 0) {
-                    p_regions <- p_regions +
-                        geom_point(data = df_current,
-                                  aes(x = pos_cum, y = log10p, color = region_id),
-                                  shape = 16, alpha = 0.9, size = 2.5)
-                }
-
-                # Other method (triangle)
-                df_other <- df_in_region %>% filter(point_shape == 17)
-                if (nrow(df_other) > 0) {
-                    p_regions <- p_regions +
-                        geom_point(data = df_other,
-                                  aes(x = pos_cum, y = log10p, color = region_id),
-                                  shape = 17, alpha = 0.9, size = 2.5)
-                }
-
-                # Both methods (diamond)
-                df_both <- df_in_region %>% filter(point_shape == 18)
-                if (nrow(df_both) > 0) {
-                    p_regions <- p_regions +
-                        geom_point(data = df_both,
-                                  aes(x = pos_cum, y = log10p, color = region_id),
-                                  shape = 18, alpha = 0.9, size = 3.0)
-                }
-            }
-
-            p_regions <- p_regions +
-                scale_color_manual(values = region_colors, name = "Region") +
+                          color = sig_color, alpha = 0.9, size = 2.0) +
                 # Threshold line
                 geom_hline(yintercept = threshold_log10, linetype = "dashed",
                           color = "red", linewidth = 0.5) +
@@ -550,8 +405,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 ) +
                 labs(
                     title = paste0(METHOD, " - ", TRAIT, " (with regions)"),
-                    subtitle = paste0("K = ", Kbest, ", showing ", nrow(regions_trait), " regions",
-                                     " | shapes: \u25CF=", METHOD, ", \u25B2=other, \u25C6=both"),
+                    subtitle = paste0("K = ", Kbest, ", showing ", nrow(regions_trait), " regions"),
                     x = "Chromosome",
                     y = expression(-log[10](p-value))
                 ) +
@@ -561,8 +415,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                     legend.text = element_text(size = 6),
                     legend.title = element_text(size = 8),
                     legend.key.size = unit(0.4, "cm")
-                ) +
-                guides(color = guide_legend(ncol = 1, override.aes = list(size = 2)))
+                )
 
             # Save regions plot in PNG and SVG formats
             regions_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions")
