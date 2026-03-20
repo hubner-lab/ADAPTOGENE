@@ -49,9 +49,12 @@ if (length(clim_list) == 1) {
 
 message('INFO: Model averaging complete')
 
-# Extract all values (na.omit to match present climate format)
-clim_future_all <- terra::extract(clim_future, 1:ncell(clim_future)) %>%
-  na.omit
+# Extract all values with cell IDs for raster remapping
+# terra::extract with cell indices doesn't return ID column (unlike raster package)
+clim_future_all <- terra::extract(clim_future, 1:ncell(clim_future))
+clim_future_all$ID <- 1:ncell(clim_future)
+clim_future_all <- na.omit(clim_future_all) %>%
+  dplyr::select(ID, everything())
 
 # Validate cell count matches present climate
 message('INFO: Validating cell count matches present climate...')

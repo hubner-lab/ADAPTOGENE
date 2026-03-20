@@ -29,7 +29,7 @@ plot_theme <-
 #################################
 
 samples = fread(SAMPLES, colClasses = c("site" = "character", "sample" = "character"))
-climate = fread(CLIMATE)
+climate = fread(CLIMATE) %>% dplyr::select(-any_of('sample'))
 
 # Combine climate with phenotypic traits if available
 if (ncol(samples) > 4) {
@@ -39,9 +39,9 @@ if (ncol(samples) > 4) {
   traits = climate
 }
 
-# Remove constant columns
+# Remove constant columns (filter NA from sd on non-numeric columns)
 std_devs <- apply(traits, 2, sd, na.rm = TRUE)
-non_constant_traits = names(std_devs)[std_devs != 0]
+non_constant_traits = names(std_devs)[!is.na(std_devs) & std_devs != 0]
 traits <- traits %>% dplyr::select(all_of(non_constant_traits))
 
 # Compute correlation matrix

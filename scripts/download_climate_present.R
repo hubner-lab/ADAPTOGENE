@@ -119,10 +119,12 @@ FUN_present_climate <- function(samples,
   clim.present.coords <- terra::extract(clim.present, coords)[, -1] %>%
     as.data.frame
 
-  # Extract all pixel values
-  clim.land <- terra::extract(clim.present, 1:ncell(clim.present)) %>%
-    na.omit %>%
-    setNames(c('ID', names(clim.present)))
+  # Extract all pixel values with cell IDs for raster remapping
+  # terra::extract with cell indices doesn't return ID column (unlike raster package)
+  clim.land <- terra::extract(clim.present, 1:ncell(clim.present))
+  clim.land$ID <- 1:ncell(clim.present)
+  clim.land <- na.omit(clim.land) %>%
+    dplyr::select(ID, everything())
 
   return(list(RasterStack = clim.present,
               SiteValues = clim.present.coords,
