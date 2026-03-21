@@ -200,7 +200,7 @@ rule plot_gf_offset_piemap:
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap_{params.suffix} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            genetic_offset_piemap {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_tajima:
@@ -230,7 +230,7 @@ rule plot_gf_offset_piemap_tajima:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap_{params.suffix}_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            genetic_offset_piemap_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """
 
 rule plot_gf_offset_piemap_diversity:
@@ -260,5 +260,5 @@ rule plot_gf_offset_piemap_diversity:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap_{params.suffix}_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            genetic_offset_piemap_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """

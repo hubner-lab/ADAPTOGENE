@@ -227,7 +227,7 @@ if (nrow(regions) == 0) {
     # One plot per trait
     for (trait in region_traits) {
       message(paste0('INFO:   Trait: ', trait))
-      filename_base <- paste0(PLOT_DIR, 'regionplot_', region_safe, '_', trait)
+      filename_base <- paste0(PLOT_DIR, 'regionplot_', region_safe)
       plot_region_trait(region_str, trait, assoc_list, gff_table, filename_base)
     }
   }

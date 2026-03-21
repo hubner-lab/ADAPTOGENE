@@ -714,15 +714,15 @@ def add_maladaptation_paths():
 
     # Genetic offset outputs
     W['gf_offset_raster'] = f"{INTER}gradient_forest/genetic_offset_{SUFFIX}.tif"
-    O['gf_offset_map_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_map_{SUFFIX}.tsv"
-    O['gf_offset_site_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_site_{SUFFIX}.tsv"
+    O['gf_offset_map_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_map.tsv"
+    O['gf_offset_site_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_site.tsv"
 
     # Gradient Forest plots
-    O['gf_offset_piemap'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}.png"
-    O['gf_offset_piemap_tajima'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}_tajima_d.png"
-    O['gf_offset_piemap_diversity'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}_pi_diversity.png"
-    O['gf_cumimp'] = f"{MOD_MALAD}plots/{SUFFIX}/cumulative_importance_{SUFFIX}.png"
-    O['gf_importance'] = f"{MOD_MALAD}plots/{SUFFIX}/overall_importance_{SUFFIX}.png"
+    O['gf_offset_piemap'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap.png"
+    O['gf_offset_piemap_tajima'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_tajima_d.png"
+    O['gf_offset_piemap_diversity'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_pi_diversity.png"
+    O['gf_cumimp'] = f"{MOD_MALAD}plots/{SUFFIX}/cumulative_importance.png"
+    O['gf_importance'] = f"{MOD_MALAD}plots/{SUFFIX}/overall_importance.png"
 
     # Future climate density plot
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"
