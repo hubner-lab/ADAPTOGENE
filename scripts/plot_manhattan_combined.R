@@ -103,11 +103,16 @@ prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_co
         group_by(chr_f) %>%
         summarise(chr_len = max(.data[[pos_col]]), .groups = 'drop')
 
+    # Add gaps between chromosomes (2% of mean chr length)
+    chr_gap <- mean(chr_lengths$chr_len) * 0.02
+
     chr_lengths <- chr_lengths %>%
         dplyr::mutate(
-            tot = cumsum(as.numeric(chr_len)) - chr_len,
+            chr_idx = dplyr::row_number(),
+            tot = cumsum(as.numeric(chr_len)) - chr_len + (chr_idx - 1) * chr_gap,
             center = tot + chr_len / 2
-        )
+        ) %>%
+        dplyr::select(-chr_idx)
 
     df <- df %>%
         left_join(chr_lengths %>% dplyr::select(chr_f, tot), by = "chr_f") %>%
@@ -243,14 +248,6 @@ plot_data_all <- plot_data_all %>%
 trait_colors <- get_trait_colors(traits)
 method_shapes <- get_method_shapes(names(assoc_info))
 
-# Chromosome strips for visual separation (alternating grey/white)
-chr_strips <- chr_info %>%
-    dplyr::mutate(
-        xmin = tot,
-        xmax = tot + chr_len,
-        strip_fill = ifelse(dplyr::row_number() %% 2 == 1, "grey92", "white")
-    )
-
 # Calculate y-axis limit
 y_max <- max(plot_data_all$log10p, na.rm = TRUE) * 1.1
 
@@ -270,15 +267,10 @@ n_sig_unique <- length(unique(df_significant$SNPID))
 message(paste0('INFO: Total significant points (SNP x trait x method): ', n_sig_points))
 message(paste0('INFO: Unique significant SNPs: ', n_sig_unique))
 
-# Simple plot — chromosome strips + per-trait background scattermore
-p_simple <- ggplot() +
-    # 1. Chromosome background strips
-    annotate("rect",
-             xmin = chr_strips$xmin, xmax = chr_strips$xmax,
-             ymin = 0, ymax = y_max,
-             fill = chr_strips$strip_fill)
+# Simple plot — per-trait background scattermore (chr gaps for separation)
+p_simple <- ggplot()
 
-# 2. Per-trait background SNPs (scattermore, first method only)
+# Per-trait background SNPs (scattermore, first method only)
 first_method <- names(assoc_info)[1]
 for (t in traits) {
     df_t <- df_background %>% dplyr::filter(trait == t)
@@ -382,10 +374,21 @@ if (file.exists(REGIONS_FILE)) {
             ) %>%
             dplyr::select(-region_center, -region_half_width)
 
-        # Region colors
+        # Region colors with chr:start-end labels for legend
         region_ids <- unique(regions$region_id)
         region_colors <- get_region_colors(length(region_ids))
         names(region_colors) <- region_ids
+
+        # Create display labels: chr:start-end
+        region_labels <- regions %>%
+            dplyr::distinct(region_id, .keep_all = TRUE) %>%
+            dplyr::mutate(label = paste0(chr, ":", scales::comma(start), "-", scales::comma(end))) %>%
+            dplyr::select(region_id, label)
+        region_label_map <- setNames(region_labels$label, region_labels$region_id)
+
+        # Remap region_id to display label in data and colors
+        regions$region_id <- region_label_map[regions$region_id]
+        region_colors <- setNames(region_colors, region_label_map[names(region_colors)])
 
         # Prepare data subsets (same as simple version)
         df_background_reg <- plot_data_all %>%
@@ -395,21 +398,16 @@ if (file.exists(REGIONS_FILE)) {
         df_sig_reg <- plot_data_all %>%
             dplyr::filter(is_significant)
 
-        # Plot with regions — chr strips + per-trait background + region rectangles
+        # Plot with regions — per-trait background + region rectangles (chr gaps for separation)
         message('INFO: Generating combined Manhattan plot with regions')
 
         p_regions <- ggplot() +
-            # 1. Chromosome background strips
-            annotate("rect",
-                     xmin = chr_strips$xmin, xmax = chr_strips$xmax,
-                     ymin = 0, ymax = y_max,
-                     fill = chr_strips$strip_fill) +
-            # 2. Region rectangles
+            # 1. Region rectangles (with legend)
             geom_rect(data = regions,
                      aes(xmin = start_cum, xmax = end_cum,
                          ymin = 0, ymax = y_max, fill = region_id),
                      alpha = 0.15) +
-            scale_fill_manual(values = region_colors, guide = "none")
+            scale_fill_manual(values = region_colors, name = "Region")
 
         # 3. Per-trait background SNPs
         for (t in traits) {
@@ -459,9 +457,9 @@ if (file.exists(REGIONS_FILE)) {
                 legend.box = "vertical"
             ) +
             guides(
-                fill = "none",
-                color = guide_legend(ncol = 1, override.aes = list(size = 2)),
-                shape = guide_legend(ncol = 1, override.aes = list(size = 2))
+                fill = guide_legend(ncol = 1, order = 3, override.aes = list(alpha = 0.3)),
+                color = guide_legend(ncol = 1, order = 1, override.aes = list(size = 2)),
+                shape = guide_legend(ncol = 1, order = 2, override.aes = list(size = 2))
             )
 
         # Save regions plot

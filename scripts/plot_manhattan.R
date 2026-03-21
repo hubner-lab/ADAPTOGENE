@@ -82,11 +82,16 @@ prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_co
         group_by(chr_f) %>%
         summarise(chr_len = max(.data[[pos_col]]), .groups = 'drop')
 
+    # Add gaps between chromosomes (2% of mean chr length)
+    chr_gap <- mean(chr_lengths$chr_len) * 0.02
+
     chr_lengths <- chr_lengths %>%
         dplyr::mutate(
-            tot = cumsum(as.numeric(chr_len)) - chr_len,
+            chr_idx = dplyr::row_number(),
+            tot = cumsum(as.numeric(chr_len)) - chr_len + (chr_idx - 1) * chr_gap,
             center = tot + chr_len / 2
-        )
+        ) %>%
+        dplyr::select(-chr_idx)
 
     df <- df %>%
         left_join(chr_lengths %>% dplyr::select(chr_f, tot), by = "chr_f") %>%
@@ -143,8 +148,8 @@ get_region_colors <- function(n_regions) {
 #   use_scattermore: whether to use scattermore (TRUE for large datasets)
 #   pointsize: for scattermore, use 3-4 for visibility (non-integers like 3.2 look better)
 #   pixels: raster resolution, should match output size (width*dpi, height*dpi)
-add_scatter_layer <- function(data, chr_colors, alpha = 0.7, size = 0.8,
-                              use_scattermore = FALSE, pointsize = 20) {
+add_scatter_layer <- function(data, chr_colors, alpha = 0.5, size = 0.8,
+                              use_scattermore = FALSE, pointsize = 10) {
     if (nrow(data) == 0) {
         return(geom_blank())
     }
@@ -255,7 +260,7 @@ p_simple <- ggplot() +
     # Non-significant SNPs (chromosome colors) - use scattermore if large dataset
     add_scatter_layer(data = plot_df %>% filter(!is_significant),
                       chr_colors = chr_colors,
-                      alpha = 0.7, size = 0.8,
+                      alpha = 0.5, size = 0.8,
                       use_scattermore = use_scattermore)
 
 # Add appropriate color scale based on rendering method
@@ -269,7 +274,7 @@ p_simple <- p_simple +
     # Significant SNPs (trait-colored, larger) - always use geom_point for proper styling
     geom_point(data = plot_df %>% filter(is_significant),
                aes(x = pos_cum, y = log10p),
-               color = sig_color, alpha = 0.9, size = 1.8) +
+               color = sig_color, alpha = 0.9, size = 2.5) +
     scale_x_continuous(
         labels = chr_info$chr_f,
         breaks = chr_info$center,
@@ -353,10 +358,21 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 ) %>%
                 dplyr::select(-region_center, -region_half_width)
 
-            # Create region colors
+            # Region colors with chr:start-end labels for legend
             region_ids <- unique(regions_trait$region_id)
             region_colors <- get_region_colors(length(region_ids))
             names(region_colors) <- region_ids
+
+            # Create display labels: chr:start-end
+            region_labels <- regions_trait %>%
+                dplyr::distinct(region_id, .keep_all = TRUE) %>%
+                dplyr::mutate(label = paste0(chr, ":", scales::comma(start), "-", scales::comma(end))) %>%
+                dplyr::select(region_id, label)
+            region_label_map <- setNames(region_labels$label, region_labels$region_id)
+
+            # Remap region_id to display label in data and colors
+            regions_trait$region_id <- region_label_map[regions_trait$region_id]
+            region_colors <- setNames(region_colors, region_label_map[names(region_colors)])
 
             # Create the plot with region highlighting
             message('INFO: Generating Manhattan plot with regions')
@@ -371,11 +387,11 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                          aes(xmin = start_cum, xmax = end_cum,
                              ymin = 0, ymax = y_max, fill = region_id),
                          alpha = 0.15) +
-                scale_fill_manual(values = region_colors, guide = "none") +
+                scale_fill_manual(values = region_colors, name = "Region") +
                 # Background SNPs (non-significant) - use scattermore if large
                 add_scatter_layer(data = df_background,
                                   chr_colors = chr_colors,
-                                  alpha = 0.5, size = 0.6,
+                                  alpha = 0.5, size = 0.8,
                                   use_scattermore = use_scattermore)
 
             # Add appropriate color scale based on rendering method
@@ -389,7 +405,7 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 # All significant SNPs - trait-colored
                 geom_point(data = df_sig_reg,
                           aes(x = pos_cum, y = log10p),
-                          color = sig_color, alpha = 0.9, size = 2.0) +
+                          color = sig_color, alpha = 0.9, size = 2.5) +
                 # Threshold line
                 geom_hline(yintercept = threshold_log10, linetype = "dashed",
                           color = "red", linewidth = 0.5) +
@@ -415,6 +431,9 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                     legend.text = element_text(size = 6),
                     legend.title = element_text(size = 8),
                     legend.key.size = unit(0.4, "cm")
+                ) +
+                guides(
+                    fill = guide_legend(ncol = 1, override.aes = list(alpha = 0.3))
                 )
 
             # Save regions plot in PNG and SVG formats
