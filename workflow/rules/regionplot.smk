@@ -32,7 +32,7 @@ rule regionplot:
         ]),
         top_regions = TOP_REGIONS,
         genes = GENES_TO_HIGHLIGHT,
-        plot_dir = f"{MOD_REGPLOT}plots/",
+        plot_dir = f"{MOD_REGPLOT}",
         custom_region = REGIONPLOT_REGION,
         custom_traits = REGIONPLOT_TRAITS,
         custom_methods = REGIONPLOT_METHOD

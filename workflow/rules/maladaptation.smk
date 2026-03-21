@@ -187,7 +187,7 @@ rule plot_gf_offset_piemap:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
@@ -217,7 +217,7 @@ rule plot_gf_offset_piemap_tajima:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
@@ -247,7 +247,7 @@ rule plot_gf_offset_piemap_diversity:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
         inter_dir = INTER,
         suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
         regionmap_extent = REGIONMAP_EXTENT

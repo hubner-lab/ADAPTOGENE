@@ -89,7 +89,7 @@ rule emmax_analysis:
         k = K_BEST,
         predictors = PREDICTORS_SELECTED,
         inter_dir = INTER,
-        tables_dir = f"{MOD_ASSOC}tables/EMMAX/",
+        tables_dir = f"{MOD_ASSOC}tables/methods/EMMAX/",
         tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}"
     log: f"{LOGDIR}association/emmax_analysis.log"
     shell:
@@ -112,7 +112,7 @@ rule lfmm_analysis:
     params:
         k = K_BEST,
         predictors = PREDICTORS_SELECTED,
-        tables_dir = f"{MOD_ASSOC}tables/LFMM/"
+        tables_dir = f"{MOD_ASSOC}tables/methods/LFMM/"
     log: f"{LOGDIR}association/lfmm_analysis.log"
     shell:
         """
@@ -152,9 +152,9 @@ if ASSOC_GAPIT_CONFIGS:
             k = K_BEST,
             models = ','.join(ASSOC_GAPIT_CONFIGS.keys()),
             workdir = W['gapit_work'],
-            tables_dir = f"{MOD_ASSOC}tables/",
+            tables_dir = f"{MOD_ASSOC}tables/methods/",
             predictors = PREDICTORS_SELECTED,
-            native_outdir = f"{MOD_ASSOC}GAPIT/"
+            native_outdir = f"{MOD_ASSOC}GAPIT_native_output/"
         log: f"{LOGDIR}association/gapit_analysis.log"
         shell:
             """
@@ -232,7 +232,7 @@ rule manhattan_plot_regions:
 rule find_sig_snps:
     """Find significant SNPs for a specific method."""
     input: assoc = lambda wc: assoc_pvalues(wc.method)
-    output: f"{MOD_ASSOC}tables/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
+    output: f"{MOD_ASSOC}tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
     wildcard_constraints:
         method = ASSOC_METHOD_REGEX,
         adjust = r"\w+_[\d.]+"
@@ -417,11 +417,11 @@ rule manhattan_combined:
         regions = O['regions_combined']
     output:
         simple_png = O['manhattan_combined'],
-        simple_svg = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}.svg",
+        simple_svg = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.svg",
         regions_png = O['manhattan_combined_regions'],
-        regions_svg = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}_regions.svg",
+        regions_svg = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
         qq_png = O['qq_combined'],
-        qq_svg = f"{MOD_ASSOC}plots/qq_combined_K{K_BEST}.svg"
+        qq_svg = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.svg"
     params:
         assoc_str = ','.join([
             f"{method}:{adjust}:{assoc_pvalues(method)}"
@@ -429,7 +429,7 @@ rule manhattan_combined:
         ]),
         predictors = PREDICTORS_SELECTED,
         k = K_BEST,
-        plot_dir = f"{MOD_ASSOC}plots/"
+        plot_dir = f"{MOD_ASSOC}plots/manhattan/combined/"
     log: f"{LOGDIR}association/manhattan_combined.log"
     shell:
         """

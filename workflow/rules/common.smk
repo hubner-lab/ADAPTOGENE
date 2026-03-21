@@ -114,7 +114,7 @@ def _migrate_config(cfg):
         'GF_NTREE': ('gradient_forest', 'ntree'),
         'GF_COR_THRESHOLD': ('gradient_forest', 'cor_threshold'),
         'GF_PCNM': ('gradient_forest', 'spatial_correction'),
-        'GF_SUFFIX': ('gradient_forest', 'suffix'),
+        'GF_SUFFIX': ('gradient_forest', 'run_label'),
         'GF_RANDOM_MODEL': ('gradient_forest', 'random_model'),
         'PHENO_ASSOC_CONFIGS': ('phenotype_association', 'configs'),
         'PHENO_MISSING_STRATEGY': ('phenotype_association', 'missing_strategy'),
@@ -313,7 +313,7 @@ _gf = config.get('gradient_forest', {})
 NTREE = _gf.get('ntree', '500')
 COR_THRESHOLD = _gf.get('cor_threshold', '0.5')
 PCNM = _gf.get('spatial_correction', 'with')
-GF_SUFFIX = _gf.get('suffix', '')
+GF_SUFFIX = _gf.get('run_label', _gf.get('suffix', ''))
 GF_RANDOM_MODEL = _gf.get('random_model', True)
 PCNM_TAG = 'PCNM' if PCNM == 'with' else 'noPCNM'
 
@@ -596,9 +596,9 @@ def add_association_paths():
     W['enrichment_plots_done'] = f"{INTER}flags/enrichment_plots_done.flag"
 
     # Combined Manhattan plots (all traits and methods)
-    O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}.png"
-    O['manhattan_combined_regions'] = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}_regions.png"
-    O['qq_combined'] = f"{MOD_ASSOC}plots/qq_combined_K{K_BEST}.png"
+    O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
+    O['manhattan_combined_regions'] = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.png"
+    O['qq_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
 
     # Regionplot outputs
     O['gff_topr'] = f"{INTER}annotation/topr_gene_annotation.tsv"
@@ -650,9 +650,9 @@ def add_pheno_association_paths():
     W['pheno_enrichment_plots_done'] = f"{INTER}flags/pheno_enrichment_plots_done.flag"
 
     # Manhattan combined
-    O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}.png"
-    O['pheno_manhattan_combined_regions'] = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}_regions.png"
-    O['pheno_qq_combined'] = f"{MOD_PHENO}plots/qq_combined_K{K_BEST}.png"
+    O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
+    O['pheno_manhattan_combined_regions'] = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.png"
+    O['pheno_qq_combined'] = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
 
 add_pheno_association_paths()
 
@@ -714,26 +714,30 @@ def add_maladaptation_paths():
 
     # Genetic offset outputs
     W['gf_offset_raster'] = f"{INTER}gradient_forest/genetic_offset_{SUFFIX}.tif"
-    O['gf_offset_map_values'] = f"{MOD_MALAD}tables/genetic_offset_map_{SUFFIX}.tsv"
-    O['gf_offset_site_values'] = f"{MOD_MALAD}tables/genetic_offset_site_{SUFFIX}.tsv"
+    O['gf_offset_map_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_map_{SUFFIX}.tsv"
+    O['gf_offset_site_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_site_{SUFFIX}.tsv"
 
     # Gradient Forest plots
-    O['gf_offset_piemap'] = f"{MOD_MALAD}plots/genetic_offset_piemap_{SUFFIX}.png"
-    O['gf_offset_piemap_tajima'] = f"{MOD_MALAD}plots/genetic_offset_piemap_{SUFFIX}_tajima_d.png"
-    O['gf_offset_piemap_diversity'] = f"{MOD_MALAD}plots/genetic_offset_piemap_{SUFFIX}_pi_diversity.png"
-    O['gf_cumimp'] = f"{MOD_MALAD}plots/cumulative_importance_{SUFFIX}.png"
-    O['gf_importance'] = f"{MOD_MALAD}plots/overall_importance_{SUFFIX}.png"
+    O['gf_offset_piemap'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}.png"
+    O['gf_offset_piemap_tajima'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}_tajima_d.png"
+    O['gf_offset_piemap_diversity'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_{SUFFIX}_pi_diversity.png"
+    O['gf_cumimp'] = f"{MOD_MALAD}plots/{SUFFIX}/cumulative_importance_{SUFFIX}.png"
+    O['gf_importance'] = f"{MOD_MALAD}plots/{SUFFIX}/overall_importance_{SUFFIX}.png"
 
     # Future climate density plot
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"
 
+    # Create suffix-based directories
+    os.makedirs(f"{MOD_MALAD}plots/{SUFFIX}/", exist_ok=True)
+    os.makedirs(f"{MOD_MALAD}tables/{SUFFIX}/", exist_ok=True)
+
 add_maladaptation_paths()
 
 # Templates for K-dependent outputs
-def clusters_table(k): return f"{MOD_STRUCT}tables/clusters_K{k}.tsv"
-def structure_plot(k): return f"{MOD_STRUCT}plots/structure_K{k}.png"
-def pca_struct_plot(k): return f"{MOD_STRUCT}plots/pca_structure_K{k}.png"
-def pop_diff_plot(k): return f"{MOD_STRUCT}plots/pop_diff_K{k}.png"
+def clusters_table(k): return f"{MOD_STRUCT}tables/K{k}/clusters_K{k}.tsv"
+def structure_plot(k): return f"{MOD_STRUCT}plots/K{k}/structure_K{k}.png"
+def pca_struct_plot(k): return f"{MOD_STRUCT}plots/K{k}/pca_structure_K{k}.png"
+def pop_diff_plot(k): return f"{MOD_STRUCT}plots/K{k}/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
 DENSITY_PLOT_COMBINED = f"{MOD_CLIMATE}plots/density_plot_present.png"
@@ -742,16 +746,16 @@ def piemap_diversity(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_pi_di
 def piemap_notrait(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}.png"
 
 # Templates for association outputs
-def assoc_pvalues(method): return f"{MOD_ASSOC}tables/{method}/{method}_pvalues_K{K_BEST}.tsv"
-def assoc_sigsnps(method, adjust): return f"{MOD_ASSOC}tables/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
+def assoc_pvalues(method): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
+def assoc_sigsnps(method, adjust): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def manhattan_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def manhattan_plot_regions(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
 def qq_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Templates for phenotype association outputs
-def pheno_pvalues(method): return f"{MOD_PHENO}tables/{method}/{method}_pvalues_K{K_BEST}.tsv"
-def pheno_qvalues(method): return f"{MOD_PHENO}tables/{method}/{method}_qvalues_K{K_BEST}.tsv"
-def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
+def pheno_pvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
+def pheno_qvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_qvalues_K{K_BEST}.tsv"
+def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def pheno_manhattan(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def pheno_manhattan_regions(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
 def pheno_qq(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
@@ -761,7 +765,7 @@ def pheno_trait_vcf(trait): return f"{WORK_FILT}phenotypes/{trait}/{VCF_BASE}.vc
 def pheno_trait_tped(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tped"
 def pheno_trait_tfam(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tfam"
 def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aBN.kinf"
-def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/methods/{method}/{trait}_pvalues_K{K_BEST}.tsv"
 
 #=============================================================================
 # CREATE DIRECTORIES
@@ -773,6 +777,8 @@ dirs_to_create = [
     # Module directories
     f"{MOD_PROC}tables/",
     f"{MOD_STRUCT}plots/", f"{MOD_STRUCT}tables/",
+    *[f"{MOD_STRUCT}plots/K{k}/" for k in k_range(K_START, K_END)],
+    *[f"{MOD_STRUCT}tables/K{k}/" for k in k_range(K_START, K_END)],
     *([ f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}rasters/present/" ] if CLIMATE_ENABLED else []),
     f"{MOD_STRUCTK}plots/piemap/", f"{MOD_STRUCTK}tables/",
     # Log subdirectories
@@ -783,30 +789,29 @@ dirs_to_create = [
 # Add association directories for each method
 for method in ASSOC_CONFIGS:
     dirs_to_create.append(f"{MOD_ASSOC}plots/manhattan/{method}/")
-    dirs_to_create.append(f"{MOD_ASSOC}tables/{method}/")
+    dirs_to_create.append(f"{MOD_ASSOC}tables/methods/{method}/")
 
 # Add enrichment directories
 dirs_to_create.append(f"{MOD_ASSOC}tables/")
 dirs_to_create.append(f"{MOD_ASSOC}tables/enrichment/")
 dirs_to_create.append(f"{MOD_ASSOC}plots/")
 dirs_to_create.append(f"{MOD_ASSOC}plots/enrichment/")
+dirs_to_create.append(f"{MOD_ASSOC}plots/manhattan/combined/")
 dirs_to_create.append(f"{INTER}enrichment/association/")
 
 # Add GAPIT directories
 if ASSOC_GAPIT_CONFIGS:
     dirs_to_create.append(f"{WORK_FILT}gapit/")
     dirs_to_create.append(f"{INTER}gapit/association/")
-    dirs_to_create.append(f"{MOD_ASSOC}GAPIT/")
+    dirs_to_create.append(f"{MOD_ASSOC}GAPIT_native_output/")
     for model in ASSOC_GAPIT_CONFIGS:
-        dirs_to_create.append(f"{MOD_ASSOC}GAPIT/{model}/")
+        dirs_to_create.append(f"{MOD_ASSOC}GAPIT_native_output/{model}/")
 
 # Add regionplot directory
-dirs_to_create.append(f"{MOD_REGPLOT}plots/")
+dirs_to_create.append(f"{MOD_REGPLOT}")
 
 # Add maladaptation directories (require climate)
 if CLIMATE_ENABLED:
-    dirs_to_create.append(f"{MOD_MALAD}plots/")
-    dirs_to_create.append(f"{MOD_MALAD}tables/")
     dirs_to_create.append(f"{INTER}gradient_forest/")
     dirs_to_create.append(f"{MOD_CLIMATE}rasters/future/")
     dirs_to_create.append(f"{MOD_CLIMATE}tables/future/")
@@ -818,19 +823,20 @@ if PHENO_ASSOC_CONFIGS:
     dirs_to_create.append(f"{MOD_PHENO}plots/")
     dirs_to_create.append(f"{MOD_PHENO}plots/enrichment/")
     dirs_to_create.append(f"{MOD_PHENO}plots/piemap/")
+    dirs_to_create.append(f"{MOD_PHENO}plots/manhattan/combined/")
     dirs_to_create.append(f"{INTER}enrichment_phenotypes/")
     dirs_to_create.append(f"{LOGDIR}phenotype_association/")
     for method in PHENO_ASSOC_CONFIGS:
         dirs_to_create.append(f"{MOD_PHENO}plots/manhattan/{method}/")
-        dirs_to_create.append(f"{MOD_PHENO}tables/{method}/")
+        dirs_to_create.append(f"{MOD_PHENO}tables/methods/{method}/")
     if PHENO_MISSING == 'DROP':
         for trait in PHENO_TRAITS:
             dirs_to_create.append(f"{WORK_FILT}phenotypes/{trait}/emmax/")
     if PHENO_GAPIT_CONFIGS:
         dirs_to_create.append(f"{INTER}gapit/phenotype_association/")
-        dirs_to_create.append(f"{MOD_PHENO}GAPIT/")
+        dirs_to_create.append(f"{MOD_PHENO}GAPIT_native_output/")
         for model in PHENO_GAPIT_CONFIGS:
-            dirs_to_create.append(f"{MOD_PHENO}GAPIT/{model}/")
+            dirs_to_create.append(f"{MOD_PHENO}GAPIT_native_output/{model}/")
         if not ASSOC_GAPIT_CONFIGS:
             # GAPIT numeric dir needed even when only pheno uses GAPIT
             dirs_to_create.append(f"{WORK_FILT}gapit/")
@@ -866,11 +872,6 @@ if K_BEST is not None:
 if CALC_POP_STATS:
     dirs_to_create.append(f"{MOD_STRUCTK}plots/pop_stats/")
     dirs_to_create.append(f"{MOD_STRUCTK}tables/pop_stats/")
-
-# Add regionmap directories if zoom is enabled
-if HAS_REGIONMAP:
-    dirs_to_create.append(f"{MOD_STRUCTK}plots/piemap/zoom/")
-    dirs_to_create.append(f"{MOD_MALAD}plots/zoom/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)

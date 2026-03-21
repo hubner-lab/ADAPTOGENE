@@ -57,7 +57,7 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
         params:
             tped_prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}",
             k = K_BEST,
-            tables_dir = f"{MOD_PHENO}tables/"
+            tables_dir = f"{MOD_PHENO}tables/methods/"
         log: f"{LOGDIR}phenotype_association/emmax_pheno.log"
         shell:
             """
@@ -81,9 +81,9 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
                 k = K_BEST,
                 models = ','.join(PHENO_GAPIT_CONFIGS.keys()),
                 workdir = W['pheno_gapit_work'],
-                tables_dir = f"{MOD_PHENO}tables/",
+                tables_dir = f"{MOD_PHENO}tables/methods/",
                 predictors = PHENO_PREDICTORS,
-                native_outdir = f"{MOD_PHENO}GAPIT/"
+                native_outdir = f"{MOD_PHENO}GAPIT_native_output/"
             log: f"{LOGDIR}phenotype_association/gapit_pheno.log"
             shell:
                 """
@@ -165,12 +165,12 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
             kinship = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aBN.kinf",
             pca = W['pca_projections'],
             phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv"
-        output: f"{MOD_PHENO}tables/EMMAX/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
+        output: f"{MOD_PHENO}tables/methods/EMMAX/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
         wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
         params:
             tped_prefix = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}",
             k = K_BEST,
-            tables_dir = f"{MOD_PHENO}tables/EMMAX/",
+            tables_dir = f"{MOD_PHENO}tables/methods/EMMAX/",
             samples_order = W['samples_order']
         log: f"{LOGDIR}phenotype_association/emmax_pheno_trait_{{pheno_trait}}.log"
         shell:
@@ -183,7 +183,7 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
 
     rule combine_pheno_pvalues:
         """Merge per-trait p-value files into combined table (DROP mode)."""
-        input: expand(f"{MOD_PHENO}tables/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
+        input: expand(f"{MOD_PHENO}tables/methods/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
         output:
             pvals = pheno_pvalues("EMMAX"),
             qvals = pheno_qvalues("EMMAX")
@@ -207,14 +207,14 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
                 phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv",
                 samples = f"{WORK_FILT}phenotypes/{{pheno_trait}}_samples.list",
                 metadata = O['metadata']
-            output: [f"{MOD_PHENO}tables/{model}/{{pheno_trait}}_pvalues_K{K_BEST}.tsv" for model in PHENO_GAPIT_CONFIGS]
+            output: [f"{MOD_PHENO}tables/methods/{model}/{{pheno_trait}}_pvalues_K{K_BEST}.tsv" for model in PHENO_GAPIT_CONFIGS]
             wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
             params:
                 k = K_BEST,
                 models = ','.join(PHENO_GAPIT_CONFIGS.keys()),
                 workdir = lambda wc: f"{INTER}gapit/phenotype_association/{wc.pheno_trait}/",
-                tables_dir = f"{MOD_PHENO}tables/",
-                native_outdir = f"{MOD_PHENO}GAPIT/"
+                tables_dir = f"{MOD_PHENO}tables/methods/",
+                native_outdir = f"{MOD_PHENO}GAPIT_native_output/"
             log: f"{LOGDIR}phenotype_association/gapit_pheno_trait_{{pheno_trait}}.log"
             shell:
                 """
@@ -228,10 +228,10 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
 
         rule combine_gapit_pheno_pvalues:
             """Merge per-trait GAPIT p-value files into combined table (DROP mode)."""
-            input: lambda wc: expand(f"{MOD_PHENO}tables/{wc.method}/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
+            input: lambda wc: expand(f"{MOD_PHENO}tables/methods/{wc.method}/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
             output:
-                pvals = f"{MOD_PHENO}tables/{{method}}/{{method}}_pvalues_K{K_BEST}.tsv",
-                qvals = f"{MOD_PHENO}tables/{{method}}/{{method}}_qvalues_K{K_BEST}.tsv"
+                pvals = f"{MOD_PHENO}tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}.tsv",
+                qvals = f"{MOD_PHENO}tables/methods/{{method}}/{{method}}_qvalues_K{K_BEST}.tsv"
             wildcard_constraints:
                 method = '|'.join(PHENO_GAPIT_CONFIGS.keys())
             params: files_str = lambda wc, input: ' '.join(input)
@@ -248,7 +248,7 @@ if PHENO_ASSOC_CONFIGS:
   rule find_sig_snps_pheno:
     """Find significant SNPs for phenotype association."""
     input: assoc = lambda wc: pheno_pvalues(wc.method)
-    output: f"{MOD_PHENO}tables/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
+    output: f"{MOD_PHENO}tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
     wildcard_constraints:
         method = PHENO_METHOD_REGEX,
         adjust = r"\w+_[\d.]+"
@@ -455,11 +455,11 @@ if PHENO_ASSOC_CONFIGS:
           regions = O['pheno_regions_combined']
       output:
           simple_png = O['pheno_manhattan_combined'],
-          simple_svg = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}.svg",
+          simple_svg = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.svg",
           regions_png = O['pheno_manhattan_combined_regions'],
-          regions_svg = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}_regions.svg",
+          regions_svg = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
           qq_png = O['pheno_qq_combined'],
-          qq_svg = f"{MOD_PHENO}plots/qq_combined_K{K_BEST}.svg"
+          qq_svg = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.svg"
       params:
           assoc_str = ','.join([
               f"{method}:{adjust}:{pheno_pvalues(method)}"
@@ -467,7 +467,7 @@ if PHENO_ASSOC_CONFIGS:
           ]),
           predictors = PHENO_PREDICTORS,
           k = K_BEST,
-          plot_dir = f"{MOD_PHENO}plots/"
+          plot_dir = f"{MOD_PHENO}plots/manhattan/combined/"
       log: f"{LOGDIR}phenotype_association/manhattan_combined_pheno.log"
       shell:
           """

@@ -408,7 +408,7 @@ if (REGIONMAP_EXTENT != "NULL" && REGIONMAP_EXTENT != "") {
         coords_str <- gsub(",", "_", coords_str)          # Replace , with _
 
         # Save zoomed outputs in coordinate subdirectory
-        zoom_dir <- paste0(PLOT_DIR, "regionmap/", coords_str, "/")
+        zoom_dir <- paste0(PLOT_DIR, "zoom/", coords_str, "/")
         dir.create(zoom_dir, recursive = TRUE, showWarnings = FALSE)
         ggsave(paste0(zoom_dir, OUTPUT_PREFIX, '.png'), gPlot_zoom)
         ggsave(paste0(zoom_dir, OUTPUT_PREFIX, '.svg'), gPlot_zoom,

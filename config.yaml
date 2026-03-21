@@ -145,7 +145,7 @@ gradient_forest:
   ntree: '1000'                 # Number of trees (higher = more accurate, slower)
   cor_threshold: '0.5'          # Correlation threshold for variable selection
   spatial_correction: 'with'    # Include spatial variables: with/without
-  suffix: 'EMMAX_bonf005'       # Unique identifier for this GF run
+  run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
   random_model: TRUE            # Also build neutral model for comparison
 
 #-----------------------------------------------------------------------------
