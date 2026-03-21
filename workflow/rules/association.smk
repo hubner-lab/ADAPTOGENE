@@ -168,11 +168,13 @@ if ASSOC_GAPIT_CONFIGS:
 # Manhattan plots - simple version (runs early, no region dependency)
 # Produces both PNG and SVG in a single run
 rule manhattan_plot:
-    """Generate simple Manhattan plot for a specific trait and method."""
+    """Generate simple Manhattan plot and QQ plot for a specific trait and method."""
     input: assoc = lambda wc: assoc_pvalues(wc.method)
     output:
         png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
-        svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+        svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+        qq_png = f"{MOD_ASSOC}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.png",
+        qq_svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg"
     wildcard_constraints:
         method = ASSOC_METHOD_REGEX,
         trait = r"bio_\d+",
@@ -408,8 +410,8 @@ rule plot_enrichment:
 
 # Combined Manhattan plots (all traits and methods)
 rule manhattan_combined:
-    """Generate combined Manhattan plots showing all traits and methods together.
-    Produces two versions: simple and with regions highlighted."""
+    """Generate combined Manhattan plots and QQ plot showing all traits and methods together.
+    Produces two Manhattan versions (simple and with regions) plus a combined QQ plot."""
     input:
         assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS],
         regions = O['regions_combined']
@@ -417,7 +419,9 @@ rule manhattan_combined:
         simple_png = O['manhattan_combined'],
         simple_svg = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}.svg",
         regions_png = O['manhattan_combined_regions'],
-        regions_svg = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}_regions.svg"
+        regions_svg = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}_regions.svg",
+        qq_png = O['qq_combined'],
+        qq_svg = f"{MOD_ASSOC}plots/qq_combined_K{K_BEST}.svg"
     params:
         assoc_str = ','.join([
             f"{method}:{adjust}:{assoc_pvalues(method)}"

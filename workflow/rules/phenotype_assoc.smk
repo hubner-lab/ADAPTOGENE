@@ -393,11 +393,13 @@ if PHENO_ASSOC_CONFIGS:
   
   # Manhattan plots for phenotype traits
   rule manhattan_pheno:
-      """Generate Manhattan plot for a phenotype trait."""
+      """Generate Manhattan plot and QQ plot for a phenotype trait."""
       input: assoc = lambda wc: pheno_pvalues(wc.method)
       output:
           png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
-          svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+          svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+          qq_png = f"{MOD_PHENO}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.png",
+          qq_svg = f"{MOD_PHENO}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg"
       wildcard_constraints:
           method = PHENO_METHOD_REGEX,
           trait = r"[a-zA-Z]\w*",
@@ -447,7 +449,7 @@ if PHENO_ASSOC_CONFIGS:
           """
   
   rule manhattan_combined_pheno:
-      """Generate combined Manhattan plots for all phenotype traits."""
+      """Generate combined Manhattan plots and QQ plot for all phenotype traits."""
       input:
           assoc_tables = [pheno_pvalues(method) for method in PHENO_ASSOC_CONFIGS],
           regions = O['pheno_regions_combined']
@@ -455,7 +457,9 @@ if PHENO_ASSOC_CONFIGS:
           simple_png = O['pheno_manhattan_combined'],
           simple_svg = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}.svg",
           regions_png = O['pheno_manhattan_combined_regions'],
-          regions_svg = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}_regions.svg"
+          regions_svg = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}_regions.svg",
+          qq_png = O['pheno_qq_combined'],
+          qq_svg = f"{MOD_PHENO}plots/qq_combined_K{K_BEST}.svg"
       params:
           assoc_str = ','.join([
               f"{method}:{adjust}:{pheno_pvalues(method)}"
@@ -470,7 +474,7 @@ if PHENO_ASSOC_CONFIGS:
           Rscript /pipeline/scripts/plot_manhattan_combined.R \
               "{params.assoc_str}" {params.predictors} {params.k} \
               {input.regions} {params.plot_dir} > {log} 2>&1
-          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg}
+          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg} {output.qq_png} {output.qq_svg}
           """
   
   rule piemap_pheno:

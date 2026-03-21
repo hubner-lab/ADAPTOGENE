@@ -598,6 +598,7 @@ def add_association_paths():
     # Combined Manhattan plots (all traits and methods)
     O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}.png"
     O['manhattan_combined_regions'] = f"{MOD_ASSOC}plots/manhattan_combined_K{K_BEST}_regions.png"
+    O['qq_combined'] = f"{MOD_ASSOC}plots/qq_combined_K{K_BEST}.png"
 
     # Regionplot outputs
     O['gff_topr'] = f"{INTER}annotation/topr_gene_annotation.tsv"
@@ -651,6 +652,7 @@ def add_pheno_association_paths():
     # Manhattan combined
     O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}.png"
     O['pheno_manhattan_combined_regions'] = f"{MOD_PHENO}plots/manhattan_combined_K{K_BEST}_regions.png"
+    O['pheno_qq_combined'] = f"{MOD_PHENO}plots/qq_combined_K{K_BEST}.png"
 
 add_pheno_association_paths()
 
@@ -744,6 +746,7 @@ def assoc_pvalues(method): return f"{MOD_ASSOC}tables/{method}/{method}_pvalues_
 def assoc_sigsnps(method, adjust): return f"{MOD_ASSOC}tables/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def manhattan_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def manhattan_plot_regions(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
+def qq_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Templates for phenotype association outputs
 def pheno_pvalues(method): return f"{MOD_PHENO}tables/{method}/{method}_pvalues_K{K_BEST}.tsv"
@@ -751,6 +754,7 @@ def pheno_qvalues(method): return f"{MOD_PHENO}tables/{method}/{method}_qvalues_
 def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def pheno_manhattan(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def pheno_manhattan_regions(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
+def pheno_qq(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Per-trait DROP mode paths
 def pheno_trait_vcf(trait): return f"{WORK_FILT}phenotypes/{trait}/{VCF_BASE}.vcf"
@@ -968,6 +972,7 @@ def get_targets(mode):
             for trait in predictors:
                 targets.append(manhattan_plot(method, trait, adjust))
                 targets.append(manhattan_plot_regions(method, trait, adjust))
+                targets.append(qq_plot(method, trait, adjust))
 
         # Combined analysis targets
         targets.append(O['selected_snps'])
@@ -980,6 +985,7 @@ def get_targets(mode):
         # Combined Manhattan plots (all traits and methods)
         targets.append(O['manhattan_combined'])
         targets.append(O['manhattan_combined_regions'])
+        targets.append(O['qq_combined'])
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
@@ -1056,12 +1062,14 @@ def get_targets(mode):
             for trait in PHENO_TRAITS:
                 targets.append(pheno_manhattan(method, trait, adjust))
                 targets.append(pheno_manhattan_regions(method, trait, adjust))
+                targets.append(pheno_qq(method, trait, adjust))
 
         targets.extend([
             O['pheno_selected_snps'],
             O['pheno_regions_per_trait'], O['pheno_regions_combined'],
             O['pheno_genes_per_region'], O['pheno_genes_collapsed'], O['pheno_genes_combined'],
             O['pheno_manhattan_combined'], O['pheno_manhattan_combined_regions'],
+            O['pheno_qq_combined'],
         ])
 
         # Phenotype piemaps (require climate raster for background)
