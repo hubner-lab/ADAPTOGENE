@@ -477,4 +477,70 @@ if (file.exists(REGIONS_FILE)) {
     message('INFO: Regions file not found')
 }
 
+################################ QQ Plot (Combined)
+
+message('INFO: Generating combined QQ plot')
+
+# For each (trait, method) combo: sort p-values, compute expected uniform quantiles
+qq_data <- plot_data_all %>%
+    group_by(trait, method) %>%
+    arrange(pvalue) %>%
+    mutate(
+        expected = -log10(ppoints(n())),
+        observed = -log10(pvalue)
+    ) %>%
+    ungroup()
+
+# 95% confidence interval band (under uniform null)
+n_snps_ci <- max(table(paste(qq_data$trait, qq_data$method)))
+ci_data <- data.frame(
+    expected = -log10(ppoints(n_snps_ci)),
+    ci_lower = -log10(qbeta(0.975, 1:n_snps_ci, n_snps_ci:1)),
+    ci_upper = -log10(qbeta(0.025, 1:n_snps_ci, n_snps_ci:1))
+)
+
+p_qq <- ggplot() +
+    geom_ribbon(data = ci_data,
+                aes(x = expected, ymin = ci_lower, ymax = ci_upper),
+                fill = "grey80", alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+    # Non-significant points
+    geom_point(data = qq_data %>% filter(!is_significant),
+               aes(x = expected, y = observed, color = trait, shape = method),
+               alpha = 0.5, size = 1.5) +
+    # Significant points (larger)
+    geom_point(data = qq_data %>% filter(is_significant),
+               aes(x = expected, y = observed, color = trait, shape = method),
+               size = 2.5) +
+    scale_color_manual(values = trait_colors, name = "Trait") +
+    scale_shape_manual(values = method_shapes, name = "Method") +
+    coord_fixed() +
+    labs(
+        title = "Combined QQ Plot (All Traits & Methods)",
+        subtitle = paste0("K = ", Kbest, " | ", length(names(assoc_info)), " methods, ",
+                         length(traits), " traits"),
+        x = expression(Expected ~ -log[10](p-value)),
+        y = expression(Observed ~ -log[10](p-value))
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40"),
+        legend.position = "right",
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 9, face = "bold"),
+        legend.key.size = unit(0.5, "cm")
+    ) +
+    guides(
+        color = guide_legend(order = 1),
+        shape = guide_legend(order = 2)
+    )
+
+qq_base <- paste0("qq_combined_K", Kbest)
+ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
+       width = 7, height = 7, dpi = 300)
+ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
+       width = 7, height = 7)
+message(paste0('INFO: Saved combined QQ plot: ', qq_base))
+
 message('INFO: Combined Manhattan plot complete')

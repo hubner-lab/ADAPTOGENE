@@ -304,6 +304,59 @@ ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_simple,
        width = 10, height = 4)
 message(paste0('INFO: Saved simple Manhattan plot: ', simple_base, ' (.png, .svg)'))
 
+################################ QQ Plot (per-method, single trait)
+
+message('INFO: Generating QQ plot')
+
+qq_df <- plot_df %>%
+    arrange(pvalue) %>%
+    mutate(
+        expected = -log10(ppoints(n())),
+        observed = log10p
+    )
+
+# 95% confidence interval band
+n_qq <- nrow(qq_df)
+ci_qq <- data.frame(
+    expected = -log10(ppoints(n_qq)),
+    ci_lower = -log10(qbeta(0.975, 1:n_qq, n_qq:1)),
+    ci_upper = -log10(qbeta(0.025, 1:n_qq, n_qq:1))
+)
+
+p_qq <- ggplot() +
+    geom_ribbon(data = ci_qq,
+                aes(x = expected, ymin = ci_lower, ymax = ci_upper),
+                fill = "grey80", alpha = 0.4) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+    # Non-significant points (alternating chr colors)
+    geom_point(data = qq_df %>% filter(!is_significant),
+               aes(x = expected, y = observed, color = chr_f),
+               alpha = 0.5, size = 1.5) +
+    scale_color_manual(values = chr_colors, guide = "none") +
+    # Significant points (trait color)
+    geom_point(data = qq_df %>% filter(is_significant),
+               aes(x = expected, y = observed),
+               color = sig_color, size = 2.5) +
+    coord_fixed() +
+    labs(
+        title = paste0(METHOD, " - ", TRAIT, " QQ Plot"),
+        subtitle = paste0("K = ", Kbest, ", ", n_sig, " significant SNPs"),
+        x = expression(Expected ~ -log[10](p-value)),
+        y = expression(Observed ~ -log[10](p-value))
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(size = 11, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40")
+    )
+
+qq_base <- paste0("qq_", TRAIT, "_K", Kbest, "_", ADJUST)
+ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
+       width = 6, height = 6, dpi = 300)
+ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
+       width = 6, height = 6)
+message(paste0('INFO: Saved QQ plot: ', qq_base, ' (.png, .svg)'))
+
 ################################ Plot 2: Manhattan with Regions (if regions file provided)
 
 regions_generated <- FALSE
