@@ -76,19 +76,6 @@ for (i in seq_len(nrow(regions))) {
   message("\n--- Region ", rid, " ---")
   hap_obj <- qread(hap_file)
 
-  # === crosshap_viz ===
-  tryCatch({
-    message("Generating crosshap_viz at epsilon=", epsilon_selected, "...")
-    p_viz <- crosshap_viz(hap_obj, epsilon = epsilon_selected)
-    viz_file <- file.path(plots_dir, paste0("Region_", rid, "_crosshap_viz"))
-    qsave(p_viz, paste0(viz_file, ".qs"))
-    ggsave(paste0(viz_file, ".png"), p_viz, width = 14, height = 8, dpi = 150)
-    ggsave(paste0(viz_file, ".svg"), p_viz, width = 14, height = 8)
-    message("Saved crosshap_viz: ", viz_file)
-  }, error = function(e) {
-    message("WARNING: crosshap_viz failed for region ", rid, ": ", e$message)
-  })
-
   # === Extract haplotype assignments ===
   # HapObject is a nested list: hap_obj$Haplotypes_MGmin{N}_E{eps}$Indfile
   # Find the element matching the selected epsilon
@@ -140,8 +127,31 @@ for (i in seq_len(nrow(regions))) {
 
   all_assignments[[as.character(rid)]] <- assignments
 
-  # === Phenotype boxplots per trait ===
+  # === crosshap_viz + boxplots per trait ===
   for (trait in trait_cols) {
+    # crosshap_viz: update Pheno column in HapObject for this trait, then render
+    tryCatch({
+      message("  Generating crosshap_viz for trait '", trait, "'...")
+      hap_obj_trait <- hap_obj
+      for (eps_name in names(hap_obj_trait)) {
+        if (!is.null(hap_obj_trait[[eps_name]]$Indfile)) {
+          # crosshap uses periods in sample names; match against assignments
+          ind_names <- gsub("\\.", "-", hap_obj_trait[[eps_name]]$Indfile$Ind)
+          trait_vals <- meta[[trait]][match(ind_names, meta[[sample_col]])]
+          hap_obj_trait[[eps_name]]$Indfile$Pheno <- trait_vals
+        }
+      }
+      p_viz <- crosshap_viz(hap_obj_trait, epsilon = epsilon_selected)
+      viz_file <- file.path(plots_dir, paste0("Region_", rid, "_crosshap_viz_", trait))
+      qsave(p_viz, paste0(viz_file, ".qs"))
+      ggsave(paste0(viz_file, ".png"), p_viz, width = 14, height = 8, dpi = 150)
+      ggsave(paste0(viz_file, ".svg"), p_viz, width = 14, height = 8)
+      message("  Saved crosshap_viz: ", viz_file)
+    }, error = function(e) {
+      message("  WARNING: crosshap_viz failed for trait '", trait, "': ", e$message)
+    })
+
+    # Boxplot
     tryCatch({
       plot_data <- assignments[!is.na(get(trait))]
       if (nrow(plot_data) < 3) {
@@ -170,7 +180,6 @@ for (i in seq_len(nrow(regions))) {
         theme_minimal() +
         theme(legend.position = "none")
 
-      # Add statistical comparison if 2 groups
       if (n_haps == 2) {
         p_box <- p_box + stat_compare_means(method = "wilcox.test", label = "p.format")
       } else if (n_haps > 2) {

@@ -8,12 +8,7 @@ app_ui <- function(request) {
     shiny::addResourcePath("pipeline", pipeline_path)
 
     bslib::page_navbar(
-        title = htmltools::span(
-            class = "d-flex align-items-center gap-2",
-            htmltools::strong("ADAPTOGENE", style = "letter-spacing: 0.05em;"),
-            htmltools::span("Results Viewer",
-                            style = "font-weight: 400; opacity: 0.75; font-size: 0.9em;")
-        ),
+        title = htmltools::strong("ADAPTOGENE", style = "letter-spacing: 0.05em;"),
         theme    = app_theme(),
         id       = "main_tabs",
         fillable = c("Home"),   # only Home tab fills viewport; others scroll
@@ -53,11 +48,11 @@ app_ui <- function(request) {
         bslib::nav_panel("Overlapping Regions",
             mod_overlapping_ui("overlapping")
         ),
-        bslib::nav_panel("Maladaptation",
-            mod_maladaptation_ui("maladaptation")
-        ),
         bslib::nav_panel("Haplotype Analysis",
             mod_haplotype_ui("haplotype")
+        ),
+        bslib::nav_panel("Maladaptation",
+            mod_maladaptation_ui("maladaptation")
         )
     )
 }

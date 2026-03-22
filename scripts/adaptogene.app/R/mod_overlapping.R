@@ -150,20 +150,6 @@ mod_overlapping_server <- function(id, project_data) {
             }
         )
 
-        # ── Haplotype tag ──────────────────────────────────────────────────────
-        # Overlapping combines GEA + GWAS; prefer "association" tag, fall back to any
-        hap_tag <- shiny::reactive({
-            pd   <- project_data()
-            tags <- find_haplotype_tags(pd$name)
-            if (length(tags) == 0) return(NULL)
-            # Prefer tag with source "association"
-            preferred <- Filter(function(tag) {
-                parts <- strsplit(tag, "_")[[1]]
-                length(parts) >= 2 && paste(parts[-1], collapse = "_") == "association"
-            }, tags)
-            if (length(preferred) > 0) preferred[[1]] else tags[[1]]
-        })
-
         # ── Region detail panel ────────────────────────────────────────────────
         output$region_detail_ui <- shiny::renderUI({
             rid <- selected_region()
@@ -187,8 +173,7 @@ mod_overlapping_server <- function(id, project_data) {
             region_id    = selected_region,
             module       = module,
             trait        = region_trait,
-            genes_data   = genes_data,
-            hap_tag      = hap_tag
+            genes_data   = genes_data
         )
     })
 }

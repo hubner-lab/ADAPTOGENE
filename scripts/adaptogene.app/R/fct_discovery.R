@@ -76,7 +76,7 @@ find_haplotype_tags <- function(project) {
                          paste0("haplotype_", tag, "_scan_done.flag"))
         hap_files <- list.files(
             mod_path(project, MOD_INTER, "haplotype", tag),
-            pattern = "hapobject\\.qs$"
+            pattern = "HapObject\\.qs$"
         )
         file.exists(flag) && length(hap_files) > 0
     }, logical(1))
@@ -119,4 +119,23 @@ find_haplotype_regions <- function(project, tag) {
         dt <- data.table::fread(sel_file, select = "region_id")
         as.character(dt$region_id)
     }, error = function(e) character(0))
+}
+
+#' Find haplotype regions that have clustree plots (scan completed)
+#' @noRd
+find_haplotype_scan_regions <- function(project, tag) {
+    clustree_dir <- mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree")
+    if (!dir.exists(clustree_dir)) return(character(0))
+    files <- list.files(clustree_dir, pattern = "^Region_(.*)_clustree_MG\\.png$")
+    gsub("^Region_(.*)_clustree_MG\\.png$", "\\1", files)
+}
+
+#' Find traits available for a haplotype region (from boxplot files)
+#' @noRd
+find_haplotype_traits <- function(project, tag, region_id) {
+    plots_dir <- mod_path(project, MOD_HAP, tag, "plots")
+    if (!dir.exists(plots_dir)) return(character(0))
+    pat <- paste0("^Region_", region_id, "_boxplot_(.*)\\.png$")
+    files <- list.files(plots_dir, pattern = pat)
+    sort(gsub(pat, "\\1", files))
 }

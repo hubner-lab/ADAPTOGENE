@@ -161,6 +161,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 snps <- add_cum_pos(snps, co)
             }
 
+            # Miami: GWAS traits need negative log10p (bottom half of plot)
+            if (is_miami && nrow(snps) > 0 && !is.null(co$gwas_traits)) {
+                gwas_tr <- unlist(co$gwas_traits)
+                snps <- data.table::copy(snps)
+                snps[trait %in% gwas_tr, log10p := -log10p]
+            }
+
             # Regions overlay data
             reg_data <- if (show_regions()) regions() else NULL
 

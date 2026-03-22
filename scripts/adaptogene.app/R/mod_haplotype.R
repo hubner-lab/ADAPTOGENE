@@ -19,7 +19,11 @@ mod_haplotype_ui <- function(id) {
 
         shiny::br(),
 
-        # Clustree plots
+        # Clustree region selector + plots
+        htmltools::div(
+            class = "control-bar",
+            shiny::uiOutput(ns("clustree_region_selector"))
+        ),
         bslib::layout_column_wrap(
             width = 1 / 2,
             mod_image_card_ui(ns("clustree_mg")),
@@ -36,8 +40,12 @@ mod_haplotype_ui <- function(id) {
                 "Per-Region Visualization",
                 value = "per_region",
                 icon  = bsicons::bs_icon("diagram-3"),
-                # Region selector inside accordion, above content
-                shiny::uiOutput(ns("region_selector")),
+                # Region + trait selectors inside accordion, above content
+                htmltools::div(
+                    class = "control-bar",
+                    shiny::uiOutput(ns("region_selector")),
+                    shiny::uiOutput(ns("trait_selector"))
+                ),
                 shiny::uiOutput(ns("per_region_content"))
             ),
 
@@ -74,7 +82,28 @@ mod_haplotype_server <- function(id, project_data) {
 
         selected_tag <- shiny::reactive(input$tag %||% hap_tags()[1])
 
-        # ── Region discovery ───────────────────────────────────────────────────
+        # ── Clustree region discovery ──────────────────────────────────────────
+        clustree_regions <- shiny::reactive({
+            tag <- selected_tag()
+            if (is.null(tag)) return(character(0))
+            find_haplotype_scan_regions(project_data()$name, tag)
+        })
+
+        output$clustree_region_selector <- shiny::renderUI({
+            rids <- clustree_regions()
+            if (length(rids) == 0) return(NULL)
+            if (length(rids) == 1) return(NULL)  # no selector needed for single region
+            choices <- setNames(rids, vapply(rids, format_region_id, character(1)))
+            shiny::selectInput(ns("clustree_region"), "Region (clustree)",
+                               choices = choices, selected = rids[1])
+        })
+
+        selected_clustree_region <- shiny::reactive({
+            cr <- clustree_regions()
+            input$clustree_region %||% (if (length(cr) > 0) cr[1] else NULL)
+        })
+
+        # ── Per-region viz discovery ───────────────────────────────────────────
         tag_regions <- shiny::reactive({
             tag <- selected_tag()
             if (is.null(tag)) return(character(0))
@@ -90,8 +119,26 @@ mod_haplotype_server <- function(id, project_data) {
 
         selected_region <- shiny::reactive(input$region_id %||% tag_regions()[1])
 
+        # ── Trait discovery ────────────────────────────────────────────────────
+        hap_traits <- shiny::reactive({
+            tag <- selected_tag()
+            rid <- selected_region()
+            if (is.null(tag) || is.null(rid)) return(character(0))
+            find_haplotype_traits(project_data()$name, tag, rid)
+        })
+
+        output$trait_selector <- shiny::renderUI({
+            traits <- hap_traits()
+            if (length(traits) <= 1) return(NULL)
+            shiny::selectInput(ns("hap_trait"), "Trait", choices = traits, selected = traits[1])
+        })
+
+        selected_trait <- shiny::reactive({
+            tr <- hap_traits()
+            input$hap_trait %||% (if (length(tr) > 0) tr[1] else NULL)
+        })
+
         # ── Custom source check ────────────────────────────────────────────────
-        # Custom source = source is not a standard pipeline source
         is_custom_source <- shiny::reactive({
             tag <- selected_tag()
             if (is.null(tag)) return(FALSE)
@@ -116,11 +163,10 @@ mod_haplotype_server <- function(id, project_data) {
             tag <- selected_tag()
             if (nrow(st) == 0 || is.null(tag)) return(NULL)
 
-            # Extract SUMMARY row
             summary_row <- st[st$region_id == "SUMMARY", ]
             if (nrow(summary_row) == 0) return(NULL)
 
-            # Summary row format: chr="total" (label), start=n_total, end=n_success,
+            # Summary row format: chr="total", start=n_total, end=n_success,
             # snp_count=n_skipped, status=n_failed
             n_total   <- as.integer(summary_row$start[1])
             n_success <- as.integer(summary_row$end[1])
@@ -161,20 +207,23 @@ mod_haplotype_server <- function(id, project_data) {
             )
         })
 
-        # ── Clustree plots ─────────────────────────────────────────────────────
+        # ── Clustree plots (per selected clustree region) ──────────────────────
         shiny::observe({
-            tag <- shiny::req(selected_tag())
-            pd  <- project_data()
+            tag  <- shiny::req(selected_tag())
+            crid <- shiny::req(selected_clustree_region())
+            pd   <- project_data()
 
             mod_image_card_server("clustree_mg",
-                path    = shiny::reactive(hap_clustree_path(pd$name, tag, "MG")),
-                title   = shiny::reactive("Clustree: Marker Groups"),
-                dl_name = shiny::reactive(paste0("clustree_MG_", tag))
+                path    = shiny::reactive(hap_clustree_path(pd$name, tag, crid, "MG")),
+                title   = shiny::reactive(paste0("Clustree: Marker Groups (",
+                                                  format_region_id(crid), ")")),
+                dl_name = shiny::reactive(paste0("clustree_MG_", tag, "_", crid))
             )
             mod_image_card_server("clustree_hap",
-                path    = shiny::reactive(hap_clustree_path(pd$name, tag, "hap")),
-                title   = shiny::reactive("Clustree: Haplotypes"),
-                dl_name = shiny::reactive(paste0("clustree_hap_", tag))
+                path    = shiny::reactive(hap_clustree_path(pd$name, tag, crid, "hap")),
+                title   = shiny::reactive(paste0("Clustree: Haplotypes (",
+                                                  format_region_id(crid), ")")),
+                dl_name = shiny::reactive(paste0("clustree_hap_", tag, "_", crid))
             )
         })
 
@@ -185,7 +234,6 @@ mod_haplotype_server <- function(id, project_data) {
             if (is.null(tag) || is.null(rid)) return(NULL)
 
             if (!is_custom_source()) {
-                # Non-custom: redirect message
                 parts      <- strsplit(tag, "_")[[1]]
                 tag_source <- paste(parts[-1], collapse = "_")
                 tab_name <- switch(tag_source,
@@ -207,11 +255,16 @@ mod_haplotype_server <- function(id, project_data) {
                 ))
             }
 
-            pd   <- project_data()
-            viz  <- crosshap_viz_path(pd$name, tag, rid)
+            pd    <- project_data()
+            trait <- selected_trait()
+            if (is.null(trait)) {
+                return(plot_placeholder("No visualization available",
+                    "Run mode=haplotype to generate crosshap visualizations"))
+            }
+            viz <- crosshap_viz_path(pd$name, tag, rid, trait)
             if (!file_ok(viz)) {
                 return(plot_placeholder("No visualization available for this region",
-                    "Run mode=haplotype for this region to generate crosshap visualizations"))
+                    "Run mode=haplotype to generate crosshap visualizations"))
             }
 
             htmltools::tagList(
@@ -224,34 +277,37 @@ mod_haplotype_server <- function(id, project_data) {
             )
         })
 
-        # Render hap viz images when custom source + region
         shiny::observe({
             shiny::req(is_custom_source(), selected_tag(), selected_region())
-            tag <- selected_tag()
-            rid <- selected_region()
-            pd  <- project_data()
+            tag   <- selected_tag()
+            rid   <- selected_region()
+            trait <- selected_trait()
+            pd    <- project_data()
 
-            mod_image_card_server("hap_viz",
-                path    = shiny::reactive(crosshap_viz_path(pd$name, tag, rid)),
-                title   = shiny::reactive("Haplotype Visualization"),
-                dl_name = shiny::reactive(paste0("crosshap_viz_", tag, "_", rid))
-            )
-            mod_image_card_server("hap_box",
-                path    = shiny::reactive(hap_boxplot_path(pd$name, tag, rid)),
-                title   = shiny::reactive("Haplotype Boxplot"),
-                dl_name = shiny::reactive(paste0("hap_boxplot_", tag, "_", rid))
-            )
-            mod_image_card_server("hap_piemap",
-                path    = shiny::reactive(hap_piemap_path(pd$name, tag, rid)),
-                title   = shiny::reactive("Haplotype Piemap"),
-                dl_name = shiny::reactive(paste0("hap_piemap_", tag, "_", rid))
-            )
+            if (!is.null(trait)) {
+                mod_image_card_server("hap_viz",
+                    path    = shiny::reactive(crosshap_viz_path(pd$name, tag, rid, trait)),
+                    title   = shiny::reactive(paste0("Haplotype Visualization: ", trait)),
+                    dl_name = shiny::reactive(paste0("crosshap_viz_", tag, "_", rid, "_", trait))
+                )
+                mod_image_card_server("hap_box",
+                    path    = shiny::reactive(hap_boxplot_path(pd$name, tag, rid, trait)),
+                    title   = shiny::reactive(paste0("Boxplot: ", trait)),
+                    dl_name = shiny::reactive(paste0("hap_boxplot_", tag, "_", rid, "_", trait))
+                )
+                mod_image_card_server("hap_piemap",
+                    path    = shiny::reactive(hap_piemap_path(pd$name, tag, rid, trait)),
+                    title   = shiny::reactive(paste0("Haplotype Piemap: ", trait)),
+                    dl_name = shiny::reactive(paste0("hap_piemap_", tag, "_", rid, "_", trait))
+                )
+            }
         })
 
         # ── Tables ─────────────────────────────────────────────────────────────
         output$tables_content <- shiny::renderUI({
             tag <- selected_tag()
             if (is.null(tag)) return(NULL)
+            pd <- project_data()
 
             panels <- list(
                 bslib::accordion_panel(
@@ -264,7 +320,20 @@ mod_haplotype_server <- function(id, project_data) {
                 )
             )
 
-            # Add assignment/frequency tables only for custom source or if files exist
+            # Add assignment/frequency tables when haplotype viz has been run
+            if (file_ok(hap_assignments_path(pd$name, tag))) {
+                panels <- c(panels, list(
+                    bslib::accordion_panel(
+                        "Haplotype Assignments",
+                        DT::DTOutput(ns("tbl_assignments"))
+                    ),
+                    bslib::accordion_panel(
+                        "Haplotype Frequencies",
+                        DT::DTOutput(ns("tbl_frequencies"))
+                    )
+                ))
+            }
+
             do.call(bslib::accordion, c(panels, list(open = FALSE, multiple = TRUE)))
         })
 
@@ -284,7 +353,6 @@ mod_haplotype_server <- function(id, project_data) {
 
         output$tbl_status <- DT::renderDataTable({
             st <- scan_status()
-            # Exclude SUMMARY row for detail table
             if (nrow(st) > 0 && "region_id" %in% names(st)) {
                 st <- st[st$region_id != "SUMMARY", ]
             }
@@ -292,6 +360,34 @@ mod_haplotype_server <- function(id, project_data) {
                 as.data.frame(st),
                 options  = list(scrollX = TRUE, pageLength = 20),
                 rownames = FALSE
+            )
+        })
+
+        output$tbl_assignments <- DT::renderDataTable({
+            tag <- shiny::req(selected_tag())
+            pd  <- project_data()
+            p   <- hap_assignments_path(pd$name, tag)
+            dt  <- if (file_ok(p)) data.table::fread(p) else data.table::data.table()
+            safe_datatable(
+                as.data.frame(dt),
+                extensions = "Buttons",
+                options    = list(dom = "Bfrtip", buttons = list("csv"),
+                                   scrollX = TRUE, pageLength = 20),
+                rownames   = FALSE
+            )
+        })
+
+        output$tbl_frequencies <- DT::renderDataTable({
+            tag <- shiny::req(selected_tag())
+            pd  <- project_data()
+            p   <- hap_frequencies_path(pd$name, tag)
+            dt  <- if (file_ok(p)) data.table::fread(p) else data.table::data.table()
+            safe_datatable(
+                as.data.frame(dt),
+                extensions = "Buttons",
+                options    = list(dom = "Bfrtip", buttons = list("csv"),
+                                   scrollX = TRUE, pageLength = 20),
+                rownames   = FALSE
             )
         })
     })

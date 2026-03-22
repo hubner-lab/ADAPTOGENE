@@ -292,29 +292,32 @@ regionplot_path <- function(project, region_id, trait = NULL) {
 
 # ─── Haplotype ────────────────────────────────────────────────────────────────
 
-#' Haplotype clustree path
+#' Haplotype clustree path (per-region)
 #' @noRd
-hap_clustree_path <- function(project, tag, type = "MG") {
+hap_clustree_path <- function(project, tag, region_id, type = "MG") {
     mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree",
-             paste0("clustree_", type, ".png"))
+             paste0("Region_", region_id, "_clustree_", type, ".png"))
 }
 
-#' Haplotype crosshap_viz path
+#' Haplotype crosshap_viz path (per-trait)
 #' @noRd
-crosshap_viz_path <- function(project, tag, region_id) {
-    mod_path(project, MOD_HAP, tag, region_id, "crosshap_viz.png")
+crosshap_viz_path <- function(project, tag, region_id, trait) {
+    mod_path(project, MOD_HAP, tag, "plots",
+             paste0("Region_", region_id, "_crosshap_viz_", trait, ".png"))
 }
 
-#' Haplotype boxplot path
+#' Haplotype boxplot path (per-trait)
 #' @noRd
-hap_boxplot_path <- function(project, tag, region_id) {
-    mod_path(project, MOD_HAP, tag, region_id, "boxplot.png")
+hap_boxplot_path <- function(project, tag, region_id, trait) {
+    mod_path(project, MOD_HAP, tag, "plots",
+             paste0("Region_", region_id, "_boxplot_", trait, ".png"))
 }
 
-#' Haplotype piemap path
+#' Haplotype piemap path (per-trait)
 #' @noRd
-hap_piemap_path <- function(project, tag, region_id) {
-    mod_path(project, MOD_HAP, tag, region_id, "hap_piemap.png")
+hap_piemap_path <- function(project, tag, region_id, trait) {
+    mod_path(project, MOD_HAP, tag, "plots",
+             paste0("haplotype_piemap_region_", region_id, "_", trait, ".png"))
 }
 
 #' Haplotype scan status path
@@ -327,6 +330,18 @@ hap_scan_status_path <- function(project, tag) {
 #' @noRd
 hap_selected_regions_path <- function(project, tag) {
     mod_path(project, MOD_HAPSCAN, tag, "tables", "selected_regions.tsv")
+}
+
+#' Haplotype assignments table path
+#' @noRd
+hap_assignments_path <- function(project, tag) {
+    mod_path(project, MOD_HAP, tag, "tables", "Haplotype_assignments.tsv")
+}
+
+#' Haplotype frequencies table path
+#' @noRd
+hap_frequencies_path <- function(project, tag) {
+    mod_path(project, MOD_HAP, tag, "tables", "Haplotype_frequencies.tsv")
 }
 
 #' Pipeline summary TSV path

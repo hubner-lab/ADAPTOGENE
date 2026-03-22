@@ -157,14 +157,31 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
                 zeroline   = FALSE,
                 showline   = FALSE
             ),
-            yaxis = list(
-                range    = y_range,
-                title    = "-log\u2081\u2080(p)",
-                tickfont = list(size = 10),
-                showgrid = FALSE,
-                zeroline = FALSE,
-                tickformat = if (is_miami) "~r" else ""
-            ),
+            yaxis = if (is_miami) {
+                # Show absolute values on both halves of Miami plot
+                tick_vals <- pretty(y_range, n = 6)
+                tick_vals <- tick_vals[tick_vals != 0]
+                list(
+                    range      = y_range,
+                    title      = "-log\u2081\u2080(p)",
+                    tickfont   = list(size = 10),
+                    showgrid   = FALSE,
+                    zeroline   = FALSE,
+                    tickmode   = "array",
+                    tickvals   = unname(tick_vals),
+                    ticktext   = unname(as.character(abs(tick_vals))),
+                    tickformat = ""
+                )
+            } else {
+                list(
+                    range      = y_range,
+                    title      = "-log\u2081\u2080(p)",
+                    tickfont   = list(size = 10),
+                    showgrid   = FALSE,
+                    zeroline   = FALSE,
+                    tickformat = ""
+                )
+            },
             shapes  = c(shapes, threshold_lines),
             margin  = list(l = 60, r = 20, t = 30, b = 60),
             legend  = list(orientation = "v", x = 1, xanchor = "left", y = 1),
@@ -199,25 +216,69 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
             "Trait: ", trait, "<br>",
             "Method: ", method, "<br>",
             "Region: ", region_id, "<br>",
-            "-log10(p): ", round(log10p, 3)
+            "-log10(p): ", round(abs(log10p), 3)
         )]
 
-        p <- p |>
-            plotly::add_markers(
-                data       = sig_snps,
-                x          = ~cum_pos,
-                y          = ~log10p,
-                color      = ~trait,
-                colors     = trait_colors,
-                symbol     = ~method,
-                symbols    = method_shapes,
-                marker     = list(size = 10, opacity = 0.9,
-                                  line = list(width = 1.2, color = "black")),
-                text       = ~hover_text,
-                hoverinfo  = "text",
-                customdata = ~region_id,
-                name       = ~trait
-            )
+        # Data traces — one per (trait, method) combo, no legend entries
+        combos <- unique(sig_snps[, .(method, trait)])
+        for (ci in seq_len(nrow(combos))) {
+            meth   <- combos$method[ci]
+            tr     <- combos$trait[ci]
+            df_sub <- sig_snps[method == meth & trait == tr]
+            p <- p |>
+                plotly::add_markers(
+                    data       = df_sub,
+                    x          = ~cum_pos,
+                    y          = ~log10p,
+                    marker     = list(
+                        color   = trait_colors[tr],
+                        symbol  = method_shapes[meth],
+                        size    = 10,
+                        opacity = 0.9,
+                        line    = list(width = 1.2, color = "black")
+                    ),
+                    text       = ~hover_text,
+                    hoverinfo  = "text",
+                    customdata = ~region_id,
+                    showlegend = FALSE
+                )
+        }
+
+        # Legend block 1: Trait → Color
+        # Place dummy point far outside visible range so it's clipped but trace is valid
+        x_leg <- x_range[1] - abs(diff(x_range)) * 10
+        y_leg <- y_range[2] + abs(diff(y_range)) * 10
+        for (tr in unique(sig_snps$trait)) {
+            p <- p |>
+                plotly::add_markers(
+                    x                = x_leg,
+                    y                = y_leg,
+                    marker           = list(color = trait_colors[tr],
+                                           symbol = "circle", size = 10),
+                    name             = tr,
+                    legendgroup      = "trait",
+                    legendgrouptitle = list(text = "Trait"),
+                    showlegend       = TRUE,
+                    hoverinfo        = "skip"
+                )
+        }
+
+        # Legend block 2: Method → Shape (neutral gray)
+        for (meth in unique(sig_snps$method)) {
+            p <- p |>
+                plotly::add_markers(
+                    x                = x_leg,
+                    y                = y_leg,
+                    marker           = list(color = "rgba(80,80,80,0.85)",
+                                           symbol = method_shapes[meth], size = 10,
+                                           line = list(width = 1, color = "black")),
+                    name             = meth,
+                    legendgroup      = "method",
+                    legendgrouptitle = list(text = "Method"),
+                    showlegend       = TRUE,
+                    hoverinfo        = "skip"
+                )
+        }
     }
 
     plotly::event_register(p, "plotly_click")

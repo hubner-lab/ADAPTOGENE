@@ -187,21 +187,6 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             })
         )
 
-        # ── Haplotype tag resolution ───────────────────────────────────────────
-        hap_tag <- shiny::reactive({
-            pd   <- project_data()
-            src  <- if (module == MOD_PHENO) "association_phenotypes" else "association"
-            tags <- find_haplotype_tags(pd$name)
-            # Find first tag whose source part matches
-            matched <- Filter(function(tag) {
-                parts <- strsplit(tag, "_")[[1]]
-                if (length(parts) < 2) return(FALSE)
-                tag_source <- paste(parts[-1], collapse = "_")
-                tag_source == src
-            }, tags)
-            if (length(matched) > 0) matched[[1]] else NULL
-        })
-
         # ── Region detail panel ────────────────────────────────────────────────
         output$region_detail_ui <- shiny::renderUI({
             rid <- selected_region()
@@ -227,8 +212,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             region_id    = selected_region,
             module       = module,
             trait        = region_trait,
-            genes_data   = genes_data,
-            hap_tag      = hap_tag
+            genes_data   = genes_data
         )
     })
 }

@@ -31,7 +31,7 @@ mod_phenotype_ui <- function(id) {
             bslib::card(
                 bslib::card_body(
                     class = "text-muted small",
-                    htmltools::p(bsicons::bs_icon("info-circle"), " Click a significant SNP in the Manhattan plot below to explore GO enrichment, genes, and haplotypes for that region."),
+                    htmltools::p(bsicons::bs_icon("info-circle"), " Click a significant SNP in the Manhattan plot below to explore GO enrichment and genes for that region."),
                     htmltools::p(bsicons::bs_icon("arrows-fullscreen"), " Use the expand icon on any card for full-screen detail view.")
                 )
             )
@@ -240,18 +240,6 @@ mod_phenotype_server <- function(id, project_data) {
                                               "_", per_method_trait() %||% "trait"))
         )
 
-        # ── Haplotype tag ──────────────────────────────────────────────────────
-        hap_tag <- shiny::reactive({
-            pd   <- project_data()
-            tags <- find_haplotype_tags(pd$name)
-            matched <- Filter(function(tag) {
-                parts <- strsplit(tag, "_")[[1]]
-                if (length(parts) < 2) return(FALSE)
-                paste(parts[-1], collapse = "_") == "association_phenotypes"
-            }, tags)
-            if (length(matched) > 0) matched[[1]] else NULL
-        })
-
         # ── Region detail panel ────────────────────────────────────────────────
         output$region_detail_ui <- shiny::renderUI({
             rid <- selected_region()
@@ -275,8 +263,7 @@ mod_phenotype_server <- function(id, project_data) {
             region_id    = selected_region,
             module       = module,
             trait        = region_trait,
-            genes_data   = genes_data,
-            hap_tag      = hap_tag
+            genes_data   = genes_data
         )
     })
 }

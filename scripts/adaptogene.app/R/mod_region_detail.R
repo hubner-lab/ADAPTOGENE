@@ -46,12 +46,6 @@ mod_region_detail_ui <- function(id) {
                 mod_image_card_ui(ns("regionplot"))
             ),
 
-            bslib::accordion_panel(
-                "Haplotype Analysis",
-                value = "haplotype",
-                icon  = bsicons::bs_icon("diagram-3"),
-                shiny::uiOutput(ns("hap_content"))
-            )
         )
     )
 }
@@ -64,13 +58,11 @@ mod_region_detail_ui <- function(id) {
 #' @param module character: MOD_ASSOC, MOD_PHENO, or MOD_OVERLAP
 #' @param trait reactive character: currently selected trait (for enrichment paths)
 #' @param genes_data reactive data.table from load_genes()
-#' @param hap_tag reactive character: haplotype tag to check for (NULL = skip)
 #' @noRd
 mod_region_detail_server <- function(id, project_data, region_id,
                                       module     = MOD_ASSOC,
                                       trait      = shiny::reactive(NULL),
-                                      genes_data = shiny::reactive(data.table::data.table()),
-                                      hap_tag    = shiny::reactive(NULL)) {
+                                      genes_data = shiny::reactive(data.table::data.table())) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -185,42 +177,5 @@ mod_region_detail_server <- function(id, project_data, region_id,
             )
         })
 
-        # ── Haplotype section ──────────────────────────────────────────────────
-        output$hap_content <- shiny::renderUI({
-            tag <- hap_tag()
-            rid <- region_id()
-            if (is.null(tag) || is.null(rid)) {
-                return(plot_placeholder("No haplotype data for this region",
-                    "Run mode=haplotype_scan then mode=haplotype to generate haplotype results"))
-            }
-            pd <- project_data()
-            viz <- crosshap_viz_path(pd$name, tag, rid)
-            box <- hap_boxplot_path(pd$name, tag, rid)
-            if (!file_ok(viz)) {
-                return(plot_placeholder("No haplotype visualization available",
-                    "This region may have too few SNPs or failed epsilon clustering"))
-            }
-            htmltools::tagList(
-                mod_image_card_ui(ns("hap_viz")),
-                mod_image_card_ui(ns("hap_box"))
-            )
-        })
-
-        shiny::observe({
-            tag <- hap_tag()
-            rid <- region_id()
-            shiny::req(tag, rid)
-            pd  <- project_data()
-            mod_image_card_server("hap_viz",
-                path    = shiny::reactive(crosshap_viz_path(pd$name, tag, rid)),
-                title   = shiny::reactive("Haplotype Visualization"),
-                dl_name = shiny::reactive(paste0("crosshap_viz_", rid))
-            )
-            mod_image_card_server("hap_box",
-                path    = shiny::reactive(hap_boxplot_path(pd$name, tag, rid)),
-                title   = shiny::reactive("Haplotype Boxplot"),
-                dl_name = shiny::reactive(paste0("hap_boxplot_", rid))
-            )
-        })
     })
 }

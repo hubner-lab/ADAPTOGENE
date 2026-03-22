@@ -455,6 +455,8 @@ coords_miami <- list(
     y_range          = c(bg_y_lo, bg_y_hi),
     gea_threshold_y  = gea_threshold,
     gwas_threshold_y = -gwas_threshold,
+    gea_traits       = as.list(gea_traits),
+    gwas_traits      = as.list(gwas_traits),
     is_miami         = TRUE,
     plot_width_px    = 4200L,
     plot_height_px   = 2400L
