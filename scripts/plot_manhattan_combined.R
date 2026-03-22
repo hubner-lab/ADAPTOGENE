@@ -598,7 +598,6 @@ p_qq <- ggplot() +
                size = 2.5) +
     scale_color_manual(values = trait_colors, name = "Trait") +
     scale_shape_manual(values = method_shapes, name = "Method") +
-    coord_fixed() +
     labs(
         title = "Combined QQ Plot (All Traits & Methods)",
         subtitle = paste0("K = ", Kbest, " | ", length(names(assoc_info)), " methods, ",
@@ -613,7 +612,8 @@ p_qq <- ggplot() +
         legend.position = "right",
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 9, face = "bold"),
-        legend.key.size = unit(0.5, "cm")
+        legend.key.size = unit(0.5, "cm"),
+        plot.margin   = margin(4, 8, 4, 4)
     ) +
     guides(
         color = guide_legend(order = 1),

@@ -14,16 +14,26 @@ mod_phenotype_ui <- function(id) {
             shiny::uiOutput(ns("trait_selector"))
         ),
 
-        # Phenomap piemap
-        bslib::card(
-            full_screen = TRUE,
-            bslib::card_header(
-                bsicons::bs_icon("geo-fill"),
-                " Phenotype Map"
+        # Phenomap piemap (constrained to 2/3 width)
+        bslib::layout_columns(
+            col_widths = c(8, 4),
+            bslib::card(
+                full_screen = TRUE,
+                bslib::card_header(
+                    bsicons::bs_icon("geo-fill"),
+                    " Phenotype Map"
+                ),
+                bslib::card_body(
+                    class = "piemap-container",
+                    shiny::uiOutput(ns("phenomap_content"))
+                )
             ),
-            bslib::card_body(
-                class = "piemap-container",
-                shiny::uiOutput(ns("phenomap_content"))
+            bslib::card(
+                bslib::card_body(
+                    class = "text-muted small",
+                    htmltools::p(bsicons::bs_icon("info-circle"), " Click a significant SNP in the Manhattan plot below to explore GO enrichment, genes, and haplotypes for that region."),
+                    htmltools::p(bsicons::bs_icon("arrows-fullscreen"), " Use the expand icon on any card for full-screen detail view.")
+                )
             )
         ),
 

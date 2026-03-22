@@ -338,7 +338,6 @@ p_qq <- ggplot() +
     geom_point(data = qq_df %>% filter(is_significant),
                aes(x = expected, y = observed),
                color = sig_color, size = 2.5) +
-    coord_fixed() +
     labs(
         title = paste0(METHOD, " - ", TRAIT, " QQ Plot"),
         subtitle = paste0("K = ", Kbest, ", ", n_sig, " significant SNPs"),
@@ -347,8 +346,9 @@ p_qq <- ggplot() +
     ) +
     theme_minimal() +
     theme(
-        plot.title = element_text(size = 11, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40")
+        plot.title    = element_text(size = 11, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40"),
+        plot.margin   = margin(4, 8, 4, 4)
     )
 
 qq_base <- paste0("qq_", TRAIT, "_K", Kbest, "_", ADJUST)

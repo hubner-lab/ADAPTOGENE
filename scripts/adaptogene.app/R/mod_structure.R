@@ -8,15 +8,13 @@
 mod_structure_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # K-independent plots (no controls needed)
+        # K-independent plots: PCA + Tracy-Widom + Cross-Entropy in one row
         bslib::layout_column_wrap(
-            width = 1 / 2,
+            width = 1 / 3,
             mod_image_card_ui(ns("pca")),
-            mod_image_card_ui(ns("tracy_widom"))
+            mod_image_card_ui(ns("tracy_widom")),
+            mod_image_card_ui(ns("cross_entropy"))
         ),
-        mod_image_card_ui(ns("cross_entropy")),
-
-        shiny::hr(),
 
         # K selector inline above K-dependent plots
         htmltools::div(
@@ -24,13 +22,13 @@ mod_structure_ui <- function(id) {
             shiny::uiOutput(ns("k_selector"))
         ),
 
-        # K-dependent plots
+        # K-dependent plots: Structure + PCA-structure + Pop Diff in one row
         bslib::layout_column_wrap(
-            width = 1 / 2,
+            width = 1 / 3,
             mod_image_card_ui(ns("structure_k")),
-            mod_image_card_ui(ns("pca_structure"))
-        ),
-        mod_image_card_ui(ns("pop_diff"))
+            mod_image_card_ui(ns("pca_structure")),
+            mod_image_card_ui(ns("pop_diff"))
+        )
     )
 }
 

@@ -128,12 +128,79 @@
     border-color: rgba(255, 255, 255, 0.10);
 }
 
+// ── Regular image cards: compact default height ───────────────────────────────
+// Applies to all mod_image_card images; overridden for piemaps below.
+// flex: 1 lets card body fill the card's available height (cards are flex columns).
+// align-items/justify-content center the image when cards are stretched to equal
+// height by layout_columns.
+.card-body.text-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-body img {
+    max-height: 45vh;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+// ── Piemap container: fill the CSS grid column ────────────────────────────────
+// layout_columns uses CSS grid; the grid item (.piemap-container) stretches to
+// the row height, but the card INSIDE only sizes to content by default.
+// height: 100% + flex chain propagates the stretch down to the card.
+.piemap-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    > .card {
+        flex: 1;
+    }
+}
+
 // ── Piemap images: preserve aspect ratio across diverse datasets ──────────────
+// Full-screen expand (bslib card full_screen=TRUE) available for detail view.
 .piemap-container img {
-    max-height: 70vh;
+    max-height: 40vh;
     width: auto;
     max-width: 100%;
     object-fit: contain;
     margin: 0 auto;
     display: block;
+}
+
+// ── Full-screen mode: expand image to fill the overlay ────────────────────────
+// bslib adds .bslib-full-screen to the card and data-full-screen="true".
+// Remove all height caps so the image fills the available space.
+.bslib-full-screen,
+[data-full-screen="true"] {
+    // Make the card fill the full-screen overlay
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+
+    .card-body {
+        flex: 1;
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+    }
+
+    // Remove height caps on images so they fill the expanded card
+    img {
+        max-height: 85vh !important;
+        max-width: 90vw !important;
+        width: auto !important;
+        object-fit: contain;
+    }
 }

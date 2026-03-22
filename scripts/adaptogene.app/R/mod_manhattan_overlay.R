@@ -6,7 +6,7 @@
 #' @param id module namespace id
 #' @param height plotly output height (default "500px")
 #' @noRd
-mod_manhattan_overlay_ui <- function(id, height = "500px") {
+mod_manhattan_overlay_ui <- function(id, height = "400px") {
     ns <- shiny::NS(id)
     bslib::card(
         full_screen = TRUE,

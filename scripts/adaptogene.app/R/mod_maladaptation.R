@@ -33,10 +33,21 @@ mod_maladaptation_ui <- function(id) {
             )
         ),
 
-        # Single selector-driven genetic offset piemap
-        htmltools::div(
-            class = "piemap-container",
-            mod_image_card_ui(ns("offset_piemap"))
+        # Genetic offset piemap (constrained to 2/3 width; full-screen for detail)
+        bslib::layout_columns(
+            col_widths = c(8, 4),
+            htmltools::div(
+                class = "piemap-container",
+                mod_image_card_ui(ns("offset_piemap"))
+            ),
+            bslib::card(
+                bslib::card_body(
+                    class = "text-muted small",
+                    htmltools::p(bsicons::bs_icon("info-circle"), " Genetic offset estimates local population vulnerability to projected climate change."),
+                    htmltools::p(bsicons::bs_icon("arrows-fullscreen"), " Use the expand icon for a full-resolution view of the map."),
+                    htmltools::p(bsicons::bs_icon("table"), " Site-level offset values are in the table below.")
+                )
+            )
         ),
 
         # Site table in accordion

@@ -6,6 +6,10 @@ NULL
 #' @param ... path components passed to file.path
 #' @noRd
 app_sys <- function(...) {
+    # In dev mode the source tree is mounted at /pipeline — use it directly so
+    # CSS/static changes take effect immediately without a Docker rebuild.
+    src_path <- file.path("/pipeline/scripts/adaptogene.app/inst", ...)
+    if (file.exists(src_path)) return(src_path)
     system.file(..., package = "adaptogene.app")
 }
 

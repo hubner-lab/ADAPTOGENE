@@ -19,8 +19,12 @@ mod_structure_k_ui <- function(id) {
             )
         ),
 
-        # Piemap (main)
-        mod_piemap_viewer_ui(ns("piemap")),
+        # Piemap + PCA-structure companion (constrains piemap to 2/3 width)
+        bslib::layout_columns(
+            col_widths = c(8, 4),
+            mod_piemap_viewer_ui(ns("piemap")),
+            mod_image_card_ui(ns("pca_structure_k"))
+        ),
 
         # Climate, pop stats, tables in accordion
         bslib::accordion(
@@ -128,6 +132,18 @@ mod_structure_k_server <- function(id, project_data) {
             metric       = selected_metric,
             zoom         = selected_zoom
         )
+
+        # ── PCA-structure companion (k_best) ───────────────────────────────────
+        shiny::observe({
+            pd <- project_data()
+            k  <- pd$k_best
+            if (is.na(k)) return()
+            mod_image_card_server("pca_structure_k",
+                path    = shiny::reactive(pca_structure_path(pd$name, k)),
+                title   = shiny::reactive(paste0("PCA K=", k)),
+                dl_name = shiny::reactive(paste0("pca_structure_K", k))
+            )
+        })
 
         # ── Climate images ─────────────────────────────────────────────────────
         shiny::observe({

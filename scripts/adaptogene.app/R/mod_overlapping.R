@@ -8,7 +8,7 @@ mod_overlapping_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
         # Miami Manhattan (always visible)
-        mod_manhattan_overlay_ui(ns("miami"), height = "550px"),
+        mod_manhattan_overlay_ui(ns("miami"), height = "420px"),
 
         # Overlap pairs table
         bslib::card(
