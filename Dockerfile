@@ -115,13 +115,32 @@ RUN Rscript -e " \
     remotes::install_version('ggspatial', version = '1.1.9'); \
 "
 
-# Shiny packages
+# Shiny packages (legacy app)
 RUN Rscript -e " \
     remotes::install_version('shinydashboard', version = '0.7.2'); \
     remotes::install_version('DT', version = '0.33'); \
     remotes::install_version('plotly', version = '4.10.4'); \
     remotes::install_version('htmlwidgets', version = '1.6.4'); \
 "
+
+# Shiny app (golem-based rewrite) dependencies
+RUN Rscript -e " \
+    remotes::install_version('bslib',     version = '0.9.0'); \
+    remotes::install_version('bsicons',   version = '0.1.2'); \
+    remotes::install_version('golem',     version = '0.5.1'); \
+    remotes::install_version('yaml',      version = '2.3.10'); \
+    remotes::install_version('jsonlite',  version = '1.8.9'); \
+    remotes::install_version('base64enc', version = '0.1-3'); \
+    remotes::install_version('cachem',    version = '1.1.0'); \
+    remotes::install_version('config',    version = '0.3.2'); \
+    remotes::install_version('rlang',     version = '1.1.4'); \
+    remotes::install_version('thematic',  version = '0.1.5'); \
+"
+
+# Install golem Shiny app as R package
+COPY scripts/adaptogene.app /tmp/adaptogene.app
+RUN Rscript -e "remotes::install_local('/tmp/adaptogene.app', dependencies = FALSE)" \
+  && rm -rf /tmp/adaptogene.app
 
 # topr - CRITICAL: version >= 2.0.0 required for custom (non-human) genome builds
 RUN Rscript -e "remotes::install_version('topr', version = '2.0.2')"

@@ -15,6 +15,7 @@ library(qvalue)
 library(scales)
 library(scattermore)
 library(ggnewscale)
+library(jsonlite)
 
 args = commandArgs(trailingOnly=TRUE)
 ################################
@@ -330,6 +331,57 @@ ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_simple,
        width = 14, height = 5)
 message(paste0('INFO: Saved combined simple plot: ', simple_base))
 
+################################ Background PNG + Coords JSON (for Shiny plotly overlay)
+
+message('INFO: Generating combined background Manhattan for Shiny overlay')
+
+x_min_data <- min(plot_data_all$pos_cum)
+x_max_data <- max(plot_data_all$pos_cum)
+x_span     <- x_max_data - x_min_data
+bg_x_lo    <- x_min_data - 0.01 * x_span
+bg_x_hi    <- x_max_data + 0.01 * x_span
+bg_y_lo    <- 0
+bg_y_hi    <- y_max * 1.05
+
+p_bg_comb <- ggplot()
+for (t in traits) {
+    df_t_bg <- df_background %>% dplyr::filter(trait == t)
+    df_t_bg$point_color <- unname(trait_colors[t])
+    p_bg_comb <- p_bg_comb +
+        geom_scattermore(data = df_t_bg,
+                         aes(x = pos_cum, y = log10p, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 1500), interpolate = FALSE)
+}
+
+p_bg_comb <- p_bg_comb +
+    scale_color_identity() +
+    geom_hline(yintercept = min_threshold, linetype = "dashed",
+               color = "red", linewidth = 0.5, alpha = 0.5) +
+    scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+    theme_void() +
+    theme(plot.background = element_rect(fill = "white", color = NA))
+
+bg_comb_base <- paste0("manhattan_combined_K", Kbest, "_background")
+ggsave(file.path(PLOT_DIR, paste0(bg_comb_base, ".png")), p_bg_comb,
+       width = 14, height = 5, dpi = 300)
+message(paste0('INFO: Saved combined background Manhattan: ', bg_comb_base, '.png'))
+
+coords_list_comb <- list(
+    chr_offsets    = setNames(as.list(chr_info$tot),     as.character(chr_info$chr_f)),
+    chr_lengths    = setNames(as.list(chr_info$chr_len), as.character(chr_info$chr_f)),
+    gap_fraction   = 0.02,
+    x_range        = c(bg_x_lo, bg_x_hi),
+    y_range        = c(bg_y_lo, bg_y_hi),
+    bonferroni_y   = min_threshold,
+    plot_width_px  = 4200L,
+    plot_height_px = 1500L
+)
+coords_file_comb <- file.path(PLOT_DIR, paste0("manhattan_combined_K", Kbest, "_coords.json"))
+jsonlite::write_json(coords_list_comb, coords_file_comb, auto_unbox = TRUE, digits = 6)
+message(paste0('INFO: Saved combined coords JSON: ', basename(coords_file_comb)))
+
 ################################ Plot with Regions
 
 if (file.exists(REGIONS_FILE)) {
@@ -470,6 +522,38 @@ if (file.exists(REGIONS_FILE)) {
                width = 15, height = 5.5)
         message(paste0('INFO: Saved combined regions plot: ', regions_base))
 
+        # Background regions version for Shiny (no sig SNPs, no axes)
+        p_bg_reg_comb <- ggplot() +
+            geom_rect(data = regions,
+                     aes(xmin = start_cum, xmax = end_cum,
+                         ymin = bg_y_lo, ymax = bg_y_hi, fill = region_id),
+                     alpha = 0.15) +
+            scale_fill_manual(values = region_colors, guide = "none")
+
+        for (t in traits) {
+            df_t_bg <- df_background_reg %>% dplyr::filter(trait == t)
+            df_t_bg$point_color <- unname(trait_colors[t])
+            p_bg_reg_comb <- p_bg_reg_comb +
+                geom_scattermore(data = df_t_bg,
+                                 aes(x = pos_cum, y = log10p, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 1500), interpolate = FALSE)
+        }
+
+        p_bg_reg_comb <- p_bg_reg_comb +
+            scale_color_identity() +
+            geom_hline(yintercept = min_threshold, linetype = "dashed",
+                       color = "red", linewidth = 0.5, alpha = 0.5) +
+            scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+            scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+            theme_void() +
+            theme(plot.background = element_rect(fill = "white", color = NA))
+
+        bg_reg_comb_base <- paste0("manhattan_combined_K", Kbest, "_regions_background")
+        ggsave(file.path(PLOT_DIR, paste0(bg_reg_comb_base, ".png")), p_bg_reg_comb,
+               width = 15, height = 5.5, dpi = 300)
+        message(paste0('INFO: Saved combined background regions Manhattan: ', bg_reg_comb_base, '.png'))
+
     } else {
         message('INFO: Regions file is empty')
     }
@@ -542,5 +626,13 @@ ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
        width = 7, height = 7)
 message(paste0('INFO: Saved combined QQ plot: ', qq_base))
+
+# Ensure _regions_background.png exists (may be skipped if regions file is empty)
+expected_bg_reg_comb <- file.path(PLOT_DIR,
+    paste0("manhattan_combined_K", Kbest, "_regions_background.png"))
+if (!file.exists(expected_bg_reg_comb)) {
+    file.copy(file.path(PLOT_DIR, paste0(bg_comb_base, ".png")), expected_bg_reg_comb)
+    message('INFO: No combined regions - copied simple background as regions background')
+}
 
 message('INFO: Combined Manhattan plot complete')

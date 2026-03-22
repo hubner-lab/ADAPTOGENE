@@ -1,0 +1,23 @@
+#' Main application server
+#' @noRd
+app_server <- function(input, output, session) {
+
+    # ── Reactive project data bundle (lazy, cached per project) ───────────────
+    project_data <- shiny::reactive({
+        shiny::req(input$project_selector)
+        proj <- input$project_selector
+        load_cached(paste0("project_data_", proj), function() {
+            make_project_data(proj)
+        })
+    }) |> shiny::bindCache(input$project_selector)
+
+    # ── Module servers ─────────────────────────────────────────────────────────
+    mod_home_server("home",               project_data = project_data)
+    mod_structure_server("structure",     project_data = project_data)
+    mod_structure_k_server("structure_k", project_data = project_data)
+    mod_association_server("association", project_data = project_data)
+    mod_phenotype_server("phenotype",     project_data = project_data)
+    mod_overlapping_server("overlapping", project_data = project_data)
+    mod_maladaptation_server("maladaptation", project_data = project_data)
+    mod_haplotype_server("haplotype",     project_data = project_data)
+}

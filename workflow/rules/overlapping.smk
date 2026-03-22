@@ -128,7 +128,9 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           gwas_tables = [pheno_pvalues(m) for m in PHENO_ASSOC_CONFIGS]
       output:
           png = O['overlap_miami'],
-          svg = O['overlap_miami_svg']
+          svg = O['overlap_miami_svg'],
+          background = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_background.png",
+          coords_json = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_coords.json"
       params:
           gea_str = ','.join([
               f"{method}:{adjust}:{assoc_pvalues(method)}"
@@ -164,7 +166,8 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           sigsnps = O['overlap_selected_snps']
       output:
           png = O['overlap_miami_regions'],
-          svg = O['overlap_miami_regions_svg']
+          svg = O['overlap_miami_regions_svg'],
+          regions_background = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions_background.png"
       params:
           gea_str = ','.join([
               f"{method}:{adjust}:{assoc_pvalues(method)}"

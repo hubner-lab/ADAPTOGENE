@@ -10,6 +10,7 @@ library(stringr)
 library(qvalue)
 library(scales)
 library(scattermore)
+library(jsonlite)
 
 args = commandArgs(trailingOnly=TRUE)
 ################################
@@ -357,6 +358,62 @@ ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
        width = 6, height = 6)
 message(paste0('INFO: Saved QQ plot: ', qq_base, ' (.png, .svg)'))
 
+################################ Background PNG + Coords JSON (for Shiny plotly overlay)
+
+message('INFO: Generating background Manhattan for Shiny overlay')
+
+# Compute the exact axis ranges the ggplot renders (matching expand parameters)
+x_min_data <- min(plot_df$pos_cum)
+x_max_data <- max(plot_df$pos_cum)
+x_span     <- x_max_data - x_min_data
+bg_x_lo    <- x_min_data - 0.01 * x_span   # expand = c(0.01, 0.01)
+bg_x_hi    <- x_max_data + 0.01 * x_span
+
+# y: limits = c(0, y_max), expand = mult c(0, 0.05) — use 0 bottom so both simple and
+# regions versions share one coords.json (regions uses mult c(0, 0.05) anyway)
+bg_y_lo <- 0
+bg_y_hi <- y_max * 1.05
+
+# Background-only plot: non-sig SNPs + threshold line, no axes (Shiny draws its own)
+p_bg <- ggplot() +
+    add_scatter_layer(data = plot_df %>% dplyr::filter(!is_significant),
+                      chr_colors = chr_colors,
+                      alpha = 0.5, size = 0.8,
+                      use_scattermore = use_scattermore) +
+    geom_hline(yintercept = threshold_log10, linetype = "dashed",
+               color = "red", linewidth = 0.5) +
+    scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+    theme_void() +
+    theme(plot.background = element_rect(fill = "white", color = NA))
+
+if (use_scattermore) {
+    p_bg <- p_bg + scale_color_identity()
+} else {
+    p_bg <- p_bg + scale_color_manual(values = chr_colors, guide = "none")
+}
+
+bg_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_background")
+ggsave(file.path(PLOT_DIR, paste0(bg_base, ".png")), p_bg,
+       width = 10, height = 4, dpi = 300)
+message(paste0('INFO: Saved background Manhattan: ', bg_base, '.png'))
+
+# Coordinate mapping JSON for plotly axis alignment in Shiny
+coords_list <- list(
+    chr_offsets    = setNames(as.list(chr_info$tot),     as.character(chr_info$chr_f)),
+    chr_lengths    = setNames(as.list(chr_info$chr_len), as.character(chr_info$chr_f)),
+    gap_fraction   = 0.02,
+    x_range        = c(bg_x_lo, bg_x_hi),
+    y_range        = c(bg_y_lo, bg_y_hi),
+    bonferroni_y   = threshold_log10,
+    plot_width_px  = 3000L,
+    plot_height_px = 1200L
+)
+coords_file <- file.path(PLOT_DIR,
+    paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_coords.json"))
+jsonlite::write_json(coords_list, coords_file, auto_unbox = TRUE, digits = 6)
+message(paste0('INFO: Saved coords JSON: ', basename(coords_file)))
+
 ################################ Plot 2: Manhattan with Regions (if regions file provided)
 
 regions_generated <- FALSE
@@ -496,6 +553,36 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
             ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_regions,
                    width = 12, height = 4.5)
             message(paste0('INFO: Saved regions Manhattan plot: ', regions_base, ' (.png, .svg)'))
+
+            # Background regions version for Shiny (no sig SNPs, no axes)
+            p_bg_regions <- ggplot() +
+                geom_rect(data = regions_trait,
+                         aes(xmin = start_cum, xmax = end_cum,
+                             ymin = bg_y_lo, ymax = bg_y_hi, fill = region_id),
+                         alpha = 0.15) +
+                scale_fill_manual(values = region_colors, guide = "none") +
+                add_scatter_layer(data = df_background,
+                                  chr_colors = chr_colors,
+                                  alpha = 0.5, size = 0.8,
+                                  use_scattermore = use_scattermore) +
+                geom_hline(yintercept = threshold_log10, linetype = "dashed",
+                           color = "red", linewidth = 0.5) +
+                scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+                scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+                theme_void() +
+                theme(plot.background = element_rect(fill = "white", color = NA))
+
+            if (use_scattermore) {
+                p_bg_regions <- p_bg_regions + scale_color_identity()
+            } else {
+                p_bg_regions <- p_bg_regions + scale_color_manual(values = chr_colors, guide = "none")
+            }
+
+            bg_reg_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions_background")
+            ggsave(file.path(PLOT_DIR, paste0(bg_reg_base, ".png")), p_bg_regions,
+                   width = 12, height = 4.5, dpi = 300)
+            message(paste0('INFO: Saved background regions Manhattan: ', bg_reg_base, '.png'))
+
             regions_generated <- TRUE
 
         } else {
@@ -519,6 +606,17 @@ if (!regions_generated) {
            width = 10, height = 4, dpi = 300)
     ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_no_regions,
            width = 10, height = 4)
+}
+
+# Ensure _regions_background.png exists when a regions file was provided
+# (may not be created if no regions match the current trait)
+if (!is.null(REGIONS_FILE)) {
+    expected_bg_reg <- file.path(PLOT_DIR,
+        paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions_background.png"))
+    if (!file.exists(expected_bg_reg)) {
+        file.copy(file.path(PLOT_DIR, paste0(bg_base, ".png")), expected_bg_reg)
+        message('INFO: No regions for this trait - copied simple background as regions background')
+    }
 }
 
 message('INFO: Manhattan plot complete')

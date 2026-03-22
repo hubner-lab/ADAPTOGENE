@@ -174,7 +174,9 @@ rule manhattan_plot:
         png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
         svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg",
         qq_png = f"{MOD_ASSOC}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.png",
-        qq_svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+        qq_svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+        background = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_background.png",
+        coords_json = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_coords.json"
     wildcard_constraints:
         method = ASSOC_METHOD_REGEX,
         trait = r"bio_\d+",
@@ -208,7 +210,8 @@ rule manhattan_plot_regions:
         sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
     output:
         png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
-        svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
+        svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg",
+        regions_background = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions_background.png"
     wildcard_constraints:
         method = ASSOC_METHOD_REGEX,
         trait = r"bio_\d+",
@@ -421,7 +424,10 @@ rule manhattan_combined:
         regions_png = O['manhattan_combined_regions'],
         regions_svg = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
         qq_png = O['qq_combined'],
-        qq_svg = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.svg"
+        qq_svg = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
+        background = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
+        coords_json = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
+        regions_background = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions_background.png"
     params:
         assoc_str = ','.join([
             f"{method}:{adjust}:{assoc_pvalues(method)}"

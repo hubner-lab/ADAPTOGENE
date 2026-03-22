@@ -11,6 +11,7 @@ library(qvalue)
 library(scales)
 library(scattermore)
 library(ggnewscale)
+library(jsonlite)
 
 args = commandArgs(trailingOnly=TRUE)
 ################################
@@ -392,6 +393,76 @@ ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_miami,
        width = 14, height = 8)
 message(paste0('INFO: Saved simple Miami plot: ', simple_base))
 
+################################ Background PNG + Coords JSON (for Shiny plotly overlay)
+
+message('INFO: Generating Miami background for Shiny overlay')
+
+all_pos_cum <- c(gea_data$pos_cum, gwas_data$pos_cum)
+x_min_data  <- min(all_pos_cum)
+x_max_data  <- max(all_pos_cum)
+x_span      <- x_max_data - x_min_data
+bg_x_lo     <- x_min_data - 0.01 * x_span
+bg_x_hi     <- x_max_data + 0.01 * x_span
+
+# y: limits = c(-y_limit, y_limit), expand = mult c(0.02, 0.02)
+bg_y_lo <- -y_limit * 1.04
+bg_y_hi <-  y_limit * 1.04
+
+p_bg_miami <- ggplot()
+
+for (t in gea_traits) {
+    df_t <- gea_bg %>% dplyr::filter(trait == t)
+    df_t$point_color <- unname(trait_colors[t])
+    p_bg_miami <- p_bg_miami +
+        geom_scattermore(data = df_t,
+                         aes(x = pos_cum, y = miami_y, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 2400), interpolate = FALSE)
+}
+
+for (t in gwas_traits) {
+    df_t <- gwas_bg %>% dplyr::filter(trait == t)
+    df_t$point_color <- unname(trait_colors[t])
+    p_bg_miami <- p_bg_miami +
+        geom_scattermore(data = df_t,
+                         aes(x = pos_cum, y = miami_y, color = point_color),
+                         alpha = 0.5, pointsize = 10,
+                         pixels = c(4000, 2400), interpolate = FALSE)
+}
+
+p_bg_miami <- p_bg_miami +
+    scale_color_identity() +
+    geom_hline(yintercept =  gea_threshold,  linetype = "dashed",
+               color = "red", linewidth = 0.4, alpha = 0.5) +
+    geom_hline(yintercept = -gwas_threshold, linetype = "dashed",
+               color = "red", linewidth = 0.4, alpha = 0.5) +
+    geom_hline(yintercept = 0, linewidth = 0.8, color = "black") +
+    scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+    theme_void() +
+    theme(plot.background = element_rect(fill = "white", color = NA))
+
+bg_miami_base <- paste0("miami_combined_K", Kbest, "_background")
+ggsave(file.path(PLOT_DIR, paste0(bg_miami_base, ".png")), p_bg_miami,
+       width = 14, height = 8, dpi = 300)
+message(paste0('INFO: Saved Miami background: ', bg_miami_base, '.png'))
+
+coords_miami <- list(
+    chr_offsets      = setNames(as.list(chr_info$tot),     as.character(chr_info$chr_f)),
+    chr_lengths      = setNames(as.list(chr_info$chr_len), as.character(chr_info$chr_f)),
+    gap_fraction     = 0.02,
+    x_range          = c(bg_x_lo, bg_x_hi),
+    y_range          = c(bg_y_lo, bg_y_hi),
+    gea_threshold_y  = gea_threshold,
+    gwas_threshold_y = -gwas_threshold,
+    is_miami         = TRUE,
+    plot_width_px    = 4200L,
+    plot_height_px   = 2400L
+)
+coords_miami_file <- file.path(PLOT_DIR, paste0("miami_combined_K", Kbest, "_coords.json"))
+jsonlite::write_json(coords_miami, coords_miami_file, auto_unbox = TRUE, digits = 6)
+message(paste0('INFO: Saved Miami coords JSON: ', basename(coords_miami_file)))
+
 ################################ Miami plot with Regions
 
 if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
@@ -545,11 +616,66 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                width = 14, height = 8)
         message(paste0('INFO: Saved Miami regions plot: ', regions_base))
 
+        # Background regions version for Shiny (no sig SNPs, no axes)
+        p_bg_miami_r <- ggplot() +
+            geom_rect(data = regions,
+                     aes(xmin = start_cum, xmax = end_cum,
+                         ymin = bg_y_lo, ymax = bg_y_hi, fill = region_id),
+                     alpha = 0.15) +
+            scale_fill_manual(values = region_colors, guide = "none")
+
+        for (t in gea_traits) {
+            df_t <- gea_bg %>% dplyr::filter(trait == t)
+            df_t$point_color <- unname(trait_colors[t])
+            p_bg_miami_r <- p_bg_miami_r +
+                geom_scattermore(data = df_t,
+                                 aes(x = pos_cum, y = miami_y, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 2400), interpolate = FALSE)
+        }
+
+        for (t in gwas_traits) {
+            df_t <- gwas_bg %>% dplyr::filter(trait == t)
+            df_t$point_color <- unname(trait_colors[t])
+            p_bg_miami_r <- p_bg_miami_r +
+                geom_scattermore(data = df_t,
+                                 aes(x = pos_cum, y = miami_y, color = point_color),
+                                 alpha = 0.5, pointsize = 10,
+                                 pixels = c(4000, 2400), interpolate = FALSE)
+        }
+
+        p_bg_miami_r <- p_bg_miami_r +
+            scale_color_identity() +
+            geom_hline(yintercept =  gea_threshold,  linetype = "dashed",
+                       color = "red", linewidth = 0.4, alpha = 0.5) +
+            geom_hline(yintercept = -gwas_threshold, linetype = "dashed",
+                       color = "red", linewidth = 0.4, alpha = 0.5) +
+            geom_hline(yintercept = 0, linewidth = 0.8, color = "black") +
+            scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
+            scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
+            theme_void() +
+            theme(plot.background = element_rect(fill = "white", color = NA))
+
+        bg_miami_r_base <- paste0("miami_combined_K", Kbest, "_regions_background")
+        ggsave(file.path(PLOT_DIR, paste0(bg_miami_r_base, ".png")), p_bg_miami_r,
+               width = 14, height = 8, dpi = 300)
+        message(paste0('INFO: Saved Miami background regions: ', bg_miami_r_base, '.png'))
+
     } else {
         message('INFO: Regions file is empty')
     }
 } else {
     message('INFO: No regions file provided or not found')
+}
+
+# Ensure _regions_background.png exists (may be skipped if regions file is NULL/empty)
+if (!is.null(REGIONS_FILE)) {
+    expected_bg_miami_r <- file.path(PLOT_DIR,
+        paste0("miami_combined_K", Kbest, "_regions_background.png"))
+    if (!file.exists(expected_bg_miami_r)) {
+        file.copy(file.path(PLOT_DIR, paste0(bg_miami_base, ".png")), expected_bg_miami_r)
+        message('INFO: No regions - copied simple Miami background as regions background')
+    }
 }
 
 message('INFO: Miami plot complete')

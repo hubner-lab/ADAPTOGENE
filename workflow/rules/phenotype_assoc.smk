@@ -399,7 +399,9 @@ if PHENO_ASSOC_CONFIGS:
           png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.png",
           svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}.svg",
           qq_png = f"{MOD_PHENO}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.png",
-          qq_svg = f"{MOD_PHENO}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg"
+          qq_svg = f"{MOD_PHENO}plots/manhattan/{{method}}/qq_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+          background = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_background.png",
+          coords_json = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_coords.json"
       wildcard_constraints:
           method = PHENO_METHOD_REGEX,
           trait = r"[a-zA-Z]\w*",
@@ -428,7 +430,8 @@ if PHENO_ASSOC_CONFIGS:
           sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
       output:
           png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
-          svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg"
+          svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg",
+          regions_background = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions_background.png"
       wildcard_constraints:
           method = PHENO_METHOD_REGEX,
           trait = r"[a-zA-Z]\w*",
@@ -459,7 +462,10 @@ if PHENO_ASSOC_CONFIGS:
           regions_png = O['pheno_manhattan_combined_regions'],
           regions_svg = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
           qq_png = O['pheno_qq_combined'],
-          qq_svg = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.svg"
+          qq_svg = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
+          background = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
+          coords_json = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
+          regions_background = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions_background.png"
       params:
           assoc_str = ','.join([
               f"{method}:{adjust}:{pheno_pvalues(method)}"
@@ -474,7 +480,7 @@ if PHENO_ASSOC_CONFIGS:
           Rscript /pipeline/scripts/plot_manhattan_combined.R \
               "{params.assoc_str}" {params.predictors} {params.k} \
               {input.regions} {params.plot_dir} > {log} 2>&1
-          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg} {output.qq_png} {output.qq_svg}
+          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg} {output.qq_png} {output.qq_svg} {output.background} {output.coords_json} {output.regions_background}
           """
   
   rule piemap_pheno:
