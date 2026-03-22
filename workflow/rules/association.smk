@@ -18,7 +18,7 @@ rule snmf_full:
     """Run sNMF on full (non-LD pruned) dataset for imputation."""
     input:  geno = W['geno_full']
     output: W['snmf_full']
-    params: ks = K_START, ke = K_END, ploidy = PLOIDY, rep = REPEAT, mode = SNMF_PROJECT_MODE
+    params: ks = K_BEST, ke = K_BEST, ploidy = PLOIDY, rep = REPEAT, mode = SNMF_PROJECT_MODE
     log:    f"{LOGDIR}association/snmf_full.log"
     threads: CPU
     shell:
