@@ -30,6 +30,7 @@ mod_association_ui <- function(id) {
                 value = "per_method",
                 icon  = bsicons::bs_icon("layers"),
                 shiny::uiOutput(ns("method_tabs_ui")),
+                shiny::uiOutput(ns("per_method_trait_ui")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
                     mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
@@ -128,12 +129,17 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             do.call(bslib::navset_card_underline, c(list(id = ns("method_tab")), panels))
         })
 
-        # Per-method trait selector (updates choices based on active method tab)
+        # Per-method trait selector UI
+        output$per_method_trait_ui <- shiny::renderUI({
+            tr <- traits()
+            if (length(tr) == 0) return(NULL)
+            shiny::selectInput(ns("per_method_trait"), "Trait",
+                               choices = tr, selected = tr[1], width = "200px")
+        })
+
         per_method_trait <- shiny::reactive({
             tr <- traits()
             if (length(tr) == 0) return(NULL)
-            # For now return first trait; user changes via selectInput in sidebar
-            # (A dedicated per-method trait input would go in the sidebar)
             input$per_method_trait %||% tr[1]
         })
 
@@ -202,12 +208,15 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
 
         # Current trait for the selected region (first trait in region, or NULL)
         region_trait <- shiny::reactive({
-            rid   <- selected_region()
-            rg    <- regions_data()
+            rid <- selected_region()
+            rg  <- regions_data()
             if (is.null(rid) || nrow(rg) == 0) return(NULL)
             row <- rg[rg$region_id == rid, ]
-            if (nrow(row) == 0 || !"trait" %in% names(row)) return(NULL)
-            row$trait[1]
+            if (nrow(row) == 0) return(NULL)
+            # regions_combined uses 'traits' column (comma-separated); fall back to 'trait'
+            trait_col <- intersect(c("trait", "traits"), names(row))[1]
+            if (is.na(trait_col)) return(NULL)
+            trimws(strsplit(as.character(row[[trait_col]][1]), ",")[[1]])[1]
         })
 
         mod_region_detail_server("region_detail",

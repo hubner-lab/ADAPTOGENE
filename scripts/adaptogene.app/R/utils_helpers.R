@@ -28,7 +28,10 @@ resolve_k_best <- function(project, config = NULL) {
 #' Returns "bonf_0.05" style string or NULL
 #' @noRd
 resolve_adjust <- function(config, method, module = "association") {
-    configs <- config_assoc_configs(config)
+    # Try module-specific configs first (e.g. phenotype_association.configs)
+    configs <- config_get(config, module, "configs", default = list())
+    # Fall back to association.configs (phenotype_association inherits from association)
+    if (length(configs) == 0) configs <- config_assoc_configs(config)
     for (cfg in configs) {
         if (identical(cfg$method, method)) {
             return(paste0(cfg$adjust, "_", cfg$threshold))

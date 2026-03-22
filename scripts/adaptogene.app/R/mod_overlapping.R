@@ -147,15 +147,17 @@ mod_overlapping_server <- function(id, project_data) {
         )
 
         # ── Haplotype tag ──────────────────────────────────────────────────────
+        # Overlapping combines GEA + GWAS; prefer "association" tag, fall back to any
         hap_tag <- shiny::reactive({
             pd   <- project_data()
             tags <- find_haplotype_tags(pd$name)
-            matched <- Filter(function(tag) {
+            if (length(tags) == 0) return(NULL)
+            # Prefer tag with source "association"
+            preferred <- Filter(function(tag) {
                 parts <- strsplit(tag, "_")[[1]]
-                if (length(parts) < 2) return(FALSE)
-                paste(parts[-1], collapse = "_") == "overlapping"
+                length(parts) >= 2 && paste(parts[-1], collapse = "_") == "association"
             }, tags)
-            if (length(matched) > 0) matched[[1]] else NULL
+            if (length(preferred) > 0) preferred[[1]] else tags[[1]]
         })
 
         # ── Region detail panel ────────────────────────────────────────────────
@@ -170,8 +172,10 @@ mod_overlapping_server <- function(id, project_data) {
             rg  <- regions_data()
             if (is.null(rid) || nrow(rg) == 0) return(NULL)
             row <- rg[rg$region_id == rid, ]
-            if (nrow(row) == 0 || !"trait" %in% names(row)) return(NULL)
-            row$trait[1]
+            if (nrow(row) == 0) return(NULL)
+            trait_col <- intersect(c("trait", "traits"), names(row))[1]
+            if (is.na(trait_col)) return(NULL)
+            trimws(strsplit(as.character(row[[trait_col]][1]), ",")[[1]])[1]
         })
 
         mod_region_detail_server("region_detail",

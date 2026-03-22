@@ -113,7 +113,7 @@ find_gf_zooms <- function(project, suffix) {
 #' Find haplotype regions for a tag
 #' @noRd
 find_haplotype_regions <- function(project, tag) {
-    sel_file <- mod_path(project, MOD_HAPSCAN, tag, "selected_regions.tsv")
+    sel_file <- hap_selected_regions_path(project, tag)
     if (!file.exists(sel_file)) return(character(0))
     tryCatch({
         dt <- data.table::fread(sel_file, select = "region_id")

@@ -110,7 +110,8 @@ miami_coords_path <- function(project, k) {
 #' Selected SNPs table (combined all methods)
 #' @noRd
 selected_snps_path <- function(project, module = MOD_ASSOC) {
-    mod_path(project, module, "tables", "selected_snps.tsv")
+    fname <- if (module == MOD_OVERLAP) "selected_snps_all.tsv" else "selected_snps.tsv"
+    mod_path(project, module, "tables", fname)
 }
 
 #' Per-method sig SNPs table
@@ -123,7 +124,8 @@ method_sigsnps_path <- function(project, module = MOD_ASSOC, method, adjust) {
 #' Per-trait regions table
 #' @noRd
 regions_per_trait_path <- function(project, module = MOD_ASSOC) {
-    mod_path(project, module, "tables", "regions_per_trait.tsv")
+    fname <- if (module == MOD_OVERLAP) "regions_per_trait_all.tsv" else "regions_per_trait.tsv"
+    mod_path(project, module, "tables", fname)
 }
 
 #' Combined regions table
@@ -142,7 +144,7 @@ genes_per_region_path <- function(project, module = MOD_ASSOC) {
 #' @noRd
 enrichment_table_path <- function(project, module = MOD_ASSOC, trait, region_id) {
     mod_path(project, module, "tables", "enrichment", trait,
-             paste0("enrichment_", region_id, ".tsv"))
+             paste0("Region_", region_id, "_", trait, "_enrichment.tsv"))
 }
 
 # ─── Enrichment plots ─────────────────────────────────────────────────────────
@@ -151,7 +153,7 @@ enrichment_table_path <- function(project, module = MOD_ASSOC, trait, region_id)
 #' @noRd
 enrichment_plot_path <- function(project, module = MOD_ASSOC, trait, region_id, plot_type) {
     mod_path(project, module, "plots", "enrichment", trait,
-             paste0("region_", region_id, "_", trait, "_", plot_type, ".png"))
+             paste0("Region_", region_id, "_", trait, "_", plot_type, ".png"))
 }
 
 # ─── Structure ────────────────────────────────────────────────────────────────
@@ -233,8 +235,8 @@ climate_density_path <- function(project, bio = NULL) {
 #' LD decay plot path
 #' @noRd
 ld_decay_path <- function(project, per_chr = FALSE) {
-    fname <- if (per_chr) "ld_decay_per_chr.png" else "ld_decay.png"
-    mod_path(project, MOD_SK, "plots", "pop_stats", fname)
+    fname <- if (per_chr) "ld_decay_per_chromosome.png" else "ld_decay_genome_wide.png"
+    mod_path(project, MOD_SK, "plots", "ld_decay", fname)
 }
 
 # ─── Maladaptation ───────────────────────────────────────────────────────────
@@ -249,8 +251,13 @@ gf_importance_path <- function(project, suffix, type = "overall") {
 #' GF genetic offset piemap path
 #' @noRd
 gf_offset_piemap_path <- function(project, suffix, variant = "base") {
-    mod_path(project, MOD_MALAD, "plots", suffix,
-             paste0("genetic_offset_piemap_", variant, ".png"))
+    # "base" maps to no suffix (genetic_offset_piemap.png); other variants appended
+    fname <- if (is.null(variant) || variant == "base" || !nzchar(variant)) {
+        "genetic_offset_piemap.png"
+    } else {
+        paste0("genetic_offset_piemap_", variant, ".png")
+    }
+    mod_path(project, MOD_MALAD, "plots", suffix, fname)
 }
 
 #' GF site offset table path
@@ -265,7 +272,7 @@ gf_site_table_path <- function(project, suffix) {
 #' @noRd
 pheno_piemap_path <- function(project, trait) {
     mod_path(project, MOD_PHENO, "plots", "piemap",
-             paste0("piemap_", trait, ".png"))
+             paste0("phenomap_", trait, ".png"))
 }
 
 # ─── Regional Manhattan (topr) ────────────────────────────────────────────────
@@ -273,12 +280,12 @@ pheno_piemap_path <- function(project, trait) {
 #' Regionplot image path
 #' @noRd
 regionplot_path <- function(project, region_id, trait = NULL) {
-    # region_id format: chr_start-end
-    parts <- strsplit(region_id, "_")[[1]]
+    # Sanitize region_id: pipeline replaces colons and hyphens with underscores
+    safe_id <- gsub("[:\\-]", "_", region_id)
     fname <- if (is.null(trait)) {
-        paste0("regionplot_", region_id, ".png")
+        paste0("regionplot_", safe_id, ".png")
     } else {
-        paste0("regionplot_", region_id, "_", trait, ".png")
+        paste0("regionplot_", safe_id, "_", trait, ".png")
     }
     mod_path(project, MOD_REGPLOT, fname)
 }
@@ -288,7 +295,7 @@ regionplot_path <- function(project, region_id, trait = NULL) {
 #' Haplotype clustree path
 #' @noRd
 hap_clustree_path <- function(project, tag, type = "MG") {
-    mod_path(project, MOD_HAPSCAN, tag,
+    mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree",
              paste0("clustree_", type, ".png"))
 }
 
@@ -313,13 +320,13 @@ hap_piemap_path <- function(project, tag, region_id) {
 #' Haplotype scan status path
 #' @noRd
 hap_scan_status_path <- function(project, tag) {
-    mod_path(project, MOD_HAPSCAN, tag, "scan_status.tsv")
+    mod_path(project, MOD_INTER, "haplotype", tag, "scan_status.tsv")
 }
 
 #' Haplotype selected regions path
 #' @noRd
 hap_selected_regions_path <- function(project, tag) {
-    mod_path(project, MOD_HAPSCAN, tag, "selected_regions.tsv")
+    mod_path(project, MOD_HAPSCAN, tag, "tables", "selected_regions.tsv")
 }
 
 #' Pipeline summary TSV path

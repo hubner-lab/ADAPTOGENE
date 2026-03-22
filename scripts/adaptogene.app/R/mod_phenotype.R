@@ -43,6 +43,7 @@ mod_phenotype_ui <- function(id) {
                 value = "per_method",
                 icon  = bsicons::bs_icon("layers"),
                 shiny::uiOutput(ns("method_tabs_ui")),
+                shiny::uiOutput(ns("per_method_trait_ui")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
                     mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
@@ -173,6 +174,13 @@ mod_phenotype_server <- function(id, project_data) {
 
         active_method <- shiny::reactive(input$method_tab %||% methods()[1])
 
+        output$per_method_trait_ui <- shiny::renderUI({
+            tr <- traits()
+            if (length(tr) == 0) return(NULL)
+            shiny::selectInput(ns("per_method_trait"), "Trait",
+                               choices = tr, selected = tr[1], width = "200px")
+        })
+
         per_method_trait <- shiny::reactive({
             tr <- traits()
             if (length(tr) == 0) return(NULL)
@@ -236,8 +244,10 @@ mod_phenotype_server <- function(id, project_data) {
             rg  <- regions_data()
             if (is.null(rid) || nrow(rg) == 0) return(NULL)
             row <- rg[rg$region_id == rid, ]
-            if (nrow(row) == 0 || !"trait" %in% names(row)) return(NULL)
-            row$trait[1]
+            if (nrow(row) == 0) return(NULL)
+            trait_col <- intersect(c("trait", "traits"), names(row))[1]
+            if (is.na(trait_col)) return(NULL)
+            trimws(strsplit(as.character(row[[trait_col]][1]), ",")[[1]])[1]
         })
 
         mod_region_detail_server("region_detail",
