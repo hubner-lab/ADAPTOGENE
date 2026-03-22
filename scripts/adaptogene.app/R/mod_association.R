@@ -7,15 +7,7 @@
 #' @noRd
 mod_association_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
-            # Region selector
-            shiny::uiOutput(ns("region_selector")),
-            shiny::actionButton(ns("clear_region"), "Clear selection",
-                                class = "btn-sm btn-outline-secondary w-100 mt-1")
-        ),
-
+    htmltools::tagList(
         # Combined Manhattan (always visible)
         mod_manhattan_overlay_ui(ns("combined_manhattan")),
 
@@ -31,11 +23,22 @@ mod_association_ui <- function(id) {
                 icon  = bsicons::bs_icon("layers"),
                 shiny::uiOutput(ns("method_tabs_ui")),
                 shiny::uiOutput(ns("per_method_trait_ui")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
+                bslib::layout_columns(
+                    col_widths = c(9, 3),
                     mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
                     mod_image_card_ui(ns("qq_plot"))
                 )
+            )
+        ),
+
+        # Region selector inline above detail panel
+        htmltools::div(
+            class = "control-bar",
+            bslib::layout_columns(
+                col_widths = c(9, 3),
+                shiny::uiOutput(ns("region_selector")),
+                shiny::actionButton(ns("clear_region"), "Clear selection",
+                                    class = "btn-sm btn-outline-secondary mt-4 w-100")
             )
         ),
 

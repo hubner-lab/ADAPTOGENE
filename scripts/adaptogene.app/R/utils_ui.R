@@ -1,10 +1,14 @@
 #' Create a "plot not available" placeholder card body
+#' @param message primary message text
+#' @param suggestion optional smaller suggestion text (e.g. which pipeline mode to run)
 #' @noRd
-plot_placeholder <- function(message = "Plot not available") {
+plot_placeholder <- function(message = "Plot not available", suggestion = NULL) {
     htmltools::div(
         class = "plot-placeholder",
         bsicons::bs_icon("image", size = "3em"),
-        htmltools::p(message)
+        htmltools::p(message),
+        if (!is.null(suggestion))
+            htmltools::p(class = "text-muted small mt-1", suggestion)
     )
 }
 

@@ -7,11 +7,11 @@
 #' @noRd
 mod_haplotype_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
-            shiny::uiOutput(ns("tag_selector")),
-            shiny::uiOutput(ns("region_selector"))
+    htmltools::tagList(
+        # Tag selector inline above status + clustree
+        htmltools::div(
+            class = "control-bar",
+            shiny::uiOutput(ns("tag_selector"))
         ),
 
         # Status summary value boxes
@@ -36,6 +36,8 @@ mod_haplotype_ui <- function(id) {
                 "Per-Region Visualization",
                 value = "per_region",
                 icon  = bsicons::bs_icon("diagram-3"),
+                # Region selector inside accordion, above content
+                shiny::uiOutput(ns("region_selector")),
                 shiny::uiOutput(ns("per_region_content"))
             ),
 
@@ -208,8 +210,8 @@ mod_haplotype_server <- function(id, project_data) {
             pd   <- project_data()
             viz  <- crosshap_viz_path(pd$name, tag, rid)
             if (!file_ok(viz)) {
-                return(htmltools::p("No visualization available for this region.",
-                                    class = "text-muted small"))
+                return(plot_placeholder("No visualization available for this region",
+                    "Run mode=haplotype for this region to generate crosshap visualizations"))
             }
 
             htmltools::tagList(

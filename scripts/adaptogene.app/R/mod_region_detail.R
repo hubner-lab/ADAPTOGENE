@@ -11,8 +11,15 @@ mod_region_detail_ui <- function(id) {
         shiny::uiOutput(ns("region_info")),
         bslib::accordion(
             id       = ns("detail_sections"),
-            open     = c("enrichment_plots"),
+            open     = c("genes"),
             multiple = TRUE,
+
+            bslib::accordion_panel(
+                "Genes in Region",
+                value = "genes",
+                icon  = bsicons::bs_icon("list-ul"),
+                DT::DTOutput(ns("genes_table"))
+            ),
 
             bslib::accordion_panel(
                 "GO Enrichment Plots",
@@ -23,13 +30,6 @@ mod_region_detail_ui <- function(id) {
                     mod_image_card_ui(ns("dotplot")),
                     mod_image_card_ui(ns("emapplot"))
                 )
-            ),
-
-            bslib::accordion_panel(
-                "Genes in Region",
-                value = "genes",
-                icon  = bsicons::bs_icon("list-ul"),
-                DT::DTOutput(ns("genes_table"))
             ),
 
             bslib::accordion_panel(
@@ -113,14 +113,16 @@ mod_region_detail_server <- function(id, project_data, region_id,
                 enrichment_plot_path(pd$name, module, tr, rid, "emapplot") else NULL
 
             mod_image_card_server("dotplot",
-                path     = shiny::reactive(dotplot_p),
-                title    = shiny::reactive("GO Dotplot"),
-                dl_name  = shiny::reactive(paste0("dotplot_", rid))
+                path        = shiny::reactive(dotplot_p),
+                title       = shiny::reactive("GO Dotplot"),
+                dl_name     = shiny::reactive(paste0("dotplot_", rid)),
+                placeholder = shiny::reactive("No enriched GO terms found for this region")
             )
             mod_image_card_server("emapplot",
-                path     = shiny::reactive(emapplot_p),
-                title    = shiny::reactive("GO Emapplot"),
-                dl_name  = shiny::reactive(paste0("emapplot_", rid))
+                path        = shiny::reactive(emapplot_p),
+                title       = shiny::reactive("GO Emapplot"),
+                dl_name     = shiny::reactive(paste0("emapplot_", rid)),
+                placeholder = shiny::reactive("Emapplot requires \u22652 enriched terms (dotplot needs 1+)")
             )
         })
 
@@ -188,15 +190,15 @@ mod_region_detail_server <- function(id, project_data, region_id,
             tag <- hap_tag()
             rid <- region_id()
             if (is.null(tag) || is.null(rid)) {
-                return(htmltools::p(class = "text-muted small",
-                                    "No haplotype data for this region."))
+                return(plot_placeholder("No haplotype data for this region",
+                    "Run mode=haplotype_scan then mode=haplotype to generate haplotype results"))
             }
             pd <- project_data()
             viz <- crosshap_viz_path(pd$name, tag, rid)
             box <- hap_boxplot_path(pd$name, tag, rid)
             if (!file_ok(viz)) {
-                return(htmltools::p(class = "text-muted small",
-                                    "No haplotype visualization available."))
+                return(plot_placeholder("No haplotype visualization available",
+                    "This region may have too few SNPs or failed epsilon clustering"))
             }
             htmltools::tagList(
                 mod_image_card_ui(ns("hap_viz")),

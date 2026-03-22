@@ -7,18 +7,22 @@
 #' @noRd
 mod_structure_k_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
-            shiny::uiOutput(ns("bio_selector")),
-            shiny::uiOutput(ns("metric_selector")),
-            shiny::uiOutput(ns("zoom_selector"))
+    htmltools::tagList(
+        # Piemap controls inline above piemap
+        htmltools::div(
+            class = "control-bar",
+            bslib::layout_columns(
+                col_widths = c(4, 4, 4),
+                shiny::uiOutput(ns("bio_selector")),
+                shiny::uiOutput(ns("metric_selector")),
+                shiny::uiOutput(ns("zoom_selector"))
+            )
         ),
 
         # Piemap (main)
         mod_piemap_viewer_ui(ns("piemap")),
 
-        # Tajima D + Pi piemaps (optional, in accordion)
+        # Climate, pop stats, tables in accordion
         bslib::accordion(
             id       = ns("sk_sections"),
             open     = FALSE,

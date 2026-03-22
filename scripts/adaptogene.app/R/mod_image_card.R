@@ -36,9 +36,11 @@ mod_image_card_ui <- function(id, height = "auto") {
 #' @param path reactive returning file path (PNG or SVG); NULL = placeholder
 #' @param title reactive string for card header title
 #' @param dl_name reactive string used as download filename base (no extension)
+#' @param placeholder reactive string shown when path is unavailable
 #' @noRd
 mod_image_card_server <- function(id, path, title = shiny::reactive("Plot"),
-                                   dl_name = shiny::reactive("plot")) {
+                                   dl_name = shiny::reactive("plot"),
+                                   placeholder = shiny::reactive("Plot not available")) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -50,7 +52,7 @@ mod_image_card_server <- function(id, path, title = shiny::reactive("Plot"),
                 shiny::imageOutput(ns("img"), height = "auto",
                                    width = "100%", inline = FALSE)
             } else {
-                plot_placeholder("Plot not available")
+                plot_placeholder(placeholder())
             }
         })
 

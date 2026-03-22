@@ -7,9 +7,10 @@
 #' @noRd
 mod_maladaptation_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
+    htmltools::tagList(
+        # GF Run selector at top (controls everything)
+        htmltools::div(
+            class = "control-bar",
             shiny::uiOutput(ns("suffix_selector"))
         ),
 
@@ -22,27 +23,27 @@ mod_maladaptation_ui <- function(id) {
 
         shiny::hr(),
 
-        # Genetic Offset piemaps
-        shiny::h5("Genetic Offset Piemaps", class = "text-muted mt-2"),
-        bslib::layout_column_wrap(
-            width = 1 / 3,
-            mod_image_card_ui(ns("piemap_base")),
-            mod_image_card_ui(ns("piemap_tajima")),
-            mod_image_card_ui(ns("piemap_pi"))
+        # Piemap Type + Zoom right before piemap
+        htmltools::div(
+            class = "control-bar",
+            bslib::layout_columns(
+                col_widths = c(6, 6),
+                shiny::uiOutput(ns("piemap_variant_ui")),
+                shiny::uiOutput(ns("zoom_selector"))
+            )
         ),
 
-        # Zoom maps + site table in accordion
+        # Single selector-driven genetic offset piemap
+        htmltools::div(
+            class = "piemap-container",
+            mod_image_card_ui(ns("offset_piemap"))
+        ),
+
+        # Site table in accordion
         bslib::accordion(
             id       = ns("malad_sections"),
             open     = FALSE,
             multiple = TRUE,
-
-            bslib::accordion_panel(
-                "Zoom Maps",
-                value = "zoom",
-                icon  = bsicons::bs_icon("zoom-in"),
-                shiny::uiOutput(ns("zoom_content"))
-            ),
 
             bslib::accordion_panel(
                 "Site Offset Table",
@@ -73,7 +74,7 @@ mod_maladaptation_server <- function(id, project_data) {
             suf <- gf_suffixes()
             if (length(suf) == 0)
                 return(shiny::p("No GF runs found.", class = "text-muted small"))
-            shiny::selectInput(ns("suffix"), "GF run", choices = suf, selected = suf[1])
+            shiny::selectInput(ns("suffix"), "GF Run", choices = suf, selected = suf[1])
         })
 
         selected_suffix <- shiny::reactive({
@@ -85,7 +86,36 @@ mod_maladaptation_server <- function(id, project_data) {
             } else s
         })
 
-        # ── Importance + piemap images ─────────────────────────────────────────
+        # ── Piemap variant selector (only shows variants that exist) ───────────
+        output$piemap_variant_ui <- shiny::renderUI({
+            suf <- shiny::req(selected_suffix())
+            pd  <- project_data()
+            choices <- c("Genetic Offset" = "base")
+            if (file_ok(gf_offset_piemap_path(pd$name, suf, "tajima_d")))
+                choices <- c(choices, c("Offset \u00d7 Tajima's D" = "tajima_d"))
+            if (file_ok(gf_offset_piemap_path(pd$name, suf, "pi_diversity")))
+                choices <- c(choices, c("Offset \u00d7 Pi Diversity" = "pi_diversity"))
+            if (length(choices) == 1) return(NULL)  # only base — no selector needed
+            shiny::selectInput(ns("piemap_variant"), "Piemap Type",
+                               choices = choices, selected = "base")
+        })
+
+        # ── Zoom selector (only shows if zoom maps exist) ──────────────────────
+        output$zoom_selector <- shiny::renderUI({
+            suf   <- shiny::req(selected_suffix())
+            pd    <- project_data()
+            zooms <- find_gf_zooms(pd$name, suf)
+            if (length(zooms) == 0) return(NULL)
+            shiny::selectInput(ns("zoom"), "Zoom Region",
+                choices  = c("Full view" = "none", setNames(zooms, zooms)),
+                selected = "none"
+            )
+        })
+
+        selected_variant <- shiny::reactive(input$piemap_variant %||% "base")
+        selected_zoom    <- shiny::reactive(input$zoom %||% "none")
+
+        # ── Importance images ──────────────────────────────────────────────────
         shiny::observe({
             suf <- shiny::req(selected_suffix())
             pd  <- project_data()
@@ -100,47 +130,40 @@ mod_maladaptation_server <- function(id, project_data) {
                 title   = shiny::reactive("Cumulative Importance"),
                 dl_name = shiny::reactive(paste0("cumulative_importance_", suf))
             )
-            mod_image_card_server("piemap_base",
-                path    = shiny::reactive(gf_offset_piemap_path(pd$name, suf, "base")),
-                title   = shiny::reactive("Genetic Offset (Base)"),
-                dl_name = shiny::reactive(paste0("offset_piemap_base_", suf))
-            )
-            mod_image_card_server("piemap_tajima",
-                path    = shiny::reactive(gf_offset_piemap_path(pd$name, suf, "tajima_d")),
-                title   = shiny::reactive("Offset \u00d7 Tajima's D"),
-                dl_name = shiny::reactive(paste0("offset_piemap_tajima_", suf))
-            )
-            mod_image_card_server("piemap_pi",
-                path    = shiny::reactive(gf_offset_piemap_path(pd$name, suf, "pi_diversity")),
-                title   = shiny::reactive("Offset \u00d7 Pi Diversity"),
-                dl_name = shiny::reactive(paste0("offset_piemap_pi_", suf))
-            )
         })
 
-        # ── Zoom maps ──────────────────────────────────────────────────────────
-        output$zoom_content <- shiny::renderUI({
-            suf  <- shiny::req(selected_suffix())
-            pd   <- project_data()
-            zooms <- find_gf_zooms(pd$name, suf)
-
-            if (length(zooms) == 0) {
-                return(htmltools::p("No zoom maps available.", class = "text-muted small"))
+        # ── Single selector-driven offset piemap ───────────────────────────────
+        piemap_path <- shiny::reactive({
+            suf     <- shiny::req(selected_suffix())
+            pd      <- project_data()
+            variant <- selected_variant()
+            zoom    <- selected_zoom()
+            if (zoom != "none") {
+                mod_path(pd$name, MOD_MALAD, "plots", suf, "zoom",
+                         paste0(zoom, ".png"))
+            } else {
+                gf_offset_piemap_path(pd$name, suf, variant)
             }
-
-            zoom_cards <- lapply(seq_along(zooms), function(i) {
-                z_id <- paste0("zoom_", i)
-                path <- mod_path(pd$name, MOD_MALAD, "plots", suf, "zoom",
-                                  paste0(zooms[i], ".png"))
-                mod_image_card_server(z_id,
-                    path    = shiny::reactive(path),
-                    title   = shiny::reactive(paste0("Zoom: ", zooms[i])),
-                    dl_name = shiny::reactive(paste0("offset_zoom_", zooms[i], "_", suf))
-                )
-                mod_image_card_ui(ns(z_id))
-            })
-
-            do.call(bslib::layout_column_wrap, c(list(width = 1 / 2), zoom_cards))
         })
+
+        piemap_title <- shiny::reactive({
+            variant <- selected_variant()
+            zoom    <- selected_zoom()
+            label   <- c(
+                base         = "Genetic Offset",
+                tajima_d     = "Offset \u00d7 Tajima's D",
+                pi_diversity = "Offset \u00d7 Pi Diversity"
+            )[variant]
+            if (zoom != "none") paste0(label, " \u2014 Zoom: ", zoom) else label
+        })
+
+        mod_image_card_server("offset_piemap",
+            path        = piemap_path,
+            title       = piemap_title,
+            dl_name     = shiny::reactive(paste0("offset_piemap_", selected_variant(),
+                                                  "_", selected_suffix() %||% "gf")),
+            placeholder = shiny::reactive("Run mode=maladaptation to generate Gradient Forest results")
+        )
 
         # ── Site table ─────────────────────────────────────────────────────────
         site_data <- shiny::reactive({
@@ -149,7 +172,22 @@ mod_maladaptation_server <- function(id, project_data) {
             load_cached(paste0("gf_site_", project_data()$name, "_", suf), function() {
                 p <- gf_site_table_path(project_data()$name, suf)
                 if (!file_ok(p)) return(data.table::data.table())
-                data.table::fread(p)
+                dt <- data.table::fread(p, colClasses = c("site" = "character",
+                                                            "sample" = "character"))
+                # Join pop stats (TajimaD, PI) if available
+                tajima_p <- mod_path(project_data()$name, MOD_SK,
+                                     "tables", "pop_stats", "tajima_d_by_pop.tsv")
+                pi_p     <- mod_path(project_data()$name, MOD_SK,
+                                     "tables", "pop_stats", "pi_diversity_by_pop.tsv")
+                if (file_ok(tajima_p)) {
+                    taj <- data.table::fread(tajima_p, colClasses = c("site" = "character"))
+                    dt  <- taj[dt, on = "site"]
+                }
+                if (file_ok(pi_p)) {
+                    pi_dt <- data.table::fread(pi_p, colClasses = c("site" = "character"))
+                    dt    <- pi_dt[dt, on = "site"]
+                }
+                dt
             })
         })
 

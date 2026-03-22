@@ -134,9 +134,11 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
             images = if (!is.null(bg_uri)) {
                 list(list(
                     source  = bg_uri,
-                    xref    = "paper", yref = "paper",
-                    x = 0, y = 1,
-                    sizex = 1, sizey = 1,
+                    xref    = "x", yref = "y",
+                    x       = x_range[1],
+                    y       = y_range[2],
+                    sizex   = x_range[2] - x_range[1],
+                    sizey   = y_range[2] - y_range[1],
                     sizing  = "stretch",
                     layer   = "below"
                 ))
@@ -145,8 +147,9 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
             },
             xaxis = list(
                 range      = x_range,
-                tickvals   = as.list(chr_mids),
-                ticktext   = as.list(chr_names),
+                tickmode   = "array",
+                tickvals   = unname(chr_mids),
+                ticktext   = unname(chr_names),
                 tickangle  = -60,
                 tickfont   = list(size = 10),
                 title      = "",

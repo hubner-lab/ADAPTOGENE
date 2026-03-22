@@ -6,14 +6,7 @@
 #' @noRd
 mod_overlapping_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
-            shiny::uiOutput(ns("region_selector")),
-            shiny::actionButton(ns("clear_region"), "Clear selection",
-                                class = "btn-sm btn-outline-secondary w-100 mt-1")
-        ),
-
+    htmltools::tagList(
         # Miami Manhattan (always visible)
         mod_manhattan_overlay_ui(ns("miami"), height = "550px"),
 
@@ -31,6 +24,17 @@ mod_overlapping_ui <- function(id) {
             ),
             bslib::card_body(
                 DT::DTOutput(ns("overlap_table"))
+            )
+        ),
+
+        # Region selector inline above detail panel
+        htmltools::div(
+            class = "control-bar",
+            bslib::layout_columns(
+                col_widths = c(9, 3),
+                shiny::uiOutput(ns("region_selector")),
+                shiny::actionButton(ns("clear_region"), "Clear selection",
+                                    class = "btn-sm btn-outline-secondary mt-4 w-100")
             )
         ),
 

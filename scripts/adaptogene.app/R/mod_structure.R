@@ -7,22 +7,24 @@
 #' @noRd
 mod_structure_ui <- function(id) {
     ns <- shiny::NS(id)
-    bslib::page_sidebar(
-        sidebar = bslib::sidebar(
-            title = "Controls",
-            shiny::uiOutput(ns("k_selector"))
-        ),
-        # K-independent plots
+    htmltools::tagList(
+        # K-independent plots (no controls needed)
         bslib::layout_column_wrap(
             width = 1 / 2,
             mod_image_card_ui(ns("pca")),
             mod_image_card_ui(ns("tracy_widom"))
         ),
         mod_image_card_ui(ns("cross_entropy")),
+
         shiny::hr(),
+
+        # K selector inline above K-dependent plots
+        htmltools::div(
+            class = "control-bar",
+            shiny::uiOutput(ns("k_selector"))
+        ),
+
         # K-dependent plots
-        shiny::h5(shiny::textOutput(ns("k_header"), inline = TRUE),
-                  class = "text-muted mt-2"),
         bslib::layout_column_wrap(
             width = 1 / 2,
             mod_image_card_ui(ns("structure_k")),
@@ -63,11 +65,6 @@ mod_structure_server <- function(id, project_data) {
             } else {
                 as.integer(k)
             }
-        })
-
-        output$k_header <- shiny::renderText({
-            k <- selected_k()
-            if (is.null(k)) "K-dependent Plots" else paste0("K = ", k)
         })
 
         # ── K-independent images ───────────────────────────────────────────────

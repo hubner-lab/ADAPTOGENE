@@ -6,7 +6,10 @@
 #' @param id module namespace id
 #' @noRd
 mod_piemap_viewer_ui <- function(id) {
-    mod_image_card_ui(shiny::NS(id)("piemap"))
+    htmltools::div(
+        class = "piemap-container",
+        mod_image_card_ui(shiny::NS(id)("piemap"))
+    )
 }
 
 #' Piemap viewer module server
