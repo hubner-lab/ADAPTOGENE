@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     libudunits2-dev \
     libglpk40 \
     bcftools \
+    unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
