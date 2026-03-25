@@ -179,6 +179,33 @@ load_overlap_summary <- function(project) {
     }, error = function(e) data.table::data.table())
 }
 
+#' Load all per-method sig SNPs from both association and phenotype_association modules
+#' Load pairwise trait overlap table (pipeline-computed)
+#' @noRd
+load_pairwise_table <- function(project) {
+    p <- pairwise_table_path(project)
+    if (!file_ok(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+            colClasses = c(trait_a = "character", source_a = "character",
+                           trait_b = "character", source_b = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Load pairwise collapsed sig SNPs (long format: one row per SNP per trait)
+#' @noRd
+load_pairwise_collapsed <- function(project) {
+    p <- pairwise_collapsed_path(project)
+    if (!file_ok(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+            colClasses = c(chr = "character", SNPID = "character",
+                           trait = "character", source = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
 #' Cached data loader using cachem
 #' Creates a session-level cache automatically on first call.
 #' @noRd

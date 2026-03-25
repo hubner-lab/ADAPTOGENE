@@ -175,6 +175,17 @@
     display: block;
 }
 
+// ── Signal Comparison: multi-select controls ──────────────────────────────────
+.signal-comparison-controls {
+    .selectize-control {
+        min-height: 72px;
+    }
+
+    .selectize-dropdown {
+        z-index: 1060;  // above bslib cards
+    }
+}
+
 // ── Full-screen mode: expand image to fill the overlay ────────────────────────
 // bslib adds .bslib-full-screen to the card and data-full-screen="true".
 // Remove all height caps so the image fills the available space.

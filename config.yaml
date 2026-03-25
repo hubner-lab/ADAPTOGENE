@@ -169,6 +169,10 @@ gradient_forest:
 #   region_distance: 2000000
 #   top_regions: 10
 #   promoter_length: 10000
+overlap:
+  pairwise:
+    window_size: 500000
+    min_snps: 2
 
 #-----------------------------------------------------------------------------
 # HAPLOTYPE

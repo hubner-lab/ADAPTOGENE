@@ -191,3 +191,30 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
               {params.kbest} {input.regions} {input.sigsnps} \
               {params.plot_dir} {params.scattermore} > {log} 2>&1
           """
+
+# Pairwise trait overlap — works with GEA-only, GWAS-only, or both
+if ASSOC_CONFIGS or PHENO_ASSOC_CONFIGS:
+
+    rule compute_pairwise_overlaps:
+      """Compute all pairwise trait overlaps from method-collapsed sig SNPs."""
+      input:
+          selected = [f for f in [
+              O.get('selected_snps')      if ASSOC_CONFIGS      else None,
+              O.get('pheno_selected_snps') if PHENO_ASSOC_CONFIGS else None,
+          ] if f is not None]
+      output:
+          collapsed = O['pairwise_collapsed_snps'],
+          pairwise  = O['pairwise_overlap_table']
+      params:
+          gea_snps  = O.get('selected_snps',       'NULL') if ASSOC_CONFIGS      else 'NULL',
+          gwas_snps = O.get('pheno_selected_snps',  'NULL') if PHENO_ASSOC_CONFIGS else 'NULL',
+          window    = PAIRWISE_WINDOW_SIZE,
+          min_snps  = PAIRWISE_MIN_SNPS
+      log: f"{LOGDIR}overlapping/compute_pairwise_overlaps.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/compute_pairwise_overlaps.R \
+              {params.gea_snps} {params.gwas_snps} \
+              {params.window} {params.min_snps} \
+              {output.collapsed} {output.pairwise} > {log} 2>&1
+          """

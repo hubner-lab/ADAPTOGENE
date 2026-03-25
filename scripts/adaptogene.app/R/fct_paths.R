@@ -107,6 +107,24 @@ miami_coords_path <- function(project, k) {
 
 # ─── Association tables ───────────────────────────────────────────────────────
 
+#' Glob all per-method sig SNPs files for a module (across all methods and adjustments)
+#' @noRd
+find_method_sigsnps_files <- function(project, module = MOD_ASSOC) {
+    Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_sig_snps_*.tsv"))
+}
+
+#' Pairwise trait overlap table (pipeline-computed)
+#' @noRd
+pairwise_table_path <- function(project) {
+    mod_path(project, MOD_OVERLAP, "tables", "pairwise_overlap_table.tsv")
+}
+
+#' Pairwise collapsed sig SNPs (long format, one row per SNP per trait)
+#' @noRd
+pairwise_collapsed_path <- function(project) {
+    mod_path(project, MOD_OVERLAP, "tables", "pairwise_collapsed_snps.tsv")
+}
+
 #' Selected SNPs table (combined all methods)
 #' @noRd
 selected_snps_path <- function(project, module = MOD_ASSOC) {

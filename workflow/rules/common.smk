@@ -384,6 +384,11 @@ OVERLAP_PROMOTER_LENGTH = _overlap.get('promoter_length', None)
 if OVERLAP_PROMOTER_LENGTH is None:
     OVERLAP_PROMOTER_LENGTH = max(PROMOTER_LENGTH, PHENO_PROMOTER_LENGTH)
 
+# PAIRWISE OVERLAP parameters (trait-vs-trait comparison across all sources)
+_pairwise = _overlap.get('pairwise', {})
+PAIRWISE_WINDOW_SIZE = int(_pairwise.get('window_size', 500000))
+PAIRWISE_MIN_SNPS    = int(_pairwise.get('min_snps', 2))
+
 # Discover phenotype traits from metadata columns 5+ (for directory creation and wildcards)
 PHENO_TRAITS = []
 PHENO_PREDICTORS = ''
@@ -659,23 +664,33 @@ add_pheno_association_paths()
 # Overlap paths (GEA + GWAS combined analysis)
 def add_overlap_paths():
     """Add overlap analysis paths to W and O dictionaries."""
-    if K_BEST is None or not ASSOC_CONFIGS or not PHENO_ASSOC_CONFIGS:
+    if K_BEST is None:
         return
 
-    O['overlap_selected_snps'] = f"{MOD_OVERLAP}tables/selected_snps_all.tsv"
-    O['overlap_regions_per_trait'] = f"{MOD_OVERLAP}tables/regions_per_trait_all.tsv"
-    O['overlap_regions_combined'] = f"{MOD_OVERLAP}tables/regions_combined.tsv"
-    O['overlap_summary'] = f"{MOD_OVERLAP}tables/overlap_summary.tsv"
-    O['overlap_genes_per_region'] = f"{MOD_OVERLAP}tables/genes_per_region.tsv"
-    O['overlap_genes_collapsed'] = f"{MOD_OVERLAP}tables/genes_per_region_collapsed.tsv"
-    O['overlap_genes_combined'] = f"{MOD_OVERLAP}tables/genes_combined.tsv"
-    W['overlap_enrichment_done'] = f"{INTER}flags/overlap_enrichment_done.flag"
-    W['overlap_enrichment_plots_done'] = f"{INTER}flags/overlap_enrichment_plots_done.flag"
-    # Miami plots (static GEA vs GWAS)
-    O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
-    O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
-    O['overlap_miami_regions'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.png"
-    O['overlap_miami_regions_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.svg"
+    has_gea  = bool(ASSOC_CONFIGS)
+    has_gwas = bool(PHENO_ASSOC_CONFIGS)
+
+    # Pairwise trait overlap — available when at least one source exists
+    if has_gea or has_gwas:
+        O['pairwise_collapsed_snps'] = f"{MOD_OVERLAP}tables/pairwise_collapsed_snps.tsv"
+        O['pairwise_overlap_table']  = f"{MOD_OVERLAP}tables/pairwise_overlap_table.tsv"
+
+    # GEA × GWAS combined analysis — requires both sources
+    if has_gea and has_gwas:
+        O['overlap_selected_snps'] = f"{MOD_OVERLAP}tables/selected_snps_all.tsv"
+        O['overlap_regions_per_trait'] = f"{MOD_OVERLAP}tables/regions_per_trait_all.tsv"
+        O['overlap_regions_combined'] = f"{MOD_OVERLAP}tables/regions_combined.tsv"
+        O['overlap_summary'] = f"{MOD_OVERLAP}tables/overlap_summary.tsv"
+        O['overlap_genes_per_region'] = f"{MOD_OVERLAP}tables/genes_per_region.tsv"
+        O['overlap_genes_collapsed'] = f"{MOD_OVERLAP}tables/genes_per_region_collapsed.tsv"
+        O['overlap_genes_combined'] = f"{MOD_OVERLAP}tables/genes_combined.tsv"
+        W['overlap_enrichment_done'] = f"{INTER}flags/overlap_enrichment_done.flag"
+        W['overlap_enrichment_plots_done'] = f"{INTER}flags/overlap_enrichment_plots_done.flag"
+        # Miami plots (static GEA vs GWAS)
+        O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
+        O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
+        O['overlap_miami_regions'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.png"
+        O['overlap_miami_regions_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions.svg"
 
 add_overlap_paths()
 
@@ -1086,35 +1101,40 @@ def get_targets(mode):
         return targets
 
     elif mode == 'overlapping':
-        if not CLIMATE_ENABLED:
-            raise ValueError("overlapping mode requires climate.enabled: true (needs GEA results)")
         check_numeric(K_BEST, 'K_BEST')
-        if not ASSOC_CONFIGS:
-            raise ValueError("ASSOC_CONFIGS must be set (run mode=association first)")
-        if not PHENO_ASSOC_CONFIGS:
-            raise ValueError("PHENO_ASSOC_CONFIGS must be set (run mode=association_phenotypes first)")
+        has_gea  = bool(ASSOC_CONFIGS) and CLIMATE_ENABLED
+        has_gwas = bool(PHENO_ASSOC_CONFIGS)
+        if not has_gea and not has_gwas:
+            raise ValueError(
+                "overlapping mode requires at least one of: "
+                "association configs (GEA) or phenotype_association configs (GWAS)"
+            )
         if GFF:
             check_file_exists(INDIR, GFF, 'GFF')
 
+        # Pairwise trait overlap (works with either or both sources)
         targets = [
-            O['overlap_selected_snps'],
-            O['overlap_regions_per_trait'],
-            O['overlap_regions_combined'],
-            O['overlap_summary'],
-            O['overlap_genes_per_region'],
-            O['overlap_genes_collapsed'],
-            O['overlap_genes_combined'],
+            O['pairwise_collapsed_snps'],
+            O['pairwise_overlap_table'],
         ]
 
-        # Miami plots
-        targets.extend([
-            O['overlap_miami'], O['overlap_miami_svg'],
-            O['overlap_miami_regions'], O['overlap_miami_regions_svg'],
-        ])
-
-        # Enrichment (if GO_FIELD is specified)
-        if GO_FIELD and GO_FIELD != 'NULL':
-            targets.extend([W['overlap_enrichment_done'], W['overlap_enrichment_plots_done']])
+        # GEA × GWAS combined analysis (only when both sources available)
+        if has_gea and has_gwas:
+            targets.extend([
+                O['overlap_selected_snps'],
+                O['overlap_regions_per_trait'],
+                O['overlap_regions_combined'],
+                O['overlap_summary'],
+                O['overlap_genes_per_region'],
+                O['overlap_genes_collapsed'],
+                O['overlap_genes_combined'],
+            ])
+            targets.extend([
+                O['overlap_miami'], O['overlap_miami_svg'],
+                O['overlap_miami_regions'], O['overlap_miami_regions_svg'],
+            ])
+            if GO_FIELD and GO_FIELD != 'NULL':
+                targets.extend([W['overlap_enrichment_done'], W['overlap_enrichment_plots_done']])
 
         targets.append(W['summary_done'])
         return targets

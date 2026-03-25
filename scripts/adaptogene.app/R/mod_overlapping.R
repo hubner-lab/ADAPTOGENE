@@ -39,7 +39,11 @@ mod_overlapping_ui <- function(id) {
         ),
 
         # Region detail panel (conditional)
-        shiny::uiOutput(ns("region_detail_ui"))
+        shiny::uiOutput(ns("region_detail_ui")),
+
+        # Pairwise Trait Overlap section
+        htmltools::hr(class = "my-4"),
+        mod_pairwise_overlap_ui(ns("pairwise"))
     )
 }
 
@@ -174,6 +178,21 @@ mod_overlapping_server <- function(id, project_data) {
             module       = module,
             trait        = region_trait,
             genes_data   = genes_data
+        )
+
+        # ── Signal Comparison ──────────────────────────────────────────────────
+        miami_coords <- shiny::reactive({
+            pd <- project_data()
+            k  <- pd$k_best
+            if (is.na(k)) return(NULL)
+            load_cached(paste0("coords_miami_", pd$name, "_", k), function() {
+                load_coords(miami_coords_path(pd$name, k))
+            })
+        })
+
+        mod_pairwise_overlap_server("pairwise",
+            project_data = project_data,
+            coords       = miami_coords
         )
     })
 }
