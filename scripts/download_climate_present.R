@@ -54,7 +54,7 @@ FUN_download_worldclim <- function(data_dir, resolution = 0.5) {
                   resolution_format, "_bio.zip")
     message(paste0("INFO: Downloading WorldClim bioclimatic data from: ", url))
     old_timeout <- getOption("timeout")
-    options(timeout = 600)
+    options(timeout = Inf)
     on.exit(options(timeout = old_timeout), add = TRUE)
     download.file(url, zip_file, mode = "wb", quiet = FALSE)
   } else {
