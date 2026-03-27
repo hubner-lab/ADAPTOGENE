@@ -29,30 +29,78 @@ app_ui <- function(request) {
         ),
 
         # ── Tabs ───────────────────────────────────────────────────────────────
+
         bslib::nav_panel("Home",
             class = "bslib-page-dashboard",
-            mod_home_ui("home")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_home", "Processing Config"),
+                fill     = TRUE,
+                fillable = TRUE,
+                mod_home_ui("home")
+            )
         ),
+
         bslib::nav_panel("Structure",
-            mod_structure_ui("structure")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_structure", "Structure Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_structure_ui("structure")
+            )
         ),
+
         bslib::nav_panel("Structure K",
-            mod_structure_k_ui("structure_k")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_structure_k", "Structure K Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_structure_k_ui("structure_k")
+            )
         ),
+
         bslib::nav_panel("Association",
-            mod_association_ui("association")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_association", "GEA Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_association_ui("association")
+            )
         ),
+
         bslib::nav_panel("Phenotype Association",
-            mod_phenotype_ui("phenotype")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_phenotype", "GWAS Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_phenotype_ui("phenotype")
+            )
         ),
+
         bslib::nav_panel("Overlapping Regions",
-            mod_overlapping_ui("overlapping")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_overlapping", "Overlap Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_overlapping_ui("overlapping")
+            )
         ),
+
         bslib::nav_panel("Haplotype Analysis",
-            mod_haplotype_ui("haplotype")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_haplotype", "Haplotype Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_haplotype_ui("haplotype")
+            )
         ),
+
         bslib::nav_panel("Maladaptation",
-            mod_maladaptation_ui("maladaptation")
+            bslib::layout_sidebar(
+                sidebar  = mod_config_sidebar_ui("config_maladaptation", "Maladaptation Config"),
+                fill     = FALSE,
+                fillable = FALSE,
+                mod_maladaptation_ui("maladaptation")
+            )
         )
     )
 }

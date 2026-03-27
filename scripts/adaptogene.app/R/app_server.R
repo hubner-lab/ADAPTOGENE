@@ -11,6 +11,16 @@ app_server <- function(input, output, session) {
         })
     }) |> shiny::bindCache(input$project_selector)
 
+    # ── Config sidebar servers (one per tab) ───────────────────────────────────
+    mod_config_sidebar_server("config_home",          project_data, "home")
+    mod_config_sidebar_server("config_structure",     project_data, "structure")
+    mod_config_sidebar_server("config_structure_k",   project_data, "structure_k")
+    mod_config_sidebar_server("config_association",   project_data, "association")
+    mod_config_sidebar_server("config_phenotype",     project_data, "phenotype")
+    mod_config_sidebar_server("config_overlapping",   project_data, "overlapping")
+    mod_config_sidebar_server("config_haplotype",     project_data, "haplotype")
+    mod_config_sidebar_server("config_maladaptation", project_data, "maladaptation")
+
     # ── Module servers ─────────────────────────────────────────────────────────
     mod_home_server("home",               project_data = project_data)
     mod_structure_server("structure",     project_data = project_data)

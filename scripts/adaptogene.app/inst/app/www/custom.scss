@@ -186,6 +186,165 @@
     }
 }
 
+// ── Config sidebar ────────────────────────────────────────────────────────────
+
+// Sidebar gets a subtly different background to visually distinguish it
+.bslib-sidebar-layout > .sidebar {
+    background-color: #F0F2F5;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 0.875rem;
+
+    // Ensure the sidebar scrolls when content is tall
+    overflow-y: auto;
+}
+
+[data-bs-theme="dark"] .bslib-sidebar-layout > .sidebar {
+    background-color: #1c2330;
+    border-right-color: rgba(255, 255, 255, 0.08);
+}
+
+// Sidebar title (icon + text)
+.config-sidebar-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: $body-color;
+}
+
+// Core Parameters section wrapper
+.config-section {
+    margin-bottom: $spacer * 0.5;
+}
+
+.config-section-header {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $primary;
+    opacity: 0.85;
+    margin: 0 0 0.5rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(27, 122, 110, 0.15);
+}
+
+// Sub-section labels within a group (e.g. "Input Files", "Filtering")
+.config-subsection-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $secondary;
+    margin: 0.75rem 0 0.25rem 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+
+    &:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+}
+
+[data-bs-theme="dark"] .config-subsection-label {
+    border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+// Individual config field block
+.config-field {
+    margin-bottom: 0.5rem;
+
+    .form-label.config-field-label {
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 0.15rem;
+        color: $body-color;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: 0.82rem;
+        padding: 0.25rem 0.5rem;
+        height: auto;
+    }
+
+    .form-check {
+        margin-bottom: 0;
+        padding-top: 0.1rem;
+    }
+
+    .config-help {
+        font-size: 0.73rem;
+        line-height: 1.35;
+        margin-top: 0.1rem;
+        display: block;
+    }
+}
+
+// Method display (Phase 1 read-only view for association.configs)
+.method-display {
+    background-color: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    border-radius: $border-radius;
+    padding: 0.4rem 0.5rem;
+}
+
+.method-display-empty {
+    font-size: 0.8rem;
+    color: $warning;
+    opacity: 0.8;
+}
+
+.method-badge {
+    font-size: 0.72rem;
+    font-family: $font-family-monospace;
+    letter-spacing: 0.01em;
+}
+
+[data-bs-theme="dark"] {
+    .method-display {
+        background-color: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.08);
+    }
+}
+
+// Accordion within sidebar: tighter vertical rhythm
+.bslib-sidebar-layout .accordion {
+    margin-top: $spacer * 0.75;
+
+    .accordion-button {
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 0.4rem 0.75rem;
+        background-color: transparent;
+
+        &:not(.collapsed) {
+            color: $primary;
+            box-shadow: none;
+        }
+    }
+
+    .accordion-body {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+// Selectize dropdowns in sidebar: use z-index (they're position:absolute,
+// so they escape the sidebar scroll container naturally)
+.bslib-sidebar-layout .selectize-dropdown {
+    z-index: 1080;
+}
+
+// Sidebar toggle button: give it a more intentional look
+.bslib-sidebar-layout > .collapse-toggle {
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+        opacity: 1;
+    }
+}
+
 // ── Full-screen mode: expand image to fill the overlay ────────────────────────
 // bslib adds .bslib-full-screen to the card and data-full-screen="true".
 // Remove all height caps so the image fills the available space.

@@ -1,4 +1,6 @@
 *.swp
+.playwright/
+.playwright-cli/
 data/
 TEST_results/
 TEST_logs/
