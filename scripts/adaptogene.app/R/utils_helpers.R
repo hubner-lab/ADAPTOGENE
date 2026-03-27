@@ -54,6 +54,22 @@ make_project_data <- function(project, pipeline_path = get_pipeline_path()) {
     )
 }
 
+#' Map Shiny tab name to Snakemake mode string
+#' Returns NULL for haplotype (handled by two separate runner instances)
+#' @noRd
+tab_to_mode <- function(tab) {
+    switch(tab,
+        home          = "processing",
+        structure     = "structure",
+        structure_k   = "structure_K",
+        association   = "association",
+        phenotype     = "association_phenotypes",
+        overlapping   = "overlapping",
+        maladaptation = "maladaptation",
+        haplotype     = NULL
+    )
+}
+
 #' Safe DT rendering with "no data" message fallback
 #' @noRd
 safe_datatable <- function(dt, ...) {

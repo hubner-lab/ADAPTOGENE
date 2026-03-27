@@ -22,7 +22,9 @@ Imports:
     cachem,
     config,
     tools,
-    utils
+    utils,
+    processx,
+    shinyjs
 Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

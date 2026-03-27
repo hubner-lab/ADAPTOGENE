@@ -403,6 +403,62 @@ config_get_by_path <- function(config, key_path) {
     val
 }
 
+#' Set config value by dot-path key (returns modified config list)
+#'
+#' @param config config list
+#' @param key_path dot-separated path (e.g. "snmf.k_start")
+#' @param value value to set
+#' @return modified config list
+#' @noRd
+config_set_by_path <- function(config, key_path, value) {
+    keys <- strsplit(key_path, "\\.")[[1]]
+    if (length(keys) == 1) {
+        config[[keys]] <- value
+        return(config)
+    }
+    # Recurse: ensure intermediate list exists
+    top <- keys[1]
+    rest <- paste(keys[-1], collapse = ".")
+    if (is.null(config[[top]]) || !is.list(config[[top]])) config[[top]] <- list()
+    config[[top]] <- config_set_by_path(config[[top]], rest, value)
+    config
+}
+
+#' Coerce a sidebar input value back to the appropriate R type for YAML
+#'
+#' @param raw_value the raw value from input[[id]]
+#' @param type schema type: numeric | text | select | checkbox | textarea | method_table
+#' @return R value suitable for yaml::write_yaml()
+#' @noRd
+input_to_config_value <- function(raw_value, type) {
+    switch(type,
+        "numeric" = {
+            n <- suppressWarnings(as.numeric(raw_value))
+            if (is.na(n) || length(n) == 0) NULL else n
+        },
+        "checkbox" = {
+            isTRUE(raw_value)
+        },
+        "textarea" = {
+            # Comma-separated string -> list of trimmed values
+            if (is.null(raw_value) || !nzchar(trimws(raw_value))) return(NULL)
+            parts <- trimws(strsplit(as.character(raw_value), ",")[[1]])
+            parts <- parts[nzchar(parts)]
+            if (length(parts) == 0) return(NULL)
+            # Try numeric coercion; fall back to character list
+            nums <- suppressWarnings(as.numeric(parts))
+            if (!anyNA(nums)) as.list(nums) else as.list(parts)
+        },
+        "method_table" = raw_value,  # read-only, pass through
+        {
+            # text / select / default
+            if (is.null(raw_value)) return(NULL)
+            val <- as.character(raw_value)
+            if (!nzchar(trimws(val))) NULL else val
+        }
+    )
+}
+
 #' Get schema entries for a specific tab
 #' @noRd
 schema_for_tab <- function(tab_name) {

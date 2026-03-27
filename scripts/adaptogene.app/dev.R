@@ -8,6 +8,24 @@
 
 options(shiny.autoreload = TRUE)
 
+# Auto-install any packages from DESCRIPTION that are not yet in the image.
+# Uses a writable user library inside the pipeline bind-mount so no rebuild needed.
+.dev_user_lib <- "/pipeline/.R_libs_dev"
+dir.create(.dev_user_lib, recursive = TRUE, showWarnings = FALSE)
+.libPaths(c(.dev_user_lib, .libPaths()))
+
+.dev_pkgs <- c("processx", "shinyjs")
+for (.p in .dev_pkgs) {
+    if (!requireNamespace(.p, quietly = TRUE)) {
+        message("dev.R: installing missing package: ", .p)
+        install.packages(.p,
+                         lib   = .dev_user_lib,
+                         repos = "https://cloud.r-project.org",
+                         quiet = TRUE)
+    }
+}
+rm(.dev_user_lib, .dev_pkgs, .p)
+
 # Load all dependencies (from DESCRIPTION Imports, minus base R packages)
 library(shiny)
 library(bslib)
@@ -22,6 +40,8 @@ library(jsonlite)
 library(base64enc)
 library(cachem)
 library(config)
+library(processx)
+library(shinyjs)
 
 # Source all app R files from mounted volume
 app_r_dir <- "/pipeline/scripts/adaptogene.app/R"

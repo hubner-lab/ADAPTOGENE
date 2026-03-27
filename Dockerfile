@@ -136,6 +136,8 @@ RUN Rscript -e " \
     remotes::install_version('config',    version = '0.3.2'); \
     remotes::install_version('rlang',     version = '1.1.4'); \
     remotes::install_version('thematic',  version = '0.1.5'); \
+    remotes::install_version('processx',  version = '3.8.4'); \
+    remotes::install_version('shinyjs',   version = '2.1.0'); \
 "
 
 # Install golem Shiny app as R package
