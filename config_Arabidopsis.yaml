@@ -1,191 +1,101 @@
-#=============================================================================
-# Arabidopsis thaliana 1001 Genomes — thinned subset (~19.5k SNPs, 1049 samples)
-#=============================================================================
-# Global collection: ~46 sites, 5 chromosomes (1-5, no chr prefix)
-# Phenotypes: FT10, FT16 (flowering time at 10°C and 16°C)
-# GFF: araport11 (gene features, description/Name/biotype — no GO terms)
-
-#-----------------------------------------------------------------------------
-# INPUT
-#-----------------------------------------------------------------------------
 input:
-  dir: "data/"
-  vcf: 'Arabidopsis_1001G_thin100mb.vcf'
-  metadata: 'Arabidopsis_1001G_metadata.tsv'
-  gff: 'Arabidopsis_1001G.gff3'
-
-project_name: 'Arabidopsis'
+  dir: data/
+  vcf: Arabidopsis_1001G_thin100mb.vcf
+  metadata: Arabidopsis_1001G_metadata.tsv
+  gff: Arabidopsis_1001G.gff3
+project_name: Arabidopsis
 cpu: 10
-
-#-----------------------------------------------------------------------------
-# FILTER
-#-----------------------------------------------------------------------------
 filter:
   maf: 0.05
   snp_miss: 0.1
   sample_miss: 0.5
-
-#-----------------------------------------------------------------------------
-# LD
-#-----------------------------------------------------------------------------
 ld:
   window: 100
   step: 20
   r2: 0.2
-
-#-----------------------------------------------------------------------------
-# SNMF
-#-----------------------------------------------------------------------------
 snmf:
   k_start: 2
   k_end: 10
-  k_best: 5                     # PLACEHOLDER — update after reviewing cross-entropy plot (structure mode)
+  k_best: 5
   ploidy: 2
   repeats: 10
-
-#-----------------------------------------------------------------------------
-# MAP
-#-----------------------------------------------------------------------------
 map:
-  climate_extent: "auto"
-  gap: 2.0                      # Larger buffer for global distribution
-  resolution: 2.5               # Coarser resolution for global extent (avoids huge download)
-  zoom_extent: "NULL"
-
-#-----------------------------------------------------------------------------
-# CLIMATE
-#-----------------------------------------------------------------------------
+  climate_extent: auto
+  gap: 2.0
+  resolution: 2.5
+  zoom_extent: 'NULL'
 climate:
-  enabled: true
-  predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
-
-#-----------------------------------------------------------------------------
-# POPULATION STATS
-#-----------------------------------------------------------------------------
+  enabled: 'true'
+  predictors: bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15
 pop:
-  calc_stats: TRUE
-  window_size: 3000000           # 3Mb windows (Arabidopsis genome ~135Mb)
+  calc_stats: 'true'
+  window_size: 3000000
   custom_trait_file: 'NULL'
-
-#-----------------------------------------------------------------------------
-# PIEMAP
-#-----------------------------------------------------------------------------
 piemap:
   alpha: 0.6
-  show_labels: 'F'               # Too many sites for labels
+  show_labels: F
   label_size: 3
-  pie_scale: 0.8                 # Smaller pies for dense global map
-  use_points: FALSE
-
-#-----------------------------------------------------------------------------
-# LD_DECAY
-#-----------------------------------------------------------------------------
+  pie_scale: 0.8
+  use_points: 'false'
 ld_decay:
-  group_by: "site"
-  min_samples: 5                 # Some sites have <10 samples
+  group_by: site
+  min_samples: 5
   max_distance: 500
-  scope: "both"
-
-#-----------------------------------------------------------------------------
-# ASSOCIATION (GEA)
-#-----------------------------------------------------------------------------
+  scope: both
 association:
   configs:
-    - method: "EMMAX"
-      adjust: "bonf"
-      threshold: '0.05'
-    - method: "LFMM"
-      adjust: "bonf"
-      threshold: '0.05'
-    - method: "BLINK"
-      adjust: "bonf"
-      threshold: '0.05'
-  combine_method: 'Sum'
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: LFMM
+    adjust: bonf
+    threshold: '0.05'
+  - method: BLINK
+    adjust: bonf
+    threshold: '0.05'
+  combine_method: Sum
   combine_gap: 100000
   sig_snp_distance: 100000
-  region_distance: 500000        # Small genome: ~135Mb, smaller region windows
+  region_distance: 500000
   top_regions: 10
-  promoter_length: 2000          # Arabidopsis has compact promoters
-  go_field: 'NULL'               # No GO terms in araport11 GFF
-  scattermore_threshold: 15000   # ~19.5k SNPs total
-
-#-----------------------------------------------------------------------------
-# GFF
-#-----------------------------------------------------------------------------
+  promoter_length: 2000
+  go_field: 'NULL'
+  scattermore_threshold: 15000
 gff:
-  feature: 'gene'                # Gene features have description attribute
-  gene_name: 'description'       # e.g., "NAC domain containing protein 1"
-  biotype: 'biotype'
-
-#-----------------------------------------------------------------------------
-# ENRICHMENT
-#-----------------------------------------------------------------------------
+  feature: gene
+  gene_name: description
+  biotype: biotype
 enrichment:
   top_terms: 20
   plot_width: 12
   plot_height: 10
-  cnet_label: "gene_id"
-  top_plot_regions: 0            # No GO terms — enrichment skipped
-
-#-----------------------------------------------------------------------------
-# REGIONPLOT
-#-----------------------------------------------------------------------------
+  cnet_label: gene_id
+  top_plot_regions: 0
 regionplot:
   region: 'NULL'
   traits: 'NULL'
   method: 'NULL'
-  genes: 'all'
-
-#-----------------------------------------------------------------------------
-# FUTURE CLIMATE
-#-----------------------------------------------------------------------------
+  genes: all
 future:
   ssp: '585'
-  year: '2061-2080'
-  models: 'MPI-ESM1-2-HR'       # Single model for initial run
-
-#-----------------------------------------------------------------------------
-# GRADIENT FOREST
-#-----------------------------------------------------------------------------
+  year: 2061-2080
+  models: MPI-ESM1-2-HR
 gradient_forest:
   ntree: '500'
   cor_threshold: '0.5'
-  spatial_correction: 'with'
-  run_label: 'Arabidopsis_1001G'
-  random_model: TRUE
-
-#-----------------------------------------------------------------------------
-# PHENOTYPE ASSOCIATION (GWAS) — FT10 and FT16 flowering time
-#-----------------------------------------------------------------------------
+  spatial_correction: with
+  run_label: Arabidopsis_1001G
+  random_model: 'true'
 phenotype_association:
   configs:
-    - method: "EMMAX"
-      adjust: "bonf"
-      threshold: '0.05'
-    - method: "BLINK"
-      adjust: "bonf"
-      threshold: '0.05'
-  missing_strategy: "MEAN"       # 165 samples have missing phenotypes — impute with mean
-
-#-----------------------------------------------------------------------------
-# OVERLAP
-#-----------------------------------------------------------------------------
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: BLINK
+    adjust: bonf
+    threshold: '0.05'
+  missing_strategy: MEAN
 overlap:
   pairwise:
     window_size: 500000
     min_snps: 2
-
-#-----------------------------------------------------------------------------
-# HAPLOTYPE — enable after reviewing association results
-#-----------------------------------------------------------------------------
-# haplotype:
-#   scan:
-#     regions_source: 'association'
-#     regions_file: 'NULL'
-#     top_regions: 5
-#     min_snps: 10
-#     min_group_size: 30
-#     min_haplotype_size: 10
-#     epsilon_range: [0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0]
-#     metadata_type: 'site'
-#   epsilon_selected: 'NULL'

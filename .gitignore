@@ -20,3 +20,4 @@ app_cache/
 *_results/
 *_logs/
 *.hl
+.R_libs_dev/
