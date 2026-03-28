@@ -36,10 +36,11 @@ mod_structure_k_ui <- function(id) {
                 "Climate Plots",
                 value = "climate",
                 icon  = bsicons::bs_icon("thermometer-half"),
+                mod_image_card_ui(ns("climate_heatmap")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
-                    mod_image_card_ui(ns("climate_heatmap")),
-                    mod_image_card_ui(ns("climate_density"))
+                    mod_image_card_ui(ns("climate_density")),
+                    mod_image_card_ui(ns("phenotype_density"))
                 )
             ),
 
@@ -157,6 +158,11 @@ mod_structure_k_server <- function(id, project_data) {
                 path    = shiny::reactive(climate_density_path(pd$name)),
                 title   = shiny::reactive("Climate Density (Present)"),
                 dl_name = shiny::reactive("climate_density_present")
+            )
+            mod_image_card_server("phenotype_density",
+                path    = shiny::reactive(phenotype_density_path(pd$name)),
+                title   = shiny::reactive("Phenotype Density"),
+                dl_name = shiny::reactive("phenotype_density")
             )
         })
 

@@ -250,6 +250,12 @@ climate_density_path <- function(project, bio = NULL) {
     }
 }
 
+#' Phenotype density plot path
+#' @noRd
+phenotype_density_path <- function(project) {
+    mod_path(project, MOD_CLIMATE, "plots", "density_plot_phenotypes.png")
+}
+
 #' LD decay plot path
 #' @noRd
 ld_decay_path <- function(project, per_chr = FALSE) {

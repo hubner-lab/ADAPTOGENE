@@ -755,7 +755,8 @@ def pca_struct_plot(k): return f"{MOD_STRUCT}plots/K{k}/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{MOD_STRUCT}plots/K{k}/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
-DENSITY_PLOT_COMBINED = f"{MOD_CLIMATE}plots/density_plot_present.png"
+DENSITY_PLOT_COMBINED    = f"{MOD_CLIMATE}plots/density_plot_present.png"
+DENSITY_PLOT_PHENOTYPES  = f"{MOD_CLIMATE}plots/density_plot_phenotypes.png"
 def piemap_tajima(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_tajima_d.png"
 def piemap_diversity(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_pi_diversity.png"
 def piemap_notrait(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}.png"
@@ -942,6 +943,8 @@ def get_targets(mode):
             targets += [O['corr_heatmap']]
             # Simple PieMaps (uniform pie size)
             targets += [piemap_notrait(bio) for bio in predictors]
+        if PHENO_ASSOC_CONFIGS:
+            targets += [DENSITY_PLOT_PHENOTYPES]
 
         # Population statistics (requires >= 3 samples per population)
         if CALC_POP_STATS:
