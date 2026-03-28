@@ -81,11 +81,7 @@ mod_structure_server <- function(id, project_data) {
                 dl_name = shiny::reactive("tracy_widom")
             )
             mod_image_card_server("cross_entropy",
-                path    = shiny::reactive({
-                    if (!is.na(kr$k_start) && !is.na(kr$k_end))
-                        cross_entropy_path(pd$name, kr$k_start, kr$k_end)
-                    else NULL
-                }),
+                path    = shiny::reactive(kr$path),
                 title   = shiny::reactive("Cross-Entropy"),
                 dl_name = shiny::reactive("cross_entropy")
             )
