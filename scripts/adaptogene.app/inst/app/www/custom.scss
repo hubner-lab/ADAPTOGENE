@@ -98,13 +98,17 @@
     background-color: #F1F3F5;
 }
 
+[data-bs-theme="dark"] .bslib-page-dashboard {
+    background-color: var(--bs-body-bg);
+}
+
 // ── Missing plot placeholder ──────────────────────────────────────────────────
 .plot-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: $secondary;
+    color: var(--bs-secondary-color);
     opacity: 0.5;
     padding: 3rem;
     gap: 0.5rem;
@@ -208,7 +212,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: $body-color;
+    color: var(--bs-body-color);
 }
 
 // Core Parameters section wrapper
@@ -234,7 +238,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: $secondary;
+    color: var(--bs-secondary-color);
     margin: 0.75rem 0 0.25rem 0;
     padding-top: 0.5rem;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
@@ -258,7 +262,7 @@
         font-size: 0.8rem;
         font-weight: 500;
         margin-bottom: 0.15rem;
-        color: $body-color;
+        color: var(--bs-body-color);
     }
 
     .form-control,
@@ -401,6 +405,33 @@
     background-color: rgba(255, 255, 255, 0.03);
 }
 
+// Dark mode: fix opacity-stacked and hardcoded-color elements
+[data-bs-theme="dark"] {
+    .plot-placeholder {
+        opacity: 0.7;
+    }
+
+    .pipeline-toggle-rules {
+        opacity: 0.7;
+    }
+
+    .pipeline-rule-item:hover {
+        background-color: rgba(27, 122, 110, 0.15);
+    }
+
+    // Reset button: boost visibility against dark sidebar
+    .config-reset-btn {
+        color: rgba(255, 255, 255, 0.75);
+        border-color: rgba(255, 255, 255, 0.25);
+
+        &:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+    }
+}
+
 // Individual rule row
 .pipeline-rule-item {
     padding: 0.18rem 0.4rem;
@@ -415,7 +446,7 @@
 
 // Clickable rule name
 .pipeline-rule-link {
-    color: $body-color;
+    color: var(--bs-body-color);
     text-decoration: none;
 
     &:hover {

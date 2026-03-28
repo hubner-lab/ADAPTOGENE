@@ -30,7 +30,7 @@ app_ui <- function(request) {
                     selected = if (length(projects) > 0) projects[1] else NULL,
                     width    = "220px"
                 ),
-                bslib::input_dark_mode(id = "dark_mode")
+                bslib::input_dark_mode(id = "dark_mode", mode = "dark")
             )
         ),
 
