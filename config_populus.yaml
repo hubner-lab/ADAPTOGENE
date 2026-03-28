@@ -28,6 +28,9 @@ filter:
   maf: 0.05
   snp_miss: 0.1
   sample_miss: 0.5
+  min_depth: null       # Optional: mask genotypes with FORMAT/DP < N (null = skip)
+  max_depth: null       # Optional: mask genotypes with FORMAT/DP > N (null = skip)
+  het_outlier_sd: null  # Optional: remove samples with heterozygosity beyond N SDs (null = skip)
 
 #-----------------------------------------------------------------------------
 # LD

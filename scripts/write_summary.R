@@ -48,38 +48,90 @@ summary_dt <- read_or_create_summary(OUTPUT)
 
 if (MODE == 'processing') {
     # args: MODE OUTPUT vcf_filt vcf_ld samples_list samples_filtered samples_removed
-    VCF_FILT = args[3]
-    VCF_LD = args[4]
-    SAMPLES_LIST = args[5]
-    SAMPLES_FILTERED = args[6]
-    SAMPLES_REMOVED = args[7]
+    #       qc_raw_summary filtering_summary het_outlier_sd has_dp [depth_sample depth_site]
+    VCF_FILT          = args[3]
+    VCF_LD            = args[4]
+    SAMPLES_LIST      = args[5]
+    SAMPLES_FILTERED  = args[6]
+    SAMPLES_REMOVED   = args[7]
+    QC_RAW_SUMMARY    = args[8]
+    FILTERING_SUMMARY = args[9]
+    HET_OUTLIER_SD    = args[10]
+    HAS_DP            = args[11]
+    DEPTH_SUMMARY     = if (length(args) >= 12) args[12] else 'NULL'
 
     # Count samples
-    n_samples_total <- length(readLines(SAMPLES_LIST))
+    n_samples_total    <- length(readLines(SAMPLES_LIST))
     n_samples_filtered <- length(readLines(SAMPLES_FILTERED))
-    n_samples_removed <- length(readLines(SAMPLES_REMOVED))
+    n_samples_removed  <- length(readLines(SAMPLES_REMOVED))
 
     # Count SNPs from VCF files (non-header lines)
     count_vcf_snps <- function(vcf_path) {
         con <- file(vcf_path, 'r')
         n <- 0L
-        while (length(line <- readLines(con, n = 10000)) > 0) {
+        while (length(line <- readLines(con, n = 10000)) > 0)
             n <- n + sum(!startsWith(line, '#'))
-        }
         close(con)
         return(n)
     }
-
     n_snps_filtered <- count_vcf_snps(VCF_FILT)
-    n_snps_ld <- count_vcf_snps(VCF_LD)
+    n_snps_ld       <- count_vcf_snps(VCF_LD)
+
+    # Parse raw bcftools stats output (SN/TSTV lines)
+    parse_bcftools_stats <- function(path) {
+        if (!file.exists(path) || file.size(path) == 0) return(list(snps=NA, titv=NA))
+        lines <- readLines(path)
+        snps <- NA; titv <- NA
+        for (ln in lines) {
+            if (startsWith(ln, 'SN')) {
+                parts <- strsplit(ln, '\t')[[1]]
+                if (length(parts) >= 4 && grepl('number of SNPs', parts[3]))
+                    snps <- trimws(parts[4])
+            } else if (startsWith(ln, 'TSTV')) {
+                parts <- strsplit(ln, '\t')[[1]]
+                if (length(parts) >= 5) titv <- trimws(parts[5])
+            }
+        }
+        list(snps=snps, titv=titv)
+    }
+    bcf <- parse_bcftools_stats(QC_RAW_SUMMARY)
+    n_raw_snps <- bcf$snps
+    titv       <- bcf$titv
+
+    # Read filtering summary for detailed attrition
+    filt_sum <- fread(FILTERING_SUMMARY)
+
+    # Het outlier count from filtering summary
+    n_het_removed <- 0L
+    if (HET_OUTLIER_SD != 'NULL' && 'After het outlier removal' %in% filt_sum$stage) {
+        n_before <- filt_sum[stage == 'After sample missingness filter', n_samples]
+        n_after  <- filt_sum[stage == 'After het outlier removal', n_samples]
+        if (length(n_before) > 0 && length(n_after) > 0)
+            n_het_removed <- as.integer(n_before) - as.integer(n_after)
+    }
+
+    # Depth info
+    depth_qc_status <- if (HAS_DP == 'TRUE') 'available' else 'not_provided'
 
     new_rows <- rbind(
-        row('processing', 'samples_total', n_samples_total),
-        row('processing', 'samples_after_filtering', n_samples_filtered),
-        row('processing', 'samples_removed', n_samples_removed),
-        row('processing', 'snps_after_filtering', n_snps_filtered),
-        row('processing', 'snps_after_ld_pruning', n_snps_ld)
+        row('processing', 'samples_total',              n_samples_total),
+        row('processing', 'samples_after_filtering',    n_samples_filtered),
+        row('processing', 'samples_removed',            n_samples_removed),
+        row('processing', 'samples_het_outliers_removed', n_het_removed),
+        row('processing', 'snps_raw',                   n_raw_snps),
+        row('processing', 'snps_after_filtering',       n_snps_filtered),
+        row('processing', 'snps_after_ld_pruning',      n_snps_ld),
+        row('processing', 'titv_ratio',                 titv),
+        row('processing', 'depth_qc',                   depth_qc_status)
     )
+
+    # Append depth stats if available
+    if (HAS_DP == 'TRUE' && DEPTH_SUMMARY != 'NULL' && file.exists(DEPTH_SUMMARY)) {
+        depth_dt <- fread(DEPTH_SUMMARY)
+        for (i in seq_len(nrow(depth_dt))) {
+            new_rows <- rbind(new_rows, row('processing', depth_dt$metric[i], depth_dt$value[i]))
+        }
+    }
 
 } else if (MODE == 'structure') {
     # args: MODE OUTPUT cross_entropy_plot K_START K_END

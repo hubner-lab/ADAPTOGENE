@@ -1,6 +1,7 @@
 # ADAPTOGENE Pipeline - Refactored
 # vim: filetype=python
 import os
+import subprocess
 from pathlib import Path
 
 #=============================================================================
@@ -212,6 +213,20 @@ VCF_BASE = get_vcf_basename(VCF_RAW)
 MAF = config['filter']['maf']; check_float(MAF, 'filter.maf')
 MISS = config['filter']['snp_miss']; check_float(MISS, 'filter.snp_miss')
 SAMPLE_MISS = _cfg('filter', 'sample_miss', 0.5); check_float(SAMPLE_MISS, 'filter.sample_miss')
+MIN_DEPTH    = _cfg('filter', 'min_depth', None)
+MAX_DEPTH    = _cfg('filter', 'max_depth', None)
+HET_OUTLIER_SD = _cfg('filter', 'het_outlier_sd', None)
+
+# Detect FORMAT/DP field in raw VCF header at parse time (reads header only — fast)
+_raw_vcf_path = os.path.join(INDIR, VCF_RAW)
+try:
+    _dp_check = subprocess.run(
+        ['bcftools', 'view', '-h', _raw_vcf_path],
+        capture_output=True, text=True, timeout=30
+    )
+    HAS_FORMAT_DP = '##FORMAT=<ID=DP' in _dp_check.stdout
+except Exception:
+    HAS_FORMAT_DP = False
 
 # LD parameters
 LD_WIN = config['ld']['window']; check_numeric(LD_WIN, 'ld.window')
@@ -457,7 +472,14 @@ HAP_TAGS = [f"{mt}_{src}" for mt in HAP_META_TYPES for src in HAP_SOURCES]
 # PATH DEFINITIONS
 #=============================================================================
 # Directory tags (easy to modify if adding new parameters)
-FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}"
+_depth_tag = ""
+if MIN_DEPTH is not None or MAX_DEPTH is not None:
+    _dp_parts = []
+    if MIN_DEPTH is not None: _dp_parts.append(f"dpmin{MIN_DEPTH}")
+    if MAX_DEPTH is not None: _dp_parts.append(f"dpmax{MAX_DEPTH}")
+    _depth_tag = "_" + "_".join(_dp_parts)
+_het_tag = f"_hetsd{HET_OUTLIER_SD}" if HET_OUTLIER_SD is not None else ""
+FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}{_depth_tag}{_het_tag}"
 LD_TAG = f"ld{LD_R2}_win{LD_WIN}_step{LD_STEP}"
 
 # Base directories (new module-based layout)
@@ -487,8 +509,12 @@ W = {
     'samples_removed': f"{INTER}samples/samples_removed.list",
     'samples_missing_stats': f"{INTER}samples/samples_missing_stats.tsv",
     'samples_order': f"{INTER}samples/samples_order.list",
+    # Optional: samples list after het outlier removal (used by filter_vcf when HET_OUTLIER_SD set)
+    'samples_het_filtered': f"{INTER}samples/samples_het_filtered.list",
     # Normalized GFF (chromosome names match VCF - 'chr' prefix stripped)
     'gff_normalized': f"{INTER}annotation/normalized.gff3",
+    # Optional: depth-masked VCF (before MAF/missingness filter, when min/max_depth set)
+    'vcf_depth_filtered': f"{WORK}{VCF_BASE}_depth_filtered.vcf",
     # Filtered VCF (in FILT_TAG directory)
     'vcf_filt': f"{WORK_FILT}{VCF_BASE}.vcf",
     # LD-pruned files (in LD_TAG subdirectory)
@@ -504,6 +530,9 @@ W = {
     'summary_done': f"{INTER}flags/summary_done.flag",
     'removed': f"{WORK_LD}{VCF_BASE}.removed",
     'snmf': f"{WORK_LD}{VCF_BASE}.snmfProject",
+    # QC intermediate stats (used by plot_qc_processing)
+    'het_stats_raw': f"{INTER}qc/het_raw.het",
+    'het_stats_filtered': f"{INTER}qc/het_filtered.het",
 }
 
 # Output paths (organized by module)
@@ -515,6 +544,25 @@ O = {
     'pca_svg': f"{MOD_STRUCT}plots/pca.svg",
     'tracy': f"{MOD_STRUCT}plots/tracy_widom.png",
     'cross_entropy': f"{MOD_STRUCT}plots/cross_entropy_K{K_START}-{K_END}.png",
+    # QC intermediate stats
+    'qc_raw_summary':      f"{MOD_PROC}tables/vcf_raw_summary.tsv",
+    'qc_filtering_summary':f"{MOD_PROC}tables/filtering_summary.tsv",
+    'qc_sample_het':       f"{MOD_PROC}tables/sample_heterozygosity.tsv",
+    'qc_maf_raw':          f"{INTER}qc/maf_raw.frq",
+    'qc_maf_filtered':     f"{INTER}qc/maf_filtered.frq",
+    'qc_snp_miss_raw':     f"{INTER}qc/snp_missingness_raw.lmiss",
+    'qc_snp_density_raw':  f"{INTER}qc/snp_density_raw.snpden",
+    'qc_snp_density_filt': f"{INTER}qc/snp_density_filtered.snpden",
+    'qc_depth_sample':     f"{INTER}qc/depth_per_sample.idepth",
+    'qc_depth_site':       f"{INTER}qc/depth_per_site.ldepth.mean",
+    # QC plots
+    'qc_plot_sample_miss': f"{MOD_PROC}plots/sample_missingness_distribution.png",
+    'qc_plot_het_miss':    f"{MOD_PROC}plots/het_vs_missingness.png",
+    'qc_plot_maf':         f"{MOD_PROC}plots/maf_distribution.png",
+    'qc_plot_snp_miss':    f"{MOD_PROC}plots/snp_missingness_distribution.png",
+    'qc_plot_attrition':   f"{MOD_PROC}plots/filtering_attrition.png",
+    'qc_plot_snp_density': f"{MOD_PROC}plots/snp_density_by_chr.png",
+    'qc_plot_depth':       f"{MOD_PROC}plots/depth_distribution.png",
 }
 
 # K_BEST dependent paths (added dynamically when K_BEST is set)
@@ -787,10 +835,10 @@ def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/methods/{meth
 #=============================================================================
 dirs_to_create = [
     WORK, WORK_FILT, WORK_LD, INTER,
-    f"{INTER}samples/", f"{INTER}annotation/", f"{INTER}flags/",
+    f"{INTER}samples/", f"{INTER}annotation/", f"{INTER}flags/", f"{INTER}qc/",
     LOGDIR,
     # Module directories
-    f"{MOD_PROC}tables/",
+    f"{MOD_PROC}tables/", f"{MOD_PROC}plots/",
     f"{MOD_STRUCT}plots/", f"{MOD_STRUCT}tables/",
     *[f"{MOD_STRUCT}plots/K{k}/" for k in k_range(K_START, K_END)],
     *[f"{MOD_STRUCT}tables/K{k}/" for k in k_range(K_START, K_END)],
@@ -909,11 +957,17 @@ def get_targets(mode):
         targets = [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
             W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata'],
+            # QC outputs
+            O['qc_raw_summary'], O['qc_filtering_summary'], O['qc_sample_het'],
+            O['qc_plot_sample_miss'], O['qc_plot_het_miss'],
+            O['qc_plot_maf'], O['qc_plot_snp_miss'],
+            O['qc_plot_attrition'], O['qc_plot_snp_density'],
             W['summary_done']
         ]
-        # Add normalized GFF if GFF is provided
         if GFF:
             targets.append(W['gff_normalized'])
+        if HAS_FORMAT_DP:
+            targets.append(O['qc_plot_depth'])
         return targets
     
     elif mode == 'structure':
