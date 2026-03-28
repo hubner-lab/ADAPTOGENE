@@ -49,7 +49,7 @@ elif MODE == 'structure_K':
         output: W['summary_done']
         params:
             k = K_BEST,
-            predictors = PREDICTORS_SELECTED if CLIMATE_ENABLED else 'NULL',
+            predictors = ALL_BIO_STR if CLIMATE_ENABLED else 'NULL',
             climate_site_path = O['climate_site'] if CLIMATE_ENABLED else 'NULL',
             summary_tsv = O['summary'],
             ld_decay_path = O['ld_decay_table'],

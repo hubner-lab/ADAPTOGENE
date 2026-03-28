@@ -37,10 +37,12 @@ mod_image_card_ui <- function(id, height = "auto") {
 #' @param title reactive string for card header title
 #' @param dl_name reactive string used as download filename base (no extension)
 #' @param placeholder reactive string shown when path is unavailable
+#' @param suggestion reactive string shown as smaller hint text below placeholder message
 #' @noRd
 mod_image_card_server <- function(id, path, title = shiny::reactive("Plot"),
                                    dl_name = shiny::reactive("plot"),
-                                   placeholder = shiny::reactive("Plot not available")) {
+                                   placeholder = shiny::reactive("Plot not available"),
+                                   suggestion  = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -52,7 +54,7 @@ mod_image_card_server <- function(id, path, title = shiny::reactive("Plot"),
                 shiny::imageOutput(ns("img"), height = "auto",
                                    width = "100%", inline = FALSE)
             } else {
-                plot_placeholder(placeholder())
+                plot_placeholder(placeholder(), suggestion())
             }
         })
 

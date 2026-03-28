@@ -135,7 +135,7 @@ rule mantel_test:
     input:  meta = O['metadata'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
     output: O['mantel']
     params:
-        predictors = PREDICTORS_SELECTED,
+        predictors = ALL_BIO_STR,
         plot_dir = f"{MOD_STRUCTK}plots/pop_stats/",
         inter_dir = INTER
     log: f"{LOGDIR}structure_k/mantel_test.log"

@@ -25,18 +25,18 @@ map:
   resolution: 0.5
   zoom_extent: 'NULL'
 climate:
-  enabled: 'true'
+  enabled: true
   predictors: bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15
 pop:
-  calc_stats: 'false'
+  calc_stats: false
   window_size: 3000000
   custom_trait_file: 'NULL'
 piemap:
   alpha: 0.6
-  show_labels: 'false'
+  show_labels: false
   label_size: 8
   pie_scale: 1.0
-  use_points: 'false'
+  use_points: false
 ld_decay:
   group_by: site
   min_samples: 10
@@ -82,7 +82,7 @@ gradient_forest:
   cor_threshold: '0.5'
   spatial_correction: with
   run_label: EMMAX_bonf005
-  random_model: 'true'
+  random_model: true
 overlap:
   pairwise:
     window_size: 500000
