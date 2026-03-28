@@ -359,6 +359,7 @@ p_attrition <- ggplot(attrition_snps, aes(x = stage, y = n_snps)) +
     geom_text(aes(label = paste0(n_snps, "\n(", pct_snps, "%)")),
               vjust = -0.3, size = 3) +
     scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 18)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
     labs(
         title = "SNP retention through filtering pipeline",
         x = NULL,
