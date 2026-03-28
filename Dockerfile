@@ -71,6 +71,7 @@ RUN Rscript -e "install.packages('remotes')"
 # Core tidyverse and data manipulation (pinned versions)
 RUN Rscript -e " \
     remotes::install_version('ggplot2', version = '3.5.1'); \
+    remotes::install_version('ggrepel', version = '0.9.6'); \
     remotes::install_version('dplyr', version = '1.1.4'); \
     remotes::install_version('tidyr', version = '1.3.1'); \
     remotes::install_version('tibble', version = '3.2.1'); \
@@ -206,6 +207,7 @@ RUN git clone --depth 1 https://github.com/r-forge/gradientforest.git /tmp/gf &&
 RUN Rscript -e " \
     stopifnot(packageVersion('topr') >= '2.0.0'); \
     stopifnot(packageVersion('ggplot2') >= '3.5.0'); \
+    stopifnot(packageVersion('ggrepel') >= '0.9.0'); \
     stopifnot(requireNamespace('gradientForest', quietly = TRUE)); \
     stopifnot(requireNamespace('crosshap', quietly = TRUE)); \
     stopifnot(requireNamespace('GAPIT', quietly = TRUE)); \

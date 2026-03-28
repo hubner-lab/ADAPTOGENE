@@ -21,6 +21,9 @@ filter:
   maf: 0.05                     # Minor allele frequency threshold (remove rare variants)
   snp_miss: 0.1                 # Max SNP missingness (remove SNPs missing in >10% samples)
   sample_miss: 0.5              # Max sample missingness (remove samples with >50% missing)
+  min_depth: null               # Optional: mask genotypes with FORMAT/DP < N (null = skip; requires DP field in VCF)
+  max_depth: null               # Optional: mask genotypes with FORMAT/DP > N (null = skip; requires DP field in VCF)
+  het_outlier_sd: null          # Optional: remove samples with heterozygosity beyond N SDs from mean (null = skip)
 
 #-----------------------------------------------------------------------------
 # LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)

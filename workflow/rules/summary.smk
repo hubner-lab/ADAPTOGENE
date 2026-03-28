@@ -7,20 +7,30 @@ if MODE == 'processing':
     rule write_summary:
         """Write processing mode summary to Pipeline_summary.tsv."""
         input:
-            vcf_filt = W['vcf_filt'],
-            vcf_ld = W['vcf_ld'],
-            samples_list = W['samples_list'],
-            samples_filtered = W['samples_filtered'],
-            samples_removed = W['samples_removed']
+            vcf_filt           = W['vcf_filt'],
+            vcf_ld             = W['vcf_ld'],
+            samples_list       = W['samples_list'],
+            samples_filtered   = W['samples_filtered'],
+            samples_removed    = W['samples_removed'],
+            qc_raw_summary     = O['qc_raw_summary'],
+            filtering_summary  = O['qc_filtering_summary'],
+            plot_done          = O['qc_plot_attrition'],
+            depth_summary      = O['qc_depth_site'] if HAS_FORMAT_DP else []
         output: W['summary_done']
-        params: summary_tsv = O['summary']
+        params:
+            summary_tsv    = O['summary'],
+            het_outlier_sd = HET_OUTLIER_SD if HET_OUTLIER_SD is not None else 'NULL',
+            has_dp         = 'TRUE' if HAS_FORMAT_DP else 'FALSE',
+            depth_summary  = f"{MOD_PROC}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL'
         log: f"{LOGDIR}processing/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 processing {params.summary_tsv} \
                 {input.vcf_filt} {input.vcf_ld} \
-                {input.samples_list} {input.samples_filtered} {input.samples_removed} > {log} 2>&1
+                {input.samples_list} {input.samples_filtered} {input.samples_removed} \
+                {input.qc_raw_summary} {input.filtering_summary} \
+                {params.het_outlier_sd} {params.has_dp} {params.depth_summary} > {log} 2>&1
             touch {output}
             """
 
