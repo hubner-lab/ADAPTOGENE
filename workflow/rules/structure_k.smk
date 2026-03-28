@@ -49,11 +49,11 @@ rule download_climate_present:
         """
 
 rule density_plot:
-    """Generate combined density plot for all climate predictors."""
+    """Generate combined density plot for all climate predictors (all BIO columns)."""
     input:  climate = O['climate_site']
     output: DENSITY_PLOT_COMBINED
     params:
-        predictors = PREDICTORS_SELECTED,
+        predictors = "all",
         inter_dir = INTER
     log:    f"{LOGDIR}structure_k/density_plot.log"
     shell:
@@ -61,6 +61,21 @@ rule density_plot:
         Rscript /pipeline/scripts/plot_density.R \
             {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
+
+if META_HAS_PHENO:
+    rule density_plot_phenotypes:
+        """Generate combined density plot for phenotype traits (metadata columns 5+)."""
+        input:  meta = O['metadata']
+        output: DENSITY_PLOT_PHENOTYPES
+        params:
+            predictors = "all",
+            inter_dir = INTER
+        log:    f"{LOGDIR}structure_k/density_plot_phenotypes.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/plot_density.R \
+                {input.meta} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
+            """
 
 rule tajima_d:
     """Calculate Tajima's D per population."""
@@ -120,7 +135,7 @@ rule mantel_test:
     input:  meta = O['metadata'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
     output: O['mantel']
     params:
-        predictors = PREDICTORS_SELECTED,
+        predictors = ALL_BIO_STR,
         plot_dir = f"{MOD_STRUCTK}plots/pop_stats/",
         inter_dir = INTER
     log: f"{LOGDIR}structure_k/mantel_test.log"

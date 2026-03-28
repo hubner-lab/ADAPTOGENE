@@ -198,6 +198,13 @@ def _cfg(group, key, default=None):
     """Read config[group][key] with fallback to default."""
     return config.get(group, {}).get(key, default)
 
+def _cfg_bool(group, key, default=False):
+    """Read a boolean config value, handling YAML string representations ('false'/'true')."""
+    val = _cfg(group, key, default)
+    if isinstance(val, bool): return val
+    if isinstance(val, str): return val.strip().lower() not in ('false', 'f', '0', 'no', '')
+    return bool(val)
+
 # INPUT parameters
 INDIR = '/pipeline/' + config['input']['dir']
 PROJECT = config['project_name']
@@ -258,20 +265,24 @@ def get_zoom_suffix():
     return f"_zoom_{coords}"
 
 # CLIMATE parameters
-CLIMATE_ENABLED = _cfg('climate', 'enabled', True)
+CLIMATE_ENABLED = _cfg_bool('climate', 'enabled', True)
 PREDICTORS_SELECTED = _cfg('climate', 'predictors', '') if CLIMATE_ENABLED else ''
 
+# All 19 WorldClim bioclimatic variables — always available in the raster stack
+ALL_BIO     = [f"bio_{i}" for i in range(1, 20)]
+ALL_BIO_STR = ",".join(ALL_BIO)
+
 # POP parameters
-CALC_POP_STATS = _cfg('pop', 'calc_stats', False)
+CALC_POP_STATS = _cfg_bool('pop', 'calc_stats', False)
 METRICS_WINSIZE = _cfg('pop', 'window_size', 10000)
 CUSTOM_TRAIT = _cfg('pop', 'custom_trait_file', 'NULL')
 
 # PIEMAP parameters (palette fixed to viridis plasma)
 PIEMAP_ALPHA = _cfg('piemap', 'alpha', 0.6)
-PIEMAP_SHOW_LABELS = _cfg('piemap', 'show_labels', 'F')
+PIEMAP_SHOW_LABELS = 'T' if _cfg_bool('piemap', 'show_labels', False) else 'F'
 PIEMAP_LABEL_SIZE = _cfg('piemap', 'label_size', 10)
 PIEMAP_PIE_SCALE = _cfg('piemap', 'pie_scale', 1.0)
-PIEMAP_USE_POINTS = 'T' if _cfg('piemap', 'use_points', False) else 'F'
+PIEMAP_USE_POINTS = 'T' if _cfg_bool('piemap', 'use_points', False) else 'F'
 
 # LD DECAY parameters
 _ld_decay = config.get('ld_decay', {})
@@ -407,11 +418,15 @@ PAIRWISE_MIN_SNPS    = int(_pairwise.get('min_snps', 2))
 # Discover phenotype traits from metadata columns 5+ (for directory creation and wildcards)
 PHENO_TRAITS = []
 PHENO_PREDICTORS = ''
+_meta_path = os.path.join(INDIR, SAMPLES)
+try:
+    with open(_meta_path) as _f:
+        _meta_header = _f.readline().strip().split('\t')
+    META_HAS_PHENO = len(_meta_header) > 4
+except Exception:
+    META_HAS_PHENO = False
 if PHENO_ASSOC_CONFIGS:
-    _meta_path = os.path.join(INDIR, SAMPLES)
-    with open(_meta_path) as f:
-        _header = f.readline().strip().split('\t')
-    PHENO_TRAITS = _header[4:]  # columns after longitude
+    PHENO_TRAITS = _meta_header[4:] if META_HAS_PHENO else []
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
 # HAPLOTYPE parameters
@@ -803,7 +818,8 @@ def pca_struct_plot(k): return f"{MOD_STRUCT}plots/K{k}/pca_structure_K{k}.png"
 def pop_diff_plot(k): return f"{MOD_STRUCT}plots/K{k}/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
-DENSITY_PLOT_COMBINED = f"{MOD_CLIMATE}plots/density_plot_present.png"
+DENSITY_PLOT_COMBINED    = f"{MOD_CLIMATE}plots/density_plot_present.png"
+DENSITY_PLOT_PHENOTYPES  = f"{MOD_CLIMATE}plots/density_plot_phenotypes.png"
 def piemap_tajima(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_tajima_d.png"
 def piemap_diversity(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_pi_diversity.png"
 def piemap_notrait(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}.png"
@@ -988,24 +1004,23 @@ def get_targets(mode):
 
         # Climate-dependent targets
         if CLIMATE_ENABLED:
-            predictors = get_predictors_list()
-            if not predictors:
-                raise ValueError("climate.predictors must be set when climate.enabled is true")
             targets += [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']]
             targets += [DENSITY_PLOT_COMBINED]
             targets += [O['corr_heatmap']]
-            # Simple PieMaps (uniform pie size)
-            targets += [piemap_notrait(bio) for bio in predictors]
+            # Simple PieMaps for ALL 19 BIO variables (exploration step)
+            targets += [piemap_notrait(bio) for bio in ALL_BIO]
+        if META_HAS_PHENO:
+            targets += [DENSITY_PLOT_PHENOTYPES]
 
         # Population statistics (requires >= 3 samples per population)
         if CALC_POP_STATS:
             targets += [O['tajima'], O['pi_div'], O['ibd_raw'], O['ibd_pairs']]
             targets += [O['amova'], O['amova_plot']]
             if CLIMATE_ENABLED:
-                targets += [O['mantel']]  # mantel test needs climate predictors
-                # PieMaps with trait overlays
-                targets += [piemap_tajima(bio) for bio in predictors]
-                targets += [piemap_diversity(bio) for bio in predictors]
+                targets += [O['mantel']]
+                # PieMaps with trait overlays for ALL 19 BIO variables
+                targets += [piemap_tajima(bio) for bio in ALL_BIO]
+                targets += [piemap_diversity(bio) for bio in ALL_BIO]
 
         # LD decay — table always produced
         targets.append(O['ld_decay_table'])

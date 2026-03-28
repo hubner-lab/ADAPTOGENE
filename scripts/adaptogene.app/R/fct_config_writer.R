@@ -60,10 +60,7 @@ write_project_config <- function(config, project,
     # Write to temp file in same directory (atomic rename requires same fs)
     tmp <- tempfile(tmpdir = dirname(dest), fileext = ".yaml")
     result <- tryCatch({
-        yaml::write_yaml(prepared, tmp,
-                         handlers = list(
-                             logical = function(x) if (isTRUE(x)) "true" else "false"
-                         ))
+        yaml::write_yaml(prepared, tmp)
         file.rename(tmp, dest)
         invisible(dest)
     }, error = function(e) {

@@ -89,7 +89,16 @@ mod_pipeline_runner_ui <- function(id, btn_label = NULL, mode_override = NULL) {
             )
         ),
 
-        # Row 3: Collapsible rule list (hidden by default)
+        # Row 3: Warning summary (hidden until warnings found after completion)
+        shinyjs::hidden(
+            htmltools::div(
+                id    = ns("warning_container"),
+                class = "pipeline-warnings mt-2",
+                shiny::uiOutput(ns("warning_summary"))
+            )
+        ),
+
+        # Row 4: Collapsible rule list (hidden by default)
         shinyjs::hidden(
             htmltools::div(
                 id    = ns("rule_list_container"),
@@ -123,6 +132,7 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
         rules_expanded   <- shiny::reactiveVal(FALSE)
         selected_log     <- shiny::reactiveVal(NULL)
         cached_progress  <- shiny::reactiveVal(list()) # last read progress; updated only while running
+        shown_warnings   <- shiny::reactiveVal(integer(0)) # line numbers of warnings already toasted
 
         # ── Run button ──────────────────────────────────────────────────────────
         shiny::observeEvent(input$run_btn, {
@@ -168,9 +178,11 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
             pipeline_running(TRUE)
             run_status("running")
 
-            # Reset rule list state for new run
+            # Reset rule list + warning state for new run
             rules_expanded(FALSE)
+            shown_warnings(integer(0))
             shinyjs::hide("rule_list_container")
+            shinyjs::hide("warning_container")
 
             # Reset progress bar to initial animated state
             shinyjs::runjs(sprintf(
@@ -226,6 +238,22 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
                  b.className = "%s";',
                 ns("progress_bar_inner"), pct, bar_class
             ))
+
+            # Toast new warnings as they appear in the log
+            warns <- pipeline_read_warnings(config_state$project)
+            if (nrow(warns) > 0) {
+                new_w <- warns[!warns$line %in% shown_warnings(), , drop = FALSE]
+                for (i in seq_len(nrow(new_w))) {
+                    shiny::showNotification(
+                        htmltools::tagList(
+                            bsicons::bs_icon("exclamation-triangle", size = "0.9em"), " ",
+                            new_w$message[i]
+                        ),
+                        type = "warning", duration = 8
+                    )
+                }
+                if (nrow(new_w) > 0) shown_warnings(c(shown_warnings(), new_w$line))
+            }
         })
 
         # ── Detect completion ───────────────────────────────────────────────────
@@ -272,6 +300,12 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
                 )
             }
             # Keep progress_container visible after completion so user can review
+
+            # Show warning summary if any warnings were found
+            warns <- pipeline_read_warnings(config_state$project)
+            if (nrow(warns) > 0) {
+                shinyjs::show("warning_container")
+            }
         })
 
         # ── Disable run when another tab is running ─────────────────────────────
@@ -288,7 +322,9 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
             run_status("idle")
             shinyjs::hide("progress_container")
             shinyjs::hide("rule_list_container")
+            shinyjs::hide("warning_container")
             rules_expanded(FALSE)
+            shown_warnings(integer(0))
         }, ignoreInit = TRUE)
 
         # ── Toggle rule list ────────────────────────────────────────────────────
@@ -362,6 +398,34 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
             htmltools::p(
                 class = "pipeline-progress-label small text-muted mb-0",
                 paste0(n_done, "/", total_str, " rules", rule_str)
+            )
+        })
+
+        # ── Warning summary (shown after run if warnings exist) ─────────────────
+        output$warning_summary <- shiny::renderUI({
+            st <- run_status()
+            if (!st %in% c("success", "failed")) return(NULL)
+
+            warns <- pipeline_read_warnings(config_state$project)
+            if (nrow(warns) == 0) return(NULL)
+
+            htmltools::tagList(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-1",
+                    bsicons::bs_icon("exclamation-triangle-fill",
+                                     class = "text-warning", size = "0.85em"),
+                    htmltools::strong(
+                        class = "small",
+                        paste0(nrow(warns), " warning", if (nrow(warns) > 1) "s" else "",
+                               " during run")
+                    )
+                ),
+                htmltools::tags$ul(
+                    class = "mb-0 ps-3",
+                    lapply(warns$message, function(m) {
+                        htmltools::tags$li(class = "small", m)
+                    })
+                )
             )
         })
 

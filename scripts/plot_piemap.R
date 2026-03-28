@@ -298,6 +298,29 @@ if (SIZE_TRAIT != "NULL" && file.exists(SIZE_TRAIT)) {
 # Parse population label setting
 pop_labels <- toupper(substr(POP_LABEL, 1, 1)) == 'T'
 
+# Detect near-zero spatial variance of the climate variable at sampling sites
+site_coords <- unique(samples[, .(site, longitude, latitude)])
+site_extracted <- terra::extract(rlayer, cbind(site_coords$longitude, site_coords$latitude))
+site_climate_vals <- site_extracted[, 1]
+site_climate_vals <- site_climate_vals[!is.na(site_climate_vals)]
+climate_range <- if (length(site_climate_vals) >= 2) diff(range(site_climate_vals)) else 0
+climate_mean  <- if (length(site_climate_vals) >= 1) mean(site_climate_vals) else 0
+has_spatial_variance <- climate_range > max(0.01, abs(climate_mean) * 0.01)
+
+if (!has_spatial_variance) {
+  flag_file <- paste0(PLOT_DIR, OUTPUT_PREFIX, "_no_spatial_variance.flag")
+  writeLines(c(
+    paste0("variable=", RASTER_LEGEND),
+    paste0("range=",    round(climate_range, 6)),
+    paste0("mean=",     round(climate_mean,  6))
+  ), flag_file)
+  message(paste0("WARNING: Climate variable '", RASTER_LEGEND,
+                 "' shows near-zero spatial variance across sampling sites ",
+                 "(range=", round(climate_range, 6), "). ",
+                 "Piemap generated but may not be informative. ",
+                 "Flag written: ", flag_file))
+}
+
 # Calculate pie size range based on map extent
 pie_size_range <- calculate_pie_size_range(rlayer)
 

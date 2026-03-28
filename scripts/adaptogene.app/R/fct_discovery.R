@@ -20,12 +20,17 @@ find_k_values <- function(project) {
 #' @noRd
 find_k_range <- function(project) {
     struct_plots <- mod_path(project, MOD_STRUCT, "plots")
-    files <- list.files(struct_plots, pattern = "^cross_entropy_K.*\\.png$")
-    if (length(files) == 0) return(list(k_start = NA, k_end = NA))
-    m <- regmatches(files[1], regexpr("K(\\d+)-(\\d+)", files[1]))
-    if (length(m) == 0) return(list(k_start = NA, k_end = NA))
+    files <- list.files(struct_plots, pattern = "^cross_entropy_K.*\\.png$",
+                        full.names = TRUE)
+    if (length(files) == 0) return(list(k_start = NA, k_end = NA, path = NULL))
+    # Match floats or integers: K2-10 or K2.0-10.0
+    m <- regmatches(basename(files[1]),
+                    regexpr("K([0-9.]+)-([0-9.]+)", basename(files[1])))
+    if (length(m) == 0) return(list(k_start = NA, k_end = NA, path = files[1]))
     parts <- strsplit(gsub("^K", "", m), "-")[[1]]
-    list(k_start = as.integer(parts[1]), k_end = as.integer(parts[2]))
+    list(k_start = as.integer(as.numeric(parts[1])),
+         k_end   = as.integer(as.numeric(parts[2])),
+         path    = files[1])
 }
 
 #' Find all association methods available for a module

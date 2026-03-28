@@ -144,8 +144,8 @@ create_variance_pie <- function(results) {
       legend.position = "right",
       legend.title = element_blank(),
       legend.text = element_text(size = 10),
-      panel.background = element_blank(),
-      plot.background = element_blank()
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.background = element_rect(fill = "white", color = NA)
     ) +
     guides(fill = guide_legend(title = NULL))
 
@@ -205,6 +205,20 @@ if (any(!complete_rows)) {
 
 env <- scale(env_raw)
 
+# Drop zero-variance predictors (scale() produces NaN when sd=0)
+zero_var <- apply(env, 2, function(x) all(is.nan(x)))
+if (any(zero_var)) {
+  dropped <- colnames(env)[zero_var]
+  message(sprintf('WARNING: Dropping %d zero-variance predictor(s): %s',
+                  length(dropped), paste(dropped, collapse = ', ')))
+  env <- env[, !zero_var, drop = FALSE]
+}
+
+if (ncol(env) == 0) {
+  stop('ERROR: All predictors have zero variance — cannot compute environmental distances. ',
+       'Check that PREDICTORS_SELECTED contains variables with variation across sites.')
+}
+
 # Run Mantel analysis
 results <- analyze_mantel(geo, env, clust)
 
@@ -212,9 +226,9 @@ results <- analyze_mantel(geo, env, clust)
 gMantel <- create_variance_pie(results)
 
 # Save
-ggsave(paste0(PLOT_DIR, 'mantel_test.png'), gMantel, width = 10, height = 8, dpi = 300)
+ggsave(paste0(PLOT_DIR, 'mantel_test.png'), gMantel, width = 10, height = 8, dpi = 300, bg = "white")
 ggsave(paste0(PLOT_DIR, 'mantel_test.svg'), gMantel,
-       device = svglite::svglite, bg = 'transparent', fix_text_size = FALSE)
+       device = svglite::svglite, bg = 'white', fix_text_size = FALSE)
 qsave(results, paste0(INTER_DIR, 'mantel_test.qs'))
 
 message('INFO: Mantel test complete')

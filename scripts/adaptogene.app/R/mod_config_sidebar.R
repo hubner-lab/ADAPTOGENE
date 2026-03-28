@@ -76,7 +76,7 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
             proj <- config_state$project
             last_project(proj)
 
-            cfg <- if (!is.null(proj)) config_state$working else list()
+            cfg <- if (!is.null(proj)) shiny::isolate(config_state$working) else list()
 
             if (length(entries) == 0)
                 return(htmltools::p(class = "text-muted small p-2",

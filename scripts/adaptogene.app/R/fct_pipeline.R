@@ -277,3 +277,30 @@ pipeline_read_log_tail <- function(log_path, n = 200L) {
 pipeline_run_log_path <- function(project, pipeline_path = get_pipeline_path()) {
     file.path(pipeline_path, paste0(project, "_logs"), ".run.log")
 }
+
+#' Extract WARNING lines from the main run log
+#'
+#' Scans the .run.log for lines starting with WARNING: or WARN:.
+#' Returns a data.frame with $message (stripped prefix) and $line (line number).
+#' Used by mod_pipeline_runner to show toast notifications and the warning summary.
+#'
+#' @param project project name
+#' @param pipeline_path pipeline root path
+#' @return data.frame with columns: message, line
+#' @noRd
+pipeline_read_warnings <- function(project, pipeline_path = get_pipeline_path()) {
+    log_path <- pipeline_run_log_path(project, pipeline_path)
+    if (!file.exists(log_path)) return(data.frame(message = character(0), line = integer(0)))
+
+    lines <- tryCatch(readLines(log_path, warn = FALSE), error = function(e) character(0))
+    if (length(lines) == 0) return(data.frame(message = character(0), line = integer(0)))
+
+    warn_idx <- grep("^WARNING:|^WARN:", lines, ignore.case = TRUE)
+    if (length(warn_idx) == 0) return(data.frame(message = character(0), line = integer(0)))
+
+    data.frame(
+        message = sub("^WARNING:\\s*|^WARN:\\s*", "", lines[warn_idx], ignore.case = TRUE),
+        line    = warn_idx,
+        stringsAsFactors = FALSE
+    )
+}

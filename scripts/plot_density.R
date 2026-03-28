@@ -18,8 +18,24 @@ INTER_DIR = args[4]
 OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
 OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
 
-# Parse predictors
-bio_vars <- strsplit(PREDICTORS, ",")[[1]]
+# Load data
+climate <- fread(CLIMATE)
+message(paste0('INFO: Loaded data with ', nrow(climate), ' rows and ', ncol(climate), ' columns'))
+
+# Parse predictors — "all" means auto-detect numeric columns (exclude metadata cols)
+if (PREDICTORS == "all" || PREDICTORS == "") {
+  exclude_cols <- c("site", "sample", "latitude", "longitude", "lat", "lon")
+  all_cols <- colnames(climate)
+  bio_vars <- all_cols[!tolower(all_cols) %in% tolower(exclude_cols)]
+  bio_vars <- bio_vars[vapply(bio_vars, function(x) is.numeric(climate[[x]]), logical(1))]
+} else {
+  bio_vars <- strsplit(PREDICTORS, ",")[[1]]
+}
+
+# Sort numerically if columns follow a pattern like bio_N or trait_N
+nums <- suppressWarnings(as.integer(gsub(".*_(\\d+)$", "\\1", bio_vars)))
+if (!any(is.na(nums))) bio_vars <- bio_vars[order(nums)]
+
 message(paste0('INFO: Creating density plots for ', length(bio_vars), ' predictors'))
 
 # Plot theme
@@ -29,10 +45,6 @@ plot_theme <-
         axis.text = element_text(size = 9),
         axis.title = element_text(face = "bold", size = 10),
         plot.margin = margin(5, 10, 5, 10))
-
-# Load climate data
-climate <- fread(CLIMATE)
-message(paste0('INFO: Loaded climate data with ', nrow(climate), ' sites'))
 
 # Create individual density plots
 plot_list <- list()

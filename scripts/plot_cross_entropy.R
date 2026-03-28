@@ -37,7 +37,8 @@ gCrossEntropy <-
   setNames(K_START:K_END) %>%
   enframe %>%
   dplyr::arrange(as.numeric(name)) %>%
-  ggplot(aes(x = paste0('K', name), y = value)) +
+  ggplot(aes(x = factor(paste0('K', name),
+                         levels = paste0('K', K_START:K_END)), y = value)) +
     geom_point() +
     plot_theme +
     labs(x = 'Number of ancestral populations',

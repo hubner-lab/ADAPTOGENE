@@ -36,10 +36,11 @@ mod_structure_k_ui <- function(id) {
                 "Climate Plots",
                 value = "climate",
                 icon  = bsicons::bs_icon("thermometer-half"),
+                mod_image_card_ui(ns("climate_heatmap")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
-                    mod_image_card_ui(ns("climate_heatmap")),
-                    mod_image_card_ui(ns("climate_density"))
+                    mod_image_card_ui(ns("climate_density")),
+                    mod_image_card_ui(ns("phenotype_density"))
                 )
             ),
 
@@ -82,10 +83,16 @@ mod_structure_k_server <- function(id, project_data) {
 
         # ── Sidebar selectors ──────────────────────────────────────────────────
         output$bio_selector <- shiny::renderUI({
-            bios <- bio_values()
-            if (length(bios) == 0) return(shiny::p("No piemaps found.", class = "text-muted small"))
-            choices <- setNames(bios, paste0("bio", bios))
-            shiny::selectInput(ns("bio"), "Bio variable", choices = choices, selected = bios[1])
+            available <- bio_values()
+            all_bios  <- 1:19
+            labels <- ifelse(
+                all_bios %in% available,
+                paste0("bio", all_bios),
+                paste0("bio", all_bios, " (unavailable)")
+            )
+            choices  <- setNames(all_bios, labels)
+            selected <- if (length(available) > 0) available[1] else 1L
+            shiny::selectInput(ns("bio"), "Bio variable", choices = choices, selected = selected)
         })
 
         output$metric_selector <- shiny::renderUI({
@@ -157,6 +164,11 @@ mod_structure_k_server <- function(id, project_data) {
                 path    = shiny::reactive(climate_density_path(pd$name)),
                 title   = shiny::reactive("Climate Density (Present)"),
                 dl_name = shiny::reactive("climate_density_present")
+            )
+            mod_image_card_server("phenotype_density",
+                path    = shiny::reactive(phenotype_density_path(pd$name)),
+                title   = shiny::reactive("Phenotype Density"),
+                dl_name = shiny::reactive("phenotype_density")
             )
         })
 
