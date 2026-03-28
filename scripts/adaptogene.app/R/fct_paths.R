@@ -132,11 +132,18 @@ selected_snps_path <- function(project, module = MOD_ASSOC) {
     mod_path(project, module, "tables", fname)
 }
 
-#' Per-method sig SNPs table
+#' Per-method sig SNPs table (glob pattern for discovery)
 #' @noRd
 method_sigsnps_path <- function(project, module = MOD_ASSOC, method, adjust) {
     mod_path(project, module, "tables", "methods", method,
              paste0(method, "_pvalues_K*_sig_snps_", adjust, ".tsv"))
+}
+
+#' Per-method sig SNPs table (exact K — for loading in Shiny overlay)
+#' @noRd
+method_sigsnps_direct_path <- function(project, module = MOD_ASSOC, method, k, adjust) {
+    mod_path(project, module, "tables", "methods", method,
+             paste0(method, "_pvalues_K", k, "_sig_snps_", adjust, ".tsv"))
 }
 
 #' Per-trait regions table

@@ -120,11 +120,6 @@ mod_manhattan_overlay_server <- function(id, project_data,
             }
         })
 
-        sig_snps_path <- shiny::reactive({
-            pd <- project_data()
-            selected_snps_path(pd$name, module)
-        })
-
         # ── Load data ──────────────────────────────────────────────────────────
         coords <- shiny::reactive({
             load_cached(paste0("coords_", coords_path()), function() {
@@ -133,11 +128,31 @@ mod_manhattan_overlay_server <- function(id, project_data,
         })
 
         sig_snps <- shiny::reactive({
-            path <- sig_snps_path()
-            load_cached(paste0("sig_snps_", path), function() {
-                load_selected_snps(project_data()$name, module)
-            })
-        }) |> shiny::bindCache(project_data()$name, module)
+            pd <- project_data()
+
+            if (!combined && !is_miami) {
+                # Per-method view: load method-specific file with actual per-method p-values.
+                # The combined selected_snps.tsv uses min_pvalue across all methods, which
+                # causes sig SNP dots to be clipped above the method-specific y_range.
+                m   <- method(); t <- trait()
+                k   <- pd$k_best
+                adj <- resolve_adjust(pd$config, m,
+                    if (module == MOD_PHENO) "phenotype_association" else "association")
+                shiny::req(m, k, adj)
+                cache_key <- paste0("method_sigsnps_", pd$name, "_", module,
+                                    "_", m, "_", k, "_", adj)
+                load_cached(cache_key, function() {
+                    load_method_sigsnps(pd$name, module, m, k, adj)
+                })
+            } else {
+                # Combined / Miami: use selected_snps.tsv (min_pvalue is correct here
+                # because the combined background PNG spans all methods' y-range)
+                path <- selected_snps_path(pd$name, module)
+                load_cached(paste0("sig_snps_", path), function() {
+                    load_selected_snps(pd$name, module)
+                })
+            }
+        })
 
         # ── Render plotly ──────────────────────────────────────────────────────
         output$overlay <- plotly::renderPlotly({
@@ -147,11 +162,10 @@ mod_manhattan_overlay_server <- function(id, project_data,
             bg_uri <- if (file_ok(bg)) encode_background_png(bg) else NULL
 
             snps <- sig_snps()
-            # Filter to current method/trait if not combined
+            # For per-method views the loaded data is already method-specific;
+            # only filter by trait. For combined/Miami, no filtering needed.
             if (!combined && !is_miami && nrow(snps) > 0) {
-                m <- method(); t <- trait()
-                if (!is.null(m) && "method" %in% names(snps))
-                    snps <- snps[snps$method == m, ]
+                t <- trait()
                 if (!is.null(t) && "trait" %in% names(snps))
                     snps <- snps[snps$trait == t, ]
             }

@@ -32,6 +32,52 @@ load_regions_combined <- function(project, module = MOD_ASSOC) {
     }, error = function(e) data.table::data.table())
 }
 
+#' Assign region_id to a SNP data.table via coordinate-based foverlaps lookup.
+#'
+#' Uses regions_combined.tsv to map each SNP position to its enclosing region.
+#' Region IDs are in combined format (chr_start-end, no trait suffix).
+#' @param snps_dt data.table with columns SNPID, chr, pos
+#' @param project project name
+#' @param module pipeline module (MOD_ASSOC, MOD_PHENO, MOD_OVERLAP)
+#' @return snps_dt with region_id column added (NA for SNPs outside any region)
+#' @noRd
+assign_region_ids <- function(snps_dt, project, module) {
+    reg_combined_path <- regions_combined_path(project, module)
+    snps_dt[, region_id := NA_character_]
+    if (!file.exists(reg_combined_path)) return(snps_dt)
+    regs <- tryCatch(
+        data.table::fread(reg_combined_path, sep = "\t", header = TRUE,
+                          colClasses = c(chr = "character", region_id = "character")),
+        error = function(e) data.table::data.table()
+    )
+    if (nrow(regs) == 0 || !all(c("chr", "start", "end", "region_id") %in% names(regs)))
+        return(snps_dt)
+
+    regs_ov <- data.table::data.table(
+        chr       = as.character(regs$chr),
+        start     = as.integer(regs$start),
+        end       = as.integer(regs$end),
+        region_id = as.character(regs$region_id)
+    )
+    snp_pos <- unique(snps_dt[, .(SNPID, chr = as.character(chr), pos = as.integer(pos))])
+    snp_ov  <- data.table::data.table(
+        SNPID = snp_pos$SNPID,
+        chr   = snp_pos$chr,
+        start = snp_pos$pos,
+        end   = snp_pos$pos
+    )
+    data.table::setkey(regs_ov, chr, start, end)
+    data.table::setkey(snp_ov,  chr, start, end)
+    ov <- data.table::foverlaps(snp_ov, regs_ov,
+        by.x = c("chr", "start", "end"),
+        by.y = c("chr", "start", "end"),
+        type = "within", mult = "first", nomatch = NA)
+    rid_map <- ov[, .(SNPID, region_id)]
+    snps_dt[rid_map, region_id := i.region_id, on = "SNPID"]
+    snps_dt[, region_id := as.character(region_id)]
+    snps_dt
+}
+
 #' Load selected SNPs table (all sig SNPs) and pivot wide→long
 #'
 #' Pipeline outputs wide format: SNPID, chr, pos, {METHOD1, METHOD2, ...}, min_pvalue
@@ -73,46 +119,38 @@ load_selected_snps <- function(project, module = MOD_ASSOC) {
             }, by = seq_len(nrow(long))][, seq_len := NULL]
         }
 
-        # Use min_pvalue as pvalue (background PNG handles per-method rendering)
+        # Use min_pvalue as pvalue (combined background PNG spans all methods' y-range)
         long[, pvalue := min_pvalue]
         long[, min_pvalue := NULL]
 
-        # Assign region_id using coordinate-based lookup against regions_combined.
-        # This ensures region_ids match the dropdown (combined format without trait suffix).
-        reg_combined_path <- regions_combined_path(project, module)
-        if (file.exists(reg_combined_path)) {
-            regs <- data.table::fread(reg_combined_path, sep = "\t", header = TRUE,
-                                      colClasses = c(chr = "character", region_id = "character"))
-            if (nrow(regs) > 0 && all(c("chr", "start", "end", "region_id") %in% names(regs))) {
-                regs_ov <- data.table::data.table(
-                    chr       = as.character(regs$chr),
-                    start     = as.integer(regs$start),
-                    end       = as.integer(regs$end),
-                    region_id = as.character(regs$region_id)
-                )
-                # One row per unique SNP position for foverlaps
-                snp_pos <- unique(long[, .(SNPID, chr = as.character(chr), pos = as.integer(pos))])
-                snp_ov  <- data.table::data.table(
-                    SNPID = snp_pos$SNPID,
-                    chr   = snp_pos$chr,
-                    start = snp_pos$pos,
-                    end   = snp_pos$pos
-                )
-                data.table::setkey(regs_ov, chr, start, end)
-                data.table::setkey(snp_ov,  chr, start, end)
-                ov <- data.table::foverlaps(snp_ov, regs_ov,
-                    by.x = c("chr", "start", "end"),
-                    by.y = c("chr", "start", "end"),
-                    type = "within", mult = "first", nomatch = NA)
-                rid_map <- ov[, .(SNPID, region_id)]
-                long <- rid_map[long, on = "SNPID"]
-            }
-        }
-
-        if (!"region_id" %in% names(long)) long[, region_id := NA_character_]
-        long[, region_id := as.character(region_id)]
-
+        long <- assign_region_ids(long, project, module)
         long
+    }, error = function(e) data.table::data.table())
+}
+
+#' Load per-method sig SNPs (with actual per-method p-values)
+#'
+#' Reads the per-method sig_snps TSV produced by find_sig_snps.R, which contains
+#' the actual p-value for that specific method (not min across all methods).
+#' This is required for correct y-axis placement in per-method Manhattan overlays,
+#' because each method's background PNG has a y-range calibrated to its own p-values.
+#' Returns long format: SNPID, chr, pos, pvalue, method, trait, region_id
+#' @noRd
+load_method_sigsnps <- function(project, module = MOD_ASSOC, method, k, adjust) {
+    p <- method_sigsnps_direct_path(project, module, method, k, adjust)
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch({
+        dt <- data.table::fread(p, sep = "\t", header = TRUE,
+                                colClasses = c(chr = "character", SNPID = "character",
+                                               method = "character", trait = "character"))
+        if (nrow(dt) == 0) return(data.table::data.table())
+
+        # Keep only the columns needed for the overlay
+        keep <- intersect(c("SNPID", "chr", "pos", "pvalue", "method", "trait"), names(dt))
+        dt <- dt[, ..keep]
+
+        dt <- assign_region_ids(dt, project, module)
+        dt
     }, error = function(e) data.table::data.table())
 }
 
