@@ -245,7 +245,7 @@ K_START = config['snmf']['k_start']; check_numeric(K_START, 'snmf.k_start')
 K_END = config['snmf']['k_end']; check_numeric(K_END, 'snmf.k_end')
 PLOIDY = config['snmf']['ploidy']; check_numeric(PLOIDY, 'snmf.ploidy')
 REPEAT = config['snmf']['repeats']; check_numeric(REPEAT, 'snmf.repeats')
-K_BEST = _cfg('snmf', 'k_best', None)
+K_BEST = int(_cfg('snmf', 'k_best', None)) if _cfg('snmf', 'k_best', None) is not None else None
 SNMF_PROJECT_MODE = 'new'  # LEA project mode: 'new' for fresh runs, 'continue' to resume
 
 # MAP parameters
