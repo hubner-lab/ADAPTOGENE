@@ -1,190 +1,89 @@
-#=============================================================================
-# ADAPTOGENE Configuration
-#=============================================================================
-
-#-----------------------------------------------------------------------------
-# INPUT: Files and project settings
-#-----------------------------------------------------------------------------
 input:
-  dir: "data/"                   # Directory containing input files
-  vcf: 'Test.vcf'               # VCF file (supports .vcf and .vcf.gz)
-  metadata: 'Test_metadata.tsv'  # Sample metadata (site, sample, latitude, longitude)
-  gff: 'Test.gff3'              # GFF file for gene annotation
-
-project_name: 'TEST'             # Output directory prefix: {project_name}_results/
-cpu: 10                          # Number of CPU cores to use
-
-#-----------------------------------------------------------------------------
-# FILTER: VCF quality filtering (affects variant and sample retention)
-#-----------------------------------------------------------------------------
+  dir: data/
+  vcf: SIMDATA.vcf
+  metadata: SIMDATA_metadata.tsv
+  gff: SIMDATA.gff3
+project_name: SIMDATA
+cpu: 16.0
 filter:
-  maf: 0.05                     # Minor allele frequency threshold (remove rare variants)
-  snp_miss: 0.1                 # Max SNP missingness (remove SNPs missing in >10% samples)
-  sample_miss: 0.5              # Max sample missingness (remove samples with >50% missing)
-
-#-----------------------------------------------------------------------------
-# LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)
-#-----------------------------------------------------------------------------
+  maf: 0.05
+  snp_miss: 0.1
+  sample_miss: 0.5
 ld:
-  window: 100                   # Window size in kb for LD calculation
-  step: 20                      # Step size for sliding window
-  r2: 0.2                       # R^2 threshold (keep SNPs with r^2 < this value)
-
-#-----------------------------------------------------------------------------
-# SNMF: Population structure inference (ancestry proportions)
-#-----------------------------------------------------------------------------
+  window: 100
+  step: 20
+  r2: 0.2
 snmf:
-  k_start: 3                    # Minimum K (number of ancestral populations) to test
-  k_end: 7                      # Maximum K to test
-  k_best: 5                     # Selected K for downstream analyses (set after reviewing cross-entropy)
-  ploidy: 2                     # Ploidy level (2 for diploid)
-  repeats: 10                   # Number of repetitions per K (higher = more stable)
-
-#-----------------------------------------------------------------------------
-# MAP: Geographic extent and resolution for climate data
-#-----------------------------------------------------------------------------
+  k_start: 2.0
+  k_best: 5
+  ploidy: 2
+  repeats: 10
+  k_end: 10.0
 map:
-  climate_extent: "auto"         # Coordinates [min_lon, max_lon, min_lat, max_lat] or "auto"
-  gap: 0.5                      # Buffer around samples in degrees (only used if auto)
-  resolution: 0.5               # Climate data resolution in arc-minutes (0.5, 2.5, 5, 10)
-  zoom_extent: "NULL"           # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL" (creates both full + zoomed plots)
-
-#-----------------------------------------------------------------------------
-# CLIMATE: Bioclimatic variables for association and offset analyses
-#-----------------------------------------------------------------------------
+  climate_extent: auto
+  gap: 0.5
+  resolution: 0.5
+  zoom_extent: 'NULL'
 climate:
-  enabled: true                    # Set false to skip all climate-dependent analysis (GEA, maladaptation)
-  predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
-
-#-----------------------------------------------------------------------------
-# POPULATION STATS: Population-level statistics (require >=3 samples per population)
-#-----------------------------------------------------------------------------
+  enabled: 'true'
+  predictors: bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15
 pop:
-  calc_stats: FALSE              # Calculate Tajima's D, Pi, AMOVA, IBD (set FALSE if <3 samples/pop)
-  window_size: 3000000           # Window size in bp for Tajima's D and Pi diversity
-  custom_trait_file: 'NULL'      # Custom trait file for piemap sizing (site + trait columns)
-
-#-----------------------------------------------------------------------------
-# PIEMAP: Population structure visualization on maps
-#-----------------------------------------------------------------------------
+  calc_stats: 'false'
+  window_size: 3000000
+  custom_trait_file: 'NULL'
 piemap:
-  alpha: 0.6                    # Pie chart transparency (0-1)
-  show_labels: 'F'              # Show population labels (T/F)
-  label_size: 8                 # Label font size
-  pie_scale: 1.0                # Pie chart size scale factor (1.0=100%, 0.5=50%, 2.0=200%)
-  use_points: FALSE             # Use small colored points instead of pie charts (TRUE/FALSE)
-
-#-----------------------------------------------------------------------------
-# LD_DECAY: Linkage disequilibrium decay analysis
-#-----------------------------------------------------------------------------
+  alpha: 0.6
+  show_labels: 'false'
+  label_size: 8
+  pie_scale: 1.0
+  use_points: 'false'
 ld_decay:
-  group_by: "site"          # "site" (metadata col 1) or "cluster" (sNMF K_BEST clusters)
-  min_samples: 10            # Groups below this are skipped with warning
-  max_distance: 500          # Max pairwise distance in kb (PopLDdecay -MaxDist)
-  scope: "both"              # "genome_wide", "per_chromosome", or "both"
-
-#-----------------------------------------------------------------------------
-# ASSOCIATION: Association analysis settings (GEA)
-#-----------------------------------------------------------------------------
+  group_by: site
+  min_samples: 10
+  max_distance: 500
+  scope: both
 association:
-  configs:                       # Methods and significance thresholds
-    - method: "EMMAX"            # EMMAX: mixed model, accounts for population structure
-      adjust: "bonf"             # Correction: bonf (Bonferroni) or qval (FDR)
-      threshold: '0.05'
-    - method: "LFMM"            # LFMM: latent factor mixed model
-      adjust: "bonf"
-      threshold: '0.05'
-  combine_method: 'Sum'          # How to combine methods: Sum/Overlap/EMMAX/LFMM
-  combine_gap: 100000            # Max distance (bp) to consider SNPs overlapping
-  sig_snp_distance: 100000       # Distance to merge nearby significant SNPs
-  region_distance: 2000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
-  top_regions: 10                # Top N regions for gene analysis (0 = all)
-  promoter_length: 10000         # Promoter region length for SNP annotation
-  go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
-  scattermore_threshold: 30000   # Use fast scattermore rendering when SNPs > this
-
-#-----------------------------------------------------------------------------
-# GFF: Gene annotation parsing
-#-----------------------------------------------------------------------------
+  configs:
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: LFMM
+    adjust: bonf
+    threshold: '0.05'
+  combine_method: Sum
+  combine_gap: 100000
+  sig_snp_distance: 100000
+  region_distance: 2000000
+  top_regions: 10
+  promoter_length: 10000
+  go_field: ontology
+  scattermore_threshold: 30000
 gff:
-  feature: 'mRNA'               # Feature type to extract (mRNA, gene, CDS, etc.)
-  gene_name: 'description'      # Attribute for gene names
-  biotype: 'biotype'            # Attribute for gene biotype
-
-#-----------------------------------------------------------------------------
-# ENRICHMENT: GO enrichment visualization settings
-#-----------------------------------------------------------------------------
+  feature: mRNA
+  gene_name: description
+  biotype: biotype
 enrichment:
-  top_terms: 20                  # Number of top enriched terms to show in plots
-  plot_width: 12                 # Plot width in inches
-  plot_height: 10                # Plot height in inches
-  cnet_label: "gene_id"          # Gene label in cnetplot: "gene_id", "Name", "description"
-  top_plot_regions: 5            # Top regions per trait to generate enrichment plots for (0 = all)
-
-#-----------------------------------------------------------------------------
-# REGIONPLOT: Detailed visualization of genomic regions
-#-----------------------------------------------------------------------------
+  top_terms: 20
+  plot_width: 12
+  plot_height: 10
+  cnet_label: gene_id
+  top_plot_regions: 5
 regionplot:
-  region: "chr3H:108816722-117816722"  # Region to plot (chr:start-end)
-  traits: 'GS_Mean_Mbp,Grain_weight'  # Traits to display
-  method: 'EMMAX'               # Association method for p-values
-  genes: 'all'                  # Genes to label: all/nameless/gene1|gene2
-
-#-----------------------------------------------------------------------------
-# FUTURE CLIMATE: Climate projections for maladaptation analysis
-#-----------------------------------------------------------------------------
+  region: chr3H:108816722-117816722
+  traits: GS_Mean_Mbp,Grain_weight
+  method: EMMAX
+  genes: all
 future:
-  ssp: '585'                    # Shared Socioeconomic Pathway (126, 245, 370, 585)
-  year: '2061-2080'             # Time period for projections
-  models: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'  # Climate models to average
-
-#-----------------------------------------------------------------------------
-# GRADIENT FOREST: Gradient Forest modeling for genetic offset
-#-----------------------------------------------------------------------------
+  ssp: '585'
+  year: 2061-2080
+  models: MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR
 gradient_forest:
-  ntree: '1000'                 # Number of trees (higher = more accurate, slower)
-  cor_threshold: '0.5'          # Correlation threshold for variable selection
-  spatial_correction: 'with'    # Include spatial variables: with/without
-  run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
-  random_model: TRUE            # Also build neutral model for comparison
-
-#-----------------------------------------------------------------------------
-# PHENOTYPE ASSOCIATION (GWAS) — inherits from association.* by default
-#-----------------------------------------------------------------------------
-# phenotype_association:          # Uncomment to enable phenotype association mode
-#   configs:
-#     - method: "EMMAX"
-#       adjust: "bonf"
-#       threshold: '0.05'
-#   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
-#   # Override any association.* param only if different:
-#   # region_distance: 2000000
-#   # top_regions: 10
-
-#-----------------------------------------------------------------------------
-# OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
-#-----------------------------------------------------------------------------
-# Defaults to max of association and phenotype_association values if not set
-# overlap:
-#   region_distance: 2000000
-#   top_regions: 10
-#   promoter_length: 10000
+  ntree: '1000'
+  cor_threshold: '0.5'
+  spatial_correction: with
+  run_label: EMMAX_bonf005
+  random_model: 'true'
 overlap:
   pairwise:
     window_size: 500000
     min_snps: 2
-
-#-----------------------------------------------------------------------------
-# HAPLOTYPE
-#-----------------------------------------------------------------------------
-# haplotype:
-#   scan:
-#     regions_source: 'association'    # 'association', 'association_phenotypes', 'overlapping', 'all', 'custom'
-#     regions_file: 'NULL'            # Path to custom regions TSV (when source='custom')
-#     top_regions: 5                  # Number of top regions to analyze per source
-#     min_snps: 10                    # Minimum SNPs per region (skip regions with fewer)
-#     min_group_size: 50              # DBSCAN MinPts (marker group minimum size)
-#     min_haplotype_size: 15          # Minimum haplotype group size
-#     epsilon_range: [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-#     metadata_type: 'site'           # 'site', 'cluster', or 'both'
-#   epsilon_selected: 'NULL'          # Set after reviewing clustree plots from haplotype_scan
