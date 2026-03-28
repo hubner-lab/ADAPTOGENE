@@ -205,6 +205,20 @@ if (any(!complete_rows)) {
 
 env <- scale(env_raw)
 
+# Drop zero-variance predictors (scale() produces NaN when sd=0)
+zero_var <- apply(env, 2, function(x) all(is.nan(x)))
+if (any(zero_var)) {
+  dropped <- colnames(env)[zero_var]
+  message(sprintf('WARNING: Dropping %d zero-variance predictor(s): %s',
+                  length(dropped), paste(dropped, collapse = ', ')))
+  env <- env[, !zero_var, drop = FALSE]
+}
+
+if (ncol(env) == 0) {
+  stop('ERROR: All predictors have zero variance — cannot compute environmental distances. ',
+       'Check that PREDICTORS_SELECTED contains variables with variation across sites.')
+}
+
 # Run Mantel analysis
 results <- analyze_mantel(geo, env, clust)
 
