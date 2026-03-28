@@ -31,6 +31,11 @@ if (PREDICTORS == "all" || PREDICTORS == "") {
 } else {
   bio_vars <- strsplit(PREDICTORS, ",")[[1]]
 }
+
+# Sort numerically if columns follow a pattern like bio_N or trait_N
+nums <- suppressWarnings(as.integer(gsub(".*_(\\d+)$", "\\1", bio_vars)))
+if (!any(is.na(nums))) bio_vars <- bio_vars[order(nums)]
+
 message(paste0('INFO: Creating density plots for ', length(bio_vars), ' predictors'))
 
 # Plot theme

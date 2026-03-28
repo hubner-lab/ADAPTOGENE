@@ -62,7 +62,7 @@ rule density_plot:
             {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
-if PHENO_ASSOC_CONFIGS:
+if META_HAS_PHENO:
     rule density_plot_phenotypes:
         """Generate combined density plot for phenotype traits (metadata columns 5+)."""
         input:  meta = O['metadata']

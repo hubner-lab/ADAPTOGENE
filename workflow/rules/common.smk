@@ -392,11 +392,15 @@ PAIRWISE_MIN_SNPS    = int(_pairwise.get('min_snps', 2))
 # Discover phenotype traits from metadata columns 5+ (for directory creation and wildcards)
 PHENO_TRAITS = []
 PHENO_PREDICTORS = ''
+_meta_path = os.path.join(INDIR, SAMPLES)
+try:
+    with open(_meta_path) as _f:
+        _meta_header = _f.readline().strip().split('\t')
+    META_HAS_PHENO = len(_meta_header) > 4
+except Exception:
+    META_HAS_PHENO = False
 if PHENO_ASSOC_CONFIGS:
-    _meta_path = os.path.join(INDIR, SAMPLES)
-    with open(_meta_path) as f:
-        _header = f.readline().strip().split('\t')
-    PHENO_TRAITS = _header[4:]  # columns after longitude
+    PHENO_TRAITS = _meta_header[4:] if META_HAS_PHENO else []
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
 # HAPLOTYPE parameters
@@ -943,7 +947,7 @@ def get_targets(mode):
             targets += [O['corr_heatmap']]
             # Simple PieMaps (uniform pie size)
             targets += [piemap_notrait(bio) for bio in predictors]
-        if PHENO_ASSOC_CONFIGS:
+        if META_HAS_PHENO:
             targets += [DENSITY_PLOT_PHENOTYPES]
 
         # Population statistics (requires >= 3 samples per population)
