@@ -405,6 +405,22 @@
     background-color: rgba(255, 255, 255, 0.03);
 }
 
+// ── Pipeline warning summary ───────────────────────────────────────────────────
+.pipeline-warnings {
+    border: 1px solid rgba(214, 158, 46, 0.5);
+    border-radius: $border-radius-sm;
+    background-color: rgba(214, 158, 46, 0.08);
+    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+[data-bs-theme="dark"] .pipeline-warnings {
+    border-color: rgba(214, 158, 46, 0.4);
+    background-color: rgba(214, 158, 46, 0.12);
+}
+
 // Dark mode: fix opacity-stacked and hardcoded-color elements
 [data-bs-theme="dark"] {
     .plot-placeholder {
