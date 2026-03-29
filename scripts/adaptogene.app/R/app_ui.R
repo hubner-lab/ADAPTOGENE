@@ -49,6 +49,18 @@ app_ui <- function(request) {
             )
         ),
 
+        bslib::nav_panel("Processing",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_processing", "Processing Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_processing",
+                                                       btn_label = "Run Processing")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_processing_ui("processing")
+            )
+        ),
+
         bslib::nav_panel("Structure",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(

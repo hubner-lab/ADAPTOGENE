@@ -39,6 +39,7 @@ app_server <- function(input, output, session) {
 
     # ── Config sidebar servers (one per tab) ───────────────────────────────────
     mod_config_sidebar_server("config_home",          config_state, "home")
+    mod_config_sidebar_server("config_processing",    config_state, "processing")
     mod_config_sidebar_server("config_structure",     config_state, "structure")
     mod_config_sidebar_server("config_structure_k",   config_state, "structure_k")
     mod_config_sidebar_server("config_association",   config_state, "association")
@@ -50,6 +51,8 @@ app_server <- function(input, output, session) {
     # ── Pipeline runner servers (one per tab / mode) ───────────────────────────
     mod_pipeline_runner_server("runner_home",         config_state, pipeline_running,
                                 project_data_trigger, tab_name = "home")
+    mod_pipeline_runner_server("runner_processing",   config_state, pipeline_running,
+                                project_data_trigger, tab_name = "processing")
     mod_pipeline_runner_server("runner_structure",    config_state, pipeline_running,
                                 project_data_trigger, tab_name = "structure")
     mod_pipeline_runner_server("runner_structure_k",  config_state, pipeline_running,
@@ -72,6 +75,7 @@ app_server <- function(input, output, session) {
 
     # ── Module servers ─────────────────────────────────────────────────────────
     mod_home_server("home",               project_data = project_data)
+    mod_processing_server("processing",   project_data = project_data)
     mod_structure_server("structure",     project_data = project_data)
     mod_structure_k_server("structure_k", project_data = project_data)
     mod_association_server("association", project_data = project_data)

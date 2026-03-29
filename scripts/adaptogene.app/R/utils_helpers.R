@@ -60,6 +60,7 @@ make_project_data <- function(project, pipeline_path = get_pipeline_path()) {
 tab_to_mode <- function(tab) {
     switch(tab,
         home          = "processing",
+        processing    = "processing",
         structure     = "structure",
         structure_k   = "structure_K",
         association   = "association",

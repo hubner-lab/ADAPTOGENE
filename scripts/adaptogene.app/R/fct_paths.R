@@ -375,6 +375,20 @@ hap_frequencies_path <- function(project, tag) {
     mod_path(project, MOD_HAP, tag, "tables", "Haplotype_frequencies.tsv")
 }
 
+# ── Processing QC paths ──────────────────────────────────────────────────────
+
+#' QC plot path (processing/plots/<filename>)
+#' @noRd
+qc_plot_path <- function(project, filename) {
+    mod_path(project, MOD_PROC, "plots", filename)
+}
+
+#' QC table path (processing/tables/<filename>)
+#' @noRd
+qc_table_path <- function(project, filename) {
+    mod_path(project, MOD_PROC, "tables", filename)
+}
+
 #' Pipeline summary TSV path
 #' @noRd
 pipeline_summary_path <- function(project) {

@@ -1,3 +1,28 @@
+# ── Processing QC loaders ────────────────────────────────────────────────────
+
+#' Load filtering summary table
+#' @noRd
+load_filtering_summary <- function(project) {
+    p <- qc_table_path(project, "filtering_summary.tsv")
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Load sample heterozygosity table
+#' @noRd
+load_sample_heterozygosity <- function(project) {
+    p <- qc_table_path(project, "sample_heterozygosity.tsv")
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(sample = "character", site = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
 #' Load pipeline summary TSV
 #' @noRd
 load_pipeline_summary <- function(project) {
