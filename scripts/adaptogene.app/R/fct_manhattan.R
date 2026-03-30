@@ -26,12 +26,16 @@ encode_background_png <- function(bg_path) {
 }
 
 #' Build region rectangle shapes for plotly layout
-#' @param regions data.table with start_cum, end_cum, region_id columns
+#' @param regions data.table with chr, start, end, region_id columns
 #' @param coords coordinate mapping list
 #' @param y_lo y minimum for rectangles
 #' @param y_hi y maximum for rectangles
+#' @param fill_color plotly fillcolor string (rgba)
+#' @param line_color plotly line color string (rgba)
 #' @noRd
-build_region_shapes <- function(regions, coords, y_lo = NULL, y_hi = NULL) {
+build_region_shapes <- function(regions, coords, y_lo = NULL, y_hi = NULL,
+                                 fill_color = "rgba(100, 149, 237, 0.12)",
+                                 line_color = "rgba(100, 149, 237, 0.3)") {
     if (is.null(regions) || nrow(regions) == 0) return(list())
     if (is.null(y_lo)) y_lo <- coords$y_range[1]
     if (is.null(y_hi)) y_hi <- coords$y_range[2]
@@ -55,18 +59,46 @@ build_region_shapes <- function(regions, coords, y_lo = NULL, y_hi = NULL) {
     # Build plotly shapes list
     lapply(seq_len(nrow(regions)), function(i) {
         list(
-            type    = "rect",
-            xref    = "x",
-            yref    = "y",
-            x0      = regions$start_cum[i],
-            x1      = regions$end_cum[i],
-            y0      = y_lo,
-            y1      = y_hi,
-            fillcolor = "rgba(100, 149, 237, 0.12)",
-            line    = list(color = "rgba(100, 149, 237, 0.3)", width = 1),
+            type      = "rect",
+            xref      = "x",
+            yref      = "y",
+            x0        = regions$start_cum[i],
+            x1        = regions$end_cum[i],
+            y0        = y_lo,
+            y1        = y_hi,
+            fillcolor = fill_color,
+            line      = list(color = line_color, width = 1),
             customdata = regions$region_id[i]
         )
     })
+}
+
+#' Build dual-color region shapes: current region blue, others gray
+#' @param all_regions data.table of all computed regions
+#' @param current_region_id character: region_id of the selected region (or NULL)
+#' @param coords coordinate mapping list
+#' @param y_lo y minimum; y_hi y maximum
+#' @noRd
+build_dual_region_shapes <- function(all_regions, current_region_id,
+                                      coords, y_lo = NULL, y_hi = NULL) {
+    if (is.null(all_regions) || nrow(all_regions) == 0) return(list())
+    if (is.null(y_lo)) y_lo <- coords$y_range[1]
+    if (is.null(y_hi)) y_hi <- coords$y_range[2]
+
+    if (!is.null(current_region_id) && nzchar(current_region_id)) {
+        others  <- all_regions[region_id != current_region_id]
+        current <- all_regions[region_id == current_region_id]
+    } else {
+        others  <- all_regions
+        current <- all_regions[0]
+    }
+
+    shapes_gray <- build_region_shapes(others, coords, y_lo, y_hi,
+        fill_color = "rgba(180, 180, 180, 0.10)",
+        line_color = "rgba(180, 180, 180, 0.25)")
+    shapes_blue <- build_region_shapes(current, coords, y_lo, y_hi)
+
+    c(shapes_gray, shapes_blue)
 }
 
 #' Build the plotly Manhattan overlay plot
@@ -74,12 +106,15 @@ build_region_shapes <- function(regions, coords, y_lo = NULL, y_hi = NULL) {
 #' @param coords coordinate mapping list (from load_coords)
 #' @param sig_snps data.table of significant SNPs with cum_pos, log10p, trait, method, SNPID, region_id
 #' @param regions data.table of regions (optional, for shapes)
+#' @param current_region_id character: region_id of the selected region; when set,
+#'   that region is drawn blue and all others gray (dual-color mode)
 #' @param trait_colors named character vector of trait colors
 #' @param method_shapes named integer vector of plotly symbol codes per method
 #' @param is_miami logical, TRUE for Miami plots (y axis has negative values)
 #' @noRd
 build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
                                     regions = NULL,
+                                    current_region_id = NULL,
                                     trait_colors = NULL,
                                     method_shapes = NULL,
                                     is_miami = FALSE,
@@ -93,10 +128,15 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
     chr_mids  <- chr_midpoints(coords)
     chr_names <- names(unlist(coords$chr_offsets))
 
-    # Region shapes
+    # Region shapes (dual-color if a current region is selected)
     shapes <- if (!is.null(regions) && nrow(regions) > 0) {
-        build_region_shapes(regions, coords,
-                            y_lo = y_range[1], y_hi = y_range[2])
+        if (!is.null(current_region_id) && nzchar(current_region_id %||% "")) {
+            build_dual_region_shapes(regions, current_region_id, coords,
+                                     y_lo = y_range[1], y_hi = y_range[2])
+        } else {
+            build_region_shapes(regions, coords,
+                                y_lo = y_range[1], y_hi = y_range[2])
+        }
     } else {
         list()
     }

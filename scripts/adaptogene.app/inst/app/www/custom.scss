@@ -132,6 +132,115 @@
     border-color: rgba(255, 255, 255, 0.10);
 }
 
+// ── Manhattan interactive filter bar ─────────────────────────────────────────
+// Sits inside the combined Manhattan card between header and plot body.
+// Compact horizontal layout: trait chips + method chips + strategy radios.
+.manhattan-filter-bar {
+    padding: 0.4rem 0.75rem 0.2rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.025);
+
+    .filter-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0 0.5rem;
+        min-height: 2rem;
+        padding: 0.1rem 0;
+    }
+
+    .filter-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--bs-secondary-color);
+        white-space: nowrap;
+        margin-right: 0.25rem;
+    }
+
+    // Style checkboxGroupInput as chips (inline mode)
+    .shiny-input-checkboxgroup.inline,
+    .shiny-input-radiogroup.shiny-input-container {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.2rem;
+        margin-bottom: 0;
+    }
+
+    // Individual checkbox/radio labels → chip style
+    .checkbox-inline,
+    .radio-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.15rem 0.55rem;
+        border-radius: 20px;
+        border: 1.5px solid rgba(0, 0, 0, 0.18);
+        font-size: 0.78rem;
+        font-weight: 500;
+        cursor: pointer;
+        user-select: none;
+        transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+        background: transparent;
+
+        input[type="checkbox"],
+        input[type="radio"] {
+            display: none;
+        }
+    }
+
+    // Unchecked chip: dimmed
+    .checkbox-inline:has(input:not(:checked)),
+    .radio-inline:has(input:not(:checked)) {
+        opacity: 0.35;
+        border-color: rgba(0, 0, 0, 0.10);
+    }
+
+    // Checked chip: primary-colored border
+    .checkbox-inline:has(input:checked),
+    .radio-inline:has(input:checked) {
+        opacity: 1.0;
+        border-color: $primary;
+        background: rgba(27, 122, 110, 0.08);
+    }
+
+    // Trait dot (colored swatch inside trait chip labels)
+    .filter-trait-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    // form-group wrappers from checkboxGroupInput — collapse margin
+    .form-group { margin-bottom: 0; }
+}
+
+[data-bs-theme="dark"] .manhattan-filter-bar {
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom-color: rgba(255, 255, 255, 0.10);
+
+    .filter-label { color: var(--bs-secondary-color); }
+
+    .checkbox-inline,
+    .radio-inline {
+        border-color: rgba(255, 255, 255, 0.20);
+    }
+
+    .checkbox-inline:has(input:not(:checked)),
+    .radio-inline:has(input:not(:checked)) {
+        border-color: rgba(255, 255, 255, 0.10);
+    }
+
+    .checkbox-inline:has(input:checked),
+    .radio-inline:has(input:checked) {
+        border-color: $primary;
+        background: rgba(27, 122, 110, 0.15);
+    }
+}
+
 // ── Regular image cards: compact default height ───────────────────────────────
 // Applies to all mod_image_card images; overridden for piemaps below.
 // flex: 1 lets card body fill the card's available height (cards are flex columns).

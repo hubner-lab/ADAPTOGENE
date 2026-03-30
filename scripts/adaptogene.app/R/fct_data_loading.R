@@ -269,6 +269,103 @@ load_pairwise_collapsed <- function(project) {
     )
 }
 
+#' Load and parse the project GFF as a gene coordinate table
+#'
+#' Reads the GFF file, filters to the configured feature type (default "mRNA"),
+#' extracts gene_id from the Parent= or ID= attribute, and parses all attribute
+#' fields into columns. Cached per project to avoid re-loading the full GFF on
+#' every reactive trigger.
+#'
+#' @param project project name
+#' @param config parsed YAML config (from project_data()$config)
+#' @return data.table with gene_id, chr, start, end, + attribute columns.
+#'   Empty data.table if GFF not found or not readable.
+#' @noRd
+load_gff_genes <- function(project, config) {
+    cache_key <- paste0("gff_genes_", project)
+    load_cached(cache_key, function() {
+        inp_dir  <- config_get(config, "input", "dir",    default = "data")
+        gff_rel  <- config_get(config, "input", "gff",    default = "")
+        feat     <- config_get(config, "gff",   "feature", default = "mRNA")
+
+        if (is.null(gff_rel) || gff_rel == "") return(data.table::data.table())
+
+        gff_abs <- file.path(get_pipeline_path(), inp_dir, gff_rel)
+        if (!file.exists(gff_abs)) return(data.table::data.table())
+
+        tryCatch({
+            # Read GFF, skip comment lines, filter to target feature
+            dt <- data.table::fread(
+                cmd    = paste0("grep -v '^#' ", shQuote(gff_abs)),
+                header = FALSE,
+                col.names = c("chr", "source", "feature", "start", "end",
+                              "score", "strand", "phase", "attributes"),
+                colClasses = c("character", "character", "character",
+                               "integer", "integer",
+                               "character", "character", "character", "character")
+            )
+            dt <- dt[feature == feat]
+            if (nrow(dt) == 0) return(data.table::data.table())
+
+            dt[, chr   := sub("^chr", "", as.character(chr))]
+            dt[, start := as.integer(start)]
+            dt[, end   := as.integer(end)]
+
+            # Extract gene_id: prefer Parent=, fall back to ID=
+            dt[, gene_id := {
+                id <- regmatches(attributes,
+                    regexpr("(?<=Parent=)[^;]+", attributes, perl = TRUE))
+                na_idx <- !nzchar(id)
+                if (any(na_idx)) {
+                    id2 <- regmatches(attributes,
+                        regexpr("(?<=ID=)[^;]+", attributes, perl = TRUE))
+                    id[na_idx] <- id2[na_idx]
+                }
+                # Strip isoform suffixes (.1, .2, _exon_1 etc.)
+                sub("\\.[0-9]+(_exon_[0-9]+)?$", "", id)
+            }]
+
+            # Keep minimal columns: gene_id, chr, start, end + attributes string
+            dt[, .(gene_id, chr, start, end, attributes)]
+        }, error = function(e) data.table::data.table())
+    })
+}
+
+#' Load all per-method sig SNPs for a module (for interactive Shiny combine)
+#'
+#' Reads all {method}_pvalues_K*_sig_snps_*.tsv files found under
+#' {module}/tables/methods/, returning a named list (method → data.table).
+#' Each data.table has columns: SNPID, chr, pos, pvalue, method, trait.
+#' Returns an empty list when no files exist (old pipeline run / fallback).
+#' @noRd
+load_all_method_sigsnps <- function(project, module = MOD_ASSOC) {
+    files <- find_method_sigsnps_files(project, module)
+    if (length(files) == 0) return(list())
+
+    result <- list()
+    for (f in files) {
+        # Extract method from path: .../tables/methods/{method}/...
+        parts <- strsplit(f, .Platform$file.sep, fixed = TRUE)[[1]]
+        methods_idx <- which(parts == "methods")
+        if (length(methods_idx) == 0) next
+        method_name <- parts[methods_idx + 1L]
+
+        dt <- tryCatch(
+            data.table::fread(f, sep = "\t", header = TRUE,
+                              colClasses = c(chr    = "character",
+                                             SNPID  = "character",
+                                             method = "character",
+                                             trait  = "character")),
+            error = function(e) data.table::data.table()
+        )
+        if (nrow(dt) == 0) next
+        keep <- intersect(c("SNPID", "chr", "pos", "pvalue", "method", "trait"), names(dt))
+        if (length(keep) < 5L) next
+        result[[method_name]] <- dt[, ..keep]
+    }
+    result
+}
+
 #' Cached data loader using cachem
 #' Creates a session-level cache automatically on first call.
 #' @noRd

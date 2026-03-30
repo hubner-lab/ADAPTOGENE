@@ -6,7 +6,7 @@
 #' @param id module namespace id
 #' @param height plotly output height (default "500px")
 #' @noRd
-mod_manhattan_overlay_ui <- function(id, height = "400px") {
+mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
     ns <- shiny::NS(id)
     bslib::card(
         full_screen = TRUE,
@@ -26,6 +26,8 @@ mod_manhattan_overlay_ui <- function(id, height = "400px") {
                 )
             )
         ),
+        # Optional filter controls injected between header and plot
+        if (!is.null(filter_ui)) filter_ui,
         bslib::card_body(
             class = "p-1",
             plotly::plotlyOutput(ns("overlay"), height = height)
@@ -45,17 +47,23 @@ mod_manhattan_overlay_ui <- function(id, height = "400px") {
 #' @param title_label reactive character for card title
 #' @param regions reactive data.table of regions (optional, for overlay shapes)
 #' @param show_regions_control logical: show toggle for region highlights
+#' @param sig_snps_override reactive returning a long-format data.table to use
+#'   instead of loading from files. When non-NULL, the file-based loading is
+#'   skipped entirely. Must have columns SNPID, chr, pos, pvalue, method, trait.
+#'   Pass \code{shiny::reactive(NULL)} (default) to use the standard loaders.
 #' @return reactive of clicked region_id (character or NULL)
 #' @noRd
 mod_manhattan_overlay_server <- function(id, project_data,
-                                          module        = MOD_ASSOC,
-                                          method        = shiny::reactive(NULL),
-                                          trait         = shiny::reactive(NULL),
-                                          combined      = FALSE,
-                                          is_miami      = FALSE,
-                                          title_label   = shiny::reactive("Manhattan"),
-                                          regions       = shiny::reactive(NULL),
-                                          show_regions_control = TRUE) {
+                                          module             = MOD_ASSOC,
+                                          method             = shiny::reactive(NULL),
+                                          trait              = shiny::reactive(NULL),
+                                          combined           = FALSE,
+                                          is_miami           = FALSE,
+                                          title_label        = shiny::reactive("Manhattan"),
+                                          regions            = shiny::reactive(NULL),
+                                          current_region_id  = shiny::reactive(NULL),
+                                          show_regions_control = TRUE,
+                                          sig_snps_override    = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -68,7 +76,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
         })
 
         show_regions <- shiny::reactive({
-            if (!show_regions_control) return(FALSE)
+            if (!show_regions_control) return(TRUE)
             isTRUE(input$show_regions)
         })
 
@@ -130,6 +138,11 @@ mod_manhattan_overlay_server <- function(id, project_data,
         sig_snps <- shiny::reactive({
             pd <- project_data()
 
+            # If a caller-supplied reactive override is provided, use it directly.
+            # This enables the interactive filter/strategy switcher in the association tab.
+            override_val <- sig_snps_override()
+            if (!is.null(override_val)) return(override_val)
+
             if (!combined && !is_miami) {
                 # Per-method view: load method-specific file with actual per-method p-values.
                 # The combined selected_snps.tsv uses min_pvalue across all methods, which
@@ -186,12 +199,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
             reg_data <- if (show_regions()) regions() else NULL
 
             build_manhattan_plotly(
-                bg_uri      = bg_uri,
-                coords      = co,
-                sig_snps    = if (nrow(snps) > 0) snps else NULL,
-                regions     = reg_data,
-                is_miami    = is_miami,
-                source      = ns("overlay")
+                bg_uri            = bg_uri,
+                coords            = co,
+                sig_snps          = if (nrow(snps) > 0) snps else NULL,
+                regions           = reg_data,
+                current_region_id = current_region_id(),
+                is_miami          = is_miami,
+                source            = ns("overlay")
             )
         })
 

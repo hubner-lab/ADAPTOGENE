@@ -306,6 +306,18 @@ pheno_piemap_path <- function(project, trait) {
              paste0("phenomap_", trait, ".png"))
 }
 
+# ─── Input data paths ─────────────────────────────────────────────────────────
+
+#' Resolve full path to the project's GFF annotation file
+#' @noRd
+gff_path <- function(project, pipeline_path = get_pipeline_path()) {
+    config  <- read_project_config(project, pipeline_path)
+    inp_dir <- config_get(config, "input", "dir", default = "data")
+    gff_rel <- config_get(config, "input", "gff", default = "")
+    if (is.null(gff_rel) || gff_rel == "") return("")
+    file.path(pipeline_path, inp_dir, gff_rel)
+}
+
 # ─── Regional Manhattan (topr) ────────────────────────────────────────────────
 
 #' Regionplot image path
