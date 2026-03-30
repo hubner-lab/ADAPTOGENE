@@ -48,9 +48,9 @@ build_region_shapes <- function(regions, coords, y_lo = NULL, y_hi = NULL,
     regions[, start_cum := start + offset]
     regions[, end_cum   := end   + offset]
 
-    # Ensure minimum visible width (1.5% of x span)
+    # Ensure minimum visible width (0.3% of x span for clickability)
     x_span <- diff(coords$x_range)
-    min_hw  <- x_span * 0.015
+    min_hw  <- x_span * 0.003
     regions[, center_cum   := (start_cum + end_cum) / 2]
     regions[, half_width   := pmax((end_cum - start_cum) / 2, min_hw)]
     regions[, start_cum    := center_cum - half_width]

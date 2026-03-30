@@ -19,6 +19,23 @@ trait_color_map <- function(traits) {
     stats::setNames(colors, traits_sorted)
 }
 
+#' Plotly symbol names for methods (8 symbols, reused via recycling)
+#' @noRd
+METHOD_SHAPES <- c("circle", "triangle-up", "square", "diamond",
+                   "cross", "x", "star", "triangle-down")
+
+#' Map methods to plotly marker symbols (sorted order, stable across filtering)
+#'
+#' @param methods character vector of method names
+#' @return named character vector: method → plotly symbol name
+#' @noRd
+method_shape_map <- function(methods) {
+    methods_sorted <- sort(unique(methods))
+    n <- length(methods_sorted)
+    shapes <- rep(METHOD_SHAPES, ceiling(n / length(METHOD_SHAPES)))[seq_len(n)]
+    stats::setNames(shapes, methods_sorted)
+}
+
 #' Combine per-method sig SNPs using a specified strategy (on-the-fly in Shiny)
 #'
 #' @param sigsnps_list Named list of data.tables, one per method.

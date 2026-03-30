@@ -70,106 +70,252 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             trait_color_map(tr)
         })
 
+        # Method shapes (stable across filtering — keyed on full method list)
+        method_shapes <- shiny::reactive({
+            ms <- methods()
+            if (length(ms) == 0) return(character(0))
+            method_shape_map(ms)
+        })
+
+        # ── Trait x Method combo counts (how many sig SNPs per combo) ─────────
+        combo_counts <- shiny::reactive({
+            all_snps <- all_method_sigsnps()
+            counts <- list()
+            for (m in names(all_snps)) {
+                dt <- all_snps[[m]]
+                if (nrow(dt) > 0) {
+                    tc <- dt[, .(n = .N), by = "trait"]
+                    for (i in seq_len(nrow(tc)))
+                        counts[[paste0(tc$trait[i], "::", m)]] <- tc$n[i]
+                }
+            }
+            counts
+        })
+
+        # Strategy from config (default for radio button)
+        default_strategy <- shiny::reactive({
+            pd <- project_data()
+            ds <- config_get(pd$config, "association", "combine_method", default = "Sum")
+            if (!ds %in% c("Sum", "Overlap", "PairOverlap")) "Sum" else ds
+        })
+
+        active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
+
+        # ── Region distance (owned here, passed to explorer) ───────────────────
+        shiny::observe({
+            pd <- project_data()
+            d  <- config_get(pd$config, "association", "region_distance", default = 2000000L)
+            shiny::updateNumericInput(session, "region_distance", value = as.integer(d))
+        })
+
+        region_distance <- shiny::reactive({
+            v <- input$region_distance
+            if (is.null(v) || is.na(v) || v < 1000L) 2000000L else as.integer(v)
+        })
+
+        # ── Filter bar: Trait x Method matrix + Strategy + Distance ───────────
         output$filter_bar <- shiny::renderUI({
             tr   <- traits()
             ms   <- methods()
             cols <- trait_colors()
-            pd   <- project_data()
+            cnts <- combo_counts()
 
             if (length(tr) == 0) return(NULL)
 
-            # Default strategy from config
-            default_strategy <- config_get(pd$config, "association", "combine_method",
-                                           default = "Sum")
-            # Normalise: only Sum/Overlap/PairOverlap are valid interactive strategies
-            valid_strategies <- c("Sum", "Overlap", "PairOverlap")
-            if (!default_strategy %in% valid_strategies) default_strategy <- "Sum"
-
-            # Trait checkboxes with colored dot HTML labels
-            trait_choices <- stats::setNames(
-                lapply(tr, function(t) {
-                    htmltools::HTML(paste0(
-                        '<span class="filter-trait-dot" style="background:', cols[t], '"></span>',
-                        htmltools::htmlEscape(t)
-                    ))
-                }),
-                tr
+            # Build table header row: blank + method column headers
+            header_cells <- lapply(ms, function(m) {
+                htmltools::tags$th(
+                    class = "tm-col-header",
+                    `data-method` = m,
+                    m
+                )
+            })
+            header_row <- htmltools::tags$tr(
+                htmltools::tags$th(),  # blank corner
+                header_cells
             )
+
+            # Build body rows: one per trait
+            body_rows <- lapply(tr, function(t) {
+                dot_html <- paste0(
+                    '<span class="filter-trait-dot" style="background:', cols[t],
+                    ';display:inline-block;width:8px;height:8px;border-radius:50%;',
+                    'margin-right:4px;"></span>'
+                )
+                row_header <- htmltools::tags$th(
+                    class = "tm-row-header",
+                    `data-trait` = t,
+                    htmltools::HTML(paste0(dot_html, htmltools::htmlEscape(t)))
+                )
+                cells <- lapply(ms, function(m) {
+                    key <- paste0(t, "::", m)
+                    n   <- cnts[[key]] %||% 0L
+                    if (n > 0) {
+                        htmltools::tags$td(
+                            htmltools::tags$button(
+                                class = "tm-cell tm-active",
+                                `data-trait` = t,
+                                `data-method` = m,
+                                as.character(n)
+                            )
+                        )
+                    } else {
+                        htmltools::tags$td(
+                            htmltools::tags$button(
+                                class = "tm-cell tm-empty",
+                                `data-trait` = t,
+                                `data-method` = m,
+                                "—"
+                            )
+                        )
+                    }
+                })
+                htmltools::tags$tr(row_header, cells)
+            })
+
+            matrix_table <- htmltools::tags$table(
+                class = "tm-matrix",
+                htmltools::tags$thead(header_row),
+                htmltools::tags$tbody(body_rows)
+            )
+
+            # Hidden input bridge updated by JS
+            hidden_input <- shiny::textInput(
+                ns("tm_selection"), label = NULL, value = ""
+            )
+
+            # JS: delegated click on matrix container
+            container_id <- ns("tm_container")
+            input_id     <- ns("tm_selection")
+            js_code <- sprintf('
+(function() {
+    var container = document.getElementById("%s");
+    if (!container) return;
+    function syncSelection() {
+        var active = container.querySelectorAll(".tm-cell.tm-active");
+        var pairs = Array.from(active).map(function(el) {
+            return el.dataset.trait + "::" + el.dataset.method;
+        });
+        Shiny.setInputValue("%s", JSON.stringify(pairs), {priority: "event"});
+    }
+    container.addEventListener("click", function(e) {
+        var cell = e.target.closest(".tm-cell");
+        if (cell && !cell.classList.contains("tm-empty")) {
+            cell.classList.toggle("tm-active");
+            syncSelection();
+            return;
+        }
+        var rh = e.target.closest(".tm-row-header");
+        if (rh) {
+            var trait = rh.dataset.trait;
+            var cells = container.querySelectorAll(".tm-cell[data-trait=\\"" + trait + "\\"]:not(.tm-empty)");
+            var allActive = Array.from(cells).every(function(c) { return c.classList.contains("tm-active"); });
+            cells.forEach(function(c) { c.classList.toggle("tm-active", !allActive); });
+            syncSelection();
+            return;
+        }
+        var ch = e.target.closest(".tm-col-header");
+        if (ch) {
+            var method = ch.dataset.method;
+            var cells = container.querySelectorAll(".tm-cell[data-method=\\"" + method + "\\"]:not(.tm-empty)");
+            var allActive = Array.from(cells).every(function(c) { return c.classList.contains("tm-active"); });
+            cells.forEach(function(c) { c.classList.toggle("tm-active", !allActive); });
+            syncSelection();
+        }
+    });
+    syncSelection();
+})();
+', container_id, input_id)
 
             htmltools::div(
                 class = "manhattan-filter-bar",
-
-                # Row 1: trait toggles
                 htmltools::div(
-                    class = "filter-row",
-                    htmltools::span("Traits", class = "filter-label"),
-                    shiny::checkboxGroupInput(
-                        ns("filter_traits"), label = NULL,
-                        choices  = trait_choices,
-                        selected = tr,
-                        inline   = TRUE
+                    class = "filter-row align-items-start",
+                    # Matrix
+                    htmltools::div(
+                        id    = container_id,
+                        class = "tm-container me-4",
+                        matrix_table,
+                        hidden_input
+                    ),
+                    # Strategy
+                    htmltools::div(
+                        class = "d-flex flex-column me-4",
+                        htmltools::span("Strategy", class = "filter-label mb-1"),
+                        shiny::radioButtons(
+                            ns("combine_strategy"), label = NULL,
+                            choices  = c("Sum", "Overlap", "PairOverlap"),
+                            selected = default_strategy(),
+                            inline   = FALSE
+                        )
+                    ),
+                    # Distance
+                    htmltools::div(
+                        class = "d-flex flex-column",
+                        htmltools::span("Distance (bp)", class = "filter-label mb-1"),
+                        shiny::numericInput(
+                            ns("region_distance"), label = NULL,
+                            value = 2000000L, min = 1000L, step = 100000L,
+                            width = "130px"
+                        )
                     )
                 ),
-
-                # Row 2: method toggles + strategy
-                htmltools::div(
-                    class = "filter-row",
-                    htmltools::span("Methods", class = "filter-label"),
-                    shiny::checkboxGroupInput(
-                        ns("filter_methods"), label = NULL,
-                        choices  = ms,
-                        selected = ms,
-                        inline   = TRUE
-                    ),
-                    htmltools::span("Strategy", class = "filter-label ms-3"),
-                    shiny::radioButtons(
-                        ns("combine_strategy"), label = NULL,
-                        choices  = c("Sum", "Overlap", "PairOverlap"),
-                        selected = default_strategy,
-                        inline   = TRUE
-                    )
-                )
+                htmltools::tags$script(htmltools::HTML(js_code))
             )
         })
 
-        # Reactive filter state
-        active_traits   <- shiny::reactive(input$filter_traits   %||% traits())
-        active_methods  <- shiny::reactive(input$filter_methods  %||% methods())
-        active_strategy <- shiny::reactive(input$combine_strategy %||% "Sum")
-
-        # ── Interactive sig SNPs (combined + filtered) ─────────────────────────
+        # ── Interactive sig SNPs (combined + filtered by matrix selection) ─────
         interactive_sigsnps <- shiny::reactive({
             pd       <- project_data()
             all_snps <- all_method_sigsnps()
 
-            # Fall back to precomputed file when no per-method files exist
+            # Fall back when no per-method files exist
             if (length(all_snps) == 0) return(NULL)
 
-            tr_sel   <- active_traits()
-            ms_sel   <- active_methods()
             strategy <- active_strategy()
             gap      <- config_get(pd$config, "association", "combine_gap",
                                    default = 200000L)
 
-            # Apply trait × method filter to each method's data
+            # Parse selected trait::method pairs from matrix
+            # Restrict to traits shown in the matrix (climate/GEA traits only —
+            # per-method files may also contain phenotypic traits from a combined run)
+            known_traits <- traits()
+            all_valid_pairs <- names(combo_counts())[
+                vapply(combo_counts(), function(n) n > 0, logical(1))
+            ]
+            all_valid_pairs <- all_valid_pairs[
+                sub("::.*", "", all_valid_pairs) %in% known_traits
+            ]
+
+            sel_json <- input$tm_selection
+            if (is.null(sel_json) || !nzchar(sel_json)) {
+                selected_pairs <- all_valid_pairs
+            } else {
+                selected_pairs <- tryCatch(
+                    jsonlite::fromJSON(sel_json),
+                    error = function(e) all_valid_pairs
+                )
+            }
+
+            # Filter each method to selected traits for that method
             filtered <- lapply(names(all_snps), function(m) {
-                if (!m %in% ms_sel) return(NULL)
+                paired_traits <- sub("::.*", "",
+                    selected_pairs[grepl(paste0("::", m, "$"), selected_pairs, fixed = FALSE)])
+                if (length(paired_traits) == 0) return(NULL)
                 dt <- all_snps[[m]]
                 if (nrow(dt) == 0) return(NULL)
-                dt[trait %in% tr_sel]
+                dt[trait %in% paired_traits]
             })
             names(filtered) <- names(all_snps)
             filtered <- Filter(function(x) !is.null(x) && nrow(x) > 0, filtered)
 
             if (length(filtered) == 0) return(.empty_sigsnps_assoc())
 
-            # Combine using selected strategy
             combined_dt <- combine_sigsnps(filtered, strategy = strategy,
                                            gap = as.integer(gap))
 
             if (nrow(combined_dt) == 0) return(.empty_sigsnps_assoc())
 
-            # Assign region IDs from precomputed regions_combined.tsv
             combined_dt <- assign_region_ids(combined_dt, pd$name, module)
             combined_dt
         })
@@ -178,7 +324,8 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
         explorer <- mod_region_explorer_server("region_explorer",
             project_data        = project_data,
             module              = module,
-            interactive_sigsnps = interactive_sigsnps
+            interactive_sigsnps = interactive_sigsnps,
+            region_distance     = region_distance
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────
@@ -190,7 +337,9 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
-            sig_snps_override    = interactive_sigsnps
+            sig_snps_override    = interactive_sigsnps,
+            trait_colors         = trait_colors,
+            method_shapes        = method_shapes
         )
 
         # Manhattan SNP click → select the enclosing region in the explorer

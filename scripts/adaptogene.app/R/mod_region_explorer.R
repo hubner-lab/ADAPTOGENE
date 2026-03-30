@@ -17,17 +17,7 @@ mod_region_explorer_ui <- function(id) {
             bslib::card_header(
                 class = "d-flex justify-content-between align-items-center",
                 htmltools::span("Regions"),
-                htmltools::span(
-                    class = "d-flex gap-3 align-items-center",
-                    shiny::uiOutput(ns("region_count_badge"), inline = TRUE),
-                    htmltools::span(
-                        class = "d-flex align-items-center gap-1",
-                        htmltools::span("Distance (bp)", class = "filter-label text-muted small"),
-                        shiny::numericInput(ns("region_distance"), label = NULL,
-                                            value = 2000000L, min = 1000L, step = 100000L,
-                                            width = "130px")
-                    )
-                )
+                shiny::uiOutput(ns("region_count_badge"), inline = TRUE)
             ),
             bslib::card_body(
                 class = "p-2",
@@ -49,21 +39,10 @@ mod_region_explorer_ui <- function(id) {
 #' @return list with computed_regions (reactive) and selected_region_id (reactiveVal)
 #' @noRd
 mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
-                                        interactive_sigsnps = shiny::reactive(NULL)) {
+                                        interactive_sigsnps = shiny::reactive(NULL),
+                                        region_distance     = shiny::reactive(2000000L)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
-
-        # ── Region distance ────────────────────────────────────────────────────
-        shiny::observe({
-            pd <- project_data()
-            d  <- config_get(pd$config, "association", "region_distance", default = 2000000L)
-            shiny::updateNumericInput(session, "region_distance", value = as.integer(d))
-        })
-
-        region_distance <- shiny::reactive({
-            v <- input$region_distance
-            if (is.null(v) || is.na(v) || v < 1000L) 2000000L else as.integer(v)
-        })
 
         # ── Computed regions ───────────────────────────────────────────────────
         computed_regions <- shiny::reactive({
@@ -268,7 +247,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                     data.frame(Message = "No genes found (check GFF config)"),
                     options = list(dom = "t"), rownames = FALSE))
             }
-            show_cols <- intersect(c("gene_id", "chr", "start", "end", "attributes"), names(genes))
+            exclude_cols <- c("attributes", "source", "feature", "score", "strand", "phase")
+            show_cols <- setdiff(names(genes), exclude_cols)
             safe_datatable(
                 as.data.frame(genes[, show_cols, with = FALSE]),
                 extensions = "Buttons",

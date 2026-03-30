@@ -133,20 +133,18 @@
 }
 
 // ── Manhattan interactive filter bar ─────────────────────────────────────────
-// Sits inside the combined Manhattan card between header and plot body.
-// Compact horizontal layout: trait chips + method chips + strategy radios.
+// Compact bar with trait x method matrix + strategy radios.
 .manhattan-filter-bar {
-    padding: 0.4rem 0.75rem 0.2rem;
+    padding: 0.4rem 0.75rem 0.3rem;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     background: rgba(0, 0, 0, 0.025);
 
     .filter-row {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         flex-wrap: wrap;
-        gap: 0 0.5rem;
-        min-height: 2rem;
-        padding: 0.1rem 0;
+        gap: 0 1rem;
+        padding: 0.15rem 0;
     }
 
     .filter-label {
@@ -156,88 +154,101 @@
         letter-spacing: 0.04em;
         color: var(--bs-secondary-color);
         white-space: nowrap;
-        margin-right: 0.25rem;
     }
 
-    // Style checkboxGroupInput as chips (inline mode)
-    .shiny-input-checkboxgroup.inline,
-    .shiny-input-radiogroup.shiny-input-container {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.2rem;
-        margin-bottom: 0;
-    }
-
-    // Individual checkbox/radio labels → chip style
-    .checkbox-inline,
+    // Strategy radio buttons: compact vertical stack
+    .shiny-input-radiogroup { margin-bottom: 0; }
     .radio-inline {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        padding: 0.15rem 0.55rem;
-        border-radius: 20px;
-        border: 1.5px solid rgba(0, 0, 0, 0.18);
+        display: block;
+        padding: 0;
         font-size: 0.78rem;
-        font-weight: 500;
-        cursor: pointer;
-        user-select: none;
-        transition: opacity 0.15s, border-color 0.15s, background 0.15s;
-        background: transparent;
-
-        input[type="checkbox"],
-        input[type="radio"] {
-            display: none;
-        }
+        label { margin-bottom: 0.1rem; cursor: pointer; }
     }
 
-    // Unchecked chip: dimmed
-    .checkbox-inline:has(input:not(:checked)),
-    .radio-inline:has(input:not(:checked)) {
-        opacity: 0.35;
-        border-color: rgba(0, 0, 0, 0.10);
-    }
-
-    // Checked chip: primary-colored border
-    .checkbox-inline:has(input:checked),
-    .radio-inline:has(input:checked) {
-        opacity: 1.0;
-        border-color: $primary;
-        background: rgba(27, 122, 110, 0.08);
-    }
-
-    // Trait dot (colored swatch inside trait chip labels)
-    .filter-trait-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-
-    // form-group wrappers from checkboxGroupInput — collapse margin
+    // form-group wrappers — collapse margin
     .form-group { margin-bottom: 0; }
 }
 
-[data-bs-theme="dark"] .manhattan-filter-bar {
-    background: rgba(255, 255, 255, 0.03);
-    border-bottom-color: rgba(255, 255, 255, 0.10);
+// ── Trait x Method matrix ──────────────────────────────────────────────────────
+.tm-container {
+    // Hide the textInput bridge completely
+    .form-group { display: none; }
+}
 
-    .filter-label { color: var(--bs-secondary-color); }
+.tm-matrix {
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin: 0.1rem 0;
 
-    .checkbox-inline,
-    .radio-inline {
-        border-color: rgba(255, 255, 255, 0.20);
+    th, td {
+        padding: 0.1rem 0.25rem;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: middle;
     }
 
-    .checkbox-inline:has(input:not(:checked)),
-    .radio-inline:has(input:not(:checked)) {
-        border-color: rgba(255, 255, 255, 0.10);
+    .tm-col-header {
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.7rem;
+        color: var(--bs-body-color);
+        padding-bottom: 0.3rem;
+        &:hover { color: $primary; }
     }
 
-    .checkbox-inline:has(input:checked),
-    .radio-inline:has(input:checked) {
-        border-color: $primary;
-        background: rgba(27, 122, 110, 0.15);
+    .tm-row-header {
+        text-align: right;
+        cursor: pointer;
+        font-weight: 500;
+        padding-right: 0.5rem;
+        color: var(--bs-body-color);
+        &:hover { color: $primary; }
+    }
+
+    .tm-cell {
+        display: inline-block;
+        min-width: 26px;
+        height: 22px;
+        border-radius: 3px;
+        border: 1.5px solid rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+        background: transparent;
+        transition: background 0.1s, border-color 0.1s, opacity 0.1s;
+        font-size: 0.65rem;
+        line-height: 22px;
+        padding: 0 0.25rem;
+        color: var(--bs-secondary-color);
+        user-select: none;
+
+        &.tm-active {
+            background: rgba(27, 122, 110, 0.22);
+            border-color: $primary;
+            color: var(--bs-body-color);
+            font-weight: 600;
+        }
+
+        &.tm-empty {
+            opacity: 0.12;
+            cursor: default;
+            pointer-events: none;
+        }
+    }
+}
+
+[data-bs-theme="dark"] {
+    .manhattan-filter-bar {
+        background: rgba(255, 255, 255, 0.03);
+        border-bottom-color: rgba(255, 255, 255, 0.10);
+        .filter-label { color: var(--bs-secondary-color); }
+    }
+
+    .tm-matrix {
+        .tm-cell { border-color: rgba(255, 255, 255, 0.15); }
+        .tm-cell.tm-active {
+            background: rgba(27, 122, 110, 0.35);
+            border-color: $primary;
+        }
+        .tm-row-header, .tm-col-header { color: var(--bs-body-color); }
     }
 }
 

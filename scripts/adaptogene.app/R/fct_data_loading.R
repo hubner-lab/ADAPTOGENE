@@ -269,6 +269,26 @@ load_pairwise_collapsed <- function(project) {
     )
 }
 
+#' Parse GFF9 attribute string into a data.table of key-value columns
+#'
+#' Each row's attributes are parsed independently, so variable key order and
+#' missing keys (filled with NA) are handled correctly.
+#'
+#' @param attr_strings character vector of raw GFF attribute strings
+#' @return data.table with one column per attribute key
+#' @noRd
+parse_gff_attributes <- function(attr_strings) {
+    parsed <- lapply(attr_strings, function(s) {
+        if (is.na(s) || !nzchar(s)) return(list())
+        pairs <- strsplit(s, ";", fixed = TRUE)[[1]]
+        pairs <- pairs[nzchar(pairs)]
+        keys  <- sub("=.*",     "", pairs)
+        vals  <- sub("^[^=]+=", "", pairs)
+        stats::setNames(as.list(vals), keys)
+    })
+    data.table::rbindlist(parsed, fill = TRUE)
+}
+
 #' Load and parse the project GFF as a gene coordinate table
 #'
 #' Reads the GFF file, filters to the configured feature type (default "mRNA"),
@@ -325,8 +345,12 @@ load_gff_genes <- function(project, config) {
                 sub("\\.[0-9]+(_exon_[0-9]+)?$", "", id)
             }]
 
-            # Keep minimal columns: gene_id, chr, start, end + attributes string
-            dt[, .(gene_id, chr, start, end, attributes)]
+            # Parse attributes into individual columns
+            attr_dt <- parse_gff_attributes(dt$attributes)
+            # Drop ID/Parent — redundant with gene_id
+            drop_cols <- intersect(c("ID", "Parent"), names(attr_dt))
+            if (length(drop_cols) > 0) attr_dt[, (drop_cols) := NULL]
+            cbind(dt[, .(gene_id, chr, start, end)], attr_dt)
         }, error = function(e) data.table::data.table())
     })
 }

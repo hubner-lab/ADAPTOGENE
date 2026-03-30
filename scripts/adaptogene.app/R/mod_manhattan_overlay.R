@@ -63,7 +63,9 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           regions            = shiny::reactive(NULL),
                                           current_region_id  = shiny::reactive(NULL),
                                           show_regions_control = TRUE,
-                                          sig_snps_override    = shiny::reactive(NULL)) {
+                                          sig_snps_override    = shiny::reactive(NULL),
+                                          trait_colors         = shiny::reactive(NULL),
+                                          method_shapes        = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -86,13 +88,19 @@ mod_manhattan_overlay_server <- function(id, project_data,
             k   <- pd$k_best
             if (is.na(k)) return(NULL)
 
+            # When interactive region rectangles are provided via the regions param,
+            # always use the plain background (no baked-in regions) to avoid
+            # double-drawing static + dynamic rectangles on top of each other.
+            has_interactive_regions <- !is.null(regions())
+            use_regions_bg <- show_regions() && !has_interactive_regions
+
             if (is_miami) {
-                if (show_regions() && file_ok(miami_regions_bg_path(pd$name, k)))
+                if (use_regions_bg && file_ok(miami_regions_bg_path(pd$name, k)))
                     miami_regions_bg_path(pd$name, k)
                 else
                     miami_bg_path(pd$name, k)
             } else if (combined) {
-                if (show_regions() &&
+                if (use_regions_bg &&
                     file_ok(combined_manhattan_regions_bg_path(pd$name, module, k)))
                     combined_manhattan_regions_bg_path(pd$name, module, k)
                 else
@@ -103,7 +111,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 cfg <- pd$config
                 adj <- resolve_adjust(cfg, m, if (module == MOD_PHENO) "phenotype_association" else "association")
                 if (is.null(adj)) return(NULL)
-                if (show_regions() &&
+                if (use_regions_bg &&
                     file_ok(manhattan_regions_bg_path(pd$name, module, m, t, k, adj)))
                     manhattan_regions_bg_path(pd$name, module, m, t, k, adj)
                 else
@@ -204,6 +212,8 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 sig_snps          = if (nrow(snps) > 0) snps else NULL,
                 regions           = reg_data,
                 current_region_id = current_region_id(),
+                trait_colors      = trait_colors(),
+                method_shapes     = method_shapes(),
                 is_miami          = is_miami,
                 source            = ns("overlay")
             )
