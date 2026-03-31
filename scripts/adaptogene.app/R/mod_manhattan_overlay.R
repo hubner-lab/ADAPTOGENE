@@ -170,7 +170,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 # because the combined background PNG spans all methods' y-range)
                 path <- selected_snps_path(pd$name, module)
                 load_cached(paste0("sig_snps_", path), function() {
-                    load_selected_snps(pd$name, module)
+                    load_selected_snps(pd$name, module, k_best = pd$k_best)
                 })
             }
         })

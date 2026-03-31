@@ -454,6 +454,13 @@ launch_regionplot_subprocess <- function(region_row, trait, project_data, module
     method_files <- find_method_sigsnps_files(pd$name, module)
     if (length(method_files) == 0)
         return(list(error = "No method result files found. Run the association mode first."))
+    # Filter to k_best only — glob returns files for all K values, causing each method
+    # to appear twice in the regionplot legend (once per K) with different colors
+    k_best <- pd$k_best
+    if (!is.na(k_best)) {
+        k_pattern <- paste0("_K", k_best, "_")
+        method_files <- method_files[grepl(k_pattern, basename(method_files), fixed = TRUE)]
+    }
 
     assoc_tables <- .build_assoc_tables_arg(method_files)
     if (is.null(assoc_tables))

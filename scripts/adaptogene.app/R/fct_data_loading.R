@@ -109,7 +109,7 @@ assign_region_ids <- function(snps_dt, project, module) {
 #' where method columns contain the trait name (or "" if not significant for that method).
 #' Returns long format: SNPID, chr, pos, pvalue, method, trait, region_id
 #' @noRd
-load_selected_snps <- function(project, module = MOD_ASSOC) {
+load_selected_snps <- function(project, module = MOD_ASSOC, k_best = NA) {
     p <- selected_snps_path(project, module)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -144,9 +144,21 @@ load_selected_snps <- function(project, module = MOD_ASSOC) {
             }, by = seq_len(nrow(long))][, seq_len := NULL]
         }
 
-        # Use min_pvalue as pvalue (combined background PNG spans all methods' y-range)
-        long[, pvalue := min_pvalue]
-        long[, min_pvalue := NULL]
+        # Join actual per-method p-values from sig_snps files.
+        # min_pvalue is kept for combined Manhattan y-range but NOT shown in tables.
+        method_dts <- load_all_method_sigsnps(project, module, k = k_best)
+        if (length(method_dts) > 0) {
+            method_pvals <- data.table::rbindlist(method_dts, use.names = TRUE)
+            method_pvals <- method_pvals[, .(SNPID, method, trait, pvalue)]
+            long <- merge(long, method_pvals,
+                          by = c("SNPID", "method", "trait"), all.x = TRUE)
+            # Rows without a match keep min_pvalue as fallback
+            long[is.na(pvalue), pvalue := min_pvalue]
+        } else {
+            long[, pvalue := min_pvalue]
+        }
+        # Keep min_pvalue for combined Manhattan overlay y-placement
+        # (combined background PNG y-axis is calibrated to min across all methods)
 
         long <- assign_region_ids(long, project, module)
         long
@@ -362,8 +374,13 @@ load_gff_genes <- function(project, config) {
 #' Each data.table has columns: SNPID, chr, pos, pvalue, method, trait.
 #' Returns an empty list when no files exist (old pipeline run / fallback).
 #' @noRd
-load_all_method_sigsnps <- function(project, module = MOD_ASSOC) {
+load_all_method_sigsnps <- function(project, module = MOD_ASSOC, k = NA) {
     files <- find_method_sigsnps_files(project, module)
+    if (length(files) == 0) return(list())
+    if (!is.na(k)) {
+        k_pattern <- paste0("_K", k, "_")
+        files <- files[grepl(k_pattern, basename(files), fixed = TRUE)]
+    }
     if (length(files) == 0) return(list())
 
     result <- list()

@@ -112,9 +112,9 @@ combine_sigsnps <- function(sigsnps_list, strategy = "Sum", gap = 200000L) {
     # Deduplicate — same SNP can appear in multiple methods/traits
     result <- unique(result, by = c("SNPID", "method", "trait"))
 
-    # For combined view, y-position uses min pvalue across methods per SNP
-    # (so dots align with the combined background PNG's y-calibration)
-    result[, pvalue := min(pvalue, na.rm = TRUE), by = "SNPID"]
+    # Add min_pvalue column for combined Manhattan y-placement
+    # (background PNG y-axis spans the minimum p-value per SNP across all methods)
+    result[, min_pvalue := min(pvalue, na.rm = TRUE), by = "SNPID"]
 
     result
 }
