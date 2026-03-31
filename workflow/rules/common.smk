@@ -105,10 +105,6 @@ def _migrate_config(cfg):
         'ENRICHMENT_PLOT_HEIGHT': ('enrichment', 'plot_height'),
         'ENRICHMENT_CNET_LABEL': ('enrichment', 'cnet_label'),
         'ENRICHMENT_TOP_PLOT_REGIONS': ('enrichment', 'top_plot_regions'),
-        'REGIONPLOT_REGION': ('regionplot', 'region'),
-        'REGIONPLOT_TRAITS': ('regionplot', 'traits'),
-        'REGIONPLOT_METHOD': ('regionplot', 'method'),
-        'REGIONPLOT_GENES': ('regionplot', 'genes'),
         'FUTURE_SSP': ('future', 'ssp'),
         'FUTURE_YEAR': ('future', 'year'),
         'FUTURE_MODELS': ('future', 'models'),
@@ -320,12 +316,8 @@ ENRICHMENT_PLOT_HEIGHT = _enrich.get('plot_height', 10)
 ENRICHMENT_CNET_LABEL = _enrich.get('cnet_label', 'gene_id')
 ENRICHMENT_TOP_PLOT_REGIONS = _enrich.get('top_plot_regions', 0)
 
-# REGIONPLOT parameters
-_rp = config.get('regionplot', {})
-GENES_TO_HIGHLIGHT = _rp.get('genes', 'all')
-REGIONPLOT_REGION = _rp.get('region', 'NULL')
-REGIONPLOT_TRAITS = _rp.get('traits', 'NULL')
-REGIONPLOT_METHOD = _rp.get('method', 'NULL')
+# Note: regionplot mode deprecated — regionplots generated on-demand in Shiny app
+GENES_TO_HIGHLIGHT = config.get('regionplot', {}).get('genes', 'all')
 
 # FUTURE parameters
 _future = config.get('future', {})
@@ -513,7 +505,6 @@ MOD_STRUCTK = f"{OUTDIR}structure_k/"
 MOD_ASSOC = f"{OUTDIR}association/"
 MOD_PHENO = f"{OUTDIR}phenotype_association/"
 MOD_OVERLAP = f"{OUTDIR}overlapping/"
-MOD_REGPLOT = f"{OUTDIR}regionplot/"
 MOD_MALAD = f"{OUTDIR}maladaptation/"
 
 # Working paths
@@ -670,7 +661,6 @@ def add_association_paths():
 
     # Regionplot outputs
     O['gff_topr'] = f"{INTER}annotation/topr_gene_annotation.tsv"
-    O['regionplot_done'] = f"{INTER}flags/regionplot_done.flag"
 
 add_association_paths()
 
@@ -886,9 +876,6 @@ if ASSOC_GAPIT_CONFIGS:
     for model in ASSOC_GAPIT_CONFIGS:
         dirs_to_create.append(f"{MOD_ASSOC}GAPIT_native_output/{model}/")
 
-# Add regionplot directory
-dirs_to_create.append(f"{MOD_REGPLOT}")
-
 # Add maladaptation directories (require climate)
 if CLIMATE_ENABLED:
     dirs_to_create.append(f"{INTER}gradient_forest/")
@@ -1080,14 +1067,6 @@ def get_targets(mode):
         targets.append(W['summary_done'])
         return targets
 
-    elif mode == 'regionplot':
-        check_numeric(K_BEST, 'K_BEST')
-        if not ASSOC_CONFIGS:
-            raise ValueError("ASSOCIATION_CONFIGS must be set for regionplot mode")
-        if GFF:
-            check_file_exists(INDIR, GFF, 'GFF')
-
-        return [O['regionplot_done']]
 
     elif mode == 'maladaptation':
         if not CLIMATE_ENABLED:

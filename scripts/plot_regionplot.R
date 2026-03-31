@@ -183,6 +183,7 @@ if (nrow(gff_table) == 0) {
 
 # ===================== Part 1: Auto regions from Regions.tsv =====================
 
+if (REGIONS_FILE != "NULL" && REGIONS_FILE != "" && file.exists(REGIONS_FILE)) {
 regions <- fread(REGIONS_FILE)
 
 if (nrow(regions) == 0) {
@@ -231,7 +232,9 @@ if (nrow(regions) == 0) {
       plot_region_trait(region_str, trait, assoc_list, gff_table, filename_base)
     }
   }
-}
+} # end Part 1 regions loop
+
+} # end if REGIONS_FILE exists
 
 # ===================== Part 2: Custom region (if specified) =====================
 

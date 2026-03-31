@@ -153,11 +153,11 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         # ── Enrichment state ───────────────────────────────────────────────────
         enrichment_cache <- shiny::reactiveValues()
-        enrichment_busy  <- shiny::reactiveVal(FALSE)
-
-        # ── Regionplot state ───────────────────────────────────────────────────
         regionplot_cache <- shiny::reactiveValues()
-        regionplot_busy  <- shiny::reactiveVal(FALSE)
+
+        # Handles for background processes: keyed by cache key
+        # Each entry: list(process, log_file, type, ...) or NULL when done
+        subprocess_handles <- shiny::reactiveValues()
 
         # ── Derived keys (region + first trait) ───────────────────────────────
         current_region_row <- shiny::reactive({
@@ -187,6 +187,54 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             tr  <- current_trait()
             if (is.null(rid) || is.null(tr)) return(NULL)
             paste0(rid, "___", tr, "___rplot")
+        })
+
+        # ── Helper: is a subprocess currently running for this key? ────────────
+        is_running <- function(key) {
+            if (is.null(key)) return(FALSE)
+            h <- subprocess_handles[[key]]
+            !is.null(h) && h$process$is_alive()
+        }
+
+        # ── Polling observer: checks background processes every second ──────────
+        shiny::observe({
+            handles_list <- shiny::reactiveValuesToList(subprocess_handles)
+            active <- Filter(Negate(is.null), handles_list)
+            if (length(active) == 0) return()
+
+            shiny::invalidateLater(1000)
+
+            for (key in names(active)) {
+                h <- active[[key]]
+                if (h$process$is_alive()) next  # still running
+
+                status <- tryCatch(h$process$get_exit_status(), error = function(e) 1L)
+
+                if (h$type == "enrichment") {
+                    result <- tryCatch(
+                        .collect_enrichment_result(h),
+                        error = function(e) list(error = conditionMessage(e))
+                    )
+                    if (!is.null(result$error) && status != 0L) {
+                        log_lines <- tryCatch(readLines(h$log_file, warn = FALSE), error = function(e) character())
+                        result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
+                    }
+                    enrichment_cache[[key]] <- result
+
+                } else if (h$type == "regionplot") {
+                    result <- tryCatch(
+                        .collect_regionplot_result(h),
+                        error = function(e) list(error = conditionMessage(e))
+                    )
+                    if (!is.null(result$error) && status != 0L) {
+                        log_lines <- tryCatch(readLines(h$log_file, warn = FALSE), error = function(e) character())
+                        result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
+                    }
+                    regionplot_cache[[key]] <- result
+                }
+
+                subprocess_handles[[key]] <- NULL
+            }
         })
 
         # ── Detail panel (conditional) ─────────────────────────────────────────
@@ -282,13 +330,14 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             if (is.null(rid)) return(NULL)
             key    <- enrich_key()
             cached <- if (!is.null(key)) enrichment_cache[[key]] else NULL
-            busy   <- enrichment_busy()
+            running <- is_running(key)
 
-            if (busy) {
+            if (running) {
                 return(htmltools::div(
-                    class = "d-flex align-items-center gap-2 py-2",
-                    htmltools::span(class = "spinner-border spinner-border-sm text-primary"),
-                    htmltools::span("Running enrichment analysis...")
+                    class = "pipeline-rule-item d-flex align-items-center gap-2 py-1",
+                    bsicons::bs_icon("arrow-repeat",
+                        class = "text-warning spin-icon flex-shrink-0", size = "0.85em"),
+                    htmltools::span(class = "small", "Running GO enrichment...")
                 ))
             }
 
@@ -361,47 +410,55 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         shiny::observeEvent(input$run_enrichment, {
             key <- enrich_key()
-            if (is.null(key) || enrichment_busy()) return()
-            row  <- current_region_row()
+            if (is.null(key) || is_running(key)) return()
+            row   <- current_region_row()
             if (is.null(row)) return()
-            tr   <- current_trait()
+            tr    <- current_trait()
             if (is.null(tr)) return()
 
-            genes <- region_genes()
-            pd    <- project_data()
-
-            enrichment_busy(TRUE)
-            result <- tryCatch(
-                run_enrichment_subprocess(genes, row$region_id[1], tr, pd),
-                error = function(e) list(error = conditionMessage(e))
+            handle <- launch_enrichment_subprocess(
+                region_genes(), row$region_id[1], tr, project_data()
             )
-            enrichment_cache[[key]] <- result
-            enrichment_busy(FALSE)
+            if (!is.null(handle$error)) {
+                enrichment_cache[[key]] <- handle   # store error immediately
+            } else {
+                subprocess_handles[[key]] <- handle # start polling
+            }
         })
 
         # ── Regionplot UI ──────────────────────────────────────────────────────
         output$regionplot_ui <- shiny::renderUI({
-            rid  <- selected_region_id()
+            rid    <- selected_region_id()
             if (is.null(rid)) return(NULL)
-            key  <- rplot_key()
-            path <- if (!is.null(key)) regionplot_cache[[key]] else NULL
-            busy <- regionplot_busy()
+            key    <- rplot_key()
+            cached <- if (!is.null(key)) regionplot_cache[[key]] else NULL
+            running <- is_running(key)
 
-            if (busy) {
+            if (running) {
                 return(htmltools::div(
-                    class = "d-flex align-items-center gap-2 py-2",
-                    htmltools::span(class = "spinner-border spinner-border-sm text-primary"),
-                    htmltools::span("Generating region plot...")
+                    class = "pipeline-rule-item d-flex align-items-center gap-2 py-1",
+                    bsicons::bs_icon("arrow-repeat",
+                        class = "text-warning spin-icon flex-shrink-0", size = "0.85em"),
+                    htmltools::span(class = "small", "Generating regional Manhattan...")
                 ))
             }
 
-            if (!is.null(path) && nzchar(path)) {
-                return(if (file_ok(path))
-                    mod_image_card_ui(ns("regionplot_img"))
-                else
-                    htmltools::div(class = "text-muted small py-2",
-                        bsicons::bs_icon("exclamation-triangle"),
-                        " Region plot generation failed."))
+            if (!is.null(cached)) {
+                if (!is.null(cached$error)) {
+                    return(htmltools::div(
+                        class = "text-muted small py-2",
+                        bsicons::bs_icon("exclamation-triangle"), " ", cached$error,
+                        htmltools::br(),
+                        shiny::actionButton(ns("run_regionplot"),
+                            "Retry Region Plot",
+                            class = "btn-sm btn-outline-secondary mt-2",
+                            icon  = shiny::icon("rotate-right"))
+                    ))
+                }
+                path <- cached$path
+                if (!is.null(path) && file_ok(path)) {
+                    return(mod_image_card_ui(ns("regionplot_img")))
+                }
             }
 
             shiny::actionButton(ns("run_regionplot"),
@@ -411,9 +468,11 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         })
 
         shiny::observe({
-            key  <- rplot_key()
-            path <- if (!is.null(key)) regionplot_cache[[key]] else NULL
-            if (is.null(path) || !nzchar(path) || !file_ok(path)) return()
+            key    <- rplot_key()
+            cached <- if (!is.null(key)) regionplot_cache[[key]] else NULL
+            if (is.null(cached) || !is.null(cached$error)) return()
+            path <- cached$path
+            if (is.null(path) || !file_ok(path)) return()
             mod_image_card_server("regionplot_img",
                 path    = shiny::reactive(path),
                 title   = shiny::reactive("Regional Manhattan"),
@@ -423,20 +482,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         shiny::observeEvent(input$run_regionplot, {
             key <- rplot_key()
-            if (is.null(key) || regionplot_busy()) return()
+            if (is.null(key) || is_running(key)) return()
             row <- current_region_row()
             if (is.null(row)) return()
             tr  <- current_trait()
             if (is.null(tr)) return()
-            pd  <- project_data()
 
-            regionplot_busy(TRUE)
-            path <- tryCatch(
-                run_regionplot_subprocess(row, tr, pd, module),
-                error = function(e) NULL
-            )
-            regionplot_cache[[key]] <- path %||% ""
-            regionplot_busy(FALSE)
+            handle <- launch_regionplot_subprocess(row, tr, project_data(), module)
+            if (!is.null(handle$error)) {
+                regionplot_cache[[key]] <- handle   # store error immediately
+            } else {
+                subprocess_handles[[key]] <- handle # start polling
+            }
         })
 
         # ── Return value for parent module ─────────────────────────────────────

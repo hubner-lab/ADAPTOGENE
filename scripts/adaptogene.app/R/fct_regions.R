@@ -257,18 +257,23 @@ run_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data) 
 run_regionplot_subprocess <- function(region_row, trait, project_data, module = MOD_ASSOC) {
     pd <- project_data
 
-    gff_topr_p <- .resolve_gff_topr_path(pd)
+    # Convert GFF on-the-fly if the topr annotation doesn't exist yet
+    gff_topr_p <- .ensure_gff_topr(pd)
     if (!file_ok(gff_topr_p)) {
-        return(NULL)
+        return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
     }
 
     # Build ASSOC_TABLES: method:adjust:filepath for each available method sig SNPs file
     method_files <- find_method_sigsnps_files(pd$name, module)
-    if (length(method_files) == 0) return(NULL)
+    if (length(method_files) == 0) {
+        return(list(error = "No method result files found. Run the association mode first."))
+    }
 
     # Build method:adjust_str:pvalues_file triples from the paths
     assoc_tables <- .build_assoc_tables_arg(method_files)
-    if (is.null(assoc_tables)) return(NULL)
+    if (is.null(assoc_tables)) {
+        return(list(error = "Could not build association table arguments."))
+    }
 
     custom_region <- paste0(region_row$chr[1], ":",
                              region_row$start[1], "-",
@@ -296,7 +301,7 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
                 assoc_tables,
                 "0",             # TOP_REGIONS
                 genes_highlight,
-                tmp_base,
+                paste0(tmp_base, "/"),
                 custom_region,
                 trait,           # CUSTOM_TRAITS
                 "NULL"           # CUSTOM_METHODS (all)
@@ -307,11 +312,197 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
         error = function(e) list(status = 1L, stderr = conditionMessage(e))
     )
 
-    if (res$status != 0L) return(NULL)
+    if (res$status != 0L) {
+        stderr_tail <- paste(utils::tail(strsplit(res$stderr %||% "", "\n")[[1]], 5), collapse = "\n")
+        return(list(error = paste0("Regionplot failed:\n", stderr_tail)))
+    }
 
     # Find generated PNG in tmp_base
     pngs <- Sys.glob(file.path(tmp_base, "*.png"))
-    if (length(pngs) > 0) pngs[1] else NULL
+    if (length(pngs) == 0) {
+        return(list(error = "No plot was generated. Check that the region contains SNPs in the p-value files."))
+    }
+    list(path = pngs[1])
+}
+
+# ── Async subprocess launchers ────────────────────────────────────────────────
+
+#' Launch GO enrichment as a non-blocking background process.
+#'
+#' Returns a handle list immediately; the caller polls \code{handle$process$is_alive()}.
+#' On completion, pass the handle to \code{.collect_enrichment_result()}.
+#'
+#' @return list(process, log_file, type, tmp_tables, tmp_plots, per_trait_id, trait)
+#'   or list(error=) if pre-flight validation fails.
+#' @noRd
+launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data) {
+    pd <- project_data
+
+    go_field   <- config_get(pd$config, "association", "go_field",  default = NULL)
+    gff_feat   <- config_get(pd$config, "gff", "feature",           default = "mRNA")
+    top_terms  <- config_get(pd$config, "enrichment", "top_terms",  default = 10L)
+    plot_w     <- config_get(pd$config, "enrichment", "plot_width",  default = 10L)
+    plot_h     <- config_get(pd$config, "enrichment", "plot_height", default = 8L)
+    cnet_label <- config_get(pd$config, "enrichment", "cnet_label", default = "gene_id")
+
+    if (is.null(go_field) || go_field == "" || go_field == "NULL")
+        return(list(error = "GO field not configured (association.go_field)"))
+
+    gff <- .resolve_gff_path(pd)
+    if (!file_ok(gff))
+        return(list(error = paste0("GFF not found: ", gff)))
+
+    if (is.null(genes_dt) || nrow(genes_dt) == 0)
+        return(list(error = "No genes in region"))
+
+    pipeline_path <- get_pipeline_path()
+    tmp_base  <- file.path(tempdir(), "adaptogene_enrichment",
+                           paste0(pd$name, "_", gsub("[^a-z0-9]", "", tolower(region_id)),
+                                  "_", trait))
+    tmp_genes  <- file.path(tmp_base, "genes.tsv")
+    tmp_tables <- file.path(tmp_base, "tables")
+    tmp_inter  <- file.path(tmp_base, "intermediate")
+    tmp_plots  <- file.path(tmp_base, "plots")
+    log_file   <- file.path(tmp_base, "enrichment.log")
+
+    dir.create(tmp_tables, recursive = TRUE, showWarnings = FALSE)
+    dir.create(tmp_inter,  recursive = TRUE, showWarnings = FALSE)
+    dir.create(tmp_plots,  recursive = TRUE, showWarnings = FALSE)
+
+    per_trait_id <- paste0(region_id, "_", trait)
+    genes_out <- data.table::copy(genes_dt)
+    genes_out[, region_id := per_trait_id]
+    data.table::fwrite(genes_out, tmp_genes, sep = "\t")
+
+    enrich_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "run_enrichment.R"),
+        tmp_genes, gff, go_field, gff_feat, tmp_tables, tmp_inter
+    ), shQuote), collapse = " ")
+
+    plot_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "plot_enrichment.R"),
+        tmp_inter, tmp_plots,
+        as.character(as.integer(top_terms)),
+        as.character(as.numeric(plot_w)),
+        as.character(as.numeric(plot_h)),
+        cnet_label, tmp_genes, "0"
+    ), shQuote), collapse = " ")
+
+    # Chain both steps; log file captures stdout+stderr of both
+    cmd <- paste0(
+        "Rscript ", enrich_args,
+        " >> ", shQuote(log_file), " 2>&1",
+        " && Rscript ", plot_args,
+        " >> ", shQuote(log_file), " 2>&1"
+    )
+
+    proc <- tryCatch(
+        processx::process$new("bash", c("-c", cmd), wd = pipeline_path),
+        error = function(e) NULL
+    )
+    if (is.null(proc))
+        return(list(error = "Failed to launch enrichment process"))
+
+    list(
+        process      = proc,
+        log_file     = log_file,
+        type         = "enrichment",
+        tmp_tables   = tmp_tables,
+        tmp_plots    = tmp_plots,
+        per_trait_id = per_trait_id,
+        trait        = trait
+    )
+}
+
+#' Collect enrichment result after the background process has finished.
+#' @noRd
+.collect_enrichment_result <- function(handle) {
+    tsv_path <- file.path(handle$tmp_tables, handle$trait,
+                          paste0("Region_", handle$per_trait_id, "_enrichment.tsv"))
+    if (!file_ok(tsv_path))
+        return(list(error = "No enrichment results (no significant GO terms)"))
+
+    enrich_tbl <- tryCatch(
+        data.table::fread(tsv_path, sep = "\t", header = TRUE),
+        error = function(e) NULL
+    )
+    if (is.null(enrich_tbl) || nrow(enrich_tbl) == 0)
+        return(list(error = "No enrichment results (no significant GO terms)"))
+
+    dotplot_path  <- file.path(handle$tmp_plots, handle$trait,
+                               paste0("Region_", handle$per_trait_id, "_dotplot.png"))
+    emapplot_path <- file.path(handle$tmp_plots, handle$trait,
+                               paste0("Region_", handle$per_trait_id, "_emapplot.png"))
+
+    list(
+        table         = enrich_tbl,
+        dotplot_path  = if (file_ok(dotplot_path))  dotplot_path  else NULL,
+        emapplot_path = if (file_ok(emapplot_path)) emapplot_path else NULL
+    )
+}
+
+#' Launch regionplot as a non-blocking background process.
+#' @return list(process, log_file, type, tmp_base, trait) or list(error=)
+#' @noRd
+launch_regionplot_subprocess <- function(region_row, trait, project_data, module = MOD_ASSOC) {
+    pd <- project_data
+
+    gff_topr_p <- .ensure_gff_topr(pd)
+    if (!file_ok(gff_topr_p))
+        return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
+
+    method_files <- find_method_sigsnps_files(pd$name, module)
+    if (length(method_files) == 0)
+        return(list(error = "No method result files found. Run the association mode first."))
+
+    assoc_tables <- .build_assoc_tables_arg(method_files)
+    if (is.null(assoc_tables))
+        return(list(error = "Could not build association table arguments."))
+
+    custom_region <- paste0(region_row$chr[1], ":", region_row$start[1], "-", region_row$end[1])
+    genes_highlight <- config_get(pd$config, "regionplot", "genes", default = "NULL") %||% "NULL"
+    if (length(genes_highlight) > 1) genes_highlight <- paste(genes_highlight, collapse = "|")
+
+    pipeline_path <- get_pipeline_path()
+    tmp_base <- file.path(tempdir(), "adaptogene_regionplot",
+                          paste0(pd$name, "_",
+                                 gsub("[^a-z0-9]", "", tolower(custom_region)),
+                                 "_", trait))
+    dir.create(tmp_base, recursive = TRUE, showWarnings = FALSE)
+    log_file <- file.path(tmp_base, "regionplot.log")
+
+    rplot_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "plot_regionplot.R"),
+        "NULL", gff_topr_p, assoc_tables, "0",
+        genes_highlight, paste0(tmp_base, "/"),
+        custom_region, trait, "NULL"
+    ), shQuote), collapse = " ")
+
+    cmd <- paste0("Rscript ", rplot_args, " >> ", shQuote(log_file), " 2>&1")
+
+    proc <- tryCatch(
+        processx::process$new("bash", c("-c", cmd), wd = pipeline_path),
+        error = function(e) NULL
+    )
+    if (is.null(proc))
+        return(list(error = "Failed to launch regionplot process"))
+
+    list(
+        process  = proc,
+        log_file = log_file,
+        type     = "regionplot",
+        tmp_base = tmp_base,
+        trait    = trait
+    )
+}
+
+#' Collect regionplot result after the background process has finished.
+#' @noRd
+.collect_regionplot_result <- function(handle) {
+    pngs <- Sys.glob(file.path(handle$tmp_base, "*.png"))
+    if (length(pngs) == 0)
+        return(list(error = "No plot was generated. Check that the region contains SNPs in the p-value files."))
+    list(path = pngs[1])
 }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -348,6 +539,44 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
 .resolve_gff_topr_path <- function(pd) {
     # Pipeline places gff2topr output in _intermediate/annotation/
     Sys.glob(mod_path(pd$name, MOD_INTER, "annotation", "*.tsv"))[1] %||% ""
+}
+
+#' Ensure topr-format GFF exists, converting from normalized GFF3 if needed.
+#' Returns the path to the topr TSV, or "" on failure.
+#' @noRd
+.ensure_gff_topr <- function(pd) {
+    # Return immediately if already exists (pipeline ran gff2topr rule)
+    existing <- .resolve_gff_topr_path(pd)
+    if (file_ok(existing)) return(existing)
+
+    # Locate the normalized GFF3 written by the processing mode
+    norm_gff <- mod_path(pd$name, MOD_INTER, "annotation", "normalized.gff3")
+    if (!file_ok(norm_gff)) return("")
+
+    # Read GFF config values
+    cfg       <- pd$config
+    feature   <- config_get(cfg, "gff", "feature",   default = "mRNA")
+    gene_name <- config_get(cfg, "gff", "gene_name", default = "description")
+    biotype   <- config_get(cfg, "gff", "biotype",   default = "biotype")
+
+    out_path <- mod_path(pd$name, MOD_INTER, "annotation", "topr_gene_annotation.tsv")
+    dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
+
+    pipeline_path <- get_pipeline_path()
+    script <- file.path(pipeline_path, "scripts", "gff2topr.py")
+    if (!file.exists(script)) return("")
+
+    res <- tryCatch(
+        processx::run(
+            command = "python3",
+            args    = c(script, norm_gff, feature, gene_name, biotype, out_path),
+            wd      = pipeline_path,
+            timeout = 30
+        ),
+        error = function(e) list(status = 1L)
+    )
+
+    if (res$status == 0L && file_ok(out_path)) out_path else ""
 }
 
 #' Build colon-separated ASSOC_TABLES arg for plot_regionplot.R
