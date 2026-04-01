@@ -97,12 +97,11 @@ rule pop_diff_test:
     params:
         k = lambda wc: wc.k,
         ploidy = PLOIDY,
-        inter_dir = INTER,
-        scattermore_threshold = SCATTERMORE_THRESHOLD
+        inter_dir = INTER
     log:    f"{LOGDIR}structure/pop_diff_K{{k}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_pop_diff.R \
             {input.snmf} {params.k} {params.ploidy} \
-            {output} {params.inter_dir} {params.scattermore_threshold} > {log} 2>&1
+            {output} {params.inter_dir} > {log} 2>&1
         """

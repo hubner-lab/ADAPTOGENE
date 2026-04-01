@@ -96,12 +96,9 @@ association:
       threshold: '0.05'
   combine_method: 'Sum'
   combine_gap: 100000
-  sig_snp_distance: 100000
   region_distance: 2000000
-  top_regions: 10
   promoter_length: 10000
   go_field: 'Ontology_term'     # Ensembl Plants GFF3 attribute name
-  scattermore_threshold: 30000
 
 #-----------------------------------------------------------------------------
 # GFF
@@ -119,7 +116,6 @@ enrichment:
   plot_width: 12
   plot_height: 10
   cnet_label: "gene_id"
-  top_plot_regions: 5
 
 #-----------------------------------------------------------------------------
 # FUTURE CLIMATE

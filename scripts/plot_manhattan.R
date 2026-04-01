@@ -22,8 +22,7 @@ TRAIT = args[5]         # single trait name, e.g., "bio_1"
 PLOT_DIR = args[6]      # output directory
 REGIONS_FILE = args[7]  # optional: Regions.tsv for highlighting (can be "NULL")
 SIGSNPS_FILES = args[8] # comma-separated list of sigSNPs files from all methods
-SCATTERMORE_THRESHOLD = args[9] %>% as.numeric  # Use scattermore when SNPs > this
-ALL_PREDICTORS = args[10]  # Comma-separated list of all trait names (for consistent Okabe-Ito colors)
+ALL_PREDICTORS = args[9]  # Comma-separated list of all trait names (for consistent Okabe-Ito colors)
 ################################
 
 # Handle optional files
@@ -141,33 +140,23 @@ get_region_colors <- function(n_regions) {
     }
 }
 
-# Smart geom layer: uses scattermore for large datasets, geom_point for small
-# scattermore doesn't work with ggplot2 color scales, so colors must be pre-computed
+# scattermore layer: pre-computes colors (scattermore doesn't work with ggplot2 color scales)
 # Parameters:
-#   data: data frame with pos_cum, log10p, and optionally chr_f for coloring
+#   data: data frame with pos_cum, log10p, and chr_f for coloring
 #   chr_colors: named vector of colors (names = chromosome levels)
-#   use_scattermore: whether to use scattermore (TRUE for large datasets)
 #   pointsize: for scattermore, use 3-4 for visibility (non-integers like 3.2 look better)
 #   pixels: raster resolution, should match output size (width*dpi, height*dpi)
-add_scatter_layer <- function(data, chr_colors, alpha = 0.5, size = 0.8,
-                              use_scattermore = FALSE, pointsize = 10) {
+add_scatter_layer <- function(data, chr_colors, alpha = 0.5, pointsize = 10) {
     if (nrow(data) == 0) {
         return(geom_blank())
     }
-
-    if (use_scattermore) {
-        # scattermore needs pre-computed colors (doesn't work with scale_color_manual)
-        data$point_color <- chr_colors[as.character(data$chr_f)]
-        # pixels should match output: 10in x 4in @ 300dpi = 3000x1200
-        geom_scattermore(data = data,
-                         aes(x = pos_cum, y = log10p, color = point_color),
-                         alpha = alpha, pointsize = pointsize,
-                         pixels = c(3000, 1200), interpolate = FALSE)
-    } else {
-        geom_point(data = data,
-                   aes(x = pos_cum, y = log10p, color = chr_f),
-                   alpha = alpha, size = size)
-    }
+    # scattermore needs pre-computed colors (doesn't work with scale_color_manual)
+    data$point_color <- chr_colors[as.character(data$chr_f)]
+    # pixels should match output: 10in x 4in @ 300dpi = 3000x1200
+    geom_scattermore(data = data,
+                     aes(x = pos_cum, y = log10p, color = point_color),
+                     alpha = alpha, pointsize = pointsize,
+                     pixels = c(3000, 1200), interpolate = FALSE)
 }
 
 ################################ Compute trait color
@@ -188,13 +177,7 @@ snps_assoc$chr <- as.character(snps_assoc$chr)
 n_snps <- nrow(snps_assoc)
 message(paste0('INFO: Loaded ', n_snps, ' SNPs'))
 
-# Decide rendering method based on SNP count
-use_scattermore <- n_snps > SCATTERMORE_THRESHOLD
-if (use_scattermore) {
-    message(paste0('INFO: Using scattermore for fast rendering (', n_snps, ' > ', SCATTERMORE_THRESHOLD, ')'))
-} else {
-    message(paste0('INFO: Using standard geom_point (', n_snps, ' <= ', SCATTERMORE_THRESHOLD, ')'))}
-
+message(paste0('INFO: Using scattermore for rendering (', n_snps, ' SNPs)'))
 
 # Check if trait exists
 if (!(TRAIT %in% colnames(snps_assoc))) {
@@ -258,18 +241,11 @@ n_sig <- sum(plot_df$is_significant)
 message(paste0('INFO: Found ', n_sig, ' significant SNPs above threshold'))
 
 p_simple <- ggplot() +
-    # Non-significant SNPs (chromosome colors) - use scattermore if large dataset
+    # Non-significant SNPs (chromosome colors) - scattermore for performance
     add_scatter_layer(data = plot_df %>% filter(!is_significant),
                       chr_colors = chr_colors,
-                      alpha = 0.5, size = 0.8,
-                      use_scattermore = use_scattermore)
-
-# Add appropriate color scale based on rendering method
-if (use_scattermore) {
-    p_simple <- p_simple + scale_color_identity()
-} else {
-    p_simple <- p_simple + scale_color_manual(values = chr_colors, guide = "none")
-}
+                      alpha = 0.5) +
+    scale_color_identity()
 
 p_simple <- p_simple +
     # Significant SNPs (trait-colored, larger) - always use geom_point for proper styling
@@ -378,20 +354,14 @@ bg_y_hi <- y_max * 1.05
 p_bg <- ggplot() +
     add_scatter_layer(data = plot_df %>% dplyr::filter(!is_significant),
                       chr_colors = chr_colors,
-                      alpha = 0.5, size = 0.8,
-                      use_scattermore = use_scattermore) +
+                      alpha = 0.5) +
+    scale_color_identity() +
     geom_hline(yintercept = threshold_log10, linetype = "dashed",
                color = "red", linewidth = 0.5) +
     scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
     scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA))
-
-if (use_scattermore) {
-    p_bg <- p_bg + scale_color_identity()
-} else {
-    p_bg <- p_bg + scale_color_manual(values = chr_colors, guide = "none")
-}
 
 bg_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_background")
 ggsave(file.path(PLOT_DIR, paste0(bg_base, ".png")), p_bg,
@@ -498,18 +468,11 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                              ymin = 0, ymax = y_max, fill = region_id),
                          alpha = 0.15) +
                 scale_fill_manual(values = region_colors, name = "Region") +
-                # Background SNPs (non-significant) - use scattermore if large
+                # Background SNPs (non-significant) - scattermore for performance
                 add_scatter_layer(data = df_background,
                                   chr_colors = chr_colors,
-                                  alpha = 0.5, size = 0.8,
-                                  use_scattermore = use_scattermore)
-
-            # Add appropriate color scale based on rendering method
-            if (use_scattermore) {
-                p_regions <- p_regions + scale_color_identity()
-            } else {
-                p_regions <- p_regions + scale_color_manual(values = chr_colors, guide = "none")
-            }
+                                  alpha = 0.5) +
+                scale_color_identity()
 
             p_regions <- p_regions +
                 # All significant SNPs - trait-colored
@@ -563,20 +526,14 @@ if (!is.null(REGIONS_FILE) && file.exists(REGIONS_FILE)) {
                 scale_fill_manual(values = region_colors, guide = "none") +
                 add_scatter_layer(data = df_background,
                                   chr_colors = chr_colors,
-                                  alpha = 0.5, size = 0.8,
-                                  use_scattermore = use_scattermore) +
+                                  alpha = 0.5) +
+                scale_color_identity() +
                 geom_hline(yintercept = threshold_log10, linetype = "dashed",
                            color = "red", linewidth = 0.5) +
                 scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
                 scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
                 theme_void() +
                 theme(plot.background = element_rect(fill = "white", color = NA))
-
-            if (use_scattermore) {
-                p_bg_regions <- p_bg_regions + scale_color_identity()
-            } else {
-                p_bg_regions <- p_bg_regions + scale_color_manual(values = chr_colors, guide = "none")
-            }
 
             bg_reg_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_regions_background")
             ggsave(file.path(PLOT_DIR, paste0(bg_reg_base, ".png")), p_bg_regions,

@@ -12,7 +12,6 @@ K = args[2] %>% as.numeric
 PLOIDY = args[3] %>% as.numeric
 OUT_PNG = args[4]
 INTER_DIR = args[5]
-SCATTERMORE_THRESHOLD = args[6] %>% as.numeric
 #################################
 
 # Derive SVG and QS paths from PNG path
@@ -40,14 +39,8 @@ pvalues.df <- data.frame(pvalues = p$pvalues)
 pvalues.df$idx <- 1:nrow(pvalues.df)
 pvalues.df$log10p <- -log10(pvalues.df$pvalues)
 
-# Decide rendering method based on SNP count
 n_snps <- nrow(pvalues.df)
-use_scattermore <- n_snps > SCATTERMORE_THRESHOLD
-if (use_scattermore) {
-    message(paste0('INFO: Using scattermore for fast rendering (', n_snps, ' > ', SCATTERMORE_THRESHOLD, ')'))
-} else {
-    message(paste0('INFO: Using standard geom_point (', n_snps, ' <= ', SCATTERMORE_THRESHOLD, ')'))
-}
+message(paste0('INFO: Using scattermore for rendering (', n_snps, ' SNPs)'))
 
 # Histogram plot
 gHist <-
@@ -57,17 +50,10 @@ gHist <-
     plot_theme
 
 # Manhattan-style plot
-gPval <- ggplot(pvalues.df, aes(x = idx, y = log10p))
-
-if (use_scattermore) {
+gPval <- ggplot(pvalues.df, aes(x = idx, y = log10p)) +
     # pixels should match output: 12.8in x 4.8in (half height) @ 300dpi = ~3840x1440
-    gPval <- gPval +
-        geom_scattermore(color = 'blue', pointsize = 12, pixels = c(3840, 1440),
-                         interpolate = FALSE)
-} else {
-    gPval <- gPval +
-        geom_point(color = 'blue')
-}
+    geom_scattermore(color = 'blue', pointsize = 12, pixels = c(3840, 1440),
+                     interpolate = FALSE)
 
 gPval <- gPval +
     labs(x = 'Index', y = expression(-log[10](p-value))) +

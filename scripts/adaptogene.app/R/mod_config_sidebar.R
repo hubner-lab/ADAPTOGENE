@@ -123,20 +123,35 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
                 iid      <- gsub("\\.", "_", e$key)
                 key_path <- e$key
 
-                shiny::observeEvent(input[[iid]], {
-                    if (e$type == "method_table") return()
+                if (e$type == "method_table") {
+                    # method_table: observe a hidden JSON bridge input
+                    json_id <- paste0(iid, "_json")
+                    shiny::observeEvent(input[[json_id]], {
+                        raw <- input[[json_id]]
+                        if (is.null(raw) || nchar(raw) == 0) return()
+                        tryCatch({
+                            new_val <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+                            cur_val <- config_get_by_path(config_state$working, key_path)
+                            if (identical(new_val, cur_val)) return()
+                            config_state$working <- config_set_by_path(
+                                config_state$working, key_path, new_val
+                            )
+                        }, error = function(e) NULL)
+                    }, ignoreInit = TRUE, ignoreNULL = TRUE)
+                } else {
+                    shiny::observeEvent(input[[iid]], {
+                        raw     <- input[[iid]]
+                        new_val <- input_to_config_value(raw, e$type)
+                        cur_val <- config_get_by_path(config_state$working, key_path)
 
-                    raw     <- input[[iid]]
-                    new_val <- input_to_config_value(raw, e$type)
-                    cur_val <- config_get_by_path(config_state$working, key_path)
+                        # No-op if equal (prevents circular re-triggers)
+                        if (config_values_equal(new_val, cur_val)) return()
 
-                    # No-op if equal (prevents circular re-triggers)
-                    if (config_values_equal(new_val, cur_val)) return()
-
-                    config_state$working <- config_set_by_path(
-                        config_state$working, key_path, new_val
-                    )
-                }, ignoreInit = TRUE)
+                        config_state$working <- config_set_by_path(
+                            config_state$working, key_path, new_val
+                        )
+                    }, ignoreInit = TRUE)
+                }
             })
         }
 
@@ -144,13 +159,12 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
         shiny::observeEvent(input$reset_btn, {
             new_working <- config_state$working
             for (e in entries) {
-                if (e$type == "method_table") next
                 saved_val <- config_get_by_path(config_state$saved, e$key)
                 new_working <- config_set_by_path(new_working, e$key, saved_val)
             }
             config_state$working <- new_working
 
-            # Push saved values back to inputs
+            # Push saved values back to inputs (including method tables via JS)
             update_sidebar_inputs(session, entries, config_state$saved)
         })
 
@@ -159,10 +173,13 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
             working <- config_state$working
             saved   <- config_state$saved
             sum(vapply(entries, function(e) {
-                if (e$type == "method_table") return(FALSE)
                 w <- config_get_by_path(working, e$key)
                 s <- config_get_by_path(saved,   e$key)
-                !config_values_equal(w, s)
+                if (e$type == "method_table") {
+                    !identical(w, s)
+                } else {
+                    !config_values_equal(w, s)
+                }
             }, logical(1)))
         })
 
@@ -251,7 +268,12 @@ build_config_input <- function(input_id, entry, value) {
             rows = 2, width = "100%",
             placeholder = entry$placeholder %||% ""
         ),
-        "method_table" = render_method_display(display_val),
+        "method_table" = {
+            # input_id is already ns()-wrapped; extract the local id for textInput
+            # by stripping the namespace prefix (everything up to and incl. last "-")
+            local_id <- sub("^.*-", "", input_id)
+            render_method_editor(input_id, local_id, display_val)
+        },
         shiny::textInput(input_id, label = NULL,
                           value = as.character(display_val %||% ""), width = "100%")
     )
@@ -261,11 +283,22 @@ build_config_input <- function(input_id, entry, value) {
 #' @noRd
 update_sidebar_inputs <- function(session, entries, saved_config) {
     for (e in entries) {
-        if (e$type == "method_table") next
         iid <- gsub("\\.", "_", e$key)
         val <- config_get_by_path(saved_config, e$key)
-        dv  <- normalize_display_value(val, e$type)
 
+        if (e$type == "method_table") {
+            # Reset method editor via JS: overwrite with saved JSON
+            # input_id must match the full_json_id used in the editor's JS handler
+            json_val <- tryCatch(as.character(jsonlite::toJSON(val %||% list(), auto_unbox = FALSE)),
+                                 error = function(e) "[]")
+            session$sendCustomMessage("method_editor_reset", list(
+                input_id = paste0(session$ns(iid), "_json"),
+                configs  = json_val
+            ))
+            next
+        }
+
+        dv  <- normalize_display_value(val, e$type)
         switch(e$type,
             "numeric"  = shiny::updateNumericInput(session, iid, value = dv),
             "text"     = shiny::updateTextInput(session, iid, value = dv %||% ""),
@@ -326,33 +359,212 @@ config_values_equal <- function(a, b) {
     FALSE
 }
 
-#' Read-only display for association.configs method list
+#' Inline editable rows for association.configs method list
+#'
+#' Renders a compact editor: one row per method (method select, adjust select,
+#' threshold numeric, remove button), an "Add method" button, and a hidden
+#' textInput JSON bridge that Shiny observers watch.
 #' @noRd
-render_method_display <- function(configs_list) {
-    if (is.null(configs_list) || length(configs_list) == 0) {
-        return(htmltools::div(
-            class = "method-display-empty",
-            bsicons::bs_icon("exclamation-triangle", size = "0.9em"),
-            " No methods configured"
-        ))
-    }
-    rows <- lapply(configs_list, function(m) {
-        method    <- m$method    %||% m$METHOD    %||% "?"
-        adjust    <- m$adjust    %||% m$ADJUST    %||% "none"
-        threshold <- m$threshold %||% m$THRESHOLD %||% "?"
-        htmltools::div(
-            class = "method-row d-flex align-items-center gap-2 mb-1",
-            htmltools::span(class = "badge bg-primary method-badge", method),
-            htmltools::span(class = "text-muted small",
-                            paste0(adjust, " \u2264 ", threshold))
+render_method_editor <- function(input_id, local_id, configs_list) {
+    if (is.null(configs_list)) configs_list <- list()
+
+    METHOD_CHOICES <- c("EMMAX", "LFMM", "GLM", "MLM", "CMLM",
+                        "ECMLM", "SUPER", "MLMM", "FarmCPU", "BLINK")
+    ADJUST_CHOICES <- c("bonf", "qval", "top")
+
+    # Normalise each entry
+    configs_norm <- lapply(configs_list, function(m) {
+        list(
+            method    = m$method    %||% m$METHOD    %||% "EMMAX",
+            adjust    = m$adjust    %||% m$ADJUST    %||% "bonf",
+            threshold = as.character(m$threshold %||% m$THRESHOLD %||% "0.05")
         )
     })
-    htmltools::div(
-        class = "method-display",
-        rows,
-        htmltools::tags$small(
-            class = "text-muted fst-italic d-block mt-1",
-            "(editing methods available in next release)"
+
+    # Initial JSON for the bridge (used by JS on page load)
+    init_json <- tryCatch(jsonlite::toJSON(configs_norm, auto_unbox = TRUE),
+                          error = function(e) "[]")
+
+    # Build one HTML row per config entry (pure HTML, no Shiny widgets)
+    make_row <- function(idx, m) {
+        row_id <- paste0(input_id, "_row_", idx)
+
+        method_opts <- paste(sapply(METHOD_CHOICES, function(ch) {
+            sel <- if (ch == m$method) " selected" else ""
+            sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
+        }), collapse = "")
+
+        adjust_opts <- paste(sapply(ADJUST_CHOICES, function(ch) {
+            sel <- if (ch == m$adjust) " selected" else ""
+            sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
+        }), collapse = "")
+
+        htmltools::tags$div(
+            class = "method-row",
+            id    = row_id,
+            `data-idx` = idx,
+            htmltools::tags$select(
+                class    = "form-select form-select-sm method-select",
+                `data-role` = "method",
+                htmltools::HTML(method_opts)
+            ),
+            htmltools::tags$select(
+                class    = "form-select form-select-sm adjust-select",
+                `data-role` = "adjust",
+                htmltools::HTML(adjust_opts)
+            ),
+            htmltools::tags$input(
+                type      = "number",
+                class     = "form-control form-control-sm threshold-input",
+                `data-role` = "threshold",
+                value     = m$threshold,
+                min       = "0", max = "1", step = "0.001"
+            ),
+            htmltools::tags$button(
+                class    = "method-remove-btn",
+                type     = "button",
+                `data-role` = "remove",
+                bsicons::bs_icon("trash3", size = "0.85em")
+            )
         )
+    }
+
+    rows <- if (length(configs_norm) > 0)
+        mapply(make_row, seq_along(configs_norm), configs_norm, SIMPLIFY = FALSE)
+    else
+        list()
+
+    # local_json_id: non-namespaced, used for shiny::textInput (Shiny adds ns internally)
+    # full_json_id: namespaced DOM id used by JS to locate the input element
+    local_json_id <- paste0(local_id, "_json")
+    full_json_id  <- paste0(input_id, "_json")   # ns already applied to input_id
+
+    htmltools::tagList(
+        # Hidden JSON bridge — use full namespaced id so Shiny module routing works
+        shiny::textInput(full_json_id, label = NULL, value = init_json) |>
+            shinyjs::hidden(),
+
+        # Visible editor container
+        htmltools::div(
+            class           = "method-editor",
+            id              = paste0(input_id, "_editor"),
+            `data-json-id`  = full_json_id,
+            rows,
+            htmltools::tags$button(
+                class    = "btn btn-outline-secondary btn-sm method-add-btn",
+                type     = "button",
+                `data-role` = "add",
+                bsicons::bs_icon("plus-circle", size = "0.85em"),
+                " Add method"
+            )
+        ),
+
+        # JS: wire up delegated event handlers for this editor
+        htmltools::tags$script(htmltools::HTML(sprintf(
+'(function() {
+  var editorId  = "%s";
+  var jsonInputId = "%s";
+
+  function collectRows(editor) {
+    var rows = [];
+    editor.querySelectorAll(".method-row").forEach(function(row) {
+      rows.push({
+        method:    row.querySelector("[data-role=method]").value,
+        adjust:    row.querySelector("[data-role=adjust]").value,
+        threshold: row.querySelector("[data-role=threshold]").value
+      });
+    });
+    return rows;
+  }
+
+  function pushToShiny(editor) {
+    var json = JSON.stringify(collectRows(editor));
+    var el = document.getElementById(jsonInputId);
+    if (el) {
+      el.value = json;
+      el.dispatchEvent(new Event("change", {bubbles: true}));
+      Shiny.setInputValue(jsonInputId, json, {priority: "event"});
+    }
+  }
+
+  var METHOD_CHOICES = %s;
+  var ADJUST_CHOICES = %s;
+
+  function makeRow(m) {
+    var div = document.createElement("div");
+    div.className = "method-row";
+    div.setAttribute("data-role-container", "row");
+    ["method", "adjust"].forEach(function(role) {
+      var sel = document.createElement("select");
+      sel.className = "form-select form-select-sm " + role + "-select";
+      sel.setAttribute("data-role", role);
+      var choices = role === "method" ? METHOD_CHOICES : ADJUST_CHOICES;
+      var def = role === "method" ? (m ? m.method : "EMMAX") : (m ? m.adjust : "bonf");
+      choices.forEach(function(ch) {
+        var opt = document.createElement("option");
+        opt.value = ch; opt.text = ch;
+        if (ch === def) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      div.appendChild(sel);
+    });
+    var num = document.createElement("input");
+    num.type = "number"; num.className = "form-control form-control-sm threshold-input";
+    num.setAttribute("data-role", "threshold");
+    num.value = m ? m.threshold : "0.05";
+    num.min = "0"; num.max = "1"; num.step = "0.001";
+    div.appendChild(num);
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "method-remove-btn";
+    btn.setAttribute("data-role", "remove");
+    btn.innerHTML = "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"12\\" height=\\"12\\" fill=\\"currentColor\\" viewBox=\\"0 0 16 16\\"><path d=\\"M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z\\"/><path fill-rule=\\"evenodd\\" d=\\"M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z\\"/></svg>";
+    div.appendChild(btn);
+    return div;
+  }
+
+  document.addEventListener("click", function(e) {
+    var editor = document.getElementById(editorId);
+    if (!editor) return;
+    var role = e.target.closest("[data-role]");
+    if (!role) return;
+    if (role.getAttribute("data-role") === "remove") {
+      role.closest(".method-row").remove();
+      pushToShiny(editor);
+    } else if (role.getAttribute("data-role") === "add") {
+      var addBtn = editor.querySelector("[data-role=add]");
+      editor.insertBefore(makeRow(null), addBtn);
+      pushToShiny(editor);
+    }
+  });
+
+  document.addEventListener("change", function(e) {
+    var editor = document.getElementById(editorId);
+    if (!editor || !editor.contains(e.target)) return;
+    if (e.target.getAttribute("data-role") && e.target.getAttribute("data-role") !== "add" && e.target.getAttribute("data-role") !== "remove") {
+      pushToShiny(editor);
+    }
+  });
+
+  // Reset handler: overwrite editor contents from new JSON
+  Shiny.addCustomMessageHandler("method_editor_reset", function(msg) {
+    if (msg.input_id !== "%s") return;
+    var editor = document.getElementById(editorId);
+    if (!editor) return;
+    editor.querySelectorAll(".method-row").forEach(function(r) { r.remove(); });
+    var configs = JSON.parse(msg.configs);
+    var addBtn = editor.querySelector("[data-role=add]");
+    configs.forEach(function(m) { editor.insertBefore(makeRow(m), addBtn); });
+    // Update hidden bridge silently (no Shiny event — avoid round-trip)
+    var el = document.getElementById(jsonInputId);
+    if (el) el.value = msg.configs;
+  });
+})();
+',
+            paste0(input_id, "_editor"),  # %s 1: editorId
+            full_json_id,                 # %s 2: jsonInputId (DOM id, namespaced)
+            jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 3
+            jsonlite::toJSON(ADJUST_CHOICES, auto_unbox = FALSE),  # %s 4
+            full_json_id                  # %s 5: method_editor_reset id check
+        )))
     )
 }

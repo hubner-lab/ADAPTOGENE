@@ -640,6 +640,81 @@
     padding: 0.2rem 0.65rem;
 }
 
+// ── Method editor (association.configs inline rows) ───────────────────────────
+.method-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.method-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: $border-radius-sm;
+    padding: 0.25rem 0.35rem;
+
+    select,
+    input[type="number"] {
+        height: 28px;
+        font-size: 0.8rem;
+        padding: 0.1rem 0.3rem;
+        flex-shrink: 0;
+    }
+
+    .method-select   { width: 90px; }
+    .adjust-select   { width: 72px; }
+    .threshold-input { width: 62px; }
+
+    .method-remove-btn {
+        margin-left: auto;
+        flex-shrink: 0;
+        padding: 0.1rem 0.25rem;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: #c0392b;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: $border-radius-sm;
+        cursor: pointer;
+
+        &:hover {
+            border-color: #c0392b;
+            background: rgba(192, 57, 43, 0.08);
+        }
+    }
+}
+
+.method-add-btn {
+    width: 100%;
+    font-size: 0.78rem;
+    padding: 0.2rem 0;
+    border-style: dashed !important;
+    color: var(--bs-secondary-color);
+    background: transparent;
+    margin-top: 0.1rem;
+
+    &:hover {
+        color: $primary;
+        border-color: $primary !important;
+        background: rgba(27, 122, 110, 0.06);
+    }
+}
+
+[data-bs-theme="dark"] {
+    .method-row {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    .method-row .method-remove-btn {
+        color: #e07b74;
+        &:hover {
+            border-color: #e07b74;
+            background: rgba(224, 123, 116, 0.10);
+        }
+    }
+}
+
 // ── Full-screen mode: expand image to fill the overlay ────────────────────────
 // bslib adds .bslib-full-screen to the card and data-full-screen="true".
 // Remove all height caps so the image fills the available space.

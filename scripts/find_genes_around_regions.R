@@ -18,9 +18,8 @@ GFF_FEATURE = args[3]
 PROMOTER_LENGTH = args[4] %>% as.numeric
 ALL_SNPS = args[5]  # vcfsnp file
 CPU = args[6] %>% as.numeric
-TOP_REGIONS = args[7] %>% as.numeric  # Keep only top N regions by snp_count (0 = all)
-OUTPUT_GENES = args[8]
-OUTPUT_COLLAPSED = args[9]
+OUTPUT_GENES = args[7]
+OUTPUT_COLLAPSED = args[8]
 ################
 
 message('INFO: Finding genes overlapping regions')
@@ -57,14 +56,6 @@ if (nrow(regions) == 0) {
     empty_genes %>% fwrite(OUTPUT_GENES, sep = '\t')
     empty_genes %>% fwrite(OUTPUT_COLLAPSED, sep = '\t')
     quit(save = "no", status = 0)
-}
-
-# Filter to top N regions by snp_count if specified
-if (TOP_REGIONS > 0 && nrow(regions) > TOP_REGIONS) {
-    message(paste0('INFO: Filtering to top ', TOP_REGIONS, ' regions by snp_count (from ', nrow(regions), ')'))
-    regions <- regions %>%
-        dplyr::arrange(desc(snp_count), min_pvalue) %>%
-        dplyr::slice_head(n = TOP_REGIONS)
 }
 
 message(paste0('INFO: Processing ', nrow(regions), ' regions'))

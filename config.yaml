@@ -98,13 +98,10 @@ association:
       adjust: "bonf"
       threshold: '0.05'
   combine_method: 'Sum'          # How to combine methods: Sum/Overlap/EMMAX/LFMM
-  combine_gap: 100000            # Max distance (bp) to consider SNPs overlapping
-  sig_snp_distance: 100000       # Distance to merge nearby significant SNPs
+  combine_gap: 100000            # Max distance (bp) between SNPs to merge (cross-method overlap + overlap annotation)
   region_distance: 2000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
-  top_regions: 10                # Top N regions for gene analysis (0 = all)
   promoter_length: 10000         # Promoter region length for SNP annotation
   go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
-  scattermore_threshold: 30000   # Use fast scattermore rendering when SNPs > this
 
 #-----------------------------------------------------------------------------
 # GFF: Gene annotation parsing
@@ -122,7 +119,6 @@ enrichment:
   plot_width: 12                 # Plot width in inches
   plot_height: 10                # Plot height in inches
   cnet_label: "gene_id"          # Gene label in cnetplot: "gene_id", "Name", "description"
-  top_plot_regions: 5            # Top regions per trait to generate enrichment plots for (0 = all)
 
 #-----------------------------------------------------------------------------
 # FUTURE CLIMATE: Climate projections for maladaptation analysis
@@ -153,7 +149,6 @@ gradient_forest:
 #   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
 #   # Override any association.* param only if different:
 #   # region_distance: 2000000
-#   # top_regions: 10
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
@@ -161,7 +156,6 @@ gradient_forest:
 # Defaults to max of association and phenotype_association values if not set
 # overlap:
 #   region_distance: 2000000
-#   top_regions: 10
 #   promoter_length: 10000
 overlap:
   pairwise:

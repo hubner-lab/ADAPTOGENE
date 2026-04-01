@@ -96,12 +96,9 @@ association:
       threshold: '0.05'
   combine_method: 'Sum'
   combine_gap: 50000
-  sig_snp_distance: 50000
   region_distance: 500000        # Small genome — tighter regions
-  top_regions: 10
   promoter_length: 2000          # Arabidopsis has compact promoters
   go_field: 'Ontology_term'     # Ensembl attribute (no GO terms available)
-  scattermore_threshold: 30000
 
 #-----------------------------------------------------------------------------
 # GFF
@@ -119,7 +116,6 @@ enrichment:
   plot_width: 12
   plot_height: 10
   cnet_label: "gene_id"
-  top_plot_regions: 5
 
 #-----------------------------------------------------------------------------
 # PHENOTYPE ASSOCIATION (GWAS — FT10, FT16)

@@ -23,7 +23,6 @@ Kbest = args[5] %>% as.numeric
 REGIONS_FILE = args[6]        # overlap Regions_combined.tsv or "NULL"
 SIGSNPS_FILE = args[7]        # overlap selected_snps_all.tsv or "NULL"
 PLOT_DIR = args[8]
-SCATTERMORE_THRESHOLD = args[9] %>% as.numeric
 ################################
 
 # Handle optional files

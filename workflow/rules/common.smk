@@ -91,12 +91,9 @@ def _migrate_config(cfg):
         'ASSOC_CONFIGS': ('association', 'configs'),
         'ASSOC_COMBINE_METHOD': ('association', 'combine_method'),
         'ASSOC_COMBINE_GAP': ('association', 'combine_gap'),
-        'ASSOC_SNP_DISTANCE': ('association', 'sig_snp_distance'),
         'ASSOC_REGION_DISTANCE': ('association', 'region_distance'),
-        'ASSOC_TOP_REGIONS': ('association', 'top_regions'),
         'ASSOC_PROMOTER_LENGTH': ('association', 'promoter_length'),
         'ASSOC_GO_FIELD': ('association', 'go_field'),
-        'ASSOC_SCATTERMORE_THRESHOLD': ('association', 'scattermore_threshold'),
         'GFF_FEATURE': ('gff', 'feature'),
         'GFF_GENE_NAME': ('gff', 'gene_name'),
         'GFF_BIOTYPE': ('gff', 'biotype'),
@@ -104,7 +101,6 @@ def _migrate_config(cfg):
         'ENRICHMENT_PLOT_WIDTH': ('enrichment', 'plot_width'),
         'ENRICHMENT_PLOT_HEIGHT': ('enrichment', 'plot_height'),
         'ENRICHMENT_CNET_LABEL': ('enrichment', 'cnet_label'),
-        'ENRICHMENT_TOP_PLOT_REGIONS': ('enrichment', 'top_plot_regions'),
         'FUTURE_SSP': ('future', 'ssp'),
         'FUTURE_YEAR': ('future', 'year'),
         'FUTURE_MODELS': ('future', 'models'),
@@ -117,13 +113,9 @@ def _migrate_config(cfg):
         'PHENO_MISSING_STRATEGY': ('phenotype_association', 'missing_strategy'),
         'PHENO_COMBINE_METHOD': ('phenotype_association', 'combine_method'),
         'PHENO_COMBINE_GAP': ('phenotype_association', 'combine_gap'),
-        'PHENO_SNP_DISTANCE': ('phenotype_association', 'sig_snp_distance'),
         'PHENO_REGION_DISTANCE': ('phenotype_association', 'region_distance'),
-        'PHENO_TOP_REGIONS': ('phenotype_association', 'top_regions'),
         'PHENO_PROMOTER_LENGTH': ('phenotype_association', 'promoter_length'),
-        'PHENO_SCATTERMORE_THRESHOLD': ('phenotype_association', 'scattermore_threshold'),
         'OVERLAP_REGION_DISTANCE': ('overlap', 'region_distance'),
-        'OVERLAP_TOP_REGIONS': ('overlap', 'top_regions'),
         'OVERLAP_PROMOTER_LENGTH': ('overlap', 'promoter_length'),
         'HAPLOTYPE_SCAN_REGIONS_SOURCE': ('haplotype', 'scan', 'regions_source'),
         'HAPLOTYPE_SCAN_REGIONS_FILE': ('haplotype', 'scan', 'regions_file'),
@@ -297,16 +289,14 @@ GFF_BIOTYPE = _cfg('gff', 'biotype', 'biotype')
 
 # ASSOCIATION parameters
 _assoc = config.get('association', {})
-SNP_DISTANCE = _assoc.get('sig_snp_distance', 100000)
 PROMOTER_LENGTH = _assoc.get('promoter_length', 10000)
 SIGSNPS_METHOD = _assoc.get('combine_method', 'EMMAX')
 SIGSNPS_GAP = _assoc.get('combine_gap', 100000)
+SNP_DISTANCE = SIGSNPS_GAP  # overlap annotation uses same distance as combine_gap
 _region_distance_raw = _assoc.get('region_distance', 2000000)
 REGION_DISTANCE_AUTO = (str(_region_distance_raw).lower() == 'auto')
 REGION_DISTANCE = 'auto' if REGION_DISTANCE_AUTO else int(_region_distance_raw)
 GO_FIELD = _assoc.get('go_field', 'NULL')
-TOP_REGIONS = _assoc.get('top_regions', 10)
-SCATTERMORE_THRESHOLD = _assoc.get('scattermore_threshold', 30000)
 
 # ENRICHMENT parameters
 _enrich = config.get('enrichment', {})
@@ -314,7 +304,6 @@ ENRICHMENT_TOP_TERMS = _enrich.get('top_terms', 20)
 ENRICHMENT_PLOT_WIDTH = _enrich.get('plot_width', 12)
 ENRICHMENT_PLOT_HEIGHT = _enrich.get('plot_height', 10)
 ENRICHMENT_CNET_LABEL = _enrich.get('cnet_label', 'gene_id')
-ENRICHMENT_TOP_PLOT_REGIONS = _enrich.get('top_plot_regions', 0)
 
 # Note: regionplot mode deprecated — regionplots generated on-demand in Shiny app
 GENES_TO_HIGHLIGHT = config.get('regionplot', {}).get('genes', 'all')
@@ -373,13 +362,11 @@ if PHENO_ASSOC_CONFIGS:
 # Inherit from association.* with optional override
 PHENO_COMBINE_METHOD = _pheno.get('combine_method', SIGSNPS_METHOD)
 PHENO_COMBINE_GAP = _pheno.get('combine_gap', SIGSNPS_GAP)
-PHENO_SNP_DISTANCE = _pheno.get('sig_snp_distance', SNP_DISTANCE)
+PHENO_SNP_DISTANCE = PHENO_COMBINE_GAP  # overlap annotation uses same distance as combine_gap
 _pheno_rdist_raw = _pheno.get('region_distance', _region_distance_raw)
 PHENO_REGION_DISTANCE_AUTO = (str(_pheno_rdist_raw).lower() == 'auto')
 PHENO_REGION_DISTANCE = 'auto' if PHENO_REGION_DISTANCE_AUTO else int(_pheno_rdist_raw)
-PHENO_TOP_REGIONS = _pheno.get('top_regions', TOP_REGIONS)
 PHENO_PROMOTER_LENGTH = _pheno.get('promoter_length', PROMOTER_LENGTH)
-PHENO_SCATTERMORE_THRESHOLD = _pheno.get('scattermore_threshold', SCATTERMORE_THRESHOLD)
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('overlap', {})
@@ -395,9 +382,6 @@ if _overlap_rdist_raw is None:
 else:
     OVERLAP_REGION_DISTANCE_AUTO = (str(_overlap_rdist_raw).lower() == 'auto')
     OVERLAP_REGION_DISTANCE = 'auto' if OVERLAP_REGION_DISTANCE_AUTO else int(_overlap_rdist_raw)
-OVERLAP_TOP_REGIONS = _overlap.get('top_regions', None)
-if OVERLAP_TOP_REGIONS is None:
-    OVERLAP_TOP_REGIONS = max(TOP_REGIONS, PHENO_TOP_REGIONS)
 OVERLAP_PROMOTER_LENGTH = _overlap.get('promoter_length', None)
 if OVERLAP_PROMOTER_LENGTH is None:
     OVERLAP_PROMOTER_LENGTH = max(PROMOTER_LENGTH, PHENO_PROMOTER_LENGTH)
@@ -652,7 +636,6 @@ def add_association_paths():
     O['genes_per_region_collapsed'] = f"{MOD_ASSOC}tables/genes_per_region_collapsed.tsv"
     O['genes_combined_regions'] = f"{MOD_ASSOC}tables/genes_combined.tsv"
     W['enrichment_done'] = f"{INTER}flags/enrichment_done.flag"
-    W['enrichment_plots_done'] = f"{INTER}flags/enrichment_plots_done.flag"
 
     # Combined Manhattan plots (all traits and methods)
     O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
@@ -705,7 +688,6 @@ def add_pheno_association_paths():
     O['pheno_genes_collapsed'] = f"{MOD_PHENO}tables/genes_per_region_collapsed.tsv"
     O['pheno_genes_combined'] = f"{MOD_PHENO}tables/genes_combined.tsv"
     W['pheno_enrichment_done'] = f"{INTER}flags/pheno_enrichment_done.flag"
-    W['pheno_enrichment_plots_done'] = f"{INTER}flags/pheno_enrichment_plots_done.flag"
 
     # Manhattan combined
     O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
@@ -738,7 +720,6 @@ def add_overlap_paths():
         O['overlap_genes_collapsed'] = f"{MOD_OVERLAP}tables/genes_per_region_collapsed.tsv"
         O['overlap_genes_combined'] = f"{MOD_OVERLAP}tables/genes_combined.tsv"
         W['overlap_enrichment_done'] = f"{INTER}flags/overlap_enrichment_done.flag"
-        W['overlap_enrichment_plots_done'] = f"{INTER}flags/overlap_enrichment_plots_done.flag"
         # Miami plots (static GEA vs GWAS)
         O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
         O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
@@ -1062,7 +1043,6 @@ def get_targets(mode):
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
             targets.append(W['enrichment_done'])
-            targets.append(W['enrichment_plots_done'])
 
         targets.append(W['summary_done'])
         return targets
@@ -1143,7 +1123,7 @@ def get_targets(mode):
 
         # Enrichment (if GO_FIELD is specified)
         if GO_FIELD and GO_FIELD != 'NULL':
-            targets.extend([W['pheno_enrichment_done'], W['pheno_enrichment_plots_done']])
+            targets.append(W['pheno_enrichment_done'])
 
         targets.append(W['summary_done'])
         return targets
@@ -1182,7 +1162,7 @@ def get_targets(mode):
                 O['overlap_miami_regions'], O['overlap_miami_regions_svg'],
             ])
             if GO_FIELD and GO_FIELD != 'NULL':
-                targets.extend([W['overlap_enrichment_done'], W['overlap_enrichment_plots_done']])
+                targets.append(W['overlap_enrichment_done'])
 
         targets.append(W['summary_done'])
         return targets

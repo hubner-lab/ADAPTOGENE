@@ -186,7 +186,6 @@ rule manhattan_plot:
         plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
         regions = "NULL",  # No regions for simple plot
         selected_snps = "NULL",  # No selected SNPs for simple plot
-        scattermore_threshold = SCATTERMORE_THRESHOLD,
         predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}association/manhattan_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
@@ -194,7 +193,7 @@ rule manhattan_plot:
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
             {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-            {params.scattermore_threshold} {params.predictors} > {log} 2>&1
+            {params.predictors} > {log} 2>&1
         """
 
 # Manhattan plots with regions highlighted (runs after regions are created)
@@ -220,7 +219,6 @@ rule manhattan_plot_regions:
         k = K_BEST,
         plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
         sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-        scattermore_threshold = SCATTERMORE_THRESHOLD,
         predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}association/manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
@@ -228,7 +226,7 @@ rule manhattan_plot_regions:
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
             {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-            {params.scattermore_threshold} {params.predictors} > {log} 2>&1
+            {params.predictors} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method
@@ -302,15 +300,14 @@ rule find_genes_around_regions:
         collapsed = O['genes_per_region_collapsed']
     params:
         feature = GFF_FEATURE,
-        promoter_len = PROMOTER_LENGTH,
-        top_regions = TOP_REGIONS
+        promoter_len = PROMOTER_LENGTH
     log: f"{LOGDIR}association/find_genes_around_regions.log"
     threads: CPU
     shell:
         """
         Rscript /pipeline/scripts/find_genes_around_regions.R \
             {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+            {params.promoter_len} {input.vcfsnp} {threads} \
             {output.genes} {output.collapsed} > {log} 2>&1
         """
 
@@ -325,8 +322,7 @@ rule find_genes_combined_regions:
         genes = O['genes_combined_regions']
     params:
         feature = GFF_FEATURE,
-        promoter_len = PROMOTER_LENGTH,
-        top_regions = TOP_REGIONS
+        promoter_len = PROMOTER_LENGTH
     log: f"{LOGDIR}association/find_genes_combined_regions.log"
     threads: CPU
     shell:
@@ -336,7 +332,7 @@ rule find_genes_combined_regions:
         TEMP_COLLAPSED=$(mktemp)
         Rscript /pipeline/scripts/find_genes_around_regions.R \
             {input.gff} {input.regions} {params.feature} \
-            {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+            {params.promoter_len} {input.vcfsnp} {threads} \
             {output.genes} $TEMP_COLLAPSED > {log} 2>&1
         rm -f $TEMP_COLLAPSED
         """
@@ -370,44 +366,6 @@ rule run_enrichment:
             {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
 
         # Touch done file to indicate completion
-        touch {output}
-        """
-
-# Enrichment visualization plots
-rule plot_enrichment:
-    """Generate enrichment visualization plots for each region.
-
-    Creates three plot types for each region with significant enrichment:
-    - emapplot: GO term similarity network
-    - cnetplot: Gene-concept network
-    - dotplot: Standard enrichment dotplot
-
-    Plots are organized by trait in plots/association/enrichment/{trait}/
-    Reads .qs enrichment objects from intermediate/enrichment/
-    """
-    input:
-        enrichment_done = W['enrichment_done'],
-        genes = O['genes_per_region'],
-        regions = O['regions_per_trait']
-    output:
-        W['enrichment_plots_done']
-    params:
-        intermediate_dir = f"{INTER}enrichment/association/",
-        plots_dir = f"{MOD_ASSOC}plots/enrichment/",
-        top_terms = ENRICHMENT_TOP_TERMS,
-        width = ENRICHMENT_PLOT_WIDTH,
-        height = ENRICHMENT_PLOT_HEIGHT,
-        cnet_label = ENRICHMENT_CNET_LABEL,
-        top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
-    log: f"{LOGDIR}association/plot_enrichment.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_enrichment.R \
-            {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-            {params.width} {params.height} {params.cnet_label} \
-            {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
-
-        # Touch done file
         touch {output}
         """
 

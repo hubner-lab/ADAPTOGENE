@@ -311,18 +311,17 @@ if PHENO_ASSOC_CONFIGS:
           collapsed = O['pheno_genes_collapsed']
       params:
           feature = GFF_FEATURE,
-          promoter_len = PHENO_PROMOTER_LENGTH,
-          top_regions = PHENO_TOP_REGIONS
+          promoter_len = PHENO_PROMOTER_LENGTH
       log: f"{LOGDIR}phenotype_association/find_genes_pheno.log"
       threads: CPU
       shell:
           """
           Rscript /pipeline/scripts/find_genes_around_regions.R \
               {input.gff} {input.regions} {params.feature} \
-              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {params.promoter_len} {input.vcfsnp} {threads} \
               {output.genes} {output.collapsed} > {log} 2>&1
           """
-  
+
   rule find_genes_combined_pheno:
       """Find genes overlapping combined phenotype regions."""
       input:
@@ -332,8 +331,7 @@ if PHENO_ASSOC_CONFIGS:
       output: genes = O['pheno_genes_combined']
       params:
           feature = GFF_FEATURE,
-          promoter_len = PHENO_PROMOTER_LENGTH,
-          top_regions = PHENO_TOP_REGIONS
+          promoter_len = PHENO_PROMOTER_LENGTH
       log: f"{LOGDIR}phenotype_association/find_genes_combined_pheno.log"
       threads: CPU
       shell:
@@ -341,7 +339,7 @@ if PHENO_ASSOC_CONFIGS:
           TEMP_COLLAPSED=$(mktemp)
           Rscript /pipeline/scripts/find_genes_around_regions.R \
               {input.gff} {input.regions} {params.feature} \
-              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {params.promoter_len} {input.vcfsnp} {threads} \
               {output.genes} $TEMP_COLLAPSED > {log} 2>&1
           rm -f $TEMP_COLLAPSED
           """
@@ -366,31 +364,6 @@ if PHENO_ASSOC_CONFIGS:
           touch {output}
           """
   
-  rule plot_enrichment_pheno:
-      """Generate enrichment plots for phenotype regions."""
-      input:
-          enrichment_done = W['pheno_enrichment_done'],
-          genes = O['pheno_genes_per_region'],
-          regions = O['pheno_regions_per_trait']
-      output: W['pheno_enrichment_plots_done']
-      params:
-          intermediate_dir = f"{INTER}enrichment_phenotypes/",
-          plots_dir = f"{MOD_PHENO}plots/enrichment/",
-          top_terms = ENRICHMENT_TOP_TERMS,
-          width = ENRICHMENT_PLOT_WIDTH,
-          height = ENRICHMENT_PLOT_HEIGHT,
-          cnet_label = ENRICHMENT_CNET_LABEL,
-          top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
-      log: f"{LOGDIR}phenotype_association/plot_enrichment_pheno.log"
-      shell:
-          """
-          Rscript /pipeline/scripts/plot_enrichment.R \
-              {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-              {params.width} {params.height} {params.cnet_label} \
-              {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
-          touch {output}
-          """
-  
   # Manhattan plots for phenotype traits
   rule manhattan_pheno:
       """Generate Manhattan plot and QQ plot for a phenotype trait."""
@@ -411,7 +384,6 @@ if PHENO_ASSOC_CONFIGS:
           plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
           regions = "NULL",
           selected_snps = "NULL",
-          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD,
           predictors = PHENO_PREDICTORS
       log: f"{LOGDIR}phenotype_association/manhattan_pheno_{{method}}_{{trait}}_{{adjust}}.log"
       shell:
@@ -419,7 +391,7 @@ if PHENO_ASSOC_CONFIGS:
           Rscript /pipeline/scripts/plot_manhattan.R \
               {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
               {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-              {params.scattermore_threshold} {params.predictors} > {log} 2>&1
+              {params.predictors} > {log} 2>&1
           """
   
   rule manhattan_pheno_regions:
@@ -440,7 +412,6 @@ if PHENO_ASSOC_CONFIGS:
           k = K_BEST,
           plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
           sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-          scattermore_threshold = PHENO_SCATTERMORE_THRESHOLD,
           predictors = PHENO_PREDICTORS
       log: f"{LOGDIR}phenotype_association/manhattan_pheno_regions_{{method}}_{{trait}}_{{adjust}}.log"
       shell:
@@ -448,7 +419,7 @@ if PHENO_ASSOC_CONFIGS:
           Rscript /pipeline/scripts/plot_manhattan.R \
               {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
               {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-              {params.scattermore_threshold} {params.predictors} > {log} 2>&1
+              {params.predictors} > {log} 2>&1
           """
   
   rule manhattan_combined_pheno:

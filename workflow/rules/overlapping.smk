@@ -41,18 +41,17 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           collapsed = O['overlap_genes_collapsed']
       params:
           feature = GFF_FEATURE,
-          promoter_len = OVERLAP_PROMOTER_LENGTH,
-          top_regions = OVERLAP_TOP_REGIONS
+          promoter_len = OVERLAP_PROMOTER_LENGTH
       log: f"{LOGDIR}overlapping/find_genes_overlap.log"
       threads: CPU
       shell:
           """
           Rscript /pipeline/scripts/find_genes_around_regions.R \
               {input.gff} {input.regions} {params.feature} \
-              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {params.promoter_len} {input.vcfsnp} {threads} \
               {output.genes} {output.collapsed} > {log} 2>&1
           """
-  
+
     rule find_genes_combined_overlap:
       """Find genes overlapping combined regions from GEA + GWAS (reference)."""
       input:
@@ -62,8 +61,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
       output: genes = O['overlap_genes_combined']
       params:
           feature = GFF_FEATURE,
-          promoter_len = OVERLAP_PROMOTER_LENGTH,
-          top_regions = OVERLAP_TOP_REGIONS
+          promoter_len = OVERLAP_PROMOTER_LENGTH
       log: f"{LOGDIR}overlapping/find_genes_combined_overlap.log"
       threads: CPU
       shell:
@@ -71,11 +69,11 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           TEMP_COLLAPSED=$(mktemp)
           Rscript /pipeline/scripts/find_genes_around_regions.R \
               {input.gff} {input.regions} {params.feature} \
-              {params.promoter_len} {input.vcfsnp} {threads} {params.top_regions} \
+              {params.promoter_len} {input.vcfsnp} {threads} \
               {output.genes} $TEMP_COLLAPSED > {log} 2>&1
           rm -f $TEMP_COLLAPSED
           """
-  
+
     rule run_enrichment_overlap:
       """Run GO enrichment for overlapping analysis regions."""
       input:
@@ -96,31 +94,6 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           touch {output}
           """
   
-    rule plot_enrichment_overlap:
-      """Generate enrichment plots for overlapping analysis regions."""
-      input:
-          enrichment_done = W['overlap_enrichment_done'],
-          genes = O['overlap_genes_per_region'],
-          regions = O['overlap_regions_per_trait']
-      output: W['overlap_enrichment_plots_done']
-      params:
-          intermediate_dir = f"{INTER}enrichment_overlapping/",
-          plots_dir = f"{MOD_OVERLAP}plots/enrichment/",
-          top_terms = ENRICHMENT_TOP_TERMS,
-          width = ENRICHMENT_PLOT_WIDTH,
-          height = ENRICHMENT_PLOT_HEIGHT,
-          cnet_label = ENRICHMENT_CNET_LABEL,
-          top_plot_regions = ENRICHMENT_TOP_PLOT_REGIONS
-      log: f"{LOGDIR}overlapping/plot_enrichment_overlap.log"
-      shell:
-          """
-          Rscript /pipeline/scripts/plot_enrichment.R \
-              {params.intermediate_dir} {params.plots_dir} {params.top_terms} \
-              {params.width} {params.height} {params.cnet_label} \
-              {input.genes} {params.top_plot_regions} {input.regions} > {log} 2>&1
-          touch {output}
-          """
-
     rule miami_plot:
       """Static Miami plot combining GEA (top) and GWAS (bottom)."""
       input:
@@ -145,8 +118,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           kbest = K_BEST,
           regions = "NULL",
           sigsnps = "NULL",
-          plot_dir = f"{MOD_OVERLAP}plots/",
-          scattermore = SCATTERMORE_THRESHOLD
+          plot_dir = f"{MOD_OVERLAP}plots/"
       log: f"{LOGDIR}overlapping/miami_plot.log"
       shell:
           """
@@ -154,7 +126,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
               "{params.gea_str}" "{params.gwas_str}" \
               {params.gea_preds} {params.gwas_preds} \
               {params.kbest} {params.regions} {params.sigsnps} \
-              {params.plot_dir} {params.scattermore} > {log} 2>&1
+              {params.plot_dir} > {log} 2>&1
           """
 
     rule miami_plot_regions:
@@ -180,8 +152,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           gea_preds = PREDICTORS_SELECTED,
           gwas_preds = PHENO_PREDICTORS,
           kbest = K_BEST,
-          plot_dir = f"{MOD_OVERLAP}plots/",
-          scattermore = SCATTERMORE_THRESHOLD
+          plot_dir = f"{MOD_OVERLAP}plots/"
       log: f"{LOGDIR}overlapping/miami_plot_regions.log"
       shell:
           """
@@ -189,7 +160,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
               "{params.gea_str}" "{params.gwas_str}" \
               {params.gea_preds} {params.gwas_preds} \
               {params.kbest} {input.regions} {input.sigsnps} \
-              {params.plot_dir} {params.scattermore} > {log} 2>&1
+              {params.plot_dir} > {log} 2>&1
           """
 
 # Pairwise trait overlap — works with GEA-only, GWAS-only, or both
