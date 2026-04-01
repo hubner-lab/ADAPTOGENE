@@ -59,6 +59,88 @@ calc_threshold <- function(assoc, adjust_str) {
   }
 }
 
+# Parse CUSTOM_TRAITS structured format: "bio_12:BLINK|EMMAX|LFMM,bio_7:BLINK|LFMM"
+# Returns list of list(trait, methods) or NULL if plain single-trait format
+parse_trait_method_pairs <- function(custom_traits_str) {
+  if (!grepl(':', custom_traits_str)) return(NULL)
+  parts <- strsplit(custom_traits_str, ',')[[1]]
+  lapply(parts, function(p) {
+    sp <- strsplit(p, ':')[[1]]
+    list(trait = sp[1], methods = strsplit(sp[2], '\\|')[[1]])
+  })
+}
+
+# Plot a region with ALL trait x method combos that have sig SNPs.
+# One topr data frame per combo, legend label "trait (METHOD)".
+plot_region_multi_trait <- function(region_str, trait_method_pairs, assoc_list, gff_table, filename_base) {
+  topr_data       <- list()
+  topr_labels     <- c()
+  topr_thresholds <- c()
+
+  for (pair in trait_method_pairs) {
+    trait   <- pair$trait
+    methods <- pair$methods
+    for (md_name in methods) {
+      md <- assoc_list[[md_name]]
+      if (is.null(md) || !trait %in% md$trait_cols) next
+      trait_data <- md$data %>%
+        dplyr::select(SNPID, chr, pos, !!trait) %>%
+        setNames(c('SNP', 'CHROM', 'POS', 'P')) %>%
+        dplyr::mutate(CHROM = extract_chr_num(CHROM))
+      topr_data       <- c(topr_data, list(trait_data))
+      topr_labels     <- c(topr_labels, paste0(trait, ' (', md_name, ')'))
+      topr_thresholds <- c(topr_thresholds, md$threshold)
+    }
+  }
+
+  if (length(topr_data) == 0) {
+    message('WARNING: No data for any trait/method pair, skipping')
+    return(invisible(NULL))
+  }
+
+  sign_thresh <- min(topr_thresholds)
+  rp_args <- list(
+    build = gff_table,
+    region = region_str,
+    sign_thresh = sign_thresh,
+    max.overlaps = 999,
+    show_gene_names = TRUE,
+    show_genes = TRUE,
+    unit_overview = 1,
+    unit_main = 2.5,
+    unit_gene = 1,
+    axis_text_size = 14,
+    axis_title_size = 16,
+    title_text_size = 16,
+    legend_position = 'right',
+    scale = 1,
+    segment.size = 3,
+    legend_labels = topr_labels,
+    sign_thresh_label_size = 0,
+    title = region_str
+  )
+
+  png(paste0(filename_base, '.png'), width = 14, height = 5, units = 'in', res = 300)
+  do.call(regionplot, c(list(topr_data), rp_args, list(extract_plots = FALSE)))
+  dev.off()
+  message(paste0('INFO:   Saved multi-trait ', filename_base, '.png'))
+
+  tryCatch({
+    plot_list <- do.call(regionplot, c(list(topr_data), rp_args, list(extract_plots = TRUE)))
+    if (!is.null(plot_list$main_plot))
+      ggsave(paste0(filename_base, '_main.svg'), plot = plot_list$main_plot,
+             device = svglite, width = 12, height = 6)
+    if (!is.null(plot_list$overview_plot))
+      ggsave(paste0(filename_base, '_overview.svg'), plot = plot_list$overview_plot,
+             device = svglite, width = 12, height = 2)
+    if (!is.null(plot_list$gene_plot))
+      ggsave(paste0(filename_base, '_genes.svg'), plot = plot_list$gene_plot,
+             device = svglite, width = 14, height = 2)
+  }, error = function(e) {
+    message(paste0('WARNING: Could not extract SVG plots: ', e$message))
+  })
+}
+
 # Plot a single region for a single trait across multiple methods
 # Returns nothing, saves PNG + SVG files
 plot_region_trait <- function(region_str, trait, assoc_list, gff_table, filename_base) {
@@ -105,7 +187,8 @@ plot_region_trait <- function(region_str, trait, assoc_list, gff_table, filename
     scale = 1,
     segment.size = 3,
     legend_labels = topr_labels,
-    sign_thresh_label_size = 0
+    sign_thresh_label_size = 0,
+    title = trait
   )
 
   # PNG
@@ -274,14 +357,24 @@ if (!is.null(CUSTOM_REGION) && CUSTOM_REGION != 'NULL' && CUSTOM_REGION != '') {
     }
   }
 
-  message(paste0('INFO:   Traits: ', paste(custom_trait_list, collapse = ', ')))
-  message(paste0('INFO:   Methods: ', paste(names(custom_assoc_list), collapse = ', ')))
+  # Detect multi-trait structured format ("bio_12:BLINK|EMMAX,bio_7:LFMM")
+  trait_method_pairs <- parse_trait_method_pairs(CUSTOM_TRAITS)
 
-  # One plot per trait
-  for (trait in custom_trait_list) {
-    message(paste0('INFO:   Custom trait: ', trait))
-    filename_base <- paste0(PLOT_DIR, 'regionplot_custom_', region_safe, '_', trait)
-    plot_region_trait(region_str, trait, custom_assoc_list, gff_table, filename_base)
+  if (!is.null(trait_method_pairs)) {
+    message(paste0('INFO:   Multi-trait mode: ',
+      paste(sapply(trait_method_pairs, function(p) paste0(p$trait, '(', paste(p$methods, collapse=','), ')')),
+            collapse = ', ')))
+    filename_base <- paste0(PLOT_DIR, 'regionplot_custom_', region_safe)
+    plot_region_multi_trait(region_str, trait_method_pairs, custom_assoc_list, gff_table, filename_base)
+  } else {
+    # Legacy single-trait path
+    message(paste0('INFO:   Traits: ', paste(custom_trait_list, collapse = ', ')))
+    message(paste0('INFO:   Methods: ', paste(names(custom_assoc_list), collapse = ', ')))
+    for (trait in custom_trait_list) {
+      message(paste0('INFO:   Custom trait: ', trait))
+      filename_base <- paste0(PLOT_DIR, 'regionplot_custom_', region_safe, '_', trait)
+      plot_region_trait(region_str, trait, custom_assoc_list, gff_table, filename_base)
+    }
   }
 }
 

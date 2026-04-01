@@ -159,7 +159,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         # Each entry: list(process, log_file, type, ...) or NULL when done
         subprocess_handles <- shiny::reactiveValues()
 
-        # ── Derived keys (region + first trait) ───────────────────────────────
+        # ── Derived keys (region + selected trait) ────────────────────────────
         current_region_row <- shiny::reactive({
             rid  <- selected_region_id()
             shiny::req(rid)
@@ -170,9 +170,32 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         })
 
         current_trait <- shiny::reactive({
+            tr <- input$detail_trait
+            if (is.null(tr) || tr == "") return(NULL)
+            tr
+        })
+
+        # ── Update trait selector when region changes (smart default: lowest p) ─
+        shiny::observe({
             row <- current_region_row()
-            if (is.null(row)) return(NULL)
-            trimws(strsplit(as.character(row$traits[1]), ",")[[1]])[1]
+            if (is.null(row)) return()
+            traits <- trimws(strsplit(as.character(row$traits[1]), ",")[[1]])
+            traits <- traits[nzchar(traits)]
+            if (length(traits) == 0) return()
+
+            # Pick default: trait with lowest min p-value among sig SNPs in region
+            snps <- region_snps()
+            default_trait <- if (!is.null(snps) && nrow(snps) > 0 && "trait" %in% names(snps)) {
+                per_trait <- snps[, .(min_p = min(pvalue, na.rm = TRUE)), by = "trait"]
+                per_trait <- per_trait[trait %in% traits]
+                if (nrow(per_trait) > 0) per_trait[which.min(min_p), trait] else traits[1]
+            } else {
+                traits[1]
+            }
+
+            shiny::updateSelectInput(session, "detail_trait",
+                choices  = traits,
+                selected = default_trait)
         })
 
         enrich_key <- shiny::reactive({
@@ -184,9 +207,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         rplot_key <- shiny::reactive({
             rid <- selected_region_id()
-            tr  <- current_trait()
-            if (is.null(rid) || is.null(tr)) return(NULL)
-            paste0(rid, "___", tr, "___rplot")
+            if (is.null(rid)) return(NULL)
+            paste0(rid, "___rplot")
         })
 
         # ── Helper: is a subprocess currently running for this key? ────────────
@@ -243,6 +265,12 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             if (is.null(rid)) return(NULL)
             htmltools::tagList(
                 shiny::uiOutput(ns("detail_info_bar")),
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 px-1 py-2",
+                    htmltools::strong("Trait:", class = "text-nowrap small"),
+                    shiny::selectInput(ns("detail_trait"), label = NULL,
+                        choices = NULL, width = "220px")
+                ),
                 bslib::accordion(
                     id       = ns("detail_sections"),
                     open     = c("genes"),
@@ -483,12 +511,12 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         shiny::observeEvent(input$run_regionplot, {
             key <- rplot_key()
             if (is.null(key) || is_running(key)) return()
-            row <- current_region_row()
+            row  <- current_region_row()
             if (is.null(row)) return()
-            tr  <- current_trait()
-            if (is.null(tr)) return()
+            snps <- region_snps()
+            if (is.null(snps) || nrow(snps) == 0) return()
 
-            handle <- launch_regionplot_subprocess(row, tr, project_data(), module)
+            handle <- launch_regionplot_subprocess(row, snps, project_data(), module)
             if (!is.null(handle$error)) {
                 regionplot_cache[[key]] <- handle   # store error immediately
             } else {

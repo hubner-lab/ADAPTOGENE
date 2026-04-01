@@ -441,10 +441,24 @@ launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_dat
     )
 }
 
-#' Launch regionplot as a non-blocking background process.
-#' @return list(process, log_file, type, tmp_base, trait) or list(error=)
+#' Build trait:method1|method2,trait2:method3 arg from region sig SNPs.
 #' @noRd
-launch_regionplot_subprocess <- function(region_row, trait, project_data, module = MOD_ASSOC) {
+.build_trait_method_arg <- function(region_snps) {
+    if (is.null(region_snps) || nrow(region_snps) == 0) return(NULL)
+    pairs <- unique(region_snps[, .(trait, method)])
+    if (nrow(pairs) == 0) return(NULL)
+    # Group methods by trait
+    by_trait <- split(pairs$method, pairs$trait)
+    paste(mapply(function(trait, methods) {
+        paste0(trait, ":", paste(sort(unique(methods)), collapse = "|"))
+    }, names(by_trait), by_trait), collapse = ",")
+}
+
+#' Launch regionplot as a non-blocking background process.
+#' @param region_snps data.table with columns trait, method — sig SNPs in the region
+#' @return list(process, log_file, type, tmp_base) or list(error=)
+#' @noRd
+launch_regionplot_subprocess <- function(region_row, region_snps, project_data, module = MOD_ASSOC) {
     pd <- project_data
 
     gff_topr_p <- .ensure_gff_topr(pd)
@@ -466,6 +480,11 @@ launch_regionplot_subprocess <- function(region_row, trait, project_data, module
     if (is.null(assoc_tables))
         return(list(error = "Could not build association table arguments."))
 
+    # Build structured trait:method pairs from region sig SNPs
+    custom_traits <- .build_trait_method_arg(region_snps)
+    if (is.null(custom_traits))
+        return(list(error = "No significant trait/method pairs found in this region."))
+
     custom_region <- paste0(region_row$chr[1], ":", region_row$start[1], "-", region_row$end[1])
     genes_highlight <- config_get(pd$config, "regionplot", "genes", default = "NULL") %||% "NULL"
     if (length(genes_highlight) > 1) genes_highlight <- paste(genes_highlight, collapse = "|")
@@ -474,7 +493,7 @@ launch_regionplot_subprocess <- function(region_row, trait, project_data, module
     tmp_base <- file.path(tempdir(), "adaptogene_regionplot",
                           paste0(pd$name, "_",
                                  gsub("[^a-z0-9]", "", tolower(custom_region)),
-                                 "_", trait))
+                                 "_multi"))
     dir.create(tmp_base, recursive = TRUE, showWarnings = FALSE)
     log_file <- file.path(tmp_base, "regionplot.log")
 
@@ -482,7 +501,7 @@ launch_regionplot_subprocess <- function(region_row, trait, project_data, module
         file.path(pipeline_path, "scripts", "plot_regionplot.R"),
         "NULL", gff_topr_p, assoc_tables, "0",
         genes_highlight, paste0(tmp_base, "/"),
-        custom_region, trait, "NULL"
+        custom_region, custom_traits, "NULL"
     ), shQuote), collapse = " ")
 
     cmd <- paste0("Rscript ", rplot_args, " >> ", shQuote(log_file), " 2>&1")
@@ -498,8 +517,7 @@ launch_regionplot_subprocess <- function(region_row, trait, project_data, module
         process  = proc,
         log_file = log_file,
         type     = "regionplot",
-        tmp_base = tmp_base,
-        trait    = trait
+        tmp_base = tmp_base
     )
 }
 
