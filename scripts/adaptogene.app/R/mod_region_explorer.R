@@ -205,10 +205,62 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             paste0(rid, "___", tr)
         })
 
+        # combo_hash: deterministic 8-char hash of sorted trait/method pairs in region.
+        # Different filter state → different hash → different cache key and disk path.
+        combo_hash <- shiny::reactive({
+            snps <- region_snps()
+            if (is.null(snps) || nrow(snps) == 0) return(NULL)
+            arg <- .build_trait_method_arg(snps)
+            if (is.null(arg)) return(NULL)
+            substr(digest::digest(arg, algo = "md5"), 1, 8)
+        })
+
         rplot_key <- shiny::reactive({
+            rid  <- selected_region_id()
+            hash <- combo_hash()
+            if (is.null(rid) || is.null(hash)) return(NULL)
+            paste0(rid, "___", hash, "___rplot")
+        })
+
+        # ── Disk-cache hydration: load persisted regionplot on region/filter change ─
+        shiny::observe({
+            key <- rplot_key()
+            if (is.null(key) || !is.null(regionplot_cache[[key]]) || is_running(key)) return()
+            rid  <- selected_region_id()
+            hash <- combo_hash()
+            pd   <- project_data()
+            if (is.null(rid) || is.null(hash) || is.null(pd)) return()
+            region_safe <- gsub("[:\\-]", "_", rid)
+            disk_dir  <- ondemand_regionplot_dir(pd$name, module, hash)
+            disk_path <- file.path(disk_dir,
+                                   paste0("regionplot_custom_", region_safe, ".png"))
+            if (file_ok(disk_path)) {
+                regionplot_cache[[key]] <- list(path = disk_path)
+            }
+        })
+
+        # ── Disk-cache hydration: load persisted enrichment on trait/region change ─
+        shiny::observe({
+            key <- enrich_key()
+            if (is.null(key) || !is.null(enrichment_cache[[key]]) || is_running(key)) return()
             rid <- selected_region_id()
-            if (is.null(rid)) return(NULL)
-            paste0(rid, "___rplot")
+            tr  <- current_trait()
+            pd  <- project_data()
+            if (is.null(rid) || is.null(tr) || is.null(pd)) return()
+            tsv <- enrichment_table_path(pd$name, module, tr, rid)
+            if (!file_ok(tsv)) return()
+            tbl <- tryCatch(
+                data.table::fread(tsv, sep = "\t", header = TRUE),
+                error = function(e) NULL
+            )
+            if (is.null(tbl) || nrow(tbl) == 0) return()
+            dotplot_p  <- enrichment_plot_path(pd$name, module, tr, rid, "dotplot")
+            emapplot_p <- enrichment_plot_path(pd$name, module, tr, rid, "emapplot")
+            enrichment_cache[[key]] <- list(
+                table         = tbl,
+                dotplot_path  = if (file_ok(dotplot_p))  dotplot_p  else NULL,
+                emapplot_path = if (file_ok(emapplot_p)) emapplot_p else NULL
+            )
         })
 
         # ── Helper: is a subprocess currently running for this key? ────────────
@@ -445,7 +497,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             if (is.null(tr)) return()
 
             handle <- launch_enrichment_subprocess(
-                region_genes(), row$region_id[1], tr, project_data()
+                region_genes(), row$region_id[1], tr, project_data(), module
             )
             if (!is.null(handle$error)) {
                 enrichment_cache[[key]] <- handle   # store error immediately

@@ -320,6 +320,13 @@ gff_path <- function(project, pipeline_path = get_pipeline_path()) {
 
 # ─── Regional Manhattan (topr) ────────────────────────────────────────────────
 
+#' Directory for on-demand regionplots persisted to disk.
+#' Subdirectory per combo_hash keeps files for different filter combinations separate.
+#' @noRd
+ondemand_regionplot_dir <- function(project, module = MOD_ASSOC, combo_hash) {
+    mod_path(project, MOD_REGPLOT, module, combo_hash)
+}
+
 #' Regionplot image path
 #' @noRd
 regionplot_path <- function(project, region_id, trait = NULL) {

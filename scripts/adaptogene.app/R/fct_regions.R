@@ -335,7 +335,7 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
 #' @return list(process, log_file, type, tmp_tables, tmp_plots, per_trait_id, trait)
 #'   or list(error=) if pre-flight validation fails.
 #' @noRd
-launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data) {
+launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data, module = MOD_ASSOC) {
     pd <- project_data
 
     go_field   <- config_get(pd$config, "association", "go_field",  default = NULL)
@@ -356,18 +356,21 @@ launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_dat
         return(list(error = "No genes in region"))
 
     pipeline_path <- get_pipeline_path()
-    tmp_base  <- file.path(tempdir(), "adaptogene_enrichment",
-                           paste0(pd$name, "_", gsub("[^a-z0-9]", "", tolower(region_id)),
-                                  "_", trait))
+    # Intermediate and temp files stay in tempdir — only final tables/plots persist
+    tmp_base   <- file.path(tempdir(), "adaptogene_enrichment",
+                            paste0(pd$name, "_", gsub("[^a-z0-9]", "", tolower(region_id)),
+                                   "_", trait))
     tmp_genes  <- file.path(tmp_base, "genes.tsv")
-    tmp_tables <- file.path(tmp_base, "tables")
     tmp_inter  <- file.path(tmp_base, "intermediate")
-    tmp_plots  <- file.path(tmp_base, "plots")
     log_file   <- file.path(tmp_base, "enrichment.log")
+    # Persistent output dirs — survive app restarts; match enrichment_table_path / enrichment_plot_path
+    tmp_tables <- mod_path(pd$name, module, "tables", "enrichment")
+    tmp_plots  <- mod_path(pd$name, module, "plots", "enrichment")
 
-    dir.create(tmp_tables, recursive = TRUE, showWarnings = FALSE)
     dir.create(tmp_inter,  recursive = TRUE, showWarnings = FALSE)
+    dir.create(tmp_tables, recursive = TRUE, showWarnings = FALSE)
     dir.create(tmp_plots,  recursive = TRUE, showWarnings = FALSE)
+    dir.create(dirname(tmp_genes), recursive = TRUE, showWarnings = FALSE)
 
     per_trait_id <- paste0(region_id, "_", trait)
     genes_out <- data.table::copy(genes_dt)
@@ -485,22 +488,25 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
     if (is.null(custom_traits))
         return(list(error = "No significant trait/method pairs found in this region."))
 
+    # Hash of trait/method combination for per-filter caching
+    combo_hash <- substr(digest::digest(custom_traits, algo = "md5"), 1, 8)
+
     custom_region <- paste0(region_row$chr[1], ":", region_row$start[1], "-", region_row$end[1])
+    region_safe <- gsub("[:\\-]", "_", custom_region)
     genes_highlight <- config_get(pd$config, "regionplot", "genes", default = "NULL") %||% "NULL"
     if (length(genes_highlight) > 1) genes_highlight <- paste(genes_highlight, collapse = "|")
 
     pipeline_path <- get_pipeline_path()
-    tmp_base <- file.path(tempdir(), "adaptogene_regionplot",
-                          paste0(pd$name, "_",
-                                 gsub("[^a-z0-9]", "", tolower(custom_region)),
-                                 "_multi"))
-    dir.create(tmp_base, recursive = TRUE, showWarnings = FALSE)
-    log_file <- file.path(tmp_base, "regionplot.log")
+    # Persistent output dir — survives app restarts; subdirectory per combo_hash
+    out_dir <- ondemand_regionplot_dir(pd$name, module, combo_hash)
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+    # Log stays in tempdir to avoid polluting results
+    log_file <- file.path(tempdir(), paste0("rplot_", gsub("[^a-z0-9]", "", tolower(custom_region)), ".log"))
 
     rplot_args <- paste(sapply(c(
         file.path(pipeline_path, "scripts", "plot_regionplot.R"),
         "NULL", gff_topr_p, assoc_tables, "0",
-        genes_highlight, paste0(tmp_base, "/"),
+        genes_highlight, paste0(out_dir, "/"),
         custom_region, custom_traits, "NULL"
     ), shQuote), collapse = " ")
 
@@ -514,20 +520,22 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
         return(list(error = "Failed to launch regionplot process"))
 
     list(
-        process  = proc,
-        log_file = log_file,
-        type     = "regionplot",
-        tmp_base = tmp_base
+        process     = proc,
+        log_file    = log_file,
+        type        = "regionplot",
+        out_dir     = out_dir,
+        region_safe = region_safe
     )
 }
 
 #' Collect regionplot result after the background process has finished.
 #' @noRd
 .collect_regionplot_result <- function(handle) {
-    pngs <- Sys.glob(file.path(handle$tmp_base, "*.png"))
-    if (length(pngs) == 0)
+    expected_png <- file.path(handle$out_dir,
+                              paste0("regionplot_custom_", handle$region_safe, ".png"))
+    if (!file_ok(expected_png))
         return(list(error = "No plot was generated. Check that the region contains SNPs in the p-value files."))
-    list(path = pngs[1])
+    list(path = expected_png)
 }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
