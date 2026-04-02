@@ -691,6 +691,39 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             cfg_meta   <- config_get(pd$config, "haplotype", "scan", "metadata_type", default = "site")
 
             # ── Sub-box 1: Scan ──────────────────────────────────────────────
+            # Shared input form — used in both initial and error states
+            scan_inputs <- htmltools::tagList(
+                bslib::layout_column_wrap(
+                    width = 1/2,
+                    shiny::textInput(ns("hap_epsilon_range"), "Epsilon values",
+                        value = cfg_range, placeholder = "e.g. 0.3,0.5,0.7,0.9"),
+                    shiny::numericInput(ns("hap_mgmin"), "Min group size (MGmin)",
+                        value = as.integer(cfg_mgmin), min = 1L, step = 1L)
+                ),
+                bslib::layout_column_wrap(
+                    width = 1/2,
+                    shiny::numericInput(ns("hap_minhap"), "Min haplotype size",
+                        value = as.integer(cfg_minhap), min = 1L, step = 1L),
+                    shiny::numericInput(ns("hap_min_snps"), "Min SNPs in region",
+                        value = as.integer(cfg_minsnp), min = 1L, step = 1L)
+                ),
+                shiny::selectInput(ns("hap_meta_type"), "Metadata grouping",
+                    choices  = c("site", paste0("cluster_K", pd$k_best)),
+                    selected = cfg_meta, width = "220px"),
+                htmltools::tags$details(
+                    htmltools::tags$summary(
+                        class = "text-muted small mb-1",
+                        bsicons::bs_icon("info-circle"), " How to choose epsilon"
+                    ),
+                    htmltools::p(class = "text-muted small ms-3",
+                        "Run the scan to explore haplotype clustering across epsilon values. ",
+                        "Review the clustree plot \u2014 look for stable clusters where lines ",
+                        "don\u2019t cross. Fewer crossings = more stable partitioning. ",
+                        "Then enter your chosen epsilon in the Visualization box below."
+                    )
+                )
+            )
+
             scan_content <- if (scan_run) {
                 htmltools::div(
                     class = "pipeline-rule-item d-flex align-items-center gap-2 py-1",
@@ -700,55 +733,26 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 )
             } else if (!is.null(scan_res) && is.null(scan_res$error)) {
                 htmltools::tagList(
-                    if (!is.null(scan_res$mg_path) && file_ok(scan_res$mg_path))
-                        mod_image_card_ui(ns("hap_clustree_mg"))
-                    else plot_placeholder("Clustree MG not available"),
-                    if (!is.null(scan_res$hap_path) && file_ok(scan_res$hap_path))
-                        mod_image_card_ui(ns("hap_clustree_hap"))
-                    else NULL
+                    if (!is.null(scan_res$traits) && length(scan_res$traits) > 0) {
+                        shiny::selectInput(ns("hap_scan_trait"), "Trait (clustree)",
+                            choices = scan_res$traits, width = "220px")
+                    },
+                    shiny::uiOutput(ns("hap_clustree_ui"))
                 )
             } else if (!is.null(scan_res) && !is.null(scan_res$error)) {
-                htmltools::div(
-                    class = "text-muted small py-2",
-                    bsicons::bs_icon("exclamation-triangle"), " ", scan_res$error,
-                    htmltools::br(),
+                htmltools::tagList(
+                    htmltools::div(
+                        class = "alert alert-warning small mb-3",
+                        bsicons::bs_icon("exclamation-triangle"), " ", scan_res$error
+                    ),
+                    scan_inputs,
                     shiny::actionButton(ns("run_hap_scan"), "Retry Scan",
-                        class = "btn-sm btn-outline-secondary mt-2",
+                        class = "btn-sm btn-outline-secondary",
                         icon  = shiny::icon("rotate-right"))
                 )
             } else {
                 htmltools::tagList(
-                    # Parameter inputs
-                    bslib::layout_column_wrap(
-                        width = 1/2,
-                        shiny::textInput(ns("hap_epsilon_range"), "Epsilon values",
-                            value = cfg_range, placeholder = "e.g. 0.3,0.5,0.7,0.9"),
-                        shiny::numericInput(ns("hap_mgmin"), "Min group size (MGmin)",
-                            value = as.integer(cfg_mgmin), min = 1L, step = 1L)
-                    ),
-                    bslib::layout_column_wrap(
-                        width = 1/2,
-                        shiny::numericInput(ns("hap_minhap"), "Min haplotype size",
-                            value = as.integer(cfg_minhap), min = 1L, step = 1L),
-                        shiny::numericInput(ns("hap_min_snps"), "Min SNPs in region",
-                            value = as.integer(cfg_minsnp), min = 1L, step = 1L)
-                    ),
-                    shiny::selectInput(ns("hap_meta_type"), "Metadata grouping",
-                        choices  = c("site", paste0("cluster_K", pd$k_best)),
-                        selected = cfg_meta, width = "220px"),
-                    # Collapsible tip
-                    htmltools::tags$details(
-                        htmltools::tags$summary(
-                            class = "text-muted small mb-1",
-                            bsicons::bs_icon("info-circle"), " How to choose epsilon"
-                        ),
-                        htmltools::p(class = "text-muted small ms-3",
-                            "Run the scan to explore haplotype clustering across epsilon values. ",
-                            "Review the clustree plot \u2014 look for stable clusters where lines ",
-                            "don\u2019t cross. Fewer crossings = more stable partitioning. ",
-                            "Then enter your chosen epsilon in the Visualization box below."
-                        )
-                    ),
+                    scan_inputs,
                     shiny::actionButton(ns("run_hap_scan"), "Run Scan",
                         class = "btn-sm btn-outline-primary",
                         icon  = shiny::icon("magnifying-glass"))
@@ -805,21 +809,47 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             )
         })
 
-        # Image servers for clustree plots (re-initialized when scan cache updates)
+        # Clustree images UI container (rendered inside scan success state)
+        output$hap_clustree_ui <- shiny::renderUI({
+            bslib::layout_column_wrap(
+                width = 1/2,
+                mod_image_card_ui(ns("hap_clustree_mg")),
+                mod_image_card_ui(ns("hap_clustree_hap"))
+            )
+        })
+
+        # Image servers for clustree plots (re-initialized when scan cache or trait updates)
         shiny::observe({
             key      <- hap_key()
             scan_res <- if (!is.null(key)) hap_scan_cache[[key]] else NULL
             if (is.null(scan_res) || !is.null(scan_res$error)) return()
-            if (!is.null(scan_res$mg_path) && file_ok(scan_res$mg_path))
+
+            # Pick per-trait or default paths
+            trait <- input$hap_scan_trait
+            use_trait <- !is.null(trait) && length(scan_res$traits) > 0 &&
+                         trait %in% scan_res$traits
+            if (use_trait) {
+                rid   <- scan_res$region_id
+                pdir  <- scan_res$plots_dir
+                mg_p  <- file.path(pdir, paste0("Region_", rid, "_clustree_MG_",  trait, ".png"))
+                hap_p <- file.path(pdir, paste0("Region_", rid, "_clustree_hap_", trait, ".png"))
+                lbl   <- paste0(" (", trait, ")")
+            } else {
+                mg_p  <- scan_res$mg_path
+                hap_p <- scan_res$hap_path
+                lbl   <- ""
+            }
+
+            if (!is.null(mg_p) && file_ok(mg_p))
                 mod_image_card_server("hap_clustree_mg",
-                    path    = shiny::reactive(scan_res$mg_path),
-                    title   = shiny::reactive("Clustree — Marker Groups"),
-                    dl_name = shiny::reactive("clustree_MG"))
-            if (!is.null(scan_res$hap_path) && file_ok(scan_res$hap_path))
+                    path    = shiny::reactive(mg_p),
+                    title   = shiny::reactive(paste0("Clustree \u2014 Marker Groups", lbl)),
+                    dl_name = shiny::reactive(paste0("clustree_MG", if (use_trait) paste0("_", trait) else "")))
+            if (!is.null(hap_p) && file_ok(hap_p))
                 mod_image_card_server("hap_clustree_hap",
-                    path    = shiny::reactive(scan_res$hap_path),
-                    title   = shiny::reactive("Clustree — Haplotypes"),
-                    dl_name = shiny::reactive("clustree_hap"))
+                    path    = shiny::reactive(hap_p),
+                    title   = shiny::reactive(paste0("Clustree \u2014 Haplotypes", lbl)),
+                    dl_name = shiny::reactive(paste0("clustree_hap", if (use_trait) paste0("_", trait) else "")))
         })
 
         # Viz plots: rendered after viz completes (trait selector + 3 image cards)

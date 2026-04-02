@@ -301,21 +301,50 @@ for (i in seq_len(nrow(regions))) {
     tryCatch({
       message("Generating clustree visualizations...")
 
-      # Marker Group clustree
-      p_mg <- clustree_viz(hap_result, type = "MG")
+      # Marker Group clustree (default: first trait Pheno coloring)
+      p_mg <- clustree_viz(hap_result, type = "MG") +
+                ggplot2::theme(plot.margin = ggplot2::margin(t = 10, r = 10, b = 10, l = 30))
       clustree_mg_file <- file.path(plots_dir, paste0("Region_", rid, "_clustree_MG"))
       qsave(p_mg, paste0(clustree_mg_file, ".qs"))
       ggsave(paste0(clustree_mg_file, ".png"), p_mg, width = 10, height = 8, dpi = 150)
       ggsave(paste0(clustree_mg_file, ".svg"), p_mg, width = 10, height = 8)
       message("Saved MG clustree: ", clustree_mg_file)
 
-      # Haplotype clustree
-      p_hap <- clustree_viz(hap_result, type = "hap")
+      # Haplotype clustree (default)
+      p_hap <- clustree_viz(hap_result, type = "hap") +
+                 ggplot2::theme(plot.margin = ggplot2::margin(t = 10, r = 10, b = 10, l = 30))
       clustree_hap_file <- file.path(plots_dir, paste0("Region_", rid, "_clustree_hap"))
       qsave(p_hap, paste0(clustree_hap_file, ".qs"))
       ggsave(paste0(clustree_hap_file, ".png"), p_hap, width = 10, height = 8, dpi = 150)
       ggsave(paste0(clustree_hap_file, ".svg"), p_hap, width = 10, height = 8)
       message("Saved hap clustree: ", clustree_hap_file)
+
+      # Per-trait clustree variants (patch Pheno for each trait)
+      if (length(trait_cols) > 1) {
+        for (trait in trait_cols) {
+          tryCatch({
+            message("  Per-trait clustree for '", trait, "'...")
+            hap_trait <- hap_result
+            for (eps_name in names(hap_trait)) {
+              if (!is.null(hap_trait[[eps_name]]$Indfile)) {
+                ind_names  <- gsub("\\.", "-", hap_trait[[eps_name]]$Indfile$Ind)
+                hap_trait[[eps_name]]$Indfile$Pheno <- meta[[trait]][match(ind_names, meta[[sample_col]])]
+              }
+            }
+            pt_mg <- clustree_viz(hap_trait, type = "MG") +
+                       ggplot2::theme(plot.margin = ggplot2::margin(t = 10, r = 10, b = 10, l = 30))
+            pt_hap <- clustree_viz(hap_trait, type = "hap") +
+                        ggplot2::theme(plot.margin = ggplot2::margin(t = 10, r = 10, b = 10, l = 30))
+            ggsave(file.path(plots_dir, paste0("Region_", rid, "_clustree_MG_",  trait, ".png")),
+                   pt_mg,  width = 10, height = 8, dpi = 150)
+            ggsave(file.path(plots_dir, paste0("Region_", rid, "_clustree_hap_", trait, ".png")),
+                   pt_hap, width = 10, height = 8, dpi = 150)
+            message("  Saved per-trait clustree for '", trait, "'")
+          }, error = function(e) {
+            message("  WARNING: Per-trait clustree failed for '", trait, "': ", e$message)
+          })
+        }
+      }
     }, error = function(e) {
       message("WARNING: Clustree visualization failed for region ", rid, ": ", e$message)
     })

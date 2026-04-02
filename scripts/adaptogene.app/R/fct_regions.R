@@ -746,17 +746,29 @@ launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
 #' Collect haplotype scan result after process finishes.
 #' @noRd
 .collect_hap_scan_result <- function(handle) {
-    mg_path  <- file.path(handle$plots_dir,
-                          paste0("Region_", handle$region_id, "_clustree_MG.png"))
-    hap_path <- file.path(handle$plots_dir,
-                          paste0("Region_", handle$region_id, "_clustree_hap.png"))
+    rid      <- handle$region_id
+    pdir     <- handle$plots_dir
+    mg_path  <- file.path(pdir, paste0("Region_", rid, "_clustree_MG.png"))
+    hap_path <- file.path(pdir, paste0("Region_", rid, "_clustree_hap.png"))
     if (!file_ok(mg_path))
         return(list(error = paste0(
             "No clustree plots generated. Check that the region has enough SNPs ",
             "(\u2265 min_snps) and try adjusting epsilon_range.")))
+
+    # Discover per-trait clustree variants (Region_{rid}_clustree_MG_{trait}.png)
+    trait_files <- Sys.glob(file.path(pdir,
+                                       paste0("Region_", rid, "_clustree_MG_*.png")))
+    traits <- if (length(trait_files) > 0) {
+        fnames <- basename(trait_files)
+        sub("\\.png$", "", sub(paste0("^Region_", rid, "_clustree_MG_"), "", fnames))
+    } else character(0)
+
     list(
-        mg_path  = mg_path,
-        hap_path = if (file_ok(hap_path)) hap_path else NULL
+        mg_path   = mg_path,
+        hap_path  = if (file_ok(hap_path)) hap_path else NULL,
+        traits    = traits,
+        plots_dir = pdir,
+        region_id = rid
     )
 }
 

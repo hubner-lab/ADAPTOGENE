@@ -142,6 +142,7 @@ for (i in seq_len(nrow(regions))) {
         }
       }
       p_viz <- crosshap_viz(hap_obj_trait, epsilon = epsilon_selected)
+      p_viz <- p_viz & ggplot2::labs(colour = trait, fill = trait)
       viz_file <- file.path(plots_dir, paste0("Region_", rid, "_crosshap_viz_", trait))
       qsave(p_viz, paste0(viz_file, ".qs"))
       ggsave(paste0(viz_file, ".png"), p_viz, width = 14, height = 8, dpi = 150)
