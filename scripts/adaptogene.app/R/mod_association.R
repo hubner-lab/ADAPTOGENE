@@ -93,8 +93,8 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
         # Strategy from config (default for radio button)
         default_strategy <- shiny::reactive({
             pd <- project_data()
-            ds <- config_get(pd$config, "association", "combine_method", default = "Sum")
-            if (!ds %in% c("Sum", "Overlap", "PairOverlap")) "Sum" else ds
+            ds <- .normalize_strategy(config_get(pd$config, "association", "combine_method", default = "All"))
+            if (!ds %in% c("All", "Overlap", "MethodOverlap")) "All" else ds
         })
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())

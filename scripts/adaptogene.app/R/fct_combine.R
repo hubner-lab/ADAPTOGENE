@@ -36,17 +36,26 @@ method_shape_map <- function(methods) {
     stats::setNames(shapes, methods_sorted)
 }
 
+#' Normalize legacy strategy names to current names
+#' @noRd
+.normalize_strategy <- function(s) {
+    switch(s, Sum = "All", PairOverlap = "MethodOverlap", s)
+}
+
 #' Combine per-method sig SNPs using a specified strategy (on-the-fly in Shiny)
 #'
 #' @param sigsnps_list Named list of data.tables, one per method.
 #'   Each must have columns: SNPID, chr, pos, pvalue, method, trait.
-#' @param strategy One of "Sum", "Overlap", "PairOverlap", or a method name.
-#' @param gap Integer. Max bp distance for spatial overlap (Overlap/PairOverlap).
+#' @param strategy One of "All", "Overlap", "MethodOverlap", or a method name.
+#'   Legacy values "Sum" and "PairOverlap" are accepted and normalized.
+#' @param gap Integer. Max bp distance for spatial overlap (Overlap/MethodOverlap).
 #' @return Long-format data.table with SNPID, chr, pos, pvalue, method, trait.
 #'   Empty data.table if nothing passes.
 #' @noRd
-combine_sigsnps <- function(sigsnps_list, strategy = "Sum", gap = 200000L) {
+combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
     if (length(sigsnps_list) == 0) return(.empty_sigsnps())
+
+    strategy <- .normalize_strategy(strategy)
 
     # Drop empty methods
     sigsnps_list <- sigsnps_list[vapply(sigsnps_list, nrow, integer(1)) > 0]
@@ -59,7 +68,7 @@ combine_sigsnps <- function(sigsnps_list, strategy = "Sum", gap = 200000L) {
         # ── Single-method ───────────────────────────────────────────────────────
         data.table::copy(sigsnps_list[[strategy]])
 
-    } else if (strategy == "Sum") {
+    } else if (strategy == "All") {
         # ── Union: all sig SNPs from all methods ────────────────────────────────
         data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
 
@@ -79,7 +88,7 @@ combine_sigsnps <- function(sigsnps_list, strategy = "Sum", gap = 200000L) {
         all_snps <- data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
         all_snps[SNPID %in% selected_ids]
 
-    } else if (strategy == "PairOverlap") {
+    } else if (strategy == "MethodOverlap") {
         # ── Cross-method spatial overlap, same-trait only ───────────────────────
         all_snps <- data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
         all_traits <- unique(all_snps$trait)
@@ -104,7 +113,8 @@ combine_sigsnps <- function(sigsnps_list, strategy = "Sum", gap = 200000L) {
         unique(data.table::rbindlist(selected_rows, use.names = TRUE, fill = TRUE))
 
     } else {
-        stop(paste0("Unknown combine strategy: ", strategy))
+        stop(paste0("Unknown combine strategy: '", strategy,
+                    "'. Valid values: All, Overlap, MethodOverlap, or a method name."))
     }
 
     if (is.null(result) || nrow(result) == 0) return(.empty_sigsnps())
@@ -316,7 +326,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                 htmltools::span("Strategy", class = "filter-label mb-1"),
                 shiny::radioButtons(
                     ns("combine_strategy"), label = NULL,
-                    choices  = c("Sum", "Overlap", "PairOverlap"),
+                    choices  = c("All", "Overlap", "MethodOverlap"),
                     selected = default_strategy_value,
                     inline   = FALSE
                 )
@@ -344,7 +354,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 #' @param tm_selection_json  JSON string from tm_selection hidden input (list of "trait::method" pairs)
 #' @param combo_counts       Named list: "trait::method" -> integer count (for fallback)
 #' @param known_traits       Character vector of traits to restrict to (avoids cross-tab bleed)
-#' @param strategy           Character: "Sum", "Overlap", "PairOverlap", or method name
+#' @param strategy           Character: "All", "Overlap", "MethodOverlap", or method name
 #' @param gap                Integer: combine_gap in bp
 #' @param project_name       Character: project name (for assign_region_ids)
 #' @param module             Character: MOD_ASSOC, MOD_PHENO, or MOD_OVERLAP
@@ -355,6 +365,7 @@ compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
                                         strategy, gap,
                                         project_name, module) {
     if (length(all_method_sigsnps) == 0) return(NULL)
+    strategy <- .normalize_strategy(strategy)
 
     # All valid trait::method pairs (positive count, restricted to known_traits)
     all_valid_pairs <- names(combo_counts)[

@@ -612,6 +612,269 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
     if (res$status == 0L && file_ok(out_path)) out_path else ""
 }
 
+# ── Haplotype inline helpers ──────────────────────────────────────────────────
+
+#' Module → haplotype tag source suffix mapping
+#' @noRd
+.module_to_hap_source <- function(module) {
+    switch(module,
+        association              = "association",
+        association_phenotypes   = "association_phenotypes",
+        overlapping              = "overlapping",
+        NULL
+    )
+}
+
+#' Find the first haplotype tag matching the current module's source.
+#' Returns NULL if no matching tag found.
+#' @noRd
+find_matching_hap_tag <- function(project, module) {
+    source_suffix <- .module_to_hap_source(module)
+    if (is.null(source_suffix)) return(NULL)
+    all_tags <- find_haplotype_tags(project)
+    if (length(all_tags) == 0) return(NULL)
+    # Tag format: "{meta_type}_{source}" e.g. "site_association"
+    # Match any tag whose source part equals source_suffix
+    matched <- Filter(function(tag) {
+        parts <- strsplit(tag, "_")[[1]]
+        tag_source <- paste(parts[-1], collapse = "_")
+        tag_source == source_suffix
+    }, all_tags)
+    if (length(matched) == 0) NULL else matched[1]
+}
+
+#' Check if haplotype scan results exist for a region (clustree PNG present)
+#' @return TRUE/FALSE
+#' @noRd
+check_hap_scan_results <- function(project, tag, region_id) {
+    if (is.null(tag) || is.null(region_id)) return(FALSE)
+    file_ok(hap_clustree_path(project, tag, region_id, "MG"))
+}
+
+#' Check if haplotype viz results exist for a region
+#' @return character vector of available trait names (empty if none)
+#' @noRd
+check_hap_viz_results <- function(project, tag, region_id) {
+    if (is.null(tag) || is.null(region_id)) return(character(0))
+    find_haplotype_traits(project, tag, region_id)
+}
+
+#' Launch haplotype scan as a non-blocking background process.
+#'
+#' Creates a single-row selected_regions.tsv in a temp dir and runs
+#' run_haplotype_scan.R for exactly this region.
+#'
+#' @param region_row   single-row data.table with region_id, chr, start, end, snp_count
+#' @param project_data project data bundle (name, config, k_best)
+#' @param tag          haplotype tag string (e.g. "site_association")
+#' @param params       list with: epsilon_range (chr), mgmin, minhap, min_snps, meta_type
+#' @return list(process, log_file, type, plots_dir, inter_dir, region_id, tag)
+#'   or list(error=) on pre-flight failure.
+#' @noRd
+launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
+    pd <- project_data
+
+    filtered_vcf <- hap_filtered_vcf_path(pd$name)
+    if (!file_ok(filtered_vcf))
+        return(list(error = paste0("Filtered VCF not found. Run mode=processing first.")))
+
+    ld_vcf <- hap_imputed_vcf_path(pd$name, pd$k_best)
+    if (!file_ok(ld_vcf)) ld_vcf <- filtered_vcf  # fallback: use filtered VCF for LD
+
+    metadata <- hap_metadata_path(pd$name)
+    if (!file_ok(metadata))
+        return(list(error = "Aligned metadata not found. Run mode=processing first."))
+
+    meta_type    <- params$meta_type %||% "site"
+    clusters_file <- if (grepl("^cluster", meta_type)) {
+        cp <- hap_clusters_path(pd$name, pd$k_best)
+        if (file_ok(cp)) cp else "NULL"
+    } else "NULL"
+
+    inter_dir  <- hap_intermediate_dir(pd$name, tag)
+    plots_dir  <- hap_scan_plots_dir(pd$name, tag)
+    dir.create(inter_dir, recursive = TRUE, showWarnings = FALSE)
+    dir.create(plots_dir, recursive = TRUE, showWarnings = FALSE)
+
+    # Single-row selected_regions.tsv in temp dir
+    tmp_base <- file.path(tempdir(), "adaptogene_hapscan",
+                          paste0(pd$name, "_", tag, "_",
+                                 gsub("[^a-z0-9]", "", tolower(region_row$region_id[1]))))
+    dir.create(tmp_base, recursive = TRUE, showWarnings = FALSE)
+    regions_file <- file.path(tmp_base, "selected_regions.tsv")
+    data.table::fwrite(region_row, regions_file, sep = "\t")
+
+    log_file <- file.path(tmp_base, "hap_scan.log")
+    pipeline_path <- get_pipeline_path()
+
+    scan_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "run_haplotype_scan.R"),
+        regions_file,
+        filtered_vcf,
+        ld_vcf,
+        metadata,
+        meta_type,
+        clusters_file,
+        as.character(as.integer(params$mgmin %||% 50L)),
+        as.character(as.integer(params$minhap %||% 15L)),
+        as.character(params$epsilon_range %||% "0.3,0.5,0.7,0.9"),
+        as.character(as.integer(params$min_snps %||% 3L)),
+        paste0(inter_dir, "/"),
+        paste0(plots_dir, "/")
+    ), shQuote), collapse = " ")
+
+    cmd <- paste0("Rscript ", scan_args, " >> ", shQuote(log_file), " 2>&1")
+
+    proc <- tryCatch(
+        processx::process$new("bash", c("-c", cmd), wd = pipeline_path),
+        error = function(e) NULL
+    )
+    if (is.null(proc))
+        return(list(error = "Failed to launch haplotype scan process"))
+
+    list(
+        process   = proc,
+        log_file  = log_file,
+        type      = "hap_scan",
+        plots_dir = plots_dir,
+        inter_dir = inter_dir,
+        region_id = region_row$region_id[1],
+        tag       = tag
+    )
+}
+
+#' Collect haplotype scan result after process finishes.
+#' @noRd
+.collect_hap_scan_result <- function(handle) {
+    mg_path  <- file.path(handle$plots_dir,
+                          paste0("Region_", handle$region_id, "_clustree_MG.png"))
+    hap_path <- file.path(handle$plots_dir,
+                          paste0("Region_", handle$region_id, "_clustree_hap.png"))
+    if (!file_ok(mg_path))
+        return(list(error = paste0(
+            "No clustree plots generated. Check that the region has enough SNPs ",
+            "(\u2265 min_snps) and try adjusting epsilon_range.")))
+    list(
+        mg_path  = mg_path,
+        hap_path = if (file_ok(hap_path)) hap_path else NULL
+    )
+}
+
+#' Launch haplotype visualization as a non-blocking background process.
+#'
+#' @param region_row   single-row data.table with region_id, chr, start, end
+#' @param project_data project data bundle (name, config, k_best)
+#' @param tag          haplotype tag
+#' @param params       list with: epsilon_selected (numeric), meta_type
+#' @return list(process, log_file, type, region_id, tag) or list(error=)
+#' @noRd
+launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
+    pd <- project_data
+
+    epsilon <- as.numeric(params$epsilon_selected)
+    if (is.null(epsilon) || is.na(epsilon))
+        return(list(error = "Please enter an epsilon value (e.g. 0.6)."))
+
+    inter_dir  <- hap_intermediate_dir(pd$name, tag)
+    hapobj <- Sys.glob(file.path(inter_dir,
+                                  paste0("Region_", region_row$region_id[1], "_HapObject.qs")))
+    if (length(hapobj) == 0)
+        return(list(error = "HapObject not found. Run the Scan step first."))
+
+    metadata <- hap_metadata_path(pd$name)
+    if (!file_ok(metadata))
+        return(list(error = "Aligned metadata not found. Run mode=processing first."))
+
+    meta_type    <- params$meta_type %||% "site"
+    clusters_file <- if (grepl("^cluster", meta_type)) {
+        cp <- hap_clusters_path(pd$name, pd$k_best)
+        if (file_ok(cp)) cp else "NULL"
+    } else "NULL"
+
+    plots_dir  <- hap_viz_plots_dir(pd$name, tag)
+    tables_dir <- hap_viz_tables_dir(pd$name, tag)
+    dir.create(plots_dir,  recursive = TRUE, showWarnings = FALSE)
+    dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+
+    # Single-row selected_regions.tsv
+    tmp_base <- file.path(tempdir(), "adaptogene_hapviz",
+                          paste0(pd$name, "_", tag, "_",
+                                 gsub("[^a-z0-9]", "", tolower(region_row$region_id[1]))))
+    dir.create(tmp_base, recursive = TRUE, showWarnings = FALSE)
+    regions_file <- file.path(tmp_base, "selected_regions.tsv")
+    data.table::fwrite(region_row, regions_file, sep = "\t")
+
+    # Raster path (use first found climate raster or "NULL")
+    raster_path  <- Sys.glob(file.path(project_base(pd$name),
+                                        "climate", "rasters", "present", "*.tif"))[1] %||% "NULL"
+    if (is.null(raster_path) || !file_ok(raster_path)) raster_path <- "NULL"
+    raster_layer <- config_get(pd$config, "climate", "predictors",
+                                default = list("bio_1"))[[1]] %||% "bio_1"
+
+    pie_alpha      <- config_get(pd$config, "piemap", "alpha",        default = 0.8)
+    show_labels    <- config_get(pd$config, "piemap", "show_labels",  default = "F")
+    label_size     <- config_get(pd$config, "piemap", "label_size",   default = 3)
+    pie_scale      <- config_get(pd$config, "piemap", "pie_scale",    default = 1)
+    use_points     <- config_get(pd$config, "piemap", "use_points",   default = "F")
+    regionmap_ext  <- config_get(pd$config, "map", "zoom_extent",     default = "NULL") %||% "NULL"
+    piemap_args    <- paste(pie_alpha, show_labels, label_size, pie_scale, use_points, sep = ",")
+
+    log_file <- file.path(tmp_base, "hap_viz.log")
+    pipeline_path <- get_pipeline_path()
+
+    viz_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "run_haplotype_viz.R"),
+        regions_file,
+        metadata,
+        as.character(epsilon),
+        meta_type,
+        tag,
+        paste0(inter_dir, "/"),
+        paste0(plots_dir, "/"),
+        paste0(tables_dir, "/"),
+        raster_path,
+        raster_layer,
+        piemap_args,
+        regionmap_ext,
+        clusters_file
+    ), shQuote), collapse = " ")
+
+    cmd <- paste0("Rscript ", viz_args, " >> ", shQuote(log_file), " 2>&1")
+
+    proc <- tryCatch(
+        processx::process$new("bash", c("-c", cmd), wd = pipeline_path),
+        error = function(e) NULL
+    )
+    if (is.null(proc))
+        return(list(error = "Failed to launch haplotype visualization process"))
+
+    list(
+        process   = proc,
+        log_file  = log_file,
+        type      = "hap_viz",
+        plots_dir = plots_dir,
+        region_id = region_row$region_id[1],
+        tag       = tag
+    )
+}
+
+#' Collect haplotype viz result after process finishes.
+#' @noRd
+.collect_hap_viz_result <- function(handle) {
+    rid    <- handle$region_id
+    pdir   <- handle$plots_dir
+    # Glob for any trait's crosshap_viz PNG for this region
+    vizs   <- Sys.glob(file.path(pdir, paste0("Region_", rid, "_crosshap_viz_*.png")))
+    if (length(vizs) == 0)
+        return(list(error = paste0(
+            "No visualization plots generated for region ", rid,
+            ". Try a different epsilon or check the log for errors.")))
+    # Extract available traits from filenames
+    traits <- gsub(paste0("^Region_", rid, "_crosshap_viz_(.*)\\.png$"),
+                   "\\1", basename(vizs))
+    list(traits = sort(traits))
+}
+
 #' Build colon-separated ASSOC_TABLES arg for plot_regionplot.R
 #' Format: "method:adjust_str:pvalues_K{k}.tsv,..."
 #' @noRd

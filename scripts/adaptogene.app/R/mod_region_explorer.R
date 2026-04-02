@@ -154,10 +154,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         # ── Enrichment state ───────────────────────────────────────────────────
         enrichment_cache <- shiny::reactiveValues()
         regionplot_cache <- shiny::reactiveValues()
+        hap_scan_cache   <- shiny::reactiveValues()  # keyed by region_id___tag
+        hap_viz_cache    <- shiny::reactiveValues()  # keyed by region_id___tag
 
         # Handles for background processes: keyed by cache key
         # Each entry: list(process, log_file, type, ...) or NULL when done
         subprocess_handles <- shiny::reactiveValues()
+
+        # ── Haplotype tag for this module ──────────────────────────────────────
+        matching_hap_tag <- shiny::reactive({
+            pd <- project_data()
+            find_matching_hap_tag(pd$name, module)
+        })
 
         # ── Derived keys (region + selected trait) ────────────────────────────
         current_region_row <- shiny::reactive({
@@ -222,6 +230,14 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             paste0(rid, "___", hash, "___rplot")
         })
 
+        hap_key <- shiny::reactive({
+            rid <- selected_region_id()
+            tag <- matching_hap_tag()
+            if (is.null(rid)) return(NULL)
+            # Key is based on region + tag (tag may be NULL → "notag")
+            paste0(rid, "___", tag %||% "notag")
+        })
+
         # ── Disk-cache hydration: load persisted regionplot on region/filter change ─
         shiny::observe({
             key <- rplot_key()
@@ -261,6 +277,38 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 dotplot_path  = if (file_ok(dotplot_p))  dotplot_p  else NULL,
                 emapplot_path = if (file_ok(emapplot_p)) emapplot_p else NULL
             )
+        })
+
+        # ── Disk-cache hydration: load pre-computed haplotype scan results ────
+        shiny::observe({
+            key <- hap_key()
+            if (is.null(key) || !is.null(hap_scan_cache[[key]]) || is_running(paste0(key, "__scan"))) return()
+            rid <- selected_region_id()
+            tag <- matching_hap_tag()
+            pd  <- project_data()
+            if (is.null(rid) || is.null(tag) || is.null(pd)) return()
+            if (check_hap_scan_results(pd$name, tag, rid)) {
+                mg_p  <- hap_clustree_path(pd$name, tag, rid, "MG")
+                hap_p <- hap_clustree_path(pd$name, tag, rid, "hap")
+                hap_scan_cache[[key]] <- list(
+                    mg_path  = if (file_ok(mg_p))  mg_p  else NULL,
+                    hap_path = if (file_ok(hap_p)) hap_p else NULL
+                )
+            }
+        })
+
+        # ── Disk-cache hydration: load pre-computed haplotype viz results ────
+        shiny::observe({
+            key <- hap_key()
+            if (is.null(key) || !is.null(hap_viz_cache[[key]]) || is_running(paste0(key, "__viz"))) return()
+            rid <- selected_region_id()
+            tag <- matching_hap_tag()
+            pd  <- project_data()
+            if (is.null(rid) || is.null(tag) || is.null(pd)) return()
+            traits <- check_hap_viz_results(pd$name, tag, rid)
+            if (length(traits) > 0) {
+                hap_viz_cache[[key]] <- list(traits = traits)
+            }
         })
 
         # ── Helper: is a subprocess currently running for this key? ────────────
@@ -305,6 +353,31 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                         result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
                     }
                     regionplot_cache[[key]] <- result
+
+                } else if (h$type == "hap_scan") {
+                    result <- tryCatch(
+                        .collect_hap_scan_result(h),
+                        error = function(e) list(error = conditionMessage(e))
+                    )
+                    if (!is.null(result$error) && status != 0L) {
+                        log_lines <- tryCatch(readLines(h$log_file, warn = FALSE), error = function(e) character())
+                        result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
+                    }
+                    # key for hap_scan is stored with __scan suffix
+                    base_key <- sub("__scan$", "", key)
+                    hap_scan_cache[[base_key]] <- result
+
+                } else if (h$type == "hap_viz") {
+                    result <- tryCatch(
+                        .collect_hap_viz_result(h),
+                        error = function(e) list(error = conditionMessage(e))
+                    )
+                    if (!is.null(result$error) && status != 0L) {
+                        log_lines <- tryCatch(readLines(h$log_file, warn = FALSE), error = function(e) character())
+                        result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
+                    }
+                    base_key <- sub("__viz$", "", key)
+                    hap_viz_cache[[base_key]] <- result
                 }
 
                 subprocess_handles[[key]] <- NULL
@@ -325,7 +398,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 ),
                 bslib::accordion(
                     id       = ns("detail_sections"),
-                    open     = c("genes"),
+                    open     = c("genes", "enrichment", "regionplot"),
                     multiple = TRUE,
 
                     bslib::accordion_panel(
@@ -354,6 +427,13 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                         value = "regionplot",
                         icon  = bsicons::bs_icon("graph-up"),
                         shiny::uiOutput(ns("regionplot_ui"))
+                    ),
+
+                    bslib::accordion_panel(
+                        "Haplotype Analysis",
+                        value = "haplotype",
+                        icon  = bsicons::bs_icon("diagram-3"),
+                        shiny::uiOutput(ns("haplotype_ui"))
                     )
                 )
             )
@@ -573,6 +653,255 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 regionplot_cache[[key]] <- handle   # store error immediately
             } else {
                 subprocess_handles[[key]] <- handle # start polling
+            }
+        })
+
+        # ── Haplotype UI ───────────────────────────────────────────────────────
+        output$haplotype_ui <- shiny::renderUI({
+            rid <- selected_region_id()
+            if (is.null(rid)) return(NULL)
+            key      <- hap_key()
+            tag      <- matching_hap_tag()
+            scan_res <- if (!is.null(key)) hap_scan_cache[[key]] else NULL
+            viz_res  <- if (!is.null(key)) hap_viz_cache[[key]]  else NULL
+            scan_run <- is_running(paste0(key %||% "", "__scan"))
+            viz_run  <- is_running(paste0(key %||% "", "__viz"))
+
+            # Config defaults for parameter inputs
+            pd <- project_data()
+            cfg_eps   <- config_get(pd$config, "haplotype", "epsilon_selected", default = NULL)
+            cfg_range <- paste(config_get(pd$config, "haplotype", "scan",
+                                          "epsilon_range", default = "0.3,0.5,0.7,0.9"),
+                               collapse = ",")
+            if (is.list(cfg_range)) cfg_range <- paste(unlist(cfg_range), collapse = ",")
+            cfg_mgmin  <- config_get(pd$config, "haplotype", "scan", "min_group_size",  default = 50L)
+            cfg_minhap <- config_get(pd$config, "haplotype", "scan", "min_haplotype_size", default = 15L)
+            cfg_minsnp <- config_get(pd$config, "haplotype", "scan", "min_snps", default = 3L)
+            cfg_meta   <- config_get(pd$config, "haplotype", "scan", "metadata_type", default = "site")
+
+            # ── Sub-box 1: Scan ──────────────────────────────────────────────
+            scan_content <- if (scan_run) {
+                htmltools::div(
+                    class = "pipeline-rule-item d-flex align-items-center gap-2 py-1",
+                    bsicons::bs_icon("arrow-repeat",
+                        class = "text-warning spin-icon flex-shrink-0", size = "0.85em"),
+                    htmltools::span(class = "small", "Running haplotype scan...")
+                )
+            } else if (!is.null(scan_res) && is.null(scan_res$error)) {
+                htmltools::tagList(
+                    if (!is.null(scan_res$mg_path) && file_ok(scan_res$mg_path))
+                        mod_image_card_ui(ns("hap_clustree_mg"))
+                    else plot_placeholder("Clustree MG not available"),
+                    if (!is.null(scan_res$hap_path) && file_ok(scan_res$hap_path))
+                        mod_image_card_ui(ns("hap_clustree_hap"))
+                    else NULL
+                )
+            } else if (!is.null(scan_res) && !is.null(scan_res$error)) {
+                htmltools::div(
+                    class = "text-muted small py-2",
+                    bsicons::bs_icon("exclamation-triangle"), " ", scan_res$error,
+                    htmltools::br(),
+                    shiny::actionButton(ns("run_hap_scan"), "Retry Scan",
+                        class = "btn-sm btn-outline-secondary mt-2",
+                        icon  = shiny::icon("rotate-right"))
+                )
+            } else {
+                htmltools::tagList(
+                    # Parameter inputs
+                    bslib::layout_column_wrap(
+                        width = 1/2,
+                        shiny::textInput(ns("hap_epsilon_range"), "Epsilon values",
+                            value = cfg_range, placeholder = "e.g. 0.3,0.5,0.7,0.9"),
+                        shiny::numericInput(ns("hap_mgmin"), "Min group size (MGmin)",
+                            value = as.integer(cfg_mgmin), min = 1L, step = 1L)
+                    ),
+                    bslib::layout_column_wrap(
+                        width = 1/2,
+                        shiny::numericInput(ns("hap_minhap"), "Min haplotype size",
+                            value = as.integer(cfg_minhap), min = 1L, step = 1L),
+                        shiny::numericInput(ns("hap_min_snps"), "Min SNPs in region",
+                            value = as.integer(cfg_minsnp), min = 1L, step = 1L)
+                    ),
+                    shiny::selectInput(ns("hap_meta_type"), "Metadata grouping",
+                        choices  = c("site", paste0("cluster_K", pd$k_best)),
+                        selected = cfg_meta, width = "220px"),
+                    # Collapsible tip
+                    htmltools::tags$details(
+                        htmltools::tags$summary(
+                            class = "text-muted small mb-1",
+                            bsicons::bs_icon("info-circle"), " How to choose epsilon"
+                        ),
+                        htmltools::p(class = "text-muted small ms-3",
+                            "Run the scan to explore haplotype clustering across epsilon values. ",
+                            "Review the clustree plot \u2014 look for stable clusters where lines ",
+                            "don\u2019t cross. Fewer crossings = more stable partitioning. ",
+                            "Then enter your chosen epsilon in the Visualization box below."
+                        )
+                    ),
+                    shiny::actionButton(ns("run_hap_scan"), "Run Scan",
+                        class = "btn-sm btn-outline-primary",
+                        icon  = shiny::icon("magnifying-glass"))
+                )
+            }
+
+            # ── Sub-box 2: Visualization ────────────────────────────────────
+            viz_content <- if (viz_run) {
+                htmltools::div(
+                    class = "pipeline-rule-item d-flex align-items-center gap-2 py-1",
+                    bsicons::bs_icon("arrow-repeat",
+                        class = "text-warning spin-icon flex-shrink-0", size = "0.85em"),
+                    htmltools::span(class = "small", "Running haplotype visualization...")
+                )
+            } else if (!is.null(viz_res) && is.null(viz_res$error)) {
+                shiny::uiOutput(ns("hap_viz_plots_ui"))
+            } else if (!is.null(viz_res) && !is.null(viz_res$error)) {
+                htmltools::div(
+                    class = "text-muted small py-2",
+                    bsicons::bs_icon("exclamation-triangle"), " ", viz_res$error,
+                    htmltools::br(),
+                    shiny::actionButton(ns("run_hap_viz"), "Retry Visualization",
+                        class = "btn-sm btn-outline-secondary mt-2",
+                        icon  = shiny::icon("rotate-right"))
+                )
+            } else {
+                htmltools::tagList(
+                    shiny::numericInput(ns("hap_epsilon_selected"), "Epsilon (from clustree)",
+                        value = if (!is.null(cfg_eps) && !is.na(as.numeric(cfg_eps)))
+                                    as.numeric(cfg_eps) else NA_real_,
+                        min = 0.01, max = 1, step = 0.1, width = "160px"),
+                    htmltools::p(class = "text-muted small",
+                        bsicons::bs_icon("arrow-up"), " Pick a stable epsilon from the clustree above."),
+                    shiny::actionButton(ns("run_hap_viz"), "Run Visualization",
+                        class = "btn-sm btn-outline-primary",
+                        icon  = shiny::icon("chart-bar"))
+                )
+            }
+
+            bslib::layout_column_wrap(
+                width = 1/2,
+                bslib::card(
+                    bslib::card_header(
+                        bsicons::bs_icon("search"), " Step 1: Scan"
+                    ),
+                    bslib::card_body(scan_content)
+                ),
+                bslib::card(
+                    bslib::card_header(
+                        bsicons::bs_icon("palette"), " Step 2: Visualization"
+                    ),
+                    bslib::card_body(viz_content)
+                )
+            )
+        })
+
+        # Image servers for clustree plots (re-initialized when scan cache updates)
+        shiny::observe({
+            key      <- hap_key()
+            scan_res <- if (!is.null(key)) hap_scan_cache[[key]] else NULL
+            if (is.null(scan_res) || !is.null(scan_res$error)) return()
+            if (!is.null(scan_res$mg_path) && file_ok(scan_res$mg_path))
+                mod_image_card_server("hap_clustree_mg",
+                    path    = shiny::reactive(scan_res$mg_path),
+                    title   = shiny::reactive("Clustree — Marker Groups"),
+                    dl_name = shiny::reactive("clustree_MG"))
+            if (!is.null(scan_res$hap_path) && file_ok(scan_res$hap_path))
+                mod_image_card_server("hap_clustree_hap",
+                    path    = shiny::reactive(scan_res$hap_path),
+                    title   = shiny::reactive("Clustree — Haplotypes"),
+                    dl_name = shiny::reactive("clustree_hap"))
+        })
+
+        # Viz plots: rendered after viz completes (trait selector + 3 image cards)
+        output$hap_viz_plots_ui <- shiny::renderUI({
+            key     <- hap_key()
+            viz_res <- if (!is.null(key)) hap_viz_cache[[key]] else NULL
+            if (is.null(viz_res) || !is.null(viz_res$error)) return(NULL)
+            traits  <- viz_res$traits
+            if (length(traits) == 0) return(plot_placeholder("No traits found in visualization output"))
+
+            htmltools::tagList(
+                shiny::selectInput(ns("hap_viz_trait"), "Trait",
+                    choices = traits, width = "220px"),
+                mod_image_card_ui(ns("hap_crosshap_viz")),
+                bslib::layout_column_wrap(
+                    width = 1/2,
+                    mod_image_card_ui(ns("hap_boxplot")),
+                    mod_image_card_ui(ns("hap_piemap"))
+                )
+            )
+        })
+
+        shiny::observe({
+            key     <- hap_key()
+            viz_res <- if (!is.null(key)) hap_viz_cache[[key]] else NULL
+            if (is.null(viz_res) || !is.null(viz_res$error)) return()
+            rid   <- selected_region_id()
+            tag   <- matching_hap_tag()
+            pd    <- project_data()
+            trait <- input$hap_viz_trait %||% viz_res$traits[1]
+            if (is.null(trait) || is.null(rid) || is.null(tag) || is.null(pd)) return()
+
+            viz_p <- crosshap_viz_path(pd$name, tag, rid, trait)
+            box_p <- hap_boxplot_path(pd$name, tag, rid, trait)
+            pie_p <- hap_piemap_path(pd$name, tag, rid, trait)
+
+            if (file_ok(viz_p))
+                mod_image_card_server("hap_crosshap_viz",
+                    path    = shiny::reactive(viz_p),
+                    title   = shiny::reactive("Haplotype Visualization"),
+                    dl_name = shiny::reactive(paste0("crosshap_", rid, "_", trait)))
+            if (file_ok(box_p))
+                mod_image_card_server("hap_boxplot",
+                    path    = shiny::reactive(box_p),
+                    title   = shiny::reactive("Haplotype Phenotype Boxplot"),
+                    dl_name = shiny::reactive(paste0("hap_boxplot_", rid, "_", trait)))
+            if (file_ok(pie_p))
+                mod_image_card_server("hap_piemap",
+                    path    = shiny::reactive(pie_p),
+                    title   = shiny::reactive("Haplotype Piemap"),
+                    dl_name = shiny::reactive(paste0("hap_piemap_", rid, "_", trait)))
+        })
+
+        # ── Run Scan button ────────────────────────────────────────────────────
+        shiny::observeEvent(input$run_hap_scan, {
+            key <- hap_key()
+            if (is.null(key) || is_running(paste0(key, "__scan"))) return()
+            row <- current_region_row()
+            tag <- matching_hap_tag()
+            if (is.null(row) || is.null(tag)) return()
+
+            params <- list(
+                epsilon_range = input$hap_epsilon_range %||% "0.3,0.5,0.7,0.9",
+                mgmin         = input$hap_mgmin  %||% 50L,
+                minhap        = input$hap_minhap %||% 15L,
+                min_snps      = input$hap_min_snps %||% 3L,
+                meta_type     = input$hap_meta_type %||% "site"
+            )
+            handle <- launch_hap_scan_subprocess(row, project_data(), tag, params)
+            if (!is.null(handle$error)) {
+                hap_scan_cache[[key]] <- handle
+            } else {
+                subprocess_handles[[paste0(key, "__scan")]] <- handle
+            }
+        })
+
+        # ── Run Viz button ─────────────────────────────────────────────────────
+        shiny::observeEvent(input$run_hap_viz, {
+            key <- hap_key()
+            if (is.null(key) || is_running(paste0(key, "__viz"))) return()
+            row <- current_region_row()
+            tag <- matching_hap_tag()
+            if (is.null(row) || is.null(tag)) return()
+
+            params <- list(
+                epsilon_selected = input$hap_epsilon_selected,
+                meta_type        = input$hap_meta_type %||% "site"
+            )
+            handle <- launch_hap_viz_subprocess(row, project_data(), tag, params)
+            if (!is.null(handle$error)) {
+                hap_viz_cache[[key]] <- handle
+            } else {
+                subprocess_handles[[paste0(key, "__viz")]] <- handle
             }
         })
 

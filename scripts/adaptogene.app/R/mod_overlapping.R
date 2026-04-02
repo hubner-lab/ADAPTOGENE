@@ -1,7 +1,7 @@
 #' Overlapping Regions tab UI
 #'
-#' Miami Manhattan with interactive filter/strategy bar, overlap pairs table,
-#' region explorer, and pairwise trait overlap section.
+#' Miami Manhattan with interactive filter/strategy bar, region explorer,
+#' and collapsible pairwise trait overlap section.
 #'
 #' @param id module namespace id
 #' @noRd
@@ -15,29 +15,22 @@ mod_overlapping_ui <- function(id) {
             filter_ui  = shiny::uiOutput(ns("filter_bar"))
         ),
 
-        # Overlap pairs table
-        bslib::card(
-            full_screen = TRUE,
-            bslib::card_header(
-                class = "d-flex justify-content-between align-items-center",
-                htmltools::span(
-                    bsicons::bs_icon("table"),
-                    " Overlap Summary"
-                ),
-                shiny::downloadButton(ns("dl_overlap"), "CSV",
-                                      class = "btn-sm btn-outline-secondary")
-            ),
-            bslib::card_body(
-                DT::DTOutput(ns("overlap_table"))
-            )
-        ),
-
         # Interactive region explorer (replaces static region dropdown)
         mod_region_explorer_ui(ns("region_explorer")),
 
-        # Pairwise Trait Overlap section
-        htmltools::hr(class = "my-4"),
-        mod_pairwise_overlap_ui(ns("pairwise"))
+        # Pairwise Trait Overlap — collapsed by default
+        bslib::accordion(
+            id       = ns("pairwise_accordion"),
+            open     = FALSE,
+            multiple = FALSE,
+            class    = "mt-4",
+            bslib::accordion_panel(
+                "Pairwise Trait Overlap",
+                value = "pairwise",
+                icon  = bsicons::bs_icon("intersect"),
+                mod_pairwise_overlap_ui(ns("pairwise"))
+            )
+        )
     )
 }
 
@@ -70,13 +63,6 @@ mod_overlapping_server <- function(id, project_data) {
             load_all_overlap_method_sigsnps(pd$name)
         })
 
-        overlap_data <- shiny::reactive({
-            pd <- project_data()
-            load_cached(paste0("overlap_summary_", pd$name), function() {
-                load_overlap_summary(pd$name)
-            })
-        })
-
         # ── Filter bar ─────────────────────────────────────────────────────────
 
         trait_colors <- shiny::reactive({
@@ -107,9 +93,9 @@ mod_overlapping_server <- function(id, project_data) {
 
         default_strategy <- shiny::reactive({
             pd <- project_data()
-            ds <- config_get(pd$config, "overlap", "combine_method",
-                             default = "Sum")
-            if (!ds %in% c("Sum", "Overlap", "PairOverlap")) "Sum" else ds
+            ds <- .normalize_strategy(config_get(pd$config, "overlap", "combine_method",
+                             default = "All"))
+            if (!ds %in% c("All", "Overlap", "MethodOverlap")) "All" else ds
         })
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
@@ -187,33 +173,6 @@ mod_overlapping_server <- function(id, project_data) {
                 explorer$selected_region_id(rid)
             }
         }, ignoreNULL = TRUE)
-
-        # ── Overlap table ──────────────────────────────────────────────────────
-        output$overlap_table <- DT::renderDataTable({
-            ov <- overlap_data()
-            # Filter out SUMMARY rows for main table display
-            if (nrow(ov) > 0 && "region_id" %in% names(ov)) {
-                ov <- ov[ov$region_id != "SUMMARY", ]
-            }
-            safe_datatable(
-                as.data.frame(ov),
-                extensions = "Buttons",
-                options    = list(
-                    dom       = "Bfrtip",
-                    buttons   = list("csv"),
-                    scrollX   = TRUE,
-                    pageLength = 15
-                ),
-                rownames = FALSE
-            )
-        })
-
-        output$dl_overlap <- shiny::downloadHandler(
-            filename = function() paste0("overlap_summary_", project_data()$name, ".csv"),
-            content  = function(file) {
-                utils::write.csv(as.data.frame(overlap_data()), file, row.names = FALSE)
-            }
-        )
 
         # ── Signal Comparison ──────────────────────────────────────────────────
         miami_coords <- shiny::reactive({

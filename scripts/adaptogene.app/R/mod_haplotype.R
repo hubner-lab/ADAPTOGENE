@@ -247,9 +247,11 @@ mod_haplotype_server <- function(id, project_data) {
                         bsicons::bs_icon("info-circle"),
                         htmltools::p(
                             class = "text-muted",
-                            "Per-region haplotype visualization for this source is shown in the ",
+                            "Per-region haplotype visualization is shown in the ",
                             htmltools::strong(tab_name),
-                            " tab when a region is selected."
+                            " tab. Select a region in the Manhattan plot and open the ",
+                            htmltools::strong("Haplotype Analysis"),
+                            " accordion panel in the region detail."
                         )
                     )
                 ))

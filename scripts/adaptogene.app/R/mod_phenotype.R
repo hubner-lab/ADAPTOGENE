@@ -120,10 +120,10 @@ mod_phenotype_server <- function(id, project_data) {
         # Strategy: try phenotype_association section, fall back to association
         default_strategy <- shiny::reactive({
             pd <- project_data()
-            ds <- config_get(pd$config, "phenotype_association", "combine_method",
+            ds <- .normalize_strategy(config_get(pd$config, "phenotype_association", "combine_method",
                              default = config_get(pd$config, "association", "combine_method",
-                                                  default = "Sum"))
-            if (!ds %in% c("Sum", "Overlap", "PairOverlap")) "Sum" else ds
+                                                  default = "All")))
+            if (!ds %in% c("All", "Overlap", "MethodOverlap")) "All" else ds
         })
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())

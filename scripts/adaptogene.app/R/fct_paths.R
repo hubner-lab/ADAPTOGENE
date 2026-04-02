@@ -394,6 +394,60 @@ hap_frequencies_path <- function(project, tag) {
     mod_path(project, MOD_HAP, tag, "tables", "Haplotype_frequencies.tsv")
 }
 
+#' Haplotype intermediate directory (HapObject .qs files)
+#' @noRd
+hap_intermediate_dir <- function(project, tag) {
+    mod_path(project, MOD_INTER, "haplotype", tag)
+}
+
+#' Haplotype scan clustree plots output directory
+#' @noRd
+hap_scan_plots_dir <- function(project, tag) {
+    mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree")
+}
+
+#' Haplotype viz plots output directory
+#' @noRd
+hap_viz_plots_dir <- function(project, tag) {
+    mod_path(project, MOD_HAP, tag, "plots")
+}
+
+#' Haplotype viz tables output directory
+#' @noRd
+hap_viz_tables_dir <- function(project, tag) {
+    mod_path(project, MOD_HAP, tag, "tables")
+}
+
+#' Filtered VCF path (glob from _work, returns first match)
+#' @noRd
+hap_filtered_vcf_path <- function(project) {
+    base <- project_base(project)
+    vcfs <- Sys.glob(file.path(base, "_work", "maf*", paste0(project, ".vcf")))
+    if (length(vcfs) == 0) "" else vcfs[1]
+}
+
+#' Imputed VCF path for LD computation (glob from _work, returns first match)
+#' @noRd
+hap_imputed_vcf_path <- function(project, k_best) {
+    base <- project_base(project)
+    vcfs <- Sys.glob(file.path(base, "_work", "maf*",
+                               paste0(project, "_K", k_best, "imp.vcf")))
+    if (length(vcfs) == 0) "" else vcfs[1]
+}
+
+#' Aligned metadata path
+#' @noRd
+hap_metadata_path <- function(project) {
+    mod_path(project, MOD_PROC, "tables", "metadata.tsv")
+}
+
+#' Clusters table path for k_best
+#' @noRd
+hap_clusters_path <- function(project, k_best) {
+    mod_path(project, MOD_STRUCT, "tables", paste0("K", k_best),
+             paste0("clusters_K", k_best, ".tsv"))
+}
+
 # ── Processing QC paths ──────────────────────────────────────────────────────
 
 #' QC plot path (processing/plots/<filename>)

@@ -195,7 +195,7 @@ config_schema <- function() {
         # Results processing
         s("association.combine_method",   "Combine method",     "association", "Results",
           "select",  FALSE,
-          choices = c("Sum", "Overlap", "EMMAX", "LFMM", "GLM", "MLM", "FarmCPU", "BLINK"),
+          choices = c("All", "Overlap", "MethodOverlap", "EMMAX", "LFMM", "GLM", "MLM", "FarmCPU", "BLINK"),
           help = "How to combine significant SNPs across methods into consensus regions"),
         s("association.combine_gap",      "Combine gap (bp)",   "association", "Results",
           "numeric", FALSE,
