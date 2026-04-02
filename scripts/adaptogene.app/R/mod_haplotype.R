@@ -37,19 +37,6 @@ mod_haplotype_ui <- function(id) {
             multiple = TRUE,
 
             bslib::accordion_panel(
-                "Per-Region Visualization",
-                value = "per_region",
-                icon  = bsicons::bs_icon("diagram-3"),
-                # Region + trait selectors inside accordion, above content
-                htmltools::div(
-                    class = "control-bar",
-                    shiny::uiOutput(ns("region_selector")),
-                    shiny::uiOutput(ns("trait_selector"))
-                ),
-                shiny::uiOutput(ns("per_region_content"))
-            ),
-
-            bslib::accordion_panel(
                 "Tables",
                 value = "tables",
                 icon  = bsicons::bs_icon("table"),
@@ -101,51 +88,6 @@ mod_haplotype_server <- function(id, project_data) {
         selected_clustree_region <- shiny::reactive({
             cr <- clustree_regions()
             input$clustree_region %||% (if (length(cr) > 0) cr[1] else NULL)
-        })
-
-        # ── Per-region viz discovery ───────────────────────────────────────────
-        tag_regions <- shiny::reactive({
-            tag <- selected_tag()
-            if (is.null(tag)) return(character(0))
-            find_haplotype_regions(project_data()$name, tag)
-        })
-
-        output$region_selector <- shiny::renderUI({
-            rids <- tag_regions()
-            if (length(rids) == 0) return(NULL)
-            choices <- setNames(rids, vapply(rids, format_region_id, character(1)))
-            shiny::selectInput(ns("region_id"), "Region", choices = choices, selected = rids[1])
-        })
-
-        selected_region <- shiny::reactive(input$region_id %||% tag_regions()[1])
-
-        # ── Trait discovery ────────────────────────────────────────────────────
-        hap_traits <- shiny::reactive({
-            tag <- selected_tag()
-            rid <- selected_region()
-            if (is.null(tag) || is.null(rid)) return(character(0))
-            find_haplotype_traits(project_data()$name, tag, rid)
-        })
-
-        output$trait_selector <- shiny::renderUI({
-            traits <- hap_traits()
-            if (length(traits) <= 1) return(NULL)
-            shiny::selectInput(ns("hap_trait"), "Trait", choices = traits, selected = traits[1])
-        })
-
-        selected_trait <- shiny::reactive({
-            tr <- hap_traits()
-            input$hap_trait %||% (if (length(tr) > 0) tr[1] else NULL)
-        })
-
-        # ── Custom source check ────────────────────────────────────────────────
-        is_custom_source <- shiny::reactive({
-            tag <- selected_tag()
-            if (is.null(tag)) return(FALSE)
-            parts <- strsplit(tag, "_")[[1]]
-            if (length(parts) < 2) return(TRUE)
-            tag_source <- paste(parts[-1], collapse = "_")
-            !tag_source %in% c("association", "association_phenotypes", "overlapping")
         })
 
         # ── Status summary ─────────────────────────────────────────────────────
@@ -225,84 +167,6 @@ mod_haplotype_server <- function(id, project_data) {
                                                   format_region_id(crid), ")")),
                 dl_name = shiny::reactive(paste0("clustree_hap_", tag, "_", crid))
             )
-        })
-
-        # ── Per-region visualization ───────────────────────────────────────────
-        output$per_region_content <- shiny::renderUI({
-            tag <- selected_tag()
-            rid <- selected_region()
-            if (is.null(tag) || is.null(rid)) return(NULL)
-
-            if (!is_custom_source()) {
-                parts      <- strsplit(tag, "_")[[1]]
-                tag_source <- paste(parts[-1], collapse = "_")
-                tab_name <- switch(tag_source,
-                    association              = "Association",
-                    association_phenotypes   = "Phenotype Association",
-                    overlapping              = "Overlapping Regions",
-                    "the corresponding tab"
-                )
-                return(bslib::card(
-                    bslib::card_body(
-                        bsicons::bs_icon("info-circle"),
-                        htmltools::p(
-                            class = "text-muted",
-                            "Per-region haplotype visualization is shown in the ",
-                            htmltools::strong(tab_name),
-                            " tab. Select a region in the Manhattan plot and open the ",
-                            htmltools::strong("Haplotype Analysis"),
-                            " accordion panel in the region detail."
-                        )
-                    )
-                ))
-            }
-
-            pd    <- project_data()
-            trait <- selected_trait()
-            if (is.null(trait)) {
-                return(plot_placeholder("No visualization available",
-                    "Run mode=haplotype to generate crosshap visualizations"))
-            }
-            viz <- crosshap_viz_path(pd$name, tag, rid, trait)
-            if (!file_ok(viz)) {
-                return(plot_placeholder("No visualization available for this region",
-                    "Run mode=haplotype to generate crosshap visualizations"))
-            }
-
-            htmltools::tagList(
-                mod_image_card_ui(ns("hap_viz")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("hap_box")),
-                    mod_image_card_ui(ns("hap_piemap"))
-                )
-            )
-        })
-
-        shiny::observe({
-            shiny::req(is_custom_source(), selected_tag(), selected_region())
-            tag   <- selected_tag()
-            rid   <- selected_region()
-            trait <- selected_trait()
-            pd    <- project_data()
-
-            if (!is.null(trait)) {
-                mod_image_card_server("hap_viz",
-                    path    = shiny::reactive(crosshap_viz_path(pd$name, tag, rid, trait)),
-                    title   = shiny::reactive(paste0("Haplotype Visualization: ", trait)),
-                    dl_name = shiny::reactive(paste0("crosshap_viz_", tag, "_", rid, "_", trait))
-                )
-                mod_image_card_server("hap_box",
-                    path    = shiny::reactive(hap_boxplot_path(pd$name, tag, rid, trait)),
-                    title   = shiny::reactive(paste0("Boxplot: ", trait)),
-                    dl_name = shiny::reactive(paste0("hap_boxplot_", tag, "_", rid, "_", trait))
-                )
-                mod_image_card_server("hap_piemap",
-                    path    = shiny::reactive(hap_piemap_path(pd$name, tag, rid, trait)),
-                    title   = shiny::reactive(paste0("Haplotype Piemap: ", trait)),
-                    dl_name = shiny::reactive(paste0("hap_piemap_", tag, "_", rid, "_", trait))
-                )
-            }
         })
 
         # ── Tables ─────────────────────────────────────────────────────────────

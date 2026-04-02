@@ -167,6 +167,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             find_matching_hap_tag(pd$name, module)
         })
 
+        # expected_hap_tag: returns existing matching tag when found, otherwise
+        # constructs one from config default so hap_key is stable before first scan.
+        expected_hap_tag <- shiny::reactive({
+            tag <- matching_hap_tag()
+            if (!is.null(tag)) return(tag)
+            src <- .module_to_hap_source(module)
+            if (is.null(src)) return(NULL)
+            pd   <- project_data()
+            meta <- config_get(pd$config, "haplotype", "scan", "metadata_type", default = "site")
+            paste0(meta, "_", src)
+        })
+
         # ── Derived keys (region + selected trait) ────────────────────────────
         current_region_row <- shiny::reactive({
             rid  <- selected_region_id()
@@ -232,10 +244,9 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         hap_key <- shiny::reactive({
             rid <- selected_region_id()
-            tag <- matching_hap_tag()
-            if (is.null(rid)) return(NULL)
-            # Key is based on region + tag (tag may be NULL → "notag")
-            paste0(rid, "___", tag %||% "notag")
+            tag <- expected_hap_tag()
+            if (is.null(rid) || is.null(tag)) return(NULL)
+            paste0(rid, "___", tag)
         })
 
         # ── Disk-cache hydration: load persisted regionplot on region/filter change ─
@@ -284,7 +295,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             key <- hap_key()
             if (is.null(key) || !is.null(hap_scan_cache[[key]]) || is_running(paste0(key, "__scan"))) return()
             rid <- selected_region_id()
-            tag <- matching_hap_tag()
+            tag <- expected_hap_tag()
             pd  <- project_data()
             if (is.null(rid) || is.null(tag) || is.null(pd)) return()
             if (check_hap_scan_results(pd$name, tag, rid)) {
@@ -302,7 +313,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             key <- hap_key()
             if (is.null(key) || !is.null(hap_viz_cache[[key]]) || is_running(paste0(key, "__viz"))) return()
             rid <- selected_region_id()
-            tag <- matching_hap_tag()
+            tag <- expected_hap_tag()
             pd  <- project_data()
             if (is.null(rid) || is.null(tag) || is.null(pd)) return()
             traits <- check_hap_viz_results(pd$name, tag, rid)
@@ -661,7 +672,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             rid <- selected_region_id()
             if (is.null(rid)) return(NULL)
             key      <- hap_key()
-            tag      <- matching_hap_tag()
+            tag      <- expected_hap_tag()
             scan_res <- if (!is.null(key)) hap_scan_cache[[key]] else NULL
             viz_res  <- if (!is.null(key)) hap_viz_cache[[key]]  else NULL
             scan_run <- is_running(paste0(key %||% "", "__scan"))
@@ -836,7 +847,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             viz_res <- if (!is.null(key)) hap_viz_cache[[key]] else NULL
             if (is.null(viz_res) || !is.null(viz_res$error)) return()
             rid   <- selected_region_id()
-            tag   <- matching_hap_tag()
+            tag   <- expected_hap_tag()
             pd    <- project_data()
             trait <- input$hap_viz_trait %||% viz_res$traits[1]
             if (is.null(trait) || is.null(rid) || is.null(tag) || is.null(pd)) return()
@@ -864,18 +875,22 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         # ── Run Scan button ────────────────────────────────────────────────────
         shiny::observeEvent(input$run_hap_scan, {
-            key <- hap_key()
-            if (is.null(key) || is_running(paste0(key, "__scan"))) return()
             row <- current_region_row()
-            tag <- matching_hap_tag()
-            if (is.null(row) || is.null(tag)) return()
+            if (is.null(row)) return()
+            src <- .module_to_hap_source(module)
+            if (is.null(src)) return()
+            meta <- input$hap_meta_type %||% "site"
+            tag  <- paste0(meta, "_", src)
+            # Use a key consistent with expected_hap_tag (which also constructs from config)
+            key  <- hap_key()
+            if (is.null(key) || is_running(paste0(key, "__scan"))) return()
 
             params <- list(
                 epsilon_range = input$hap_epsilon_range %||% "0.3,0.5,0.7,0.9",
                 mgmin         = input$hap_mgmin  %||% 50L,
                 minhap        = input$hap_minhap %||% 15L,
                 min_snps      = input$hap_min_snps %||% 3L,
-                meta_type     = input$hap_meta_type %||% "site"
+                meta_type     = meta
             )
             handle <- launch_hap_scan_subprocess(row, project_data(), tag, params)
             if (!is.null(handle$error)) {
@@ -887,15 +902,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         # ── Run Viz button ─────────────────────────────────────────────────────
         shiny::observeEvent(input$run_hap_viz, {
-            key <- hap_key()
-            if (is.null(key) || is_running(paste0(key, "__viz"))) return()
             row <- current_region_row()
-            tag <- matching_hap_tag()
-            if (is.null(row) || is.null(tag)) return()
+            if (is.null(row)) return()
+            src <- .module_to_hap_source(module)
+            if (is.null(src)) return()
+            meta <- input$hap_meta_type %||% "site"
+            tag  <- paste0(meta, "_", src)
+            key  <- hap_key()
+            if (is.null(key) || is_running(paste0(key, "__viz"))) return()
 
             params <- list(
                 epsilon_selected = input$hap_epsilon_selected,
-                meta_type        = input$hap_meta_type %||% "site"
+                meta_type        = meta
             )
             handle <- launch_hap_viz_subprocess(row, project_data(), tag, params)
             if (!is.null(handle$error)) {
