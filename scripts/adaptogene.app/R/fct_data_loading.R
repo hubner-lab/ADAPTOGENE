@@ -407,6 +407,33 @@ load_all_method_sigsnps <- function(project, module = MOD_ASSOC, k = NA) {
     result
 }
 
+#' Load all per-method sig SNPs for the Overlapping tab
+#'
+#' Combines per-method sig SNPs from both MOD_ASSOC (GEA) and MOD_PHENO (GWAS).
+#' GEA traits (bio_*) and GWAS traits (phenotype columns) are naturally distinct,
+#' so same method names across modules are merged without prefixing.
+#'
+#' @param project Character: project name
+#' @param k       Optional K value to filter by (NA = all)
+#' @return Named list of data.tables (method -> dt), same format as load_all_method_sigsnps()
+#' @noRd
+load_all_overlap_method_sigsnps <- function(project, k = NA) {
+    gea  <- load_all_method_sigsnps(project, MOD_ASSOC, k)
+    gwas <- load_all_method_sigsnps(project, MOD_PHENO, k)
+
+    all_methods <- union(names(gea), names(gwas))
+    result <- list()
+    for (m in all_methods) {
+        parts <- Filter(
+            function(x) !is.null(x) && nrow(x) > 0,
+            list(gea[[m]], gwas[[m]])
+        )
+        if (length(parts) > 0)
+            result[[m]] <- data.table::rbindlist(parts, use.names = TRUE, fill = TRUE)
+    }
+    result
+}
+
 #' Cached data loader using cachem
 #' Creates a session-level cache automatically on first call.
 #' @noRd

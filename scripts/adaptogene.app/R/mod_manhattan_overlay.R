@@ -138,9 +138,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
 
         # ── Load data ──────────────────────────────────────────────────────────
         coords <- shiny::reactive({
-            load_cached(paste0("coords_", coords_path()), function() {
-                load_coords(coords_path())
-            })
+            load_coords(coords_path())
         })
 
         sig_snps <- shiny::reactive({

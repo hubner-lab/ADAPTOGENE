@@ -1,14 +1,19 @@
 #' Overlapping Regions tab UI
 #'
-#' Miami Manhattan overlay, overlap pairs table, and region detail panel.
+#' Miami Manhattan with interactive filter/strategy bar, overlap pairs table,
+#' region explorer, and pairwise trait overlap section.
 #'
 #' @param id module namespace id
 #' @noRd
 mod_overlapping_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # Miami Manhattan (always visible)
-        mod_manhattan_overlay_ui(ns("miami"), height = "420px"),
+        # Miami Manhattan — filter bar injected inside the card
+        mod_manhattan_overlay_ui(
+            ns("miami"),
+            height     = "420px",
+            filter_ui  = shiny::uiOutput(ns("filter_bar"))
+        ),
 
         # Overlap pairs table
         bslib::card(
@@ -27,19 +32,8 @@ mod_overlapping_ui <- function(id) {
             )
         ),
 
-        # Region selector inline above detail panel
-        htmltools::div(
-            class = "control-bar",
-            bslib::layout_columns(
-                col_widths = c(9, 3),
-                shiny::uiOutput(ns("region_selector")),
-                shiny::actionButton(ns("clear_region"), "Clear selection",
-                                    class = "btn-sm btn-outline-secondary mt-4 w-100")
-            )
-        ),
-
-        # Region detail panel (conditional)
-        shiny::uiOutput(ns("region_detail_ui")),
+        # Interactive region explorer (replaces static region dropdown)
+        mod_region_explorer_ui(ns("region_explorer")),
 
         # Pairwise Trait Overlap section
         htmltools::hr(class = "my-4"),
@@ -59,18 +53,21 @@ mod_overlapping_server <- function(id, project_data) {
         module <- MOD_OVERLAP
 
         # ── Data loading ───────────────────────────────────────────────────────
-        regions_data <- shiny::reactive({
-            pd <- project_data()
-            load_cached(paste0("regions_combined_", pd$name, "_", module), function() {
-                load_regions_combined(pd$name, module)
-            })
+        # Methods and traits come from both GEA and GWAS modules
+        methods <- shiny::reactive({
+            nm <- project_data()$name
+            union(find_assoc_methods(nm, MOD_ASSOC), find_assoc_methods(nm, MOD_PHENO))
         })
 
-        genes_data <- shiny::reactive({
+        traits <- shiny::reactive({
+            nm <- project_data()$name
+            union(find_assoc_traits(nm, MOD_ASSOC), find_assoc_traits(nm, MOD_PHENO))
+        })
+
+        # Load per-method sig SNPs from both GEA + GWAS modules
+        all_method_sigsnps <- shiny::reactive({
             pd <- project_data()
-            load_cached(paste0("genes_", pd$name, "_", module), function() {
-                load_genes(pd$name, module)
-            })
+            load_all_overlap_method_sigsnps(pd$name)
         })
 
         overlap_data <- shiny::reactive({
@@ -80,18 +77,93 @@ mod_overlapping_server <- function(id, project_data) {
             })
         })
 
-        # ── Region selection state ─────────────────────────────────────────────
-        selected_region <- shiny::reactiveVal(NULL)
+        # ── Filter bar ─────────────────────────────────────────────────────────
 
-        shiny::observeEvent(input$clear_region, {
-            selected_region(NULL)
-            shiny::updateSelectInput(session, "region_id", selected = "")
+        trait_colors <- shiny::reactive({
+            tr <- traits()
+            if (length(tr) == 0) return(character(0))
+            trait_color_map(tr)
         })
 
-        shiny::observeEvent(input$region_id, {
-            rid <- input$region_id
-            selected_region(if (nzchar(rid %||% "")) rid else NULL)
-        }, ignoreInit = TRUE)
+        method_shapes <- shiny::reactive({
+            ms <- methods()
+            if (length(ms) == 0) return(character(0))
+            method_shape_map(ms)
+        })
+
+        combo_counts <- shiny::reactive({
+            all_snps <- all_method_sigsnps()
+            counts <- list()
+            for (m in names(all_snps)) {
+                dt <- all_snps[[m]]
+                if (nrow(dt) > 0) {
+                    tc <- dt[, .(n = .N), by = "trait"]
+                    for (i in seq_len(nrow(tc)))
+                        counts[[paste0(tc$trait[i], "::", m)]] <- tc$n[i]
+                }
+            }
+            counts
+        })
+
+        default_strategy <- shiny::reactive({
+            pd <- project_data()
+            ds <- config_get(pd$config, "overlap", "combine_method",
+                             default = "Sum")
+            if (!ds %in% c("Sum", "Overlap", "PairOverlap")) "Sum" else ds
+        })
+
+        active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
+
+        # ── Region distance (owned here, passed to explorer) ───────────────────
+        shiny::observe({
+            pd <- project_data()
+            d  <- config_get(pd$config, "overlap", "region_distance",
+                             default = config_get(pd$config, "association", "region_distance",
+                                                  default = 2000000L))
+            shiny::updateNumericInput(session, "region_distance", value = as.integer(d))
+        })
+
+        region_distance <- shiny::reactive({
+            v <- input$region_distance
+            if (is.null(v) || is.na(v) || v < 1000L) 2000000L else as.integer(v)
+        })
+
+        # ── Filter bar UI ──────────────────────────────────────────────────────
+        output$filter_bar <- shiny::renderUI({
+            build_filter_bar_ui(
+                ns                     = ns,
+                traits                 = traits(),
+                methods                = methods(),
+                trait_colors           = trait_colors(),
+                combo_counts           = combo_counts(),
+                default_strategy_value = default_strategy(),
+                region_distance_value  = region_distance()
+            )
+        })
+
+        # ── Interactive sig SNPs ───────────────────────────────────────────────
+        interactive_sigsnps <- shiny::reactive({
+            pd  <- project_data()
+            gap <- config_get(pd$config, "overlap", "combine_gap", default = 200000L)
+            compute_interactive_sigsnps(
+                all_method_sigsnps = all_method_sigsnps(),
+                tm_selection_json  = input$tm_selection,
+                combo_counts       = combo_counts(),
+                known_traits       = traits(),
+                strategy           = active_strategy(),
+                gap                = gap,
+                project_name       = pd$name,
+                module             = module
+            )
+        })
+
+        # ── Interactive region explorer ────────────────────────────────────────
+        explorer <- mod_region_explorer_server("region_explorer",
+            project_data        = project_data,
+            module              = module,
+            interactive_sigsnps = interactive_sigsnps,
+            region_distance     = region_distance
+        )
 
         # ── Miami Manhattan ────────────────────────────────────────────────────
         miami_click <- mod_manhattan_overlay_server("miami",
@@ -100,32 +172,21 @@ mod_overlapping_server <- function(id, project_data) {
             is_miami             = TRUE,
             combined             = TRUE,
             title_label          = shiny::reactive("Miami Plot (GEA \u2191 | GWAS \u2193)"),
-            regions              = regions_data,
-            show_regions_control = TRUE
+            regions              = explorer$computed_regions,
+            current_region_id    = explorer$selected_region_id,
+            show_regions_control = FALSE,
+            sig_snps_override    = interactive_sigsnps,
+            trait_colors         = trait_colors,
+            method_shapes        = method_shapes
         )
 
+        # Miami SNP click → select the enclosing region in the explorer
         shiny::observeEvent(miami_click(), {
             rid <- miami_click()
             if (!is.null(rid) && nzchar(rid)) {
-                selected_region(rid)
-                shiny::updateSelectInput(session, "region_id", selected = rid)
+                explorer$selected_region_id(rid)
             }
         }, ignoreNULL = TRUE)
-
-        # ── Region dropdown ────────────────────────────────────────────────────
-        output$region_selector <- shiny::renderUI({
-            rg <- regions_data()
-            if (nrow(rg) == 0) {
-                return(htmltools::p("No overlapping regions found.", class = "text-muted small"))
-            }
-            genes   <- genes_data()
-            labels  <- build_region_labels(rg, genes)
-            current <- selected_region()
-            shiny::selectInput(ns("region_id"), "Select region",
-                choices  = c(setNames("", ""), labels),
-                selected = current %||% ""
-            )
-        })
 
         # ── Overlap table ──────────────────────────────────────────────────────
         output$overlap_table <- DT::renderDataTable({
@@ -152,32 +213,6 @@ mod_overlapping_server <- function(id, project_data) {
             content  = function(file) {
                 utils::write.csv(as.data.frame(overlap_data()), file, row.names = FALSE)
             }
-        )
-
-        # ── Region detail panel ────────────────────────────────────────────────
-        output$region_detail_ui <- shiny::renderUI({
-            rid <- selected_region()
-            if (is.null(rid)) return(NULL)
-            mod_region_detail_ui(ns("region_detail"))
-        })
-
-        region_trait <- shiny::reactive({
-            rid <- selected_region()
-            rg  <- regions_data()
-            if (is.null(rid) || nrow(rg) == 0) return(NULL)
-            row <- rg[rg$region_id == rid, ]
-            if (nrow(row) == 0) return(NULL)
-            trait_col <- intersect(c("trait", "traits"), names(row))[1]
-            if (is.na(trait_col)) return(NULL)
-            trimws(strsplit(as.character(row[[trait_col]][1]), ",")[[1]])[1]
-        })
-
-        mod_region_detail_server("region_detail",
-            project_data = project_data,
-            region_id    = selected_region,
-            module       = module,
-            trait        = region_trait,
-            genes_data   = genes_data
         )
 
         # ── Signal Comparison ──────────────────────────────────────────────────
