@@ -97,7 +97,7 @@ association:
     - method: "LFMM"            # LFMM: latent factor mixed model
       adjust: "bonf"
       threshold: '0.05'
-  combine_method: 'Sum'          # How to combine methods: Sum/Overlap/EMMAX/LFMM
+  combine_method: 'All'          # How to combine methods: All/Overlap/MethodOverlap/EMMAX/LFMM (legacy: Sum/PairOverlap)
   combine_gap: 100000            # Max distance (bp) between SNPs to merge (cross-method overlap + overlap annotation)
   region_distance: 2000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   promoter_length: 10000         # Promoter region length for SNP annotation

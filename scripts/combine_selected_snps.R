@@ -76,7 +76,7 @@ if (total_snps == 0) {
 # Combine based on METHOD
 if (METHOD %in% names(sigSNPs_lst)) {
     snpIDs <- sigSNPs_lst[[METHOD]]
-} else if (METHOD == 'Sum') {
+} else if (METHOD %in% c('All', 'Sum')) {
     snpIDs <- do.call(rbind, sigSNPs_lst)
 } else if (METHOD == 'Overlap') {
     sigSNPs_lstGR <- lapply(sigSNPs_lst, FUN_make_gr) %>% setNames(methods_vec)
@@ -91,7 +91,7 @@ if (METHOD %in% names(sigSNPs_lst)) {
             rbind(dt1[overlaps_dt$queryHits, ], dt2[overlaps_dt$subjectHits, ])
         }) %>% do.call(rbind, .)
     }) %>% do.call(rbind, .) %>% unique
-} else if (METHOD == 'PairOverlap') {
+} else if (METHOD %in% c('MethodOverlap', 'PairOverlap')) {
     sigSNPs_lstGR <- lapply(sigSNPs_lst, FUN_make_gr) %>% setNames(methods_vec)
     snpIDs <- lapply(methods_vec, function(n1) {
         lapply(methods_vec, function(n2) {
