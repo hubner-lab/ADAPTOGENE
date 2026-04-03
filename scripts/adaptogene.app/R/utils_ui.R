@@ -23,7 +23,7 @@ region_info_bar <- function(region_id, n_snps = NULL, n_exon = NULL,
                               n_promoter = NULL, source = NULL) {
     disp <- format_region_id(region_id)
     parts <- character(0)
-    if (!is.null(n_snps))    parts <- c(parts, paste0(n_snps, " SNPs"))
+    if (!is.null(n_snps))    parts <- c(parts, paste0(n_snps, " sig. SNPs"))
     if (!is.null(n_exon) && n_exon > 0)
         parts <- c(parts, paste0(n_exon, " exonic"))
     if (!is.null(n_promoter) && n_promoter > 0)

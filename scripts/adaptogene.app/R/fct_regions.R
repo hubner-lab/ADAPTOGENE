@@ -618,9 +618,8 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 #' @noRd
 .module_to_hap_source <- function(module) {
     switch(module,
-        association              = "association",
-        association_phenotypes   = "association_phenotypes",
-        overlapping              = "overlapping",
+        phenotype_association = "association_phenotypes",
+        overlapping           = "overlapping",
         NULL
     )
 }
@@ -633,30 +632,74 @@ find_matching_hap_tag <- function(project, module) {
     if (is.null(source_suffix)) return(NULL)
     all_tags <- find_haplotype_tags(project)
     if (length(all_tags) == 0) return(NULL)
-    # Tag format: "{meta_type}_{source}" e.g. "site_association"
-    # Match any tag whose source part equals source_suffix
-    matched <- Filter(function(tag) {
-        parts <- strsplit(tag, "_")[[1]]
-        tag_source <- paste(parts[-1], collapse = "_")
-        tag_source == source_suffix
-    }, all_tags)
+    # Tag format: "{meta_type}_{source}" e.g. "site_association", "cluster_K5_association"
+    # meta_type may contain underscores (e.g. "cluster_K5"), so match by suffix instead of split.
+    suffix_pat <- paste0("_", source_suffix)
+    matched <- Filter(function(tag) endsWith(tag, suffix_pat), all_tags)
     if (length(matched) == 0) NULL else matched[1]
 }
 
-#' Check if haplotype scan results exist for a region (clustree PNG present)
-#' @return TRUE/FALSE
+# ── Region-id parsing helpers (used for fuzzy overlap matching) ────────────────
+
+#' Parse a region_id string "{chr}_{start}-{end}" into its components.
+#' Returns list(chr, start, end) or NULL if format doesn't match.
 #' @noRd
-check_hap_scan_results <- function(project, tag, region_id) {
-    if (is.null(tag) || is.null(region_id)) return(FALSE)
-    file_ok(hap_clustree_path(project, tag, region_id, "MG"))
+.parse_region_id <- function(rid) {
+    i <- regexpr("_", rid)
+    if (i < 1L) return(NULL)
+    chr <- substr(rid, 1L, i - 1L)
+    se  <- strsplit(substr(rid, i + 1L, nchar(rid)), "-", fixed = TRUE)[[1]]
+    if (length(se) != 2L) return(NULL)
+    s <- suppressWarnings(as.integer(se[[1L]]))
+    e <- suppressWarnings(as.integer(se[[2L]]))
+    if (is.na(s) || is.na(e)) return(NULL)
+    list(chr = chr, start = s, end = e)
 }
 
-#' Check if haplotype viz results exist for a region
-#' @return character vector of available trait names (empty if none)
+#' Check whether two parsed regions (from .parse_region_id) overlap.
+#' @noRd
+.regions_overlap <- function(r1, r2) {
+    r1$chr == r2$chr && r1$start <= r2$end && r2$start <= r1$end
+}
+
+#' Check if haplotype scan results exist for a region (clustree PNG present).
+#' Returns list(found = TRUE/FALSE, matched_rid = region_id_used_on_disk).
+#' When pipeline region differs from Shiny region, matched_rid holds the pipeline's id.
+#' @noRd
+check_hap_scan_results <- function(project, tag, region_id) {
+    if (is.null(tag) || is.null(region_id))
+        return(list(found = FALSE, matched_rid = NULL))
+
+    # Exact match: clustree PNG (full success) OR HapObject (partial: 1 epsilon)
+    inter_dir <- hap_intermediate_dir(project, tag)
+    if (file_ok(hap_clustree_path(project, tag, region_id, "MG")) ||
+        file_ok(file.path(inter_dir, paste0("Region_", region_id, "_HapObject.qs"))))
+        return(list(found = TRUE, matched_rid = region_id))
+
+    # Fuzzy: scan all HapObjects for coordinate overlap with the requested region
+    if (!dir.exists(inter_dir)) return(list(found = FALSE, matched_rid = NULL))
+    hap_files <- list.files(inter_dir, pattern = "^Region_.*_HapObject\\.qs$")
+    if (length(hap_files) == 0L) return(list(found = FALSE, matched_rid = NULL))
+    target <- .parse_region_id(region_id)
+    if (is.null(target)) return(list(found = FALSE, matched_rid = NULL))
+    for (f in hap_files) {
+        crid <- sub("^Region_(.+)_HapObject\\.qs$", "\\1", f)
+        candidate <- .parse_region_id(crid)
+        if (!is.null(candidate) && .regions_overlap(target, candidate))
+            return(list(found = TRUE, matched_rid = crid))
+    }
+    list(found = FALSE, matched_rid = NULL)
+}
+
+#' Check if haplotype viz results exist for a region.
+#' Returns list(traits = character(), matched_rid = region_id_used_on_disk).
 #' @noRd
 check_hap_viz_results <- function(project, tag, region_id) {
-    if (is.null(tag) || is.null(region_id)) return(character(0))
-    find_haplotype_traits(project, tag, region_id)
+    if (is.null(tag) || is.null(region_id))
+        return(list(traits = character(0), matched_rid = region_id))
+    res <- .find_haplotype_traits_fuzzy(project, tag, region_id)
+    if (is.null(res)) return(list(traits = character(0), matched_rid = region_id))
+    res
 }
 
 #' Launch haplotype scan as a non-blocking background process.
@@ -750,10 +793,42 @@ launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
     pdir     <- handle$plots_dir
     mg_path  <- file.path(pdir, paste0("Region_", rid, "_clustree_MG.png"))
     hap_path <- file.path(pdir, paste0("Region_", rid, "_clustree_hap.png"))
-    if (!file_ok(mg_path))
-        return(list(error = paste0(
+    if (!file_ok(mg_path)) {
+        # Check if HapObject exists — scan succeeded with only 1 epsilon (clustree skipped)
+        hap_obj <- file.path(handle$inter_dir, paste0("Region_", rid, "_HapObject.qs"))
+        if (file_ok(hap_obj)) {
+            # Try to read epsilon from scan_status.tsv
+            eps_hint <- tryCatch({
+                status_file <- file.path(handle$inter_dir, "scan_status.tsv")
+                if (file_ok(status_file)) {
+                    st  <- data.table::fread(status_file, sep = "\t", header = TRUE)
+                    row <- st[st$region_id == rid, ]
+                    if (nrow(row) > 0 && !is.na(row$epsilon_succeeded[1]) && nzchar(row$epsilon_succeeded[1])) {
+                        as.numeric(gsub(".*_E", "", row$epsilon_succeeded[1]))
+                    } else NULL
+                } else NULL
+            }, error = function(e) NULL)
+            return(list(skip_clustree = TRUE, epsilon_hint = eps_hint, region_id = rid))
+        }
+        # No HapObject — scan failed; try to surface reason from scan_status.tsv
+        detail_msg <- tryCatch({
+            status_file <- file.path(handle$inter_dir, "scan_status.tsv")
+            if (file_ok(status_file)) {
+                st  <- data.table::fread(status_file, sep = "\t", header = TRUE)
+                row <- st[st$region_id == rid, ]
+                if (nrow(row) > 0) {
+                    n   <- row$snp_count[1]
+                    msg <- row$failure_reason[1]
+                    paste0("Region has ", n, " SNPs in VCF. ",
+                           if (!is.na(msg) && nzchar(msg)) msg else
+                           "Check epsilon_range and min_snps settings.")
+                } else NULL
+            } else NULL
+        }, error = function(e) NULL)
+        return(list(error = detail_msg %||% paste0(
             "No clustree plots generated. Check that the region has enough SNPs ",
             "(\u2265 min_snps) and try adjusting epsilon_range.")))
+    }
 
     # Discover per-trait clustree variants (Region_{rid}_clustree_MG_{trait}.png)
     trait_files <- Sys.glob(file.path(pdir,

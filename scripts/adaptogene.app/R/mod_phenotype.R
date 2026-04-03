@@ -139,7 +139,15 @@ mod_phenotype_server <- function(id, project_data) {
 
         region_distance <- shiny::reactive({
             v <- input$region_distance
-            if (is.null(v) || is.na(v) || v < 1000L) 2000000L else as.integer(v)
+            if (is.null(v) || is.na(v) || v < 1000L) {
+                pd <- project_data()
+                as.integer(config_get(
+                    pd$config, "phenotype_association", "region_distance",
+                    default = config_get(pd$config, "association", "region_distance",
+                                        default = 2000000L)))
+            } else {
+                as.integer(v)
+            }
         })
 
         # ── Filter bar UI ──────────────────────────────────────────────────────

@@ -70,20 +70,28 @@ find_gf_suffixes <- function(project) {
     dirs[dirs != "zoom"]
 }
 
-#' Find haplotype tags (validated: must have scan_done.flag + HapObject files)
+#' Find haplotype tags (validated: must have HapObject files).
+#' Auto-creates the scan_done.flag if HapObjects exist but flag is missing
+#' (self-healing for pipeline runs that predate the flag mechanism).
 #' @noRd
 find_haplotype_tags <- function(project) {
     hap_inter <- mod_path(project, MOD_INTER, "haplotype")
     if (!dir.exists(hap_inter)) return(character(0))
     tags <- list.dirs(hap_inter, full.names = FALSE, recursive = FALSE)
     valid <- vapply(tags, function(tag) {
-        flag <- mod_path(project, MOD_INTER, "flags",
-                         paste0("haplotype_", tag, "_scan_done.flag"))
         hap_files <- list.files(
             mod_path(project, MOD_INTER, "haplotype", tag),
             pattern = "HapObject\\.qs$"
         )
-        file.exists(flag) && length(hap_files) > 0
+        if (length(hap_files) == 0L) return(FALSE)
+        flag <- mod_path(project, MOD_INTER, "flags",
+                         paste0("haplotype_", tag, "_scan_done.flag"))
+        if (!file.exists(flag)) {
+            flag_dir <- mod_path(project, MOD_INTER, "flags")
+            dir.create(flag_dir, recursive = TRUE, showWarnings = FALSE)
+            file.create(flag, showWarnings = FALSE)
+        }
+        TRUE
     }, logical(1))
     tags[valid]
 }
@@ -140,7 +148,41 @@ find_haplotype_scan_regions <- function(project, tag) {
 find_haplotype_traits <- function(project, tag, region_id) {
     plots_dir <- mod_path(project, MOD_HAP, tag, "plots")
     if (!dir.exists(plots_dir)) return(character(0))
-    pat <- paste0("^Region_", region_id, "_boxplot_(.*)\\.png$")
+    rid_esc <- gsub("([\\-\\.])", "\\\\\\1", region_id, perl = TRUE)
+    pat <- paste0("^Region_", rid_esc, "_boxplot_(.*)\\.png$")
     files <- list.files(plots_dir, pattern = pat)
     sort(gsub(pat, "\\1", files))
+}
+
+#' Find traits for a haplotype region with coordinate-overlap fallback.
+#' Returns list(traits, matched_rid) or NULL if nothing found.
+#' Calls find_haplotype_traits() for exact match first, then scans all
+#' Region_*_boxplot_*.png files and checks coordinate overlap.
+#' @noRd
+.find_haplotype_traits_fuzzy <- function(project, tag, region_id) {
+    # Exact match first
+    exact <- find_haplotype_traits(project, tag, region_id)
+    if (length(exact) > 0L) return(list(traits = exact, matched_rid = region_id))
+
+    plots_dir <- mod_path(project, MOD_HAP, tag, "plots")
+    if (!dir.exists(plots_dir)) return(NULL)
+
+    all_files <- list.files(plots_dir, pattern = "^Region_.*_boxplot_.*\\.png$")
+    if (length(all_files) == 0L) return(NULL)
+
+    target <- .parse_region_id(region_id)
+    if (is.null(target)) return(NULL)
+
+    # Extract unique region ids present on disk
+    rids <- unique(sub("^Region_(.+)_boxplot_.+\\.png$", "\\1", all_files))
+    for (crid in rids) {
+        candidate <- .parse_region_id(crid)
+        if (is.null(candidate)) next
+        if (.regions_overlap(target, candidate)) {
+            traits <- find_haplotype_traits(project, tag, crid)
+            if (length(traits) > 0L)
+                return(list(traits = traits, matched_rid = crid))
+        }
+    }
+    NULL
 }
