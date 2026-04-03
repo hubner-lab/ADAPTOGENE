@@ -97,9 +97,8 @@ association:
     - method: "LFMM"            # LFMM: latent factor mixed model
       adjust: "bonf"
       threshold: '0.05'
-  combine_method: 'All'          # How to combine methods: All/Overlap/MethodOverlap/EMMAX/LFMM (legacy: Sum/PairOverlap)
-  combine_gap: 100000            # Max distance (bp) between SNPs to merge (cross-method overlap + overlap annotation)
-  region_distance: 2000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
+  combine_gap: 100000            # Max distance (bp) for cross-method overlap annotation in find_sig_snps
+  region_distance: 1000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   promoter_length: 10000         # Promoter region length for SNP annotation
   go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
 
@@ -137,6 +136,8 @@ gradient_forest:
   spatial_correction: 'with'    # Include spatial variables: with/without
   run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
   random_model: TRUE            # Also build neutral model for comparison
+  combine_method: 'All'         # SNP selection strategy: All/Overlap/MethodOverlap/EMMAX/LFMM/etc. (explore in Association tab)
+  combine_gap: 100000           # Max distance (bp) for cross-method overlap (Overlap/MethodOverlap strategies only)
 
 #-----------------------------------------------------------------------------
 # PHENOTYPE ASSOCIATION (GWAS) — inherits from association.* by default

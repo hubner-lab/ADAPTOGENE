@@ -290,10 +290,10 @@ GFF_BIOTYPE = _cfg('gff', 'biotype', 'biotype')
 # ASSOCIATION parameters
 _assoc = config.get('association', {})
 PROMOTER_LENGTH = _assoc.get('promoter_length', 10000)
-SIGSNPS_METHOD = _assoc.get('combine_method', 'EMMAX')
+SIGSNPS_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 SIGSNPS_GAP = _assoc.get('combine_gap', 100000)
-SNP_DISTANCE = SIGSNPS_GAP  # overlap annotation uses same distance as combine_gap
-_region_distance_raw = _assoc.get('region_distance', 2000000)
+SNP_DISTANCE = SIGSNPS_GAP  # overlap annotation distance
+_region_distance_raw = _assoc.get('region_distance', 1000000)
 REGION_DISTANCE_AUTO = (str(_region_distance_raw).lower() == 'auto')
 REGION_DISTANCE = 'auto' if REGION_DISTANCE_AUTO else int(_region_distance_raw)
 GO_FIELD = _assoc.get('go_field', 'NULL')
@@ -322,6 +322,8 @@ COR_THRESHOLD = _gf.get('cor_threshold', '0.5')
 PCNM = _gf.get('spatial_correction', 'with')
 GF_SUFFIX = _gf.get('run_label', _gf.get('suffix', ''))
 GF_RANDOM_MODEL = _gf.get('random_model', True)
+GF_COMBINE_METHOD = _gf.get('combine_method', 'All')
+GF_COMBINE_GAP = int(_gf.get('combine_gap', 100000))
 PCNM_TAG = 'PCNM' if PCNM == 'with' else 'noPCNM'
 
 def parse_association_configs(configs_list):
@@ -360,10 +362,10 @@ PHENO_MISSING = _pheno.get('missing_strategy', 'DROP')
 if PHENO_ASSOC_CONFIGS:
     check_in_list(PHENO_MISSING, ['MEAN', 'MEDIAN', 'DROP'], 'phenotype_association.missing_strategy')
 # Inherit from association.* with optional override
-PHENO_COMBINE_METHOD = _pheno.get('combine_method', SIGSNPS_METHOD)
+PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 PHENO_COMBINE_GAP = _pheno.get('combine_gap', SIGSNPS_GAP)
-PHENO_SNP_DISTANCE = PHENO_COMBINE_GAP  # overlap annotation uses same distance as combine_gap
-_pheno_rdist_raw = _pheno.get('region_distance', _region_distance_raw)
+PHENO_SNP_DISTANCE = PHENO_COMBINE_GAP  # overlap annotation distance
+_pheno_rdist_raw = _pheno.get('region_distance', 1000000)
 PHENO_REGION_DISTANCE_AUTO = (str(_pheno_rdist_raw).lower() == 'auto')
 PHENO_REGION_DISTANCE = 'auto' if PHENO_REGION_DISTANCE_AUTO else int(_pheno_rdist_raw)
 PHENO_PROMOTER_LENGTH = _pheno.get('promoter_length', PROMOTER_LENGTH)
@@ -758,6 +760,7 @@ def add_maladaptation_paths():
     O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
 
     # Gradient Forest models
+    W['gf_selected_snps'] = f"{INTER}gradient_forest/gf_selected_snps_{SUFFIX}.tsv"
     W['gf_adaptive'] = f"{INTER}gradient_forest/gradientforest_adaptive_{SUFFIX}.qs"
     W['gf_random'] = f"{INTER}gradient_forest/gradientforest_random_{SUFFIX}.qs"
 

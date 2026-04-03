@@ -60,12 +60,31 @@ rule density_plot_future:
             {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
+# Combine sig SNPs for Gradient Forest using GF-specific strategy
+rule combine_gf_snps:
+    """Combine significant SNPs for Gradient Forest using the gradient_forest.combine_method strategy."""
+    input:
+        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
+    output: W['gf_selected_snps']
+    params:
+        sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
+        method = GF_COMBINE_METHOD,
+        gap = GF_COMBINE_GAP,
+        predictors = PREDICTORS_SELECTED
+    log: f"{LOGDIR}maladaptation/combine_gf_snps.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/combine_selected_snps.R \
+            "{params.sigsnps_str}" {params.method} {params.gap} \
+            {params.predictors} {output} > {log} 2>&1
+        """
+
 # Gradient Forest - adaptive model
 rule gradient_forest_adaptive:
     """Build adaptive Gradient Forest model using significant SNPs."""
     input:
         lfmm = W['lfmm_full'],
-        sigsnps = O['selected_snps'],
+        sigsnps = W['gf_selected_snps'],
         vcfsnp = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
@@ -91,7 +110,7 @@ rule gradient_forest_random:
     """Build neutral Gradient Forest model using random SNPs."""
     input:
         lfmm = W['lfmm_full'],
-        sigsnps = O['selected_snps'],
+        sigsnps = W['gf_selected_snps'],
         vcfsnp = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
