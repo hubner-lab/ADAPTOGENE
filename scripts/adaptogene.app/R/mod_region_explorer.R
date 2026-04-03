@@ -161,12 +161,21 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         # Each entry: list(process, log_file, type, ...) or NULL when done
         subprocess_handles <- shiny::reactiveValues()
 
-        # Persists user-chosen epsilon across renderUI re-renders (NULL = use config default)
+        # Persists user-chosen epsilon across renderUI re-renders (NULL = use saved/config default)
         user_epsilon <- shiny::reactiveVal(NULL)
 
         shiny::observeEvent(input$hap_epsilon_selected, {
             user_epsilon(input$hap_epsilon_selected)
         }, ignoreInit = TRUE)
+
+        # Per-region exploratory params (persisted to disk in region_params.json)
+        # Source of truth for "modified" badges and input defaults
+        region_params <- shiny::reactiveVal(list(global = list(), regions = list()))
+        shiny::observe({
+            pd <- project_data()
+            shiny::req(pd)
+            region_params(read_region_params(pd$name))
+        })
 
         # Persists user-chosen metadata type across renderUI re-renders (NULL = use config default)
         user_meta_type <- shiny::reactiveVal(NULL)
@@ -299,6 +308,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
         })
 
         # ── Disk-cache hydration: load pre-computed haplotype scan results ────
+        # Uses exact region_id matching (like enrichment/regionplot) — no fuzzy overlap.
+        # This prevents stale results from a different region_distance being loaded.
         shiny::observe({
             key <- hap_key()
             if (is.null(key) || !is.null(hap_scan_cache[[key]]) || is_running(paste0(key, "__scan"))) return()
@@ -306,19 +317,23 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             tag <- expected_hap_tag()
             pd  <- project_data()
             if (is.null(rid) || is.null(tag) || is.null(pd)) return()
-            scan_check <- check_hap_scan_results(pd$name, tag, rid)
-            if (isTRUE(scan_check$found)) {
-                use_rid <- scan_check$matched_rid %||% rid
+            # Exact match only: check if HapObject or clustree exists for this exact region_id
+            inter_dir <- hap_intermediate_dir(pd$name, tag)
+            plots_dir <- hap_scan_plots_dir(pd$name, tag)
+            hapobj    <- file.path(inter_dir, paste0("Region_", rid, "_HapObject.qs"))
+            mg_png    <- file.path(plots_dir, paste0("Region_", rid, "_clustree_MG.png"))
+            if (file_ok(hapobj) || file_ok(mg_png)) {
                 fake_handle <- list(
-                    region_id = use_rid,
-                    plots_dir = hap_scan_plots_dir(pd$name, tag),
-                    inter_dir = hap_intermediate_dir(pd$name, tag)
+                    region_id = rid,
+                    plots_dir = plots_dir,
+                    inter_dir = inter_dir
                 )
                 hap_scan_cache[[key]] <- .collect_hap_scan_result(fake_handle)
             }
         })
 
         # ── Disk-cache hydration: load pre-computed haplotype viz results ────
+        # Exact region_id matching only — no fuzzy overlap.
         shiny::observe({
             key <- hap_key()
             if (is.null(key) || !is.null(hap_viz_cache[[key]]) || is_running(paste0(key, "__viz"))) return()
@@ -326,9 +341,12 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             tag <- expected_hap_tag()
             pd  <- project_data()
             if (is.null(rid) || is.null(tag) || is.null(pd)) return()
-            res <- check_hap_viz_results(pd$name, tag, rid)
-            if (length(res$traits) > 0L) {
-                hap_viz_cache[[key]] <- list(traits = res$traits, matched_rid = res$matched_rid)
+            # Exact match: look for crosshap_viz PNGs with this exact region_id
+            viz_dir <- hap_viz_plots_dir(pd$name, tag)
+            viz_files <- Sys.glob(file.path(viz_dir, paste0("Region_", rid, "_crosshap_viz_*.png")))
+            if (length(viz_files) > 0) {
+                traits <- sub("\\.png$", "", sub(paste0("^Region_", rid, "_crosshap_viz_"), "", basename(viz_files)))
+                hap_viz_cache[[key]] <- list(traits = traits, matched_rid = rid)
             }
         })
 
@@ -392,6 +410,13 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                         dir.create(flag_dir, recursive = TRUE, showWarnings = FALSE)
                         if (!file.exists(flag_path))
                             file.create(flag_path, showWarnings = FALSE)
+                        # Persist scan params to region_params.json
+                        if (!is.null(h$params)) {
+                            rp <- region_params()
+                            rp <- set_region_param(rp, module, h$region_id, "hap_scan", h$params)
+                            save_region_params(project_data()$name, rp)
+                            region_params(rp)
+                        }
                     }
                     # key for hap_scan is stored with __scan suffix
                     base_key <- sub("__scan$", "", key)
@@ -405,6 +430,13 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                     if (!is.null(result$error) && status != 0L) {
                         log_lines <- tryCatch(readLines(h$log_file, warn = FALSE), error = function(e) character())
                         result$log_tail <- paste(utils::tail(log_lines, 10), collapse = "\n")
+                    }
+                    # Persist viz params to region_params.json
+                    if (is.null(result$error) && !is.null(h$params)) {
+                        rp <- region_params()
+                        rp <- set_region_param(rp, module, h$region_id, "hap_viz", h$params)
+                        save_region_params(project_data()$name, rp)
+                        region_params(rp)
                     }
                     base_key <- sub("__viz$", "", key)
                     hap_viz_cache[[base_key]] <- result
@@ -428,7 +460,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 ),
                 bslib::accordion(
                     id       = ns("detail_sections"),
-                    open     = c("genes", "enrichment", "regionplot"),
+                    open     = c("genes", "enrichment", "regionplot", "haplotype"),
                     multiple = TRUE,
 
                     bslib::accordion_panel(
@@ -710,26 +742,62 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             cfg_minsnp <- config_get(pd$config, "haplotype", "scan", "min_snps", default = 3L)
             cfg_meta   <- config_get(pd$config, "haplotype", "scan", "metadata_type", default = "site")
 
+            # Saved params from previous computations for this region (source of truth for defaults + badges)
+            saved_scan <- get_region_param(region_params(), module, rid, "hap_scan")
+            saved_viz  <- get_region_param(region_params(), module, rid, "hap_viz")
+            # Use saved params as defaults; fall back to config defaults for new regions
+            use_range  <- saved_scan$epsilon_range %||% cfg_range
+            use_mgmin  <- saved_scan$mgmin         %||% cfg_mgmin
+            use_minhap <- saved_scan$minhap        %||% cfg_minhap
+            use_minsnp <- saved_scan$min_snps      %||% cfg_minsnp
+            use_meta   <- saved_scan$meta_type     %||% cfg_meta
+
             # ── Sub-box 1: Scan ──────────────────────────────────────────────
-            # Shared input form — used in both initial and error states
+            # Shared input form — used in initial, error, and re-run states
+            # Modified badges compare against saved params (what produced current output)
+            .scan_modified <- function(field, current) {
+                ref <- if (!is.null(saved_scan)) saved_scan[[field]] else NULL
+                if (is.null(ref)) return(NULL)  # no saved run yet — no badge
+                changed <- tryCatch(as.character(current) != as.character(ref), error = function(e) FALSE)
+                if (isTRUE(changed))
+                    htmltools::span(class = "badge bg-warning text-dark small ms-1", "modified")
+            }
             scan_inputs <- htmltools::tagList(
                 bslib::layout_column_wrap(
                     width = 1/2,
-                    shiny::textInput(ns("hap_epsilon_range"), "Epsilon values",
-                        value = cfg_range, placeholder = "e.g. 0.3,0.5,0.7,0.9"),
-                    shiny::numericInput(ns("hap_mgmin"), "Min group size (MGmin)",
-                        value = as.integer(cfg_mgmin), min = 1L, step = 1L)
+                    htmltools::div(
+                        shiny::textInput(ns("hap_epsilon_range"), "Epsilon values",
+                            value = use_range, placeholder = "e.g. 0.3,0.5,0.7,0.9"),
+                        .scan_modified("epsilon_range", use_range)
+                    ),
+                    htmltools::div(
+                        shiny::numericInput(ns("hap_mgmin"), "Min group size (MGmin)",
+                            value = as.integer(use_mgmin), min = 1L, step = 1L),
+                        .scan_modified("mgmin", as.integer(use_mgmin))
+                    )
                 ),
                 bslib::layout_column_wrap(
                     width = 1/2,
-                    shiny::numericInput(ns("hap_minhap"), "Min haplotype size",
-                        value = as.integer(cfg_minhap), min = 1L, step = 1L),
-                    shiny::numericInput(ns("hap_min_snps"), "Min SNPs in region",
-                        value = as.integer(cfg_minsnp), min = 1L, step = 1L)
+                    htmltools::div(
+                        shiny::numericInput(ns("hap_minhap"), "Min haplotype size",
+                            value = as.integer(use_minhap), min = 1L, step = 1L),
+                        .scan_modified("minhap", as.integer(use_minhap))
+                    ),
+                    htmltools::div(
+                        shiny::numericInput(ns("hap_min_snps"), "Min SNPs in region",
+                            value = as.integer(use_minsnp), min = 1L, step = 1L),
+                        .scan_modified("min_snps", as.integer(use_minsnp))
+                    )
                 ),
-                shiny::selectInput(ns("hap_meta_type"), "Metadata grouping",
-                    choices  = c("site", paste0("cluster_K", pd$k_best)),
-                    selected = user_meta_type() %||% cfg_meta, width = "220px"),
+                htmltools::div(
+                    shiny::selectInput(ns("hap_meta_type"), "Metadata grouping",
+                        choices  = c("site", paste0("cluster_K", pd$k_best)),
+                        selected = user_meta_type() %||% use_meta, width = "220px"),
+                    .scan_modified("meta_type", user_meta_type() %||% use_meta)
+                ),
+                shiny::actionButton(ns("reset_scan_defaults"), "Reset to defaults",
+                    class = "btn-sm btn-link text-muted px-0",
+                    icon  = shiny::icon("arrow-rotate-left")),
                 htmltools::tags$details(
                     htmltools::tags$summary(
                         class = "text-muted small mb-1",
@@ -739,7 +807,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                         "Run the scan to explore haplotype clustering across epsilon values. ",
                         "Review the clustree plot \u2014 look for stable clusters where lines ",
                         "don\u2019t cross. Fewer crossings = more stable partitioning. ",
-                        "Then enter your chosen epsilon in the Visualization box below."
+                        "Then select your chosen epsilon in the Visualization box below."
                     )
                 )
             )
@@ -754,20 +822,35 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             } else if (!is.null(scan_res) && isTRUE(scan_res$skip_clustree)) {
                 # Scan succeeded but only 1 epsilon worked — clustree not possible
                 eps_hint <- scan_res$epsilon_hint
-                htmltools::div(
-                    class = "alert alert-info small mb-0",
-                    bsicons::bs_icon("info-circle"), " ",
-                    "Scan complete \u2014 only 1 epsilon produced marker groups ",
-                    "(clustree requires \u22652). ",
-                    if (!is.null(eps_hint))
-                        htmltools::tagList(
-                            "Proceed to Step\u00a02 with epsilon\u00a0=\u00a0",
-                            htmltools::strong(eps_hint), ".")
-                    else
-                        "Proceed to Step 2 Visualization."
+                htmltools::tagList(
+                    htmltools::div(
+                        class = "alert alert-info small mb-3",
+                        bsicons::bs_icon("info-circle"), " ",
+                        "Scan complete \u2014 only 1 epsilon produced marker groups ",
+                        "(clustree requires \u22652). ",
+                        if (!is.null(eps_hint))
+                            htmltools::tagList(
+                                "Proceed to Step\u00a02 with epsilon\u00a0=\u00a0",
+                                htmltools::strong(eps_hint), ".")
+                        else
+                            "Proceed to Step 2 Visualization."
+                    ),
+                    scan_inputs,
+                    shiny::actionButton(ns("run_hap_scan"), "Re-run Scan",
+                        class = "btn-sm btn-outline-secondary mt-1",
+                        icon  = shiny::icon("rotate-right"))
                 )
             } else if (!is.null(scan_res) && is.null(scan_res$error)) {
-                shiny::uiOutput(ns("hap_clustree_ui"))
+                htmltools::tagList(
+                    shiny::uiOutput(ns("hap_clustree_ui")),
+                    htmltools::hr(),
+                    htmltools::p(class = "text-muted small fw-semibold mb-1",
+                        bsicons::bs_icon("arrow-repeat"), " Re-run scan with different parameters"),
+                    scan_inputs,
+                    shiny::actionButton(ns("run_hap_scan"), "Re-run Scan",
+                        class = "btn-sm btn-outline-secondary mt-1",
+                        icon  = shiny::icon("rotate-right"))
+                )
             } else if (!is.null(scan_res) && !is.null(scan_res$error)) {
                 htmltools::tagList(
                     htmltools::div(
@@ -836,24 +919,47 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 )
             } else NULL
 
-            # Epsilon input: use last user-chosen value; fall back to config default
+            # Epsilon dropdown: choices from successful scan epsilons; fall back to saved/config default
+            scan_epsilons <- if (!is.null(scan_res) && !is.null(scan_res$epsilons) && length(scan_res$epsilons) > 0)
+                                 sort(unique(scan_res$epsilons))
+                             else numeric(0)
             eps_stored   <- user_epsilon()
             eps_default  <- if (!is.null(cfg_eps) && !is.na(suppressWarnings(as.numeric(cfg_eps))))
                                 as.numeric(cfg_eps) else NA_real_
-            eps_value    <- eps_stored %||% eps_default
-            eps_modified <- !is.null(eps_stored) && !is.na(eps_default) &&
-                            !is.na(eps_stored) && eps_stored != eps_default
+            # Prefer saved viz epsilon, then user-stored, then config default
+            eps_saved    <- if (!is.null(saved_viz$epsilon_selected))
+                                as.numeric(saved_viz$epsilon_selected) else NA_real_
+            eps_choices  <- if (length(scan_epsilons) > 0) scan_epsilons else
+                            if (!is.na(eps_saved)) eps_saved else
+                            if (!is.na(eps_default)) eps_default else numeric(0)
+            eps_value    <- eps_stored %||% (if (!is.na(eps_saved)) eps_saved else NULL) %||% eps_default
+            # Select: prefer stored value if among choices, else saved, else first
+            eps_selected <- if (!is.null(eps_value) && eps_value %in% eps_choices) eps_value else
+                            if (!is.na(eps_saved) && eps_saved %in% eps_choices) eps_saved else
+                            if (length(eps_choices) > 0) eps_choices[1] else NULL
+            # "modified": current selection differs from saved viz params
+            eps_modified <- !is.null(saved_viz$epsilon_selected) && !is.null(eps_selected) &&
+                            !is.na(eps_selected) &&
+                            as.numeric(eps_selected) != as.numeric(saved_viz$epsilon_selected)
 
             viz_content <- htmltools::tagList(
                 htmltools::div(
                     class = "d-flex align-items-center gap-2 flex-wrap",
-                    shiny::numericInput(ns("hap_epsilon_selected"), "Epsilon (from clustree)",
-                        value = eps_value, min = 0.01, step = 0.1, width = "160px"),
+                    if (length(eps_choices) > 0)
+                        shiny::selectInput(ns("hap_epsilon_selected"), "Epsilon (from scan)",
+                            choices = eps_choices, selected = eps_selected, width = "160px")
+                    else
+                        shiny::numericInput(ns("hap_epsilon_selected"), "Epsilon",
+                            value = eps_value %||% NA_real_, min = 0.01, step = 0.1, width = "160px"),
                     if (isTRUE(eps_modified))
                         htmltools::span(class = "badge bg-warning text-dark small mt-3", "modified")
                 ),
-                htmltools::p(class = "text-muted small",
-                    bsicons::bs_icon("arrow-up"), " Pick a stable epsilon from the clustree above."),
+                if (length(scan_epsilons) > 0)
+                    htmltools::p(class = "text-muted small",
+                        bsicons::bs_icon("arrow-up"), " Select epsilon from successful scan runs above.")
+                else
+                    htmltools::p(class = "text-muted small",
+                        bsicons::bs_icon("arrow-up"), " Run the scan first to get epsilon choices."),
                 shiny::actionButton(ns("run_hap_viz"),
                     if (viz_run) "Running..." else "Run Visualization",
                     class = paste("btn-sm", if (viz_run) "btn-outline-secondary disabled" else "btn-outline-primary"),
@@ -868,6 +974,23 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                             width = 1/2,
                             mod_image_card_ui(ns("hap_boxplot")),
                             mod_image_card_ui(ns("hap_piemap"))
+                        ),
+                        htmltools::hr(),
+                        bslib::accordion(
+                            open     = FALSE,
+                            multiple = TRUE,
+                            bslib::accordion_panel(
+                                "Haplotype Assignments",
+                                value = "hap_assignments",
+                                icon  = bsicons::bs_icon("table"),
+                                DT::DTOutput(ns("hap_tbl_assignments"))
+                            ),
+                            bslib::accordion_panel(
+                                "Haplotype Frequencies",
+                                value = "hap_frequencies",
+                                icon  = bsicons::bs_icon("bar-chart"),
+                                DT::DTOutput(ns("hap_tbl_frequencies"))
+                            )
                         )
                     )
                 }
@@ -967,10 +1090,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
 
         hap_viz_path_r <- function(path_fn) shiny::reactive({
             trait   <- hap_viz_trait_r()
-            key     <- hap_key()
-            viz_res <- if (!is.null(key)) hap_viz_cache[[key]] else NULL
-            # Use pipeline's matched_rid when hydrated from disk (region boundary differs)
-            rid     <- (viz_res$matched_rid) %||% selected_region_id()
+            rid     <- selected_region_id()  # always exact — no fuzzy matching
             tag     <- expected_hap_tag()
             pd      <- project_data()
             if (is.null(trait) || is.null(rid) || is.null(tag) || is.null(pd)) return(NULL)
@@ -1000,6 +1120,39 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                 if (!is.null(t)) paste0("Piemap (", t, ")") else "Haplotype Piemap"
             }),
             dl_name = shiny::reactive(paste0("hap_piemap_", selected_region_id() %||% "region")))
+
+        # ── Haplotype data tables (Assignments + Frequencies) ──────────────────
+        hap_table_rid_r <- shiny::reactive({
+            selected_region_id()  # always exact — no fuzzy matching
+        })
+
+        output$hap_tbl_assignments <- DT::renderDataTable({
+            rid <- shiny::req(hap_table_rid_r())
+            tag <- shiny::req(expected_hap_tag())
+            pd  <- project_data()
+            p   <- hap_assignments_path(pd$name, tag)
+            dt  <- if (file_ok(p)) data.table::fread(p, colClasses = c(region_id = "character", sample = "character")) else data.table::data.table()
+            if (nrow(dt) > 0 && "region_id" %in% names(dt)) dt <- dt[dt$region_id == rid, ]
+            safe_datatable(as.data.frame(dt),
+                extensions = "Buttons",
+                options    = list(dom = "Bfrtip", buttons = list("csv"),
+                                  scrollX = TRUE, pageLength = 20),
+                rownames   = FALSE)
+        })
+
+        output$hap_tbl_frequencies <- DT::renderDataTable({
+            rid <- shiny::req(hap_table_rid_r())
+            tag <- shiny::req(expected_hap_tag())
+            pd  <- project_data()
+            p   <- hap_frequencies_path(pd$name, tag)
+            dt  <- if (file_ok(p)) data.table::fread(p, colClasses = c(region_id = "character")) else data.table::data.table()
+            if (nrow(dt) > 0 && "region_id" %in% names(dt)) dt <- dt[dt$region_id == rid, ]
+            safe_datatable(as.data.frame(dt),
+                extensions = "Buttons",
+                options    = list(dom = "Bfrtip", buttons = list("csv"),
+                                  scrollX = TRUE, pageLength = 20),
+                rownames   = FALSE)
+        })
 
         # ── Run Scan button ────────────────────────────────────────────────────
         shiny::observeEvent(input$run_hap_scan, {
@@ -1039,8 +1192,9 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             key  <- hap_key()
             if (is.null(key) || is_running(paste0(key, "__viz"))) return()
 
+            eps <- input$hap_epsilon_selected
             params <- list(
-                epsilon_selected = input$hap_epsilon_selected,
+                epsilon_selected = eps,
                 meta_type        = meta
             )
             handle <- launch_hap_viz_subprocess(row, project_data(), tag, params)
@@ -1049,6 +1203,27 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             } else {
                 subprocess_handles[[paste0(key, "__viz")]] <- handle
             }
+        })
+
+        # ── Reset scan params to config defaults ───────────────────────────────
+        shiny::observeEvent(input$reset_scan_defaults, {
+            pd <- project_data()
+            shiny::updateTextInput(session, "hap_epsilon_range",
+                value = paste(config_get(pd$config, "haplotype", "scan",
+                                          "epsilon_range", default = "0.3,0.5,0.7,0.9"),
+                              collapse = ","))
+            shiny::updateNumericInput(session, "hap_mgmin",
+                value = as.integer(config_get(pd$config, "haplotype", "scan",
+                                               "min_group_size", default = 50L)))
+            shiny::updateNumericInput(session, "hap_minhap",
+                value = as.integer(config_get(pd$config, "haplotype", "scan",
+                                               "min_haplotype_size", default = 15L)))
+            shiny::updateNumericInput(session, "hap_min_snps",
+                value = as.integer(config_get(pd$config, "haplotype", "scan",
+                                               "min_snps", default = 3L)))
+            shiny::updateSelectInput(session, "hap_meta_type",
+                selected = config_get(pd$config, "haplotype", "scan",
+                                       "metadata_type", default = "site"))
         })
 
         # ── Return value for parent module ─────────────────────────────────────

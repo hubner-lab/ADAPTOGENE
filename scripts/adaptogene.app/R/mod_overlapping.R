@@ -102,12 +102,24 @@ mod_overlapping_server <- function(id, project_data) {
 
         # ── Region distance (owned here, passed to explorer) ───────────────────
         shiny::observe({
-            pd <- project_data()
-            d  <- config_get(pd$config, "overlap", "region_distance",
-                             default = config_get(pd$config, "association", "region_distance",
-                                                  default = 2000000L))
-            shiny::updateNumericInput(session, "region_distance", value = as.integer(d))
+            pd      <- project_data()
+            rp      <- read_region_params(pd$name)
+            saved_d <- get_global_param(rp, MOD_OVERLAP, "region_distance")
+            d <- if (!is.null(saved_d)) as.integer(saved_d)
+                 else as.integer(config_get(pd$config, "overlap", "region_distance",
+                                  default = config_get(pd$config, "association", "region_distance",
+                                                       default = 2000000L)))
+            shiny::updateNumericInput(session, "region_distance", value = d)
         })
+
+        shiny::observeEvent(input$region_distance, {
+            v  <- input$region_distance
+            pd <- project_data()
+            if (is.null(v) || is.na(v) || v < 1000L || is.null(pd)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, MOD_OVERLAP, "region_distance", as.integer(v))
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
 
         region_distance <- shiny::reactive({
             v <- input$region_distance

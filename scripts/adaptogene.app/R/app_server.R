@@ -45,7 +45,6 @@ app_server <- function(input, output, session) {
     mod_config_sidebar_server("config_association",   config_state, "association")
     mod_config_sidebar_server("config_phenotype",     config_state, "phenotype")
     mod_config_sidebar_server("config_overlapping",   config_state, "overlapping")
-    mod_config_sidebar_server("config_haplotype",     config_state, "haplotype")
     mod_config_sidebar_server("config_maladaptation", config_state, "maladaptation")
 
     # ── Pipeline runner servers (one per tab / mode) ───────────────────────────
@@ -65,13 +64,6 @@ app_server <- function(input, output, session) {
                                 project_data_trigger, tab_name = "overlapping")
     mod_pipeline_runner_server("runner_maladaptation",config_state, pipeline_running,
                                 project_data_trigger, tab_name = "maladaptation")
-    # Haplotype: two modes (scan + viz)
-    mod_pipeline_runner_server("runner_hap_scan",     config_state, pipeline_running,
-                                project_data_trigger, tab_name = "haplotype",
-                                mode_override = "haplotype_scan")
-    mod_pipeline_runner_server("runner_hap_viz",      config_state, pipeline_running,
-                                project_data_trigger, tab_name = "haplotype",
-                                mode_override = "haplotype")
 
     # ── Module servers ─────────────────────────────────────────────────────────
     mod_home_server("home",               project_data = project_data)
@@ -82,5 +74,4 @@ app_server <- function(input, output, session) {
     mod_phenotype_server("phenotype",     project_data = project_data)
     mod_overlapping_server("overlapping", project_data = project_data)
     mod_maladaptation_server("maladaptation", project_data = project_data)
-    mod_haplotype_server("haplotype",     project_data = project_data)
 }

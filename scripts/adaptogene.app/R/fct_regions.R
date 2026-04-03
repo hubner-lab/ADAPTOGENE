@@ -782,7 +782,8 @@ launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
         plots_dir = plots_dir,
         inter_dir = inter_dir,
         region_id = region_row$region_id[1],
-        tag       = tag
+        tag       = tag,
+        params    = params  # stored for persistence on completion
     )
 }
 
@@ -808,7 +809,8 @@ launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
                     } else NULL
                 } else NULL
             }, error = function(e) NULL)
-            return(list(skip_clustree = TRUE, epsilon_hint = eps_hint, region_id = rid))
+            return(list(skip_clustree = TRUE, epsilon_hint = eps_hint, region_id = rid,
+                        epsilons = if (!is.null(eps_hint)) eps_hint else numeric(0)))
         }
         # No HapObject — scan failed; try to surface reason from scan_status.tsv
         detail_msg <- tryCatch({
@@ -838,12 +840,26 @@ launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
         sub("\\.png$", "", sub(paste0("^Region_", rid, "_clustree_MG_"), "", fnames))
     } else character(0)
 
+    # Parse successful epsilons from scan_status.tsv
+    epsilons <- tryCatch({
+        status_file <- file.path(handle$inter_dir, "scan_status.tsv")
+        if (file_ok(status_file)) {
+            st  <- data.table::fread(status_file, sep = "\t", header = TRUE)
+            row <- st[st$region_id == rid, ]
+            if (nrow(row) > 0 && !is.na(row$epsilon_succeeded[1]) && nzchar(row$epsilon_succeeded[1])) {
+                vals <- unlist(strsplit(row$epsilon_succeeded[1], ","))
+                sort(as.numeric(gsub(".*_E", "", vals)))
+            } else numeric(0)
+        } else numeric(0)
+    }, error = function(e) numeric(0))
+
     list(
         mg_path   = mg_path,
         hap_path  = if (file_ok(hap_path)) hap_path else NULL,
         traits    = traits,
         plots_dir = pdir,
-        region_id = rid
+        region_id = rid,
+        epsilons  = epsilons
     )
 }
 
@@ -895,8 +911,8 @@ launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
     raster_path  <- Sys.glob(file.path(project_base(pd$name),
                                         "climate", "rasters", "present", "*.tif"))[1] %||% "NULL"
     if (is.null(raster_path) || !file_ok(raster_path)) raster_path <- "NULL"
-    raster_layer <- config_get(pd$config, "climate", "predictors",
-                                default = list("bio_1"))[[1]] %||% "bio_1"
+    raster_layer_raw <- config_get(pd$config, "climate", "predictors", default = "bio_1")
+    raster_layer <- strsplit(as.character(raster_layer_raw[[1]]), ",")[[1]][1]
 
     pie_alpha      <- config_get(pd$config, "piemap", "alpha",        default = 0.8)
     show_labels    <- config_get(pd$config, "piemap", "show_labels",  default = "F")
@@ -941,7 +957,8 @@ launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
         type      = "hap_viz",
         plots_dir = plots_dir,
         region_id = region_row$region_id[1],
-        tag       = tag
+        tag       = tag,
+        params    = list(epsilon_selected = epsilon, meta_type = meta_type)  # for persistence
     )
 }
 

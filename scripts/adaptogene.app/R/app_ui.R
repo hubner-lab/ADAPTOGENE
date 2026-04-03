@@ -121,21 +121,6 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Haplotype Analysis",
-            bslib::layout_sidebar(
-                sidebar = mod_config_sidebar_ui(
-                    "config_haplotype", "Haplotype Config",
-                    runner_ui = htmltools::div(
-                        class = "d-flex gap-2 flex-wrap",
-                        mod_pipeline_runner_ui("runner_hap_scan", btn_label = "Run Scan"),
-                        mod_pipeline_runner_ui("runner_hap_viz",  btn_label = "Run Haplotype")
-                    )
-                ),
-                fill = FALSE, fillable = FALSE,
-                mod_haplotype_ui("haplotype")
-            )
-        ),
-
         bslib::nav_panel("Maladaptation",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
