@@ -117,14 +117,8 @@ mod_phenotype_server <- function(id, project_data) {
             counts
         })
 
-        # Strategy: try phenotype_association section, fall back to association
-        default_strategy <- shiny::reactive({
-            pd <- project_data()
-            ds <- .normalize_strategy(config_get(pd$config, "phenotype_association", "combine_method",
-                             default = config_get(pd$config, "association", "combine_method",
-                                                  default = "All")))
-            if (!ds %in% c("All", "Overlap", "MethodOverlap")) "All" else ds
-        })
+        # Strategy always defaults to "All"
+        default_strategy <- shiny::reactive("All")
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
 
@@ -136,7 +130,7 @@ mod_phenotype_server <- function(id, project_data) {
             d <- if (!is.null(saved_d)) as.integer(saved_d)
                  else as.integer(config_get(pd$config, "phenotype_association", "region_distance",
                                   default = config_get(pd$config, "association", "region_distance",
-                                                       default = 2000000L)))
+                                                       default = 1000000L)))
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -156,7 +150,40 @@ mod_phenotype_server <- function(id, project_data) {
                 as.integer(config_get(
                     pd$config, "phenotype_association", "region_distance",
                     default = config_get(pd$config, "association", "region_distance",
-                                        default = 2000000L)))
+                                        default = 1000000L)))
+            } else {
+                as.integer(v)
+            }
+        })
+
+        # ── Combine gap (owned here, passed to interactive SNP compute) ────────
+        shiny::observe({
+            pd      <- project_data()
+            rp      <- read_region_params(pd$name)
+            saved_g <- get_global_param(rp, MOD_PHENO, "combine_gap")
+            g <- if (!is.null(saved_g)) as.integer(saved_g)
+                 else as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
+                                  default = config_get(pd$config, "association", "combine_gap",
+                                                       default = 100000L)))
+            shiny::updateNumericInput(session, "combine_gap", value = g)
+        })
+
+        shiny::observeEvent(input$combine_gap, {
+            v  <- input$combine_gap
+            pd <- project_data()
+            if (is.null(v) || is.na(v) || v < 0L || is.null(pd)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, MOD_PHENO, "combine_gap", as.integer(v))
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
+
+        combine_gap <- shiny::reactive({
+            v <- input$combine_gap
+            if (is.null(v) || is.na(v) || v < 0L) {
+                pd <- project_data()
+                as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
+                           default = config_get(pd$config, "association", "combine_gap",
+                                                default = 100000L)))
             } else {
                 as.integer(v)
             }
@@ -171,24 +198,21 @@ mod_phenotype_server <- function(id, project_data) {
                 trait_colors           = trait_colors(),
                 combo_counts           = combo_counts(),
                 default_strategy_value = default_strategy(),
-                region_distance_value  = region_distance()
+                region_distance_value  = region_distance(),
+                combine_gap_value      = combine_gap()
             )
         })
 
         # ── Interactive sig SNPs ───────────────────────────────────────────────
         interactive_sigsnps <- shiny::reactive({
-            pd  <- project_data()
-            gap <- config_get(pd$config, "phenotype_association", "combine_gap",
-                              default = config_get(pd$config, "association", "combine_gap",
-                                                   default = 200000L))
             compute_interactive_sigsnps(
                 all_method_sigsnps = all_method_sigsnps(),
                 tm_selection_json  = input$tm_selection,
                 combo_counts       = combo_counts(),
                 known_traits       = traits(),
                 strategy           = active_strategy(),
-                gap                = gap,
-                project_name       = pd$name,
+                gap                = combine_gap(),
+                project_name       = project_data()$name,
                 module             = module
             )
         })

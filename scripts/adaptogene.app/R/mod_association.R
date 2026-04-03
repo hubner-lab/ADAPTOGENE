@@ -90,12 +90,8 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             counts
         })
 
-        # Strategy from config (default for radio button)
-        default_strategy <- shiny::reactive({
-            pd <- project_data()
-            ds <- .normalize_strategy(config_get(pd$config, "association", "combine_method", default = "All"))
-            if (!ds %in% c("All", "Overlap", "MethodOverlap")) "All" else ds
-        })
+        # Strategy always defaults to "All" (pipeline pre-computes All; user explores interactively)
+        default_strategy <- shiny::reactive("All")
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
 
@@ -105,7 +101,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             rp      <- read_region_params(pd$name)
             saved_d <- get_global_param(rp, MOD_ASSOC, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else as.integer(config_get(pd$config, "association", "region_distance", default = 2000000L))
+                 else as.integer(config_get(pd$config, "association", "region_distance", default = 1000000L))
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -123,13 +119,42 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
                 as.integer(config_get(pd$config, "association", "region_distance",
-                                      default = 2000000L))
+                                      default = 1000000L))
             } else {
                 as.integer(v)
             }
         })
 
-        # ── Filter bar: Trait x Method matrix + Strategy + Distance ───────────
+        # ── Combine gap (owned here, passed to interactive SNP compute) ────────
+        shiny::observe({
+            pd      <- project_data()
+            rp      <- read_region_params(pd$name)
+            saved_g <- get_global_param(rp, MOD_ASSOC, "combine_gap")
+            g <- if (!is.null(saved_g)) as.integer(saved_g)
+                 else as.integer(config_get(pd$config, "association", "combine_gap", default = 100000L))
+            shiny::updateNumericInput(session, "combine_gap", value = g)
+        })
+
+        shiny::observeEvent(input$combine_gap, {
+            v  <- input$combine_gap
+            pd <- project_data()
+            if (is.null(v) || is.na(v) || v < 0L || is.null(pd)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, MOD_ASSOC, "combine_gap", as.integer(v))
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
+
+        combine_gap <- shiny::reactive({
+            v <- input$combine_gap
+            if (is.null(v) || is.na(v) || v < 0L) {
+                pd <- project_data()
+                as.integer(config_get(pd$config, "association", "combine_gap", default = 100000L))
+            } else {
+                as.integer(v)
+            }
+        })
+
+        # ── Filter bar: Trait x Method matrix + Strategy + Gap + Distance ─────
         output$filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                    = ns,
@@ -138,23 +163,21 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
                 trait_colors          = trait_colors(),
                 combo_counts          = combo_counts(),
                 default_strategy_value = default_strategy(),
-                region_distance_value  = region_distance()
+                region_distance_value  = region_distance(),
+                combine_gap_value      = combine_gap()
             )
         })
 
         # ── Interactive sig SNPs (combined + filtered by matrix selection) ─────
         interactive_sigsnps <- shiny::reactive({
-            pd  <- project_data()
-            gap <- config_get(pd$config, "association", "combine_gap",
-                              default = 200000L)
             compute_interactive_sigsnps(
                 all_method_sigsnps = all_method_sigsnps(),
                 tm_selection_json  = input$tm_selection,
                 combo_counts       = combo_counts(),
                 known_traits       = traits(),
                 strategy           = active_strategy(),
-                gap                = gap,
-                project_name       = pd$name,
+                gap                = combine_gap(),
+                project_name       = project_data()$name,
                 module             = module
             )
         })

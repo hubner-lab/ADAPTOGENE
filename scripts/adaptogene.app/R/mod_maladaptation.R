@@ -8,10 +8,11 @@
 mod_maladaptation_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # GF Run selector at top (controls everything)
+        # GF Run selector + SNP count info
         htmltools::div(
             class = "control-bar",
-            shiny::uiOutput(ns("suffix_selector"))
+            shiny::uiOutput(ns("suffix_selector")),
+            shiny::uiOutput(ns("snp_count_badge"))
         ),
 
         # Importance plots
@@ -95,6 +96,24 @@ mod_maladaptation_server <- function(id, project_data) {
                 if (length(suf) == 0) return(NULL)
                 suf[1]
             } else s
+        })
+
+        # ── SNP count badge ────────────────────────────────────────────────────
+        output$snp_count_badge <- shiny::renderUI({
+            suf <- selected_suffix()
+            pd  <- project_data()
+            if (is.null(suf) || is.null(pd)) return(NULL)
+            snps_path <- gf_selected_snps_path(pd$name, suf)
+            if (!file_ok(snps_path)) return(NULL)
+            n <- tryCatch({
+                nrow(data.table::fread(snps_path, select = 1L))
+            }, error = function(e) NULL)
+            if (is.null(n)) return(NULL)
+            htmltools::tags$span(
+                class = "badge bg-secondary ms-2 align-self-center",
+                style = "font-size:0.85rem; vertical-align:middle;",
+                paste0("\u25c6 ", n, " adaptive SNPs")
+            )
         })
 
         # ── Piemap variant selector (only shows variants that exist) ───────────

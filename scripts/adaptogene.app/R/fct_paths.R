@@ -274,6 +274,13 @@ ld_decay_path <- function(project, per_chr = FALSE) {
 
 #' GF importance plot path
 #' @noRd
+#' GF selected SNPs path (intermediate file produced by combine_gf_snps rule)
+#' @noRd
+gf_selected_snps_path <- function(project, suffix) {
+    mod_path(project, MOD_INTER, "gradient_forest",
+             paste0("gf_selected_snps_", suffix, ".tsv"))
+}
+
 gf_importance_path <- function(project, suffix, type = "overall") {
     mod_path(project, MOD_MALAD, "plots", suffix,
              paste0(type, "_importance.png"))

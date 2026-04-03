@@ -195,13 +195,15 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 #' @param methods    Character vector of method names
 #' @param trait_colors Named character vector: trait -> hex colour
 #' @param combo_counts Named list: "trait::method" -> integer SNP count
-#' @param default_strategy_value Character scalar: "Sum", "Overlap", or "PairOverlap"
+#' @param default_strategy_value Character scalar: "All", "Overlap", or "MethodOverlap"
 #' @param region_distance_value Integer scalar: current region distance (bp)
+#' @param combine_gap_value Integer scalar: current combine gap (bp)
 #' @return tagList
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
-                                region_distance_value) {
+                                region_distance_value,
+                                combine_gap_value = 100000L) {
     if (length(traits) == 0) return(NULL)
 
     # Build table header row: blank + method column headers
@@ -329,6 +331,16 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     choices  = c("All", "Overlap", "MethodOverlap"),
                     selected = default_strategy_value,
                     inline   = FALSE
+                )
+            ),
+            # Combine gap
+            htmltools::div(
+                class = "d-flex flex-column me-4",
+                htmltools::span("Combine gap (bp)", class = "filter-label mb-1"),
+                shiny::numericInput(
+                    ns("combine_gap"), label = NULL,
+                    value = combine_gap_value, min = 0L, step = 10000L,
+                    width = "130px"
                 )
             ),
             # Distance
