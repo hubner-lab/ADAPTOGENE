@@ -90,6 +90,7 @@ mod_home_ui <- function(id) {
 #' @noRd
 mod_home_server <- function(id, project_data) {
     shiny::moduleServer(id, function(input, output, session) {
+        ns <- session$ns
 
         summary_data <- shiny::reactive({
             pd <- project_data()

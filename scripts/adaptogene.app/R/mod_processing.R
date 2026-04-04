@@ -8,40 +8,84 @@ mod_processing_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
 
-        # ── Value boxes ────────────────────────────────────────────────────────
+        # ── Summary cards ──────────────────────────────────────────────────────
         bslib::layout_column_wrap(
-            width = "180px",
+            width = 1 / 4,
             fill  = FALSE,
-            bslib::value_box(
-                title    = "Samples (raw)",
-                value    = shiny::textOutput(ns("samples_raw")),
-                theme    = "secondary",
-                showcase = bsicons::bs_icon("people")
+            # Samples: raw → filtered
+            bslib::card(
+                bslib::card_body(
+                    htmltools::div(
+                        style = "display:flex; align-items:center; gap:1rem;",
+                        htmltools::div(
+                            style = "color:var(--bs-primary); flex-shrink:0;",
+                            bsicons::bs_icon("people-fill", size = "2.2em")
+                        ),
+                        htmltools::div(
+                            htmltools::div(
+                                style = "font-size:0.75rem; color:var(--bs-secondary-color); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.05em;",
+                                "Samples"
+                            ),
+                            htmltools::div(
+                                style = "display:flex; align-items:baseline; gap:0.5rem;",
+                                htmltools::span(
+                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-secondary-color);",
+                                    shiny::textOutput(ns("samples_raw"), inline = TRUE)
+                                ),
+                                htmltools::span(
+                                    style = "color:var(--bs-secondary-color);",
+                                    htmltools::HTML("&rarr;")
+                                ),
+                                htmltools::span(
+                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-primary);",
+                                    shiny::textOutput(ns("samples_filtered"), inline = TRUE)
+                                )
+                            )
+                        )
+                    )
+                )
             ),
-            bslib::value_box(
-                title    = "Samples (filtered)",
-                value    = shiny::textOutput(ns("samples_filtered")),
-                theme    = "primary",
-                showcase = bsicons::bs_icon("people-fill")
+            # SNPs: raw → filtered
+            bslib::card(
+                bslib::card_body(
+                    htmltools::div(
+                        style = "display:flex; align-items:center; gap:1rem;",
+                        htmltools::div(
+                            style = "color:var(--bs-info); flex-shrink:0;",
+                            bsicons::bs_icon("database-fill", size = "2.2em")
+                        ),
+                        htmltools::div(
+                            htmltools::div(
+                                style = "font-size:0.75rem; color:var(--bs-secondary-color); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.05em;",
+                                "SNPs"
+                            ),
+                            htmltools::div(
+                                style = "display:flex; align-items:baseline; gap:0.5rem;",
+                                htmltools::span(
+                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-secondary-color);",
+                                    shiny::textOutput(ns("snps_raw"), inline = TRUE)
+                                ),
+                                htmltools::span(
+                                    style = "color:var(--bs-secondary-color);",
+                                    htmltools::HTML("&rarr;")
+                                ),
+                                htmltools::span(
+                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-info);",
+                                    shiny::textOutput(ns("snps_filtered"), inline = TRUE)
+                                )
+                            )
+                        )
+                    )
+                )
             ),
-            bslib::value_box(
-                title    = "SNPs (raw)",
-                value    = shiny::textOutput(ns("snps_raw")),
-                theme    = "secondary",
-                showcase = bsicons::bs_icon("database")
-            ),
-            bslib::value_box(
-                title    = "SNPs (filtered)",
-                value    = shiny::textOutput(ns("snps_filtered")),
-                theme    = "info",
-                showcase = bsicons::bs_icon("database-fill")
-            ),
+            # SNPs LD-pruned
             bslib::value_box(
                 title    = "SNPs (LD-pruned)",
                 value    = shiny::textOutput(ns("snps_ld")),
                 theme    = "success",
                 showcase = bsicons::bs_icon("scissors")
             ),
+            # Ti/Tv Ratio
             bslib::value_box(
                 title    = "Ti/Tv Ratio",
                 value    = shiny::textOutput(ns("titv")),

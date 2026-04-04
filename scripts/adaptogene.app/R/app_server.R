@@ -80,9 +80,20 @@ app_server <- function(input, output, session) {
     mod_config_sidebar_server("config_overlapping",   config_state, "overlapping")
     mod_config_sidebar_server("config_maladaptation", config_state, "maladaptation")
 
+    # ── Save project files button (Home tab) ──────────────────────────────────
+    shiny::observeEvent(input$save_project_files, {
+        shiny::req(config_state$project)
+        tryCatch({
+            write_project_config(config_state$working, config_state$project)
+            config_state$saved <- config_state$working
+            shiny::showNotification("Project files saved.", type = "message", duration = 3)
+        }, error = function(e) {
+            shiny::showNotification(paste("Save failed:", conditionMessage(e)),
+                                    type = "error", duration = 8)
+        })
+    })
+
     # ── Pipeline runner servers (one per tab / mode) ───────────────────────────
-    mod_pipeline_runner_server("runner_home",         config_state, pipeline_running,
-                                project_data_trigger, tab_name = "home")
     mod_pipeline_runner_server("runner_processing",   config_state, pipeline_running,
                                 project_data_trigger, tab_name = "processing")
     mod_pipeline_runner_server("runner_structure",    config_state, pipeline_running,

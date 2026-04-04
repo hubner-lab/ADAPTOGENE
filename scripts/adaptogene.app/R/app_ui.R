@@ -43,9 +43,15 @@ app_ui <- function(request) {
             class = "bslib-page-dashboard",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
-                    "config_home", "Processing Config",
-                    runner_ui = mod_pipeline_runner_ui("runner_home",
-                                                       btn_label = "Run Processing")
+                    "config_home", "Project Files",
+                    runner_ui = shiny::actionButton(
+                        "save_project_files",
+                        label = htmltools::tagList(
+                            bsicons::bs_icon("floppy", size = "0.9em"),
+                            " Save Project Files"
+                        ),
+                        class = "btn btn-primary btn-sm w-100 mt-1"
+                    )
                 ),
                 fill = TRUE, fillable = TRUE,
                 mod_home_ui("home")

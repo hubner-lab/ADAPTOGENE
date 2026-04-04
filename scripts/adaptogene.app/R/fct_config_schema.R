@@ -6,7 +6,7 @@
 #' Fields:
 #'   key        dot-path into config (e.g. "snmf.k_start")
 #'   label      human-readable label
-#'   tab        tab name: home | structure | structure_k | association |
+#'   tab        tab name: home | processing | structure | structure_k | association |
 #'                         phenotype | overlapping | haplotype | maladaptation
 #'   section    grouping label within the tab
 #'   type       numeric | text | select | checkbox | textarea | method_table
@@ -38,13 +38,7 @@ config_schema <- function() {
     }
 
     list(
-        # ── HOME TAB (Processing mode) ─────────────────────────────────────────
-        # Mandatory — project identity
-        s("project_name",   "Project name",       "home", "Project",
-          "text",    TRUE,
-          help = "Output directory prefix. Results go to {name}_results/",
-          placeholder = "MYPROJECT"),
-        # Mandatory — input files
+        # ── HOME TAB (project input files only) ───────────────────────────────
         s("input.dir",      "Input directory",    "home", "Input Files",
           "text",    TRUE,
           help = "Directory containing input files (relative to /pipeline/)",
@@ -58,33 +52,33 @@ config_schema <- function() {
           help = "Tab-separated: site, sample, lat, lon, [phenotype columns…]",
           placeholder = "metadata.tsv"),
         s("input.gff",      "GFF3 annotation",    "home", "Input Files",
-          "text",    FALSE,
+          "text",    TRUE,
           help = "Optional. Enables gene annotation and GO enrichment.",
           placeholder = "annotation.gff3"),
-        # Optional — filtering
-        s("filter.maf",         "Minor allele freq",  "home", "Filtering",
-          "numeric", FALSE,
+
+        # ── PROCESSING TAB ────────────────────────────────────────────────────
+        s("filter.maf",         "Minor allele freq",  "processing", "Filtering",
+          "numeric", TRUE,
           min = 0, max = 0.5, step = 0.01,
           help = "Minimum MAF threshold (e.g. 0.05)"),
-        s("filter.snp_miss",    "SNP missingness",    "home", "Filtering",
-          "numeric", FALSE,
+        s("filter.snp_miss",    "SNP missingness",    "processing", "Filtering",
+          "numeric", TRUE,
           min = 0, max = 1, step = 0.01,
           help = "Maximum fraction of missing genotypes per SNP"),
-        s("filter.sample_miss", "Sample missingness", "home", "Filtering",
-          "numeric", FALSE,
+        s("filter.sample_miss", "Sample missingness", "processing", "Filtering",
+          "numeric", TRUE,
           min = 0, max = 1, step = 0.01,
           help = "Maximum fraction of missing genotypes per sample (default 0.5)"),
-        # Optional — LD pruning
-        s("ld.window", "LD window (kb)",  "home", "LD Pruning",
-          "numeric", FALSE,
+        s("ld.window", "LD window (kb)",  "processing", "LD Pruning",
+          "numeric", TRUE,
           min = 1, step = 1,
           help = "Sliding window size for LD pruning in kilobases"),
-        s("ld.step",   "LD step size",   "home", "LD Pruning",
-          "numeric", FALSE,
+        s("ld.step",   "LD step size",   "processing", "LD Pruning",
+          "numeric", TRUE,
           min = 1, step = 1,
           help = "Number of SNPs to slide per step"),
-        s("ld.r2",     "LD r\u00b2 threshold", "home", "LD Pruning",
-          "numeric", FALSE,
+        s("ld.r2",     "LD r\u00b2 threshold", "processing", "LD Pruning",
+          "numeric", TRUE,
           min = 0, max = 1, step = 0.05,
           help = "Prune SNP pairs in LD above this r\u00b2 threshold"),
 
