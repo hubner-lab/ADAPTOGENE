@@ -199,7 +199,7 @@ PROJECT = config['project_name']
 OUTDIR = f'/pipeline/{PROJECT}_results/'
 LOGDIR = f'/pipeline/{PROJECT}_logs/'
 
-CPU = config['cpu']; check_numeric(CPU, 'cpu')
+CPU = config.get('cpu', max(1, os.cpu_count() - 2)); check_numeric(CPU, 'cpu')
 VCF_RAW = config['input']['vcf']; check_file_exists(INDIR, VCF_RAW, 'input.vcf')
 SAMPLES = config['input']['metadata']; check_file_exists(INDIR, SAMPLES, 'input.metadata')
 VCF_BASE = get_vcf_basename(VCF_RAW)
@@ -231,7 +231,7 @@ LD_R2 = config['ld']['r2']; check_float(LD_R2, 'ld.r2')
 # SNMF parameters
 K_START = config['snmf']['k_start']; check_numeric(K_START, 'snmf.k_start')
 K_END = config['snmf']['k_end']; check_numeric(K_END, 'snmf.k_end')
-PLOIDY = config['snmf']['ploidy']; check_numeric(PLOIDY, 'snmf.ploidy')
+PLOIDY = 2  # diploid only; haploid support requires changes in lfmm2vcf.R, amova.R, plink
 REPEAT = config['snmf']['repeats']; check_numeric(REPEAT, 'snmf.repeats')
 K_BEST = int(_cfg('snmf', 'k_best', None)) if _cfg('snmf', 'k_best', None) is not None else None
 SNMF_PROJECT_MODE = 'new'  # LEA project mode: 'new' for fresh runs, 'continue' to resume

@@ -44,10 +44,6 @@ config_schema <- function() {
           "text",    TRUE,
           help = "Output directory prefix. Results go to {name}_results/",
           placeholder = "MYPROJECT"),
-        s("cpu",            "CPU cores",           "home", "Project",
-          "numeric", TRUE,
-          min = 1, max = 64, step = 1,
-          help = "Number of parallel Snakemake jobs"),
         # Mandatory — input files
         s("input.dir",      "Input directory",    "home", "Input Files",
           "text",    TRUE,

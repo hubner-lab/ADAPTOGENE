@@ -147,7 +147,7 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
             }
 
             project  <- config_state$project
-            cpu      <- config_get_by_path(config_state$working, "cpu") %||% 4L
+            cpu      <- config_get_by_path(config_state$working, "cpu") %||% max(1L, parallel::detectCores() - 2L)
             pip_path <- get_pipeline_path()
 
             # Write working config to YAML before launching
