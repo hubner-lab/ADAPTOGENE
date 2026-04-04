@@ -31,7 +31,8 @@ pipeline_cmd <- function(mode, project, cpu,
         "-s", file.path(pipeline_path, "Snakefile"),
         "--config", paste0("mode=", mode),
         "--configfile", configfile,
-        "--scheduler", "greedy"
+        "--scheduler", "greedy",
+        "--rerun-incomplete"
     )
 }
 
