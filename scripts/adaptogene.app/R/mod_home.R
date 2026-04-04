@@ -49,35 +49,20 @@ mod_home_ui <- function(id) {
 
         shiny::br(),
 
-        bslib::layout_column_wrap(
-            width = 1 / 2,
-
-            # Module status card
-            bslib::card(
-                bslib::card_header(
+        # Pipeline status card — click a completed module to see its summary
+        bslib::card(
+            full_screen = TRUE,
+            bslib::card_header(
+                class = "d-flex justify-content-between align-items-center",
+                htmltools::span(
                     bsicons::bs_icon("check-circle"),
                     " Pipeline Status"
                 ),
-                bslib::card_body(
-                    shiny::uiOutput(ns("module_status"))
-                )
+                shiny::downloadButton(ns("dl_summary"), "CSV",
+                                      class = "btn-sm btn-outline-secondary")
             ),
-
-            # Summary table card
-            bslib::card(
-                full_screen = TRUE,
-                bslib::card_header(
-                    class = "d-flex justify-content-between align-items-center",
-                    htmltools::span(
-                        bsicons::bs_icon("table"),
-                        " Pipeline Summary"
-                    ),
-                    shiny::downloadButton(ns("dl_summary"), "CSV",
-                                          class = "btn-sm btn-outline-secondary")
-                ),
-                bslib::card_body(
-                    DT::DTOutput(ns("summary_table"))
-                )
+            bslib::card_body(
+                shiny::uiOutput(ns("module_status"))
             )
         )
     )
@@ -100,7 +85,7 @@ mod_home_server <- function(id, project_data) {
         # ── Dashboard vs Getting Started ───────────────────────────────────────
         output$home_content <- shiny::renderUI({
             pd <- project_data()
-            st <- check_module_status(pd$name)
+            st <- check_module_status(pd$name, summary_data())
             if (!any(st)) {
                 # Empty project — show getting started guide
                 bslib::card(
@@ -177,38 +162,87 @@ mod_home_server <- function(id, project_data) {
             summary_val("association", "n_regions_combined")()
         )
 
-        # ── Module status ──────────────────────────────────────────────────────
+        # ── Module status — clickable rows ────────────────────────────────────
+        module_labels <- c(
+            processing    = "Processing",
+            structure     = "Structure",
+            structure_k   = "Structure K",
+            association   = "Association",
+            phenotype     = "Phenotype Association",
+            overlapping   = "Overlapping Regions",
+            maladaptation = "Maladaptation",
+            haplotype     = "Haplotype Analysis"
+        )
+        # Step name used in pipeline_summary.tsv per module
+        module_steps <- c(
+            processing    = "processing",
+            structure     = "structure",
+            structure_k   = "structure_K",
+            association   = "association",
+            phenotype     = "association_phenotypes",
+            overlapping   = "overlapping",
+            maladaptation = "maladaptation",
+            haplotype     = "haplotype"
+        )
+
+        selected_module <- shiny::reactiveVal(NULL)
+
         output$module_status <- shiny::renderUI({
-            pd  <- project_data()
-            st  <- check_module_status(pd$name)
-            labels <- c(
-                processing  = "Processing",
-                structure   = "Structure",
-                structure_k = "Structure K",
-                association = "Association",
-                phenotype   = "Phenotype Association",
-                overlapping = "Overlapping Regions",
-                maladaptation = "Maladaptation",
-                haplotype   = "Haplotype Analysis"
-            )
-            rows <- lapply(names(labels), function(nm) {
-                mode_status_row(labels[[nm]], isTRUE(st[[nm]]))
+            st  <- check_module_status(project_data()$name, summary_data())
+            sel <- selected_module()
+            s   <- summary_data()
+
+            rows <- lapply(names(module_labels), function(nm) {
+                ok     <- isTRUE(st[[nm]])
+                active <- identical(sel, nm)
+
+                row <- if (ok) {
+                    htmltools::div(
+                        class = paste("mode-status mode-status-clickable", if (active) "mode-status-active" else ""),
+                        onclick = sprintf("Shiny.setInputValue('%s', '%s', {priority: 'event'})", ns("module_click"), nm),
+                        htmltools::span(class = "status-icon status-ok", "\u2713"),
+                        htmltools::span(module_labels[[nm]]),
+                        htmltools::span(
+                            class = paste("ms-auto status-chevron", if (!active) "text-muted" else ""),
+                            bsicons::bs_icon(if (active) "chevron-down" else "chevron-right")
+                        )
+                    )
+                } else {
+                    htmltools::div(
+                        class = "mode-status",
+                        htmltools::span(class = "status-icon status-missing", "\u2014"),
+                        htmltools::span(module_labels[[nm]])
+                    )
+                }
+
+                # Inline detail panel immediately after this row when active
+                detail <- if (active) {
+                    step      <- module_steps[[nm]]
+                    metrics   <- if (nrow(s) > 0) s[s$step == step, c("metric", "value")] else data.frame(metric = character(), value = character())
+                    tbl_rows  <- lapply(seq_len(nrow(metrics)), function(i) {
+                        htmltools::tags$tr(
+                            htmltools::tags$td(class = "detail-metric", as.character(metrics$metric[i])),
+                            htmltools::tags$td(class = "detail-value",  as.character(metrics$value[i]))
+                        )
+                    })
+                    htmltools::div(
+                        class = "module-detail-panel",
+                        htmltools::tags$table(
+                            class = "module-detail-table",
+                            htmltools::tags$tbody(tbl_rows)
+                        )
+                    )
+                } else NULL
+
+                htmltools::tagList(row, detail)
             })
             htmltools::tagList(rows)
         })
 
-        # ── Summary table ──────────────────────────────────────────────────────
-        output$summary_table <- DT::renderDataTable({
-            s <- summary_data()
-            safe_datatable(
-                as.data.frame(s),
-                options = list(
-                    dom       = "frtip",
-                    scrollX   = TRUE,
-                    pageLength = 25
-                ),
-                rownames = FALSE
-            )
+        # Toggle selected module on click
+        shiny::observeEvent(input$module_click, {
+            nm <- input$module_click
+            if (identical(selected_module(), nm)) selected_module(NULL) else selected_module(nm)
         })
 
         output$dl_summary <- shiny::downloadHandler(

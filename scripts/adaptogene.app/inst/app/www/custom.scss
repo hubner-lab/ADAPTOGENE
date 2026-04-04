@@ -32,12 +32,58 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.25rem 0;
+    padding: 0.3rem 0.5rem;
+    border-radius: $border-radius-sm;
     font-size: 0.875rem;
 
-    .status-ok    { color: $success; }
+    .status-ok      { color: $success; }
     .status-missing { color: $secondary; opacity: 0.5; }
-    .status-icon  { font-size: 1.1rem; }
+    .status-icon    { font-size: 1.1rem; }
+    .status-chevron { font-size: 0.75rem; }
+}
+
+.mode-status-clickable {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+
+    &:hover {
+        background-color: rgba(27, 122, 110, 0.07);
+    }
+}
+
+.mode-status-active {
+    background-color: rgba(27, 122, 110, 0.10);
+    font-weight: 500;
+}
+
+[data-bs-theme="dark"] {
+    .mode-status-clickable:hover { background-color: rgba(27, 122, 110, 0.14); }
+    .mode-status-active          { background-color: rgba(27, 122, 110, 0.20); }
+}
+
+// ── Module detail panel (inline below the clicked module row) ─────────────────
+.module-detail-panel {
+    margin: 0.1rem 0 0.35rem 1.75rem;  // indent to align with module label
+}
+
+.module-detail-table {
+    width: 100%;
+    font-size: 0.8rem;
+    border-collapse: collapse;
+
+    td { padding: 0.15rem 0.5rem 0.15rem 0; vertical-align: top; }
+
+    .detail-metric {
+        color: var(--bs-secondary-color);
+        white-space: nowrap;
+        padding-right: 1rem;
+        font-family: $font-family-monospace;
+    }
+
+    .detail-value {
+        color: var(--bs-body-color);
+        font-weight: 500;
+    }
 }
 
 // ── Dark mode: images get subtle borders ──────────────────────────────────────

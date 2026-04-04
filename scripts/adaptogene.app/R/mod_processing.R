@@ -13,70 +13,18 @@ mod_processing_ui <- function(id) {
             width = 1 / 4,
             fill  = FALSE,
             # Samples: raw → filtered
-            bslib::card(
-                bslib::card_body(
-                    htmltools::div(
-                        style = "display:flex; align-items:center; gap:1rem;",
-                        htmltools::div(
-                            style = "color:var(--bs-primary); flex-shrink:0;",
-                            bsicons::bs_icon("people-fill", size = "2.2em")
-                        ),
-                        htmltools::div(
-                            htmltools::div(
-                                style = "font-size:0.75rem; color:var(--bs-secondary-color); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.05em;",
-                                "Samples"
-                            ),
-                            htmltools::div(
-                                style = "display:flex; align-items:baseline; gap:0.5rem;",
-                                htmltools::span(
-                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-secondary-color);",
-                                    shiny::textOutput(ns("samples_raw"), inline = TRUE)
-                                ),
-                                htmltools::span(
-                                    style = "color:var(--bs-secondary-color);",
-                                    htmltools::HTML("&rarr;")
-                                ),
-                                htmltools::span(
-                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-primary);",
-                                    shiny::textOutput(ns("samples_filtered"), inline = TRUE)
-                                )
-                            )
-                        )
-                    )
-                )
+            bslib::value_box(
+                title    = "Samples",
+                value    = shiny::uiOutput(ns("samples_display")),
+                theme    = "primary",
+                showcase = bsicons::bs_icon("people-fill")
             ),
             # SNPs: raw → filtered
-            bslib::card(
-                bslib::card_body(
-                    htmltools::div(
-                        style = "display:flex; align-items:center; gap:1rem;",
-                        htmltools::div(
-                            style = "color:var(--bs-info); flex-shrink:0;",
-                            bsicons::bs_icon("database-fill", size = "2.2em")
-                        ),
-                        htmltools::div(
-                            htmltools::div(
-                                style = "font-size:0.75rem; color:var(--bs-secondary-color); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.05em;",
-                                "SNPs"
-                            ),
-                            htmltools::div(
-                                style = "display:flex; align-items:baseline; gap:0.5rem;",
-                                htmltools::span(
-                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-secondary-color);",
-                                    shiny::textOutput(ns("snps_raw"), inline = TRUE)
-                                ),
-                                htmltools::span(
-                                    style = "color:var(--bs-secondary-color);",
-                                    htmltools::HTML("&rarr;")
-                                ),
-                                htmltools::span(
-                                    style = "font-size:1.6rem; font-weight:700; color:var(--bs-info);",
-                                    shiny::textOutput(ns("snps_filtered"), inline = TRUE)
-                                )
-                            )
-                        )
-                    )
-                )
+            bslib::value_box(
+                title    = "SNPs",
+                value    = shiny::uiOutput(ns("snps_display")),
+                theme    = "info",
+                showcase = bsicons::bs_icon("database-fill")
             ),
             # SNPs LD-pruned
             bslib::value_box(
@@ -183,10 +131,20 @@ mod_processing_server <- function(id, project_data) {
         }
 
         # ── Value boxes ────────────────────────────────────────────────────────
-        output$samples_raw      <- shiny::renderText(summary_val("samples_total")())
-        output$samples_filtered <- shiny::renderText(summary_val("samples_after_filtering")())
-        output$snps_raw         <- shiny::renderText(summary_val("snps_raw")())
-        output$snps_filtered    <- shiny::renderText(summary_val("snps_after_filtering")())
+        arrow_display <- function(raw_id, filtered_id) {
+            shiny::renderUI({
+                raw      <- summary_val(raw_id)()
+                filtered <- summary_val(filtered_id)()
+                htmltools::div(
+                    style = "display:flex; align-items:baseline; gap:0.4rem;",
+                    htmltools::span(style = "opacity:0.7;", raw),
+                    htmltools::span(style = "opacity:0.6; font-size:0.9em;", "\u2192"),
+                    htmltools::strong(filtered)
+                )
+            })
+        }
+        output$samples_display <- arrow_display("samples_total", "samples_after_filtering")
+        output$snps_display    <- arrow_display("snps_raw", "snps_after_filtering")
         output$snps_ld          <- shiny::renderText(summary_val("snps_after_ld_pruning")())
         output$titv             <- shiny::renderText(summary_val("titv_ratio")())
 

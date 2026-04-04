@@ -96,22 +96,28 @@ find_haplotype_tags <- function(project) {
     tags[valid]
 }
 
-#' Check which pipeline modules have completed output directories
+#' Check which pipeline modules have completed (based on pipeline_summary.tsv steps)
+#' @param project project name
+#' @param summary_dt optional pre-loaded summary data.table; loaded from disk if NULL
 #' @noRd
-check_module_status <- function(project) {
-    modules <- c(
-        processing     = MOD_PROC,
-        structure      = MOD_STRUCT,
-        structure_k    = MOD_SK,
-        association    = MOD_ASSOC,
-        phenotype      = MOD_PHENO,
-        overlapping    = MOD_OVERLAP,
-        maladaptation  = MOD_MALAD,
-        haplotype      = MOD_HAP
+check_module_status <- function(project, summary_dt = NULL) {
+    if (is.null(summary_dt)) summary_dt <- load_pipeline_summary(project)
+    steps_present <- if (!is.null(summary_dt) && nrow(summary_dt) > 0) {
+        unique(summary_dt$step)
+    } else {
+        character(0)
+    }
+    module_steps <- c(
+        processing    = "processing",
+        structure     = "structure",
+        structure_k   = "structure_K",
+        association   = "association",
+        phenotype     = "association_phenotypes",
+        overlapping   = "overlapping",
+        maladaptation = "maladaptation",
+        haplotype     = "haplotype"
     )
-    vapply(modules, function(m) {
-        dir.exists(mod_path(project, m))
-    }, logical(1))
+    vapply(module_steps, function(s) s %in% steps_present, logical(1))
 }
 
 #' Find zoom region tags for a GF suffix
