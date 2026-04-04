@@ -6,6 +6,10 @@
 #' @noRd
 mod_home_ui <- function(id) {
     ns <- shiny::NS(id)
+    shiny::uiOutput(ns("home_content"))
+}
+
+.mod_home_dashboard_ui <- function(ns) {
     htmltools::tagList(
         # Value box row
         bslib::layout_column_wrap(
@@ -90,6 +94,61 @@ mod_home_server <- function(id, project_data) {
         summary_data <- shiny::reactive({
             pd <- project_data()
             load_pipeline_summary(pd$name)
+        })
+
+        # ── Dashboard vs Getting Started ───────────────────────────────────────
+        output$home_content <- shiny::renderUI({
+            pd <- project_data()
+            st <- check_module_status(pd$name)
+            if (!any(st)) {
+                # Empty project — show getting started guide
+                bslib::card(
+                    bslib::card_header(
+                        bsicons::bs_icon("rocket-takeoff"),
+                        " Getting Started"
+                    ),
+                    bslib::card_body(
+                        htmltools::tags$p(
+                            class = "text-muted mb-3",
+                            "Your project is set up. Follow these steps to run the pipeline:"
+                        ),
+                        htmltools::tags$ol(
+                            class = "getting-started-steps",
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Review your config"),
+                                " \u2014 Open the sidebar on the left to check input paths and filtering parameters. Adjust MAF, missingness thresholds, and K range as needed."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Run Processing"),
+                                " \u2014 Click \u2018Run Processing\u2019 in the sidebar. This filters your VCF, computes sample QC, and prepares intermediate files."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Check QC"),
+                                " \u2014 Switch to the ", htmltools::tags$strong("Processing"), " tab to review QC plots (missingness, MAF, SNP density, filtering attrition)."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Run Structure"),
+                                " \u2014 Go to the ", htmltools::tags$strong("Structure"), " tab and run sNMF to estimate population structure across K values."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Select K"),
+                                " \u2014 Review the cross-entropy plot, set ", htmltools::tags$code("snmf.k_best"), " in the sidebar, then run Structure K to generate piemaps."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Run Association"),
+                                " \u2014 Configure climate predictors and association methods in the ", htmltools::tags$strong("Association"), " tab, then run."
+                            ),
+                            htmltools::tags$li(
+                                htmltools::tags$strong("Explore results"),
+                                " \u2014 Continue with Phenotype Association, Overlapping Regions, Maladaptation, and Haplotype Analysis as your research requires."
+                            )
+                        )
+                    )
+                )
+            } else {
+                # Normal dashboard
+                .mod_home_dashboard_ui(ns)
+            }
         })
 
         # ── Value boxes ────────────────────────────────────────────────────────

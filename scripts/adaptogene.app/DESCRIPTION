@@ -25,6 +25,7 @@ Imports:
     utils,
     processx,
     shinyjs,
+    shinyFiles,
     digest
 Suggests:
     testthat (>= 3.0.0)

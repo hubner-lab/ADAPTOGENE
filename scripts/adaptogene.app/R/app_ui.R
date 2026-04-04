@@ -26,8 +26,11 @@ app_ui <- function(request) {
                 shiny::selectInput(
                     "project_selector",
                     label    = NULL,
-                    choices  = if (length(projects) > 0) projects else "No projects found",
-                    selected = if (length(projects) > 0) projects[1] else NULL,
+                    choices  = c(
+                        "+ New Project" = "__new__",
+                        if (length(projects) > 0) setNames(projects, projects) else character(0)
+                    ),
+                    selected = if (length(projects) > 0) projects[1] else "__new__",
                     width    = "220px"
                 ),
                 bslib::input_dark_mode(id = "dark_mode", mode = "dark")

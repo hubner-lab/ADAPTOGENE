@@ -14,7 +14,7 @@ options(shiny.autoreload = TRUE)
 dir.create(.dev_user_lib, recursive = TRUE, showWarnings = FALSE)
 .libPaths(c(.dev_user_lib, .libPaths()))
 
-.dev_pkgs <- c("processx", "shinyjs")
+.dev_pkgs <- c("processx", "shinyjs", "shinyFiles")
 for (.p in .dev_pkgs) {
     if (!requireNamespace(.p, quietly = TRUE)) {
         message("dev.R: installing missing package: ", .p)
@@ -42,6 +42,7 @@ library(cachem)
 library(config)
 library(processx)
 library(shinyjs)
+library(shinyFiles)
 
 # Source all app R files from mounted volume
 app_r_dir <- "/pipeline/scripts/adaptogene.app/R"

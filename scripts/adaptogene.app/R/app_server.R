@@ -12,15 +12,48 @@ app_server <- function(input, output, session) {
         project = NULL
     )
 
-    # Populate config_state on project switch
+    # Track the last valid project for reverting selector after modal cancel
+    prev_project <- shiny::reactiveVal(NULL)
+
+    # Populate config_state on project switch; intercept __new__ to open modal
     shiny::observeEvent(input$project_selector, {
         shiny::req(input$project_selector)
-        proj   <- input$project_selector
-        cfg    <- read_project_config(proj)
+
+        if (input$project_selector == "__new__") {
+            # Revert selector to the previous valid project
+            prev <- prev_project()
+            if (!is.null(prev)) {
+                shiny::updateSelectInput(session, "project_selector", selected = prev)
+            }
+            # Show creation modal
+            shiny::showModal(mod_create_project_ui("create_project"))
+            return()
+        }
+
+        proj <- input$project_selector
+        prev_project(proj)
+        cfg  <- read_project_config(proj)
         config_state$project <- proj
         config_state$saved   <- cfg
         config_state$working <- cfg
     }, ignoreInit = FALSE)
+
+    # Create project module
+    mod_create_project_server(
+        "create_project",
+        pipeline_path_rv     = shiny::reactive(get_pipeline_path()),
+        existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path())),
+        on_created = function(new_project) {
+            pip      <- get_pipeline_path()
+            projects <- find_projects(pip)
+            choices  <- c(
+                "+ New Project" = "__new__",
+                setNames(projects, projects)
+            )
+            shiny::updateSelectInput(session, "project_selector",
+                                     choices = choices, selected = new_project)
+        }
+    )
 
     # ── Global run lock (prevents concurrent pipeline runs) ───────────────────
     pipeline_running <- shiny::reactiveVal(FALSE)
@@ -31,7 +64,7 @@ app_server <- function(input, output, session) {
     # ── Reactive project data bundle ───────────────────────────────────────────
     # Depends on project selector AND project_data_trigger (incremented post-run)
     project_data <- shiny::reactive({
-        shiny::req(input$project_selector)
+        shiny::req(input$project_selector, input$project_selector != "__new__")
         project_data_trigger()  # declare dependency
         proj <- input$project_selector
         make_project_data(proj)
