@@ -53,6 +53,8 @@ message(paste0("INFO: Total samples: ", nrow(groups)))
 #=============================================================================
 # FILTER GROUPS BY MIN_SAMPLES
 #=============================================================================
+# Remove NA-valued groups (defense-in-depth: prevents empty sample list files)
+groups <- groups[!is.na(group)]
 group_sizes <- groups[, .N, by = group]
 valid_groups <- group_sizes[N >= MIN_SAMPLES, group]
 skipped_groups <- group_sizes[N < MIN_SAMPLES]

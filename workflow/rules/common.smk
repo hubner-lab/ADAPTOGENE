@@ -280,6 +280,7 @@ LD_DECAY_MIN_SAMPLES = int(_ld_decay.get('min_samples', 10))
 LD_DECAY_MAX_DISTANCE = int(_ld_decay.get('max_distance', 500))
 LD_DECAY_SCOPE = _ld_decay.get('scope', 'both')
 check_in_list(LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome', 'both'], 'ld_decay.scope')
+LD_DECAY_TAG = f"grp{LD_DECAY_GROUP_BY}_min{LD_DECAY_MIN_SAMPLES}_dist{LD_DECAY_MAX_DISTANCE}"
 
 # GFF parameters
 GFF = _cfg('input', 'gff', '')
@@ -587,15 +588,16 @@ def add_kbest_paths():
     O['mantel'] = f"{MOD_STRUCTK}plots/pop_stats/mantel_test.png"
     O['amova_plot'] = f"{MOD_STRUCTK}plots/pop_stats/amova.png"
 
-    # LD decay paths
-    W['ld_decay_work'] = f"{INTER}ld_decay/"
-    W['ld_decay_sample_lists'] = f"{INTER}ld_decay/sample_lists/"
-    W['ld_decay_chr_vcfs'] = f"{INTER}ld_decay/chr_vcfs/"
-    W['ld_decay_stat_gw'] = f"{INTER}ld_decay/stat_gw/"
-    W['ld_decay_stat_chr'] = f"{INTER}ld_decay/stat_chr/"
-    W['ld_decay_prep_done'] = f"{INTER}ld_decay/prep_done.flag"
-    W['ld_decay_gw_done'] = f"{INTER}ld_decay/gw_done.flag"
-    W['ld_decay_chr_done'] = f"{INTER}ld_decay/chr_done.flag"
+    # LD decay paths (parameterized by group_by, min_samples, max_distance)
+    _ld_base = f"{INTER}ld_decay/{LD_DECAY_TAG}/"
+    W['ld_decay_work']         = _ld_base
+    W['ld_decay_sample_lists'] = f"{_ld_base}sample_lists/"
+    W['ld_decay_chr_vcfs']     = f"{_ld_base}chr_vcfs/"
+    W['ld_decay_stat_gw']      = f"{_ld_base}stat_gw/"
+    W['ld_decay_stat_chr']     = f"{_ld_base}stat_chr/"
+    W['ld_decay_prep_done']    = f"{_ld_base}prep_done.flag"
+    W['ld_decay_gw_done']      = f"{_ld_base}gw_done.flag"
+    W['ld_decay_chr_done']     = f"{_ld_base}chr_done.flag"
     O['ld_decay_table'] = f"{MOD_STRUCTK}tables/ld_decay_half_distances.tsv"
     O['ld_decay_plot_gw'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.png"
     O['ld_decay_plot_gw_svg'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.svg"
@@ -912,11 +914,11 @@ dirs_to_create.append(f"{LOGDIR}haplotype/")
 
 # Add LD decay directories
 if K_BEST is not None:
-    dirs_to_create.append(f"{INTER}ld_decay/")
-    dirs_to_create.append(f"{INTER}ld_decay/sample_lists/")
-    dirs_to_create.append(f"{INTER}ld_decay/chr_vcfs/")
-    dirs_to_create.append(f"{INTER}ld_decay/stat_gw/")
-    dirs_to_create.append(f"{INTER}ld_decay/stat_chr/")
+    dirs_to_create.append(W['ld_decay_work'])
+    dirs_to_create.append(W['ld_decay_sample_lists'])
+    dirs_to_create.append(W['ld_decay_chr_vcfs'])
+    dirs_to_create.append(W['ld_decay_stat_gw'])
+    dirs_to_create.append(W['ld_decay_stat_chr'])
 
 # Add pop stats directories if enabled
 if CALC_POP_STATS:
