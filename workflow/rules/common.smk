@@ -575,6 +575,7 @@ def add_kbest_paths():
     O['climate_site'] = f"{MOD_CLIMATE}tables/present/climate_present_site.tsv"
     O['climate_site_scaled'] = f"{MOD_CLIMATE}tables/present/climate_present_site_scaled.tsv"
     O['climate_all'] = f"{MOD_CLIMATE}tables/present/climate_present_all.tsv"
+    O['climate_invariant'] = f"{MOD_CLIMATE}tables/present/climate_invariant_predictors.tsv"
     # Tables - structure_k/population stats
     O['tajima'] = f"{MOD_STRUCTK}tables/pop_stats/tajima_d_by_pop.tsv"
     O['pi_div'] = f"{MOD_STRUCTK}tables/pop_stats/pi_diversity_by_pop.tsv"
@@ -978,6 +979,7 @@ def get_targets(mode):
         # Climate-dependent targets
         if CLIMATE_ENABLED:
             targets += [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']]
+            targets += [O['climate_invariant']]
             targets += [DENSITY_PLOT_COMBINED]
             targets += [O['corr_heatmap']]
             # Simple PieMaps for ALL 19 BIO variables (exploration step)

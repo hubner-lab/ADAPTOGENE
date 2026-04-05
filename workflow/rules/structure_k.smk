@@ -48,6 +48,17 @@ rule download_climate_present:
             {params.raster_dir} {params.tables_dir} > {log} 2>&1
         """
 
+rule check_climate_variance:
+    """Detect invariant (zero-variance or all-NA) bioclimatic predictors at sample sites."""
+    input:  site = O['climate_site']
+    output: O['climate_invariant']
+    log:    f"{LOGDIR}structure_k/check_climate_variance.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/check_climate_variance.R \
+            {input.site} {output} > {log} 2>&1
+        """
+
 rule density_plot:
     """Generate combined density plot for all climate predictors (all BIO columns)."""
     input:  climate = O['climate_site']
