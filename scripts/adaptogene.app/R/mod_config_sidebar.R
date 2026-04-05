@@ -95,7 +95,7 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
                             bsicons::bs_icon("asterisk", size = "0.75em"),
                             " Core Parameters"
                         ),
-                        render_section_groups(ns, mand, cfg)
+                        render_section_groups(ns, mand, cfg, proj)
                     ),
                 if (length(opt) > 0)
                     bslib::accordion(
@@ -107,7 +107,7 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
                                 " Advanced"
                             ),
                             value = "advanced",
-                            render_section_groups(ns, opt, cfg)
+                            render_section_groups(ns, opt, cfg, proj)
                         )
                     )
             )
@@ -205,7 +205,7 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
 
 #' Render inputs grouped by their section label
 #' @noRd
-render_section_groups <- function(ns, entries, config) {
+render_section_groups <- function(ns, entries, config, project = NULL) {
     sections <- unique(sapply(entries, `[[`, "section"))
     multi_section <- length(sections) > 1
 
@@ -214,20 +214,20 @@ render_section_groups <- function(ns, entries, config) {
         htmltools::tagList(
             if (multi_section)
                 htmltools::p(class = "config-subsection-label", sec),
-            lapply(sec_entries, function(e) render_config_field(ns, e, config))
+            lapply(sec_entries, function(e) render_config_field(ns, e, config, project))
         )
     }))
 }
 
 #' Render a single config field (label + input + help)
 #' @noRd
-render_config_field <- function(ns, entry, config) {
+render_config_field <- function(ns, entry, config, project = NULL) {
     value    <- config_get_by_path(config, entry$key)
     input_id <- ns(gsub("\\.", "_", entry$key))
     help_el  <- if (!is.null(entry$help))
         htmltools::tags$small(class = "form-text text-muted config-help", entry$help)
     else NULL
-    input_el <- build_config_input(input_id, entry, value)
+    input_el <- build_config_input(input_id, entry, value, project)
     label_el <- if (entry$type != "checkbox")
         htmltools::tags$label(
             class = "form-label config-field-label",
@@ -241,7 +241,7 @@ render_config_field <- function(ns, entry, config) {
 
 #' Build the correct Shiny input widget for a schema entry
 #' @noRd
-build_config_input <- function(input_id, entry, value) {
+build_config_input <- function(input_id, entry, value, project = NULL) {
     type        <- entry$type
     display_val <- normalize_display_value(value, type)
 
@@ -274,6 +274,19 @@ build_config_input <- function(input_id, entry, value) {
             local_id <- sub("^.*-", "", input_id)
             render_method_editor(input_id, local_id, display_val)
         },
+        "bio_chips" = {
+            inv <- character(0)
+            if (!is.null(project)) {
+                inv_path <- climate_invariant_path(project)
+                if (file.exists(inv_path)) {
+                    inv <- tryCatch(
+                        data.table::fread(inv_path, sep = "\t", header = TRUE)$predictor,
+                        error = function(e) character(0)
+                    )
+                }
+            }
+            render_bio_chips(input_id, display_val, invariant = inv)
+        },
         shiny::textInput(input_id, label = NULL,
                           value = as.character(display_val %||% ""), width = "100%")
     )
@@ -298,6 +311,15 @@ update_sidebar_inputs <- function(session, entries, saved_config) {
             next
         }
 
+        if (e$type == "bio_chips") {
+            session$sendCustomMessage("bio_chips_reset", list(
+                container_id = paste0(session$ns(iid), "_container"),
+                input_id     = session$ns(iid),
+                value        = as.character(val %||% "")
+            ))
+            next
+        }
+
         dv  <- normalize_display_value(val, e$type)
         switch(e$type,
             "numeric"  = shiny::updateNumericInput(session, iid, value = dv),
@@ -316,6 +338,7 @@ normalize_display_value <- function(value, type) {
         "numeric"      = NA_real_,
         "checkbox"     = FALSE,
         "method_table" = list(),
+        "bio_chips"    = "",
         ""
     ))
     switch(type,
@@ -568,3 +591,89 @@ render_method_editor <- function(input_id, local_id, configs_list) {
         )))
     )
 }
+
+#' Render a grid of bio_1..bio_19 toggle chips
+#'
+#' Replaces the plain text input for climate.predictors with clickable pills.
+#' A hidden textInput (input_id) carries the comma-separated value for Shiny.
+#' @noRd
+render_bio_chips <- function(input_id, display_val, invariant = character(0)) {
+    all_bios <- paste0("bio_", 1:19)
+
+    # Parse current value; default to all selected when empty/NULL
+    selected <- if (!is.null(display_val) && nzchar(trimws(display_val))) {
+        trimws(strsplit(as.character(display_val), ",")[[1]])
+    } else {
+        all_bios
+    }
+    # Force-remove invariant predictors from selected (they cannot be active)
+    selected <- setdiff(selected, invariant)
+
+    chips <- lapply(all_bios, function(b) {
+        is_inv <- b %in% invariant
+        cls <- if (is_inv) {
+            "bc-chip bc-invariant"
+        } else if (b %in% selected) {
+            "bc-chip bc-active"
+        } else {
+            "bc-chip"
+        }
+        htmltools::tags$button(
+            type               = "button",
+            class              = cls,
+            `data-bio`         = b,
+            `data-invariant`   = if (is_inv) "true" else NULL,
+            title              = if (is_inv) paste0(b, ": no variance in current map extent") else NULL,
+            b
+        )
+    })
+
+    container_id <- paste0(input_id, "_container")
+
+    js_code <- sprintf('
+(function() {
+    var container = document.getElementById("%s");
+    var inputEl   = document.getElementById("%s");
+    if (!container || !inputEl) return;
+
+    function syncValue() {
+        var active = container.querySelectorAll(".bc-chip.bc-active");
+        var vals = Array.from(active).map(function(el) { return el.dataset.bio; });
+        var csv = vals.join(",");
+        inputEl.value = csv;
+        Shiny.setInputValue("%s", csv, {priority: "event"});
+    }
+
+    container.addEventListener("click", function(e) {
+        var chip = e.target.closest(".bc-chip");
+        if (!chip) return;
+        if (chip.dataset.invariant === "true") return;
+        chip.classList.toggle("bc-active");
+        syncValue();
+    });
+})();
+', container_id, input_id, input_id)
+
+    # Wrap chips + hidden bridge
+    htmltools::tagList(
+        htmltools::div(
+            id    = container_id,
+            class = "bio-chips"
+        ) |> htmltools::tagAppendChildren(.list = chips),
+        # Hidden bridge: display:none via CSS class
+        htmltools::div(
+            class = "bio-chips-bridge",
+            shiny::textInput(input_id, label = NULL,
+                             value = paste(selected, collapse = ","), width = "100%")
+        ),
+        htmltools::tags$script(htmltools::HTML(js_code))
+    )
+}
+
+#' JS message handler for bio_chips_reset (registered in global JS)
+#'
+#' Called by update_sidebar_inputs() when Reset is clicked.
+#' Sent via session$sendCustomMessage("bio_chips_reset", list(...)).
+#' The matching handler lives in custom.js (or inline in run_app.R).
+#' @noRd
+NULL  # handler registered in www/bio-chips-reset.js

@@ -263,6 +263,12 @@ phenotype_density_path <- function(project) {
     mod_path(project, MOD_CLIMATE, "plots", "density_plot_phenotypes.png")
 }
 
+#' Climate invariant predictors file path
+#' @noRd
+climate_invariant_path <- function(project) {
+    mod_path(project, MOD_CLIMATE, "tables", "present", "climate_invariant_predictors.tsv")
+}
+
 #' LD decay plot path
 #' @noRd
 ld_decay_path <- function(project, per_chr = FALSE) {

@@ -4,6 +4,32 @@
 // Toggles a .config-dirty-badge span inside the sidebar title element.
 // The sidebar title selector targets the bslib sidebar panel's header.
 
+// bio_chips_reset — sync chip active states when Reset is clicked
+// Receives: { container_id, input_id, value: "bio_1,bio_3,bio_12" }
+Shiny.addCustomMessageHandler("bio_chips_reset", function(msg) {
+    var container = document.getElementById(msg.container_id);
+    var inputEl   = document.getElementById(msg.input_id);
+    if (!container) return;
+
+    var selected = msg.value ? msg.value.split(",").map(function(s) { return s.trim(); }) : [];
+    // If empty, default to all selected
+    if (selected.length === 0) {
+        for (var i = 1; i <= 19; i++) selected.push("bio_" + i);
+    }
+
+    container.querySelectorAll(".bc-chip").forEach(function(chip) {
+        if (chip.dataset.invariant === "true") return;
+        var active = selected.indexOf(chip.dataset.bio) !== -1;
+        chip.classList.toggle("bc-active", active);
+    });
+
+    // Sync the hidden bridge input too
+    if (inputEl) {
+        inputEl.value = selected.join(",");
+        Shiny.setInputValue(msg.input_id, selected.join(","), {priority: "event"});
+    }
+});
+
 Shiny.addCustomMessageHandler("config_dirty_update", function(msg) {
     var sid  = msg.sidebar_id;
     var n    = msg.dirty_count;

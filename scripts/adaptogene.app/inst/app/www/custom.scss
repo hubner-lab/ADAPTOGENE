@@ -298,6 +298,103 @@
     }
 }
 
+// ── Bio variable chips (climate.predictors) ───────────────────────────────────
+.bio-chips {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 0.25rem;
+}
+
+.bio-chips-bridge {
+    display: none;
+}
+
+.bc-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    border-radius: 4px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 0 0.2rem;
+    user-select: none;
+    line-height: 1;
+    white-space: nowrap;
+
+    // Inactive: muted gray pill
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: var(--bs-secondary-color);
+
+    &.bc-active {
+        background: $primary;
+        border-color: $primary;
+        color: #fff;
+        font-weight: 600;
+    }
+
+    &:hover:not(.bc-active):not(.bc-invariant) {
+        border-color: $primary;
+        background: rgba(27, 122, 110, 0.12);
+        color: $primary;
+    }
+
+    &.bc-invariant {
+        background: rgba(220, 53, 69, 0.08);
+        border-color: rgba(220, 53, 69, 0.35);
+        color: #dc3545;
+        cursor: not-allowed;
+        text-decoration: line-through;
+        opacity: 0.75;
+
+        &:hover {
+            background: rgba(220, 53, 69, 0.08);
+            border-color: rgba(220, 53, 69, 0.35);
+            color: #dc3545;
+        }
+    }
+}
+
+[data-bs-theme="dark"] {
+    .bc-chip {
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: var(--bs-secondary-color);
+
+        &.bc-active {
+            background: $primary;
+            border-color: $primary;
+            color: #fff;
+        }
+
+        &:hover:not(.bc-active):not(.bc-invariant) {
+            border-color: $primary;
+            background: rgba(27, 122, 110, 0.18);
+            color: #5ecfc6;
+        }
+
+        &.bc-invariant {
+            background: rgba(220, 53, 69, 0.12);
+            border-color: rgba(220, 53, 69, 0.4);
+            color: #f87171;
+            cursor: not-allowed;
+            text-decoration: line-through;
+            opacity: 0.7;
+
+            &:hover {
+                background: rgba(220, 53, 69, 0.12);
+                border-color: rgba(220, 53, 69, 0.4);
+                color: #f87171;
+            }
+        }
+    }
+}
+
 // ── Regular image cards: compact default height ───────────────────────────────
 // Applies to all mod_image_card images; overridden for piemaps below.
 // flex: 1 lets card body fill the card's available height (cards are flex columns).
