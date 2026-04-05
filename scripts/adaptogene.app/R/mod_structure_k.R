@@ -26,10 +26,10 @@ mod_structure_k_ui <- function(id) {
             mod_image_card_ui(ns("pca_structure_k"))
         ),
 
-        # Climate, pop stats, tables in accordion
+        # Climate, LD decay, pop stats, tables in accordion
         bslib::accordion(
             id       = ns("sk_sections"),
-            open     = FALSE,
+            open     = c("climate", "ld_decay"),
             multiple = TRUE,
 
             bslib::accordion_panel(
@@ -45,6 +45,17 @@ mod_structure_k_ui <- function(id) {
             ),
 
             bslib::accordion_panel(
+                "LD Decay",
+                value = "ld_decay",
+                icon  = bsicons::bs_icon("bar-chart-line"),
+                bslib::layout_column_wrap(
+                    width = 1 / 2,
+                    mod_image_card_ui(ns("ld_decay")),
+                    mod_image_card_ui(ns("ld_decay_chr"))
+                )
+            ),
+
+            bslib::accordion_panel(
                 "Population Statistics",
                 value = "pop_stats",
                 icon  = bsicons::bs_icon("graph-up"),
@@ -52,11 +63,6 @@ mod_structure_k_ui <- function(id) {
                     width = 1 / 2,
                     mod_image_card_ui(ns("mantel")),
                     mod_image_card_ui(ns("amova"))
-                ),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("ld_decay")),
-                    mod_image_card_ui(ns("ld_decay_chr"))
                 )
             ),
 
