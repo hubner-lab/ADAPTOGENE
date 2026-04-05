@@ -33,13 +33,6 @@ manhattan_bg_path <- function(project, module = MOD_ASSOC, method, trait, k, adj
              paste0("manhattan_", trait, "_K", k, "_", adjust, "_background.png"))
 }
 
-#' Per-method Manhattan regions background PNG path
-#' @noRd
-manhattan_regions_bg_path <- function(project, module = MOD_ASSOC, method, trait, k, adjust) {
-    mod_path(project, module, "plots", "manhattan", method,
-             paste0("manhattan_", trait, "_K", k, "_", adjust, "_regions_background.png"))
-}
-
 #' Per-method coordinate mapping JSON path
 #' @noRd
 manhattan_coords_path <- function(project, module = MOD_ASSOC, method, trait, k, adjust) {
@@ -52,13 +45,6 @@ manhattan_coords_path <- function(project, module = MOD_ASSOC, method, trait, k,
 combined_manhattan_bg_path <- function(project, module = MOD_ASSOC, k) {
     mod_path(project, module, "plots", "manhattan", "combined",
              paste0("manhattan_combined_K", k, "_background.png"))
-}
-
-#' Combined Manhattan regions background PNG path
-#' @noRd
-combined_manhattan_regions_bg_path <- function(project, module = MOD_ASSOC, k) {
-    mod_path(project, module, "plots", "manhattan", "combined",
-             paste0("manhattan_combined_K", k, "_regions_background.png"))
 }
 
 #' Combined Manhattan coordinate mapping JSON path
@@ -89,13 +75,6 @@ qq_combined_path <- function(project, module = MOD_ASSOC, k) {
 miami_bg_path <- function(project, k) {
     mod_path(project, MOD_OVERLAP, "plots",
              paste0("miami_combined_K", k, "_background.png"))
-}
-
-#' Miami regions background PNG path
-#' @noRd
-miami_regions_bg_path <- function(project, k) {
-    mod_path(project, MOD_OVERLAP, "plots",
-             paste0("miami_combined_K", k, "_regions_background.png"))
 }
 
 #' Miami coordinate mapping JSON path

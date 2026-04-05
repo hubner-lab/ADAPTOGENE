@@ -116,8 +116,6 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           gea_preds = PREDICTORS_SELECTED,
           gwas_preds = PHENO_PREDICTORS,
           kbest = K_BEST,
-          regions = "NULL",
-          sigsnps = "NULL",
           plot_dir = f"{MOD_OVERLAP}plots/"
       log: f"{LOGDIR}overlapping/miami_plot.log"
       shell:
@@ -125,42 +123,7 @@ if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
           Rscript /pipeline/scripts/plot_miami.R \
               "{params.gea_str}" "{params.gwas_str}" \
               {params.gea_preds} {params.gwas_preds} \
-              {params.kbest} {params.regions} {params.sigsnps} \
-              {params.plot_dir} > {log} 2>&1
-          """
-
-    rule miami_plot_regions:
-      """Static Miami plot with region rectangles."""
-      input:
-          gea_tables = [assoc_pvalues(m) for m in ASSOC_CONFIGS],
-          gwas_tables = [pheno_pvalues(m) for m in PHENO_ASSOC_CONFIGS],
-          regions = O['overlap_regions_combined'],
-          sigsnps = O['overlap_selected_snps']
-      output:
-          png = O['overlap_miami_regions'],
-          svg = O['overlap_miami_regions_svg'],
-          regions_background = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}_regions_background.png"
-      params:
-          gea_str = ','.join([
-              f"{method}:{adjust}:{assoc_pvalues(method)}"
-              for method, adjust in ASSOC_CONFIGS.items()
-          ]),
-          gwas_str = ','.join([
-              f"{method}:{adjust}:{pheno_pvalues(method)}"
-              for method, adjust in PHENO_ASSOC_CONFIGS.items()
-          ]),
-          gea_preds = PREDICTORS_SELECTED,
-          gwas_preds = PHENO_PREDICTORS,
-          kbest = K_BEST,
-          plot_dir = f"{MOD_OVERLAP}plots/"
-      log: f"{LOGDIR}overlapping/miami_plot_regions.log"
-      shell:
-          """
-          Rscript /pipeline/scripts/plot_miami.R \
-              "{params.gea_str}" "{params.gwas_str}" \
-              {params.gea_preds} {params.gwas_preds} \
-              {params.kbest} {input.regions} {input.sigsnps} \
-              {params.plot_dir} > {log} 2>&1
+              {params.kbest} {params.plot_dir} > {log} 2>&1
           """
 
 # Pairwise trait overlap — works with GEA-only, GWAS-only, or both

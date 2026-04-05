@@ -382,61 +382,26 @@ if PHENO_ASSOC_CONFIGS:
       params:
           k = K_BEST,
           plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
-          regions = "NULL",
-          selected_snps = "NULL",
           predictors = PHENO_PREDICTORS
       log: f"{LOGDIR}phenotype_association/manhattan_pheno_{{method}}_{{trait}}_{{adjust}}.log"
       shell:
           """
           Rscript /pipeline/scripts/plot_manhattan.R \
               {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-              {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-              {params.predictors} > {log} 2>&1
+              {wildcards.trait} {params.plot_dir} {params.predictors} > {log} 2>&1
           """
-  
-  rule manhattan_pheno_regions:
-      """Generate Manhattan plot with phenotype regions highlighted."""
-      input:
-          assoc = lambda wc: pheno_pvalues(wc.method),
-          regions = O['pheno_regions_per_trait'],
-          sigsnps = lambda wc: [pheno_sigsnps(method, adjust) for method, adjust in PHENO_ASSOC_CONFIGS.items()]
-      output:
-          png = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
-          svg = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg",
-          regions_background = f"{MOD_PHENO}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions_background.png"
-      wildcard_constraints:
-          method = PHENO_METHOD_REGEX,
-          trait = r"[a-zA-Z]\w*",
-          adjust = r"\w+_[\d.]+"
-      params:
-          k = K_BEST,
-          plot_dir = lambda wc: f"{MOD_PHENO}plots/manhattan/{wc.method}/",
-          sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-          predictors = PHENO_PREDICTORS
-      log: f"{LOGDIR}phenotype_association/manhattan_pheno_regions_{{method}}_{{trait}}_{{adjust}}.log"
-      shell:
-          """
-          Rscript /pipeline/scripts/plot_manhattan.R \
-              {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-              {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-              {params.predictors} > {log} 2>&1
-          """
-  
+
   rule manhattan_combined_pheno:
-      """Generate combined Manhattan plots and QQ plot for all phenotype traits."""
+      """Generate combined Manhattan and QQ plots for all phenotype traits."""
       input:
-          assoc_tables = [pheno_pvalues(method) for method in PHENO_ASSOC_CONFIGS],
-          regions = O['pheno_regions_combined']
+          assoc_tables = [pheno_pvalues(method) for method in PHENO_ASSOC_CONFIGS]
       output:
           simple_png = O['pheno_manhattan_combined'],
           simple_svg = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.svg",
-          regions_png = O['pheno_manhattan_combined_regions'],
-          regions_svg = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
           qq_png = O['pheno_qq_combined'],
           qq_svg = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
           background = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
-          coords_json = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
-          regions_background = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions_background.png"
+          coords_json = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json"
       params:
           assoc_str = ','.join([
               f"{method}:{adjust}:{pheno_pvalues(method)}"
@@ -450,8 +415,8 @@ if PHENO_ASSOC_CONFIGS:
           """
           Rscript /pipeline/scripts/plot_manhattan_combined.R \
               "{params.assoc_str}" {params.predictors} {params.k} \
-              {input.regions} {params.plot_dir} > {log} 2>&1
-          touch {output.simple_png} {output.simple_svg} {output.regions_png} {output.regions_svg} {output.qq_png} {output.qq_svg} {output.background} {output.coords_json} {output.regions_background}
+              {params.plot_dir} > {log} 2>&1
+          touch {output.simple_png} {output.simple_svg} {output.qq_png} {output.qq_svg} {output.background} {output.coords_json}
           """
   
   rule piemap_pheno:

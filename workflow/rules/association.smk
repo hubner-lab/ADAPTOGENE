@@ -184,49 +184,13 @@ rule manhattan_plot:
     params:
         k = K_BEST,
         plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
-        regions = "NULL",  # No regions for simple plot
-        selected_snps = "NULL",  # No selected SNPs for simple plot
         predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}association/manhattan_{{method}}_{{trait}}_{{adjust}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_manhattan.R \
             {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {params.regions} {params.selected_snps} \
-            {params.predictors} > {log} 2>&1
-        """
-
-# Manhattan plots with regions highlighted (runs after regions are created)
-# Produces both PNG and SVG in a single run
-# For combined methods (Sum/Overlap/PairOverlap), shows all selected SNPs
-# with different shapes: circle=current method, triangle=other method, diamond=both
-rule manhattan_plot_regions:
-    """Generate Manhattan plot with per-trait regions highlighted."""
-    input:
-        assoc = lambda wc: assoc_pvalues(wc.method),
-        regions = O['regions_per_trait'],
-        # All sigSNPs files from all methods for per-trait method attribution
-        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
-    output:
-        png = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.png",
-        svg = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions.svg",
-        regions_background = f"{MOD_ASSOC}plots/manhattan/{{method}}/manhattan_{{trait}}_K{K_BEST}_{{adjust}}_regions_background.png"
-    wildcard_constraints:
-        method = ASSOC_METHOD_REGEX,
-        trait = r"bio_\d+",
-        adjust = r"\w+_[\d.]+"
-    params:
-        k = K_BEST,
-        plot_dir = lambda wc: f"{MOD_ASSOC}plots/manhattan/{wc.method}/",
-        sigsnps_str = lambda wc, input: ','.join(input.sigsnps),
-        predictors = PREDICTORS_SELECTED
-    log: f"{LOGDIR}association/manhattan_regions_{{method}}_{{trait}}_{{adjust}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_manhattan.R \
-            {input.assoc} {wildcards.adjust} {params.k} {wildcards.method} \
-            {wildcards.trait} {params.plot_dir} {input.regions} "{params.sigsnps_str}" \
-            {params.predictors} > {log} 2>&1
+            {wildcards.trait} {params.plot_dir} {params.predictors} > {log} 2>&1
         """
 
 # Find significant SNPs - one rule per method
@@ -371,21 +335,16 @@ rule run_enrichment:
 
 # Combined Manhattan plots (all traits and methods)
 rule manhattan_combined:
-    """Generate combined Manhattan plots and QQ plot showing all traits and methods together.
-    Produces two Manhattan versions (simple and with regions) plus a combined QQ plot."""
+    """Generate combined Manhattan and QQ plots showing all traits and methods together."""
     input:
-        assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS],
-        regions = O['regions_combined']
+        assoc_tables = [assoc_pvalues(method) for method in ASSOC_CONFIGS]
     output:
         simple_png = O['manhattan_combined'],
         simple_svg = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.svg",
-        regions_png = O['manhattan_combined_regions'],
-        regions_svg = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions.svg",
         qq_png = O['qq_combined'],
         qq_svg = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
         background = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
-        coords_json = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
-        regions_background = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_regions_background.png"
+        coords_json = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json"
     params:
         assoc_str = ','.join([
             f"{method}:{adjust}:{assoc_pvalues(method)}"
@@ -399,5 +358,5 @@ rule manhattan_combined:
         """
         Rscript /pipeline/scripts/plot_manhattan_combined.R \
             "{params.assoc_str}" {params.predictors} {params.k} \
-            {input.regions} {params.plot_dir} > {log} 2>&1
+            {params.plot_dir} > {log} 2>&1
         """

@@ -22,8 +22,7 @@ args = commandArgs(trailingOnly=TRUE)
 ASSOC_FILES_STR = args[1]   # Comma-separated "METHOD:ADJUST:FILEPATH"
 PREDICTORS = args[2]        # Comma-separated trait names
 Kbest = args[3] %>% as.numeric
-REGIONS_FILE = args[4]      # Regions_climate_combined.tsv
-PLOT_DIR = args[5]          # Output directory
+PLOT_DIR = args[4]          # Output directory
 ################################
 
 message('INFO: Combined Manhattan plot for all traits and methods')
@@ -382,185 +381,6 @@ coords_file_comb <- file.path(PLOT_DIR, paste0("manhattan_combined_K", Kbest, "_
 jsonlite::write_json(coords_list_comb, coords_file_comb, auto_unbox = TRUE, digits = 6)
 message(paste0('INFO: Saved combined coords JSON: ', basename(coords_file_comb)))
 
-################################ Plot with Regions
-
-if (file.exists(REGIONS_FILE)) {
-    message('INFO: Loading combined climate regions')
-    regions <- fread(REGIONS_FILE)
-    if ('chr' %in% colnames(regions)) regions$chr <- as.character(regions$chr)
-
-    if (nrow(regions) > 0) {
-        message(paste0('INFO: Found ', nrow(regions), ' combined regions'))
-
-        # Limit to top 10 regions by SNP count
-        MAX_REGIONS <- 10
-        if (nrow(regions) > MAX_REGIONS) {
-            message(paste0('INFO: Limiting to top ', MAX_REGIONS, ' regions'))
-            regions <- regions %>%
-                dplyr::arrange(desc(snp_count), min_pvalue) %>%
-                head(MAX_REGIONS)
-        }
-
-        # Add cumulative positions
-        regions <- regions %>%
-            dplyr::mutate(chr = as.character(chr)) %>%
-            left_join(chr_info %>%
-                     dplyr::mutate(chr = as.character(chr_f)) %>%
-                     dplyr::select(chr, tot),
-                     by = "chr") %>%
-            dplyr::mutate(
-                start_cum = start + tot,
-                end_cum = end + tot
-            )
-
-        # Ensure minimum visible width for regions
-        total_span <- max(plot_data_all$pos_cum) - min(plot_data_all$pos_cum)
-        min_half_width <- total_span * 0.015
-
-        regions <- regions %>%
-            dplyr::mutate(
-                region_center = (start_cum + end_cum) / 2,
-                region_half_width = pmax((end_cum - start_cum) / 2, min_half_width),
-                start_cum = region_center - region_half_width,
-                end_cum = region_center + region_half_width
-            ) %>%
-            dplyr::select(-region_center, -region_half_width)
-
-        # Region colors with chr:start-end labels for legend
-        region_ids <- unique(regions$region_id)
-        region_colors <- get_region_colors(length(region_ids))
-        names(region_colors) <- region_ids
-
-        # Create display labels: chr:start-end
-        region_labels <- regions %>%
-            dplyr::distinct(region_id, .keep_all = TRUE) %>%
-            dplyr::mutate(label = paste0(chr, ":", scales::comma(start), "-", scales::comma(end))) %>%
-            dplyr::select(region_id, label)
-        region_label_map <- setNames(region_labels$label, region_labels$region_id)
-
-        # Remap region_id to display label in data and colors
-        regions$region_id <- region_label_map[regions$region_id]
-        region_colors <- setNames(region_colors, region_label_map[names(region_colors)])
-
-        # Prepare data subsets (same as simple version)
-        df_background_reg <- plot_data_all %>%
-            dplyr::filter(!is_significant) %>%
-            dplyr::filter(method == names(assoc_info)[1])
-
-        df_sig_reg <- plot_data_all %>%
-            dplyr::filter(is_significant)
-
-        # Plot with regions — per-trait background + region rectangles (chr gaps for separation)
-        message('INFO: Generating combined Manhattan plot with regions')
-
-        p_regions <- ggplot() +
-            # 1. Region rectangles (with legend)
-            geom_rect(data = regions,
-                     aes(xmin = start_cum, xmax = end_cum,
-                         ymin = 0, ymax = y_max, fill = region_id),
-                     alpha = 0.15) +
-            scale_fill_manual(values = region_colors, name = "Region")
-
-        # 3. Per-trait background SNPs
-        for (t in traits) {
-            df_t <- df_background_reg %>% dplyr::filter(trait == t)
-            df_t$point_color <- unname(trait_colors[t])
-            p_regions <- p_regions +
-                geom_scattermore(data = df_t,
-                                 aes(x = pos_cum, y = log10p, color = point_color),
-                                 alpha = 0.5, pointsize = 10,
-                                 pixels = c(4000, 1500), interpolate = FALSE)
-        }
-
-        p_regions <- p_regions +
-            scale_color_identity() +
-            # 4. All significant SNPs - color by trait, shape by method
-            ggnewscale::new_scale_color() +
-            geom_point(data = df_sig_reg,
-                      aes(x = pos_cum, y = log10p, color = trait, shape = method),
-                      alpha = 0.9, size = 2.5, stroke = 0.5) +
-            scale_color_manual(values = trait_colors, name = "Trait") +
-            scale_shape_manual(values = method_shapes, name = "Method") +
-            # Threshold line
-            geom_hline(yintercept = min_threshold, linetype = "dashed",
-                      color = "red", linewidth = 0.5, alpha = 0.5) +
-            # Axes
-            scale_x_continuous(
-                labels = chr_info$chr_f,
-                breaks = chr_info$center,
-                expand = c(0.01, 0.01)
-            ) +
-            scale_y_continuous(
-                expand = expansion(mult = c(0, 0.05)),
-                limits = c(0, y_max)
-            ) +
-            labs(
-                title = "Combined Association Analysis with Regions (All Traits & Methods)",
-                subtitle = paste0("K = ", Kbest, " | ", length(region_ids), " regions | color=trait, shape=method"),
-                x = "Chromosome",
-                y = expression(-log[10](p-value))
-            ) +
-            theme_manhattan() +
-            theme(
-                legend.position = "right",
-                legend.text = element_text(size = 7),
-                legend.title = element_text(size = 8, face = "bold"),
-                legend.key.size = unit(0.4, "cm"),
-                legend.box = "vertical"
-            ) +
-            guides(
-                fill = guide_legend(ncol = 1, order = 3, override.aes = list(alpha = 0.3)),
-                color = guide_legend(ncol = 1, order = 1, override.aes = list(size = 2)),
-                shape = guide_legend(ncol = 1, order = 2, override.aes = list(size = 2))
-            )
-
-        # Save regions plot
-        regions_base <- paste0("manhattan_combined_K", Kbest, "_regions")
-        ggsave(file.path(PLOT_DIR, paste0(regions_base, ".png")), p_regions,
-               width = 15, height = 5.5, dpi = 300)
-        ggsave(file.path(PLOT_DIR, paste0(regions_base, ".svg")), p_regions,
-               width = 15, height = 5.5)
-        message(paste0('INFO: Saved combined regions plot: ', regions_base))
-
-        # Background regions version for Shiny (no sig SNPs, no axes)
-        p_bg_reg_comb <- ggplot() +
-            geom_rect(data = regions,
-                     aes(xmin = start_cum, xmax = end_cum,
-                         ymin = bg_y_lo, ymax = bg_y_hi, fill = region_id),
-                     alpha = 0.15) +
-            scale_fill_manual(values = region_colors, guide = "none")
-
-        for (t in traits) {
-            df_t_bg <- df_background_reg %>% dplyr::filter(trait == t)
-            df_t_bg$point_color <- unname(trait_colors[t])
-            p_bg_reg_comb <- p_bg_reg_comb +
-                geom_scattermore(data = df_t_bg,
-                                 aes(x = pos_cum, y = log10p, color = point_color),
-                                 alpha = 0.5, pointsize = 10,
-                                 pixels = c(4000, 1500), interpolate = FALSE)
-        }
-
-        p_bg_reg_comb <- p_bg_reg_comb +
-            scale_color_identity() +
-            geom_hline(yintercept = min_threshold, linetype = "dashed",
-                       color = "red", linewidth = 0.5, alpha = 0.5) +
-            scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
-            scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
-            theme_void() +
-            theme(plot.background = element_rect(fill = "white", color = NA))
-
-        bg_reg_comb_base <- paste0("manhattan_combined_K", Kbest, "_regions_background")
-        ggsave(file.path(PLOT_DIR, paste0(bg_reg_comb_base, ".png")), p_bg_reg_comb,
-               width = 15, height = 5.5, dpi = 300)
-        message(paste0('INFO: Saved combined background regions Manhattan: ', bg_reg_comb_base, '.png'))
-
-    } else {
-        message('INFO: Regions file is empty')
-    }
-} else {
-    message('INFO: Regions file not found')
-}
-
 ################################ QQ Plot (Combined)
 
 message('INFO: Generating combined QQ plot')
@@ -626,13 +446,5 @@ ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
        width = 7, height = 7)
 message(paste0('INFO: Saved combined QQ plot: ', qq_base))
-
-# Ensure _regions_background.png exists (may be skipped if regions file is empty)
-expected_bg_reg_comb <- file.path(PLOT_DIR,
-    paste0("manhattan_combined_K", Kbest, "_regions_background.png"))
-if (!file.exists(expected_bg_reg_comb)) {
-    file.copy(file.path(PLOT_DIR, paste0(bg_comb_base, ".png")), expected_bg_reg_comb)
-    message('INFO: No combined regions - copied simple background as regions background')
-}
 
 message('INFO: Combined Manhattan plot complete')

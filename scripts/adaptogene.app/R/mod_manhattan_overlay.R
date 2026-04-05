@@ -88,34 +88,17 @@ mod_manhattan_overlay_server <- function(id, project_data,
             k   <- pd$k_best
             if (is.na(k)) return(NULL)
 
-            # When interactive region rectangles are provided via the regions param,
-            # always use the plain background (no baked-in regions) to avoid
-            # double-drawing static + dynamic rectangles on top of each other.
-            has_interactive_regions <- !is.null(regions())
-            use_regions_bg <- show_regions() && !has_interactive_regions
-
             if (is_miami) {
-                if (use_regions_bg && file_ok(miami_regions_bg_path(pd$name, k)))
-                    miami_regions_bg_path(pd$name, k)
-                else
-                    miami_bg_path(pd$name, k)
+                miami_bg_path(pd$name, k)
             } else if (combined) {
-                if (use_regions_bg &&
-                    file_ok(combined_manhattan_regions_bg_path(pd$name, module, k)))
-                    combined_manhattan_regions_bg_path(pd$name, module, k)
-                else
-                    combined_manhattan_bg_path(pd$name, module, k)
+                combined_manhattan_bg_path(pd$name, module, k)
             } else {
                 m <- method(); t <- trait()
                 shiny::req(m, t)
                 cfg <- pd$config
                 adj <- resolve_adjust(cfg, m, if (module == MOD_PHENO) "phenotype_association" else "association")
                 if (is.null(adj)) return(NULL)
-                if (use_regions_bg &&
-                    file_ok(manhattan_regions_bg_path(pd$name, module, m, t, k, adj)))
-                    manhattan_regions_bg_path(pd$name, module, m, t, k, adj)
-                else
-                    manhattan_bg_path(pd$name, module, m, t, k, adj)
+                manhattan_bg_path(pd$name, module, m, t, k, adj)
             }
         })
 
