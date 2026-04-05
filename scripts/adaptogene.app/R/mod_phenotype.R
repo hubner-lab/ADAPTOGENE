@@ -129,8 +129,7 @@ mod_phenotype_server <- function(id, project_data) {
             saved_d <- get_global_param(rp, MOD_PHENO, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
                  else as.integer(config_get(pd$config, "phenotype_association", "region_distance",
-                                  default = config_get(pd$config, "association", "region_distance",
-                                                       default = 1000000L)))
+                                            default = 1000000L))
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -147,10 +146,8 @@ mod_phenotype_server <- function(id, project_data) {
             v <- input$region_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                as.integer(config_get(
-                    pd$config, "phenotype_association", "region_distance",
-                    default = config_get(pd$config, "association", "region_distance",
-                                        default = 1000000L)))
+                as.integer(config_get(pd$config, "phenotype_association", "region_distance",
+                                      default = 1000000L))
             } else {
                 as.integer(v)
             }
@@ -163,8 +160,7 @@ mod_phenotype_server <- function(id, project_data) {
             saved_g <- get_global_param(rp, MOD_PHENO, "combine_gap")
             g <- if (!is.null(saved_g)) as.integer(saved_g)
                  else as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
-                                  default = config_get(pd$config, "association", "combine_gap",
-                                                       default = 100000L)))
+                                            default = 100000L))
             shiny::updateNumericInput(session, "combine_gap", value = g)
         })
 
@@ -182,8 +178,7 @@ mod_phenotype_server <- function(id, project_data) {
             if (is.null(v) || is.na(v) || v < 0L) {
                 pd <- project_data()
                 as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
-                           default = config_get(pd$config, "association", "combine_gap",
-                                                default = 100000L)))
+                                      default = 100000L))
             } else {
                 as.integer(v)
             }

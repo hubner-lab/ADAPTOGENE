@@ -287,6 +287,9 @@ build_config_input <- function(input_id, entry, value, project = NULL) {
             }
             render_bio_chips(input_id, display_val, invariant = inv)
         },
+        "pheno_chips" = {
+            render_pheno_chips(input_id, display_val, project)
+        },
         shiny::textInput(input_id, label = NULL,
                           value = as.character(display_val %||% ""), width = "100%")
     )
@@ -320,6 +323,15 @@ update_sidebar_inputs <- function(session, entries, saved_config) {
             next
         }
 
+        if (e$type == "pheno_chips") {
+            session$sendCustomMessage("pheno_chips_reset", list(
+                container_id = paste0(session$ns(iid), "_container"),
+                input_id     = session$ns(iid),
+                value        = as.character(val %||% "")
+            ))
+            next
+        }
+
         dv  <- normalize_display_value(val, e$type)
         switch(e$type,
             "numeric"  = shiny::updateNumericInput(session, iid, value = dv),
@@ -339,6 +351,7 @@ normalize_display_value <- function(value, type) {
         "checkbox"     = FALSE,
         "method_table" = list(),
         "bio_chips"    = "",
+        "pheno_chips"  = "",
         ""
     ))
     switch(type,
@@ -674,6 +687,106 @@ render_bio_chips <- function(input_id, display_val, invariant = character(0)) {
 #'
 #' Called by update_sidebar_inputs() when Reset is clicked.
 #' Sent via session$sendCustomMessage("bio_chips_reset", list(...)).
-#' The matching handler lives in custom.js (or inline in run_app.R).
+#' The matching handler lives in www/config-dirty.js.
 #' @noRd
-NULL  # handler registered in www/bio-chips-reset.js
+NULL  # handler registered in www/config-dirty.js
+
+#' Render a grid of phenotype trait toggle chips
+#'
+#' Analogous to render_bio_chips but for phenotype traits discovered from
+#' processing/tables/metadata.tsv columns 5+.
+#' Shows a placeholder if the metadata file doesn't exist yet (processing not run).
+#' @noRd
+render_pheno_chips <- function(input_id, display_val, project) {
+    # Discover trait names from processed metadata
+    all_traits <- character(0)
+    if (!is.null(project)) {
+        meta_path <- hap_metadata_path(project)
+        if (file.exists(meta_path)) {
+            hdr <- tryCatch({
+                con <- file(meta_path, "r")
+                on.exit(close(con))
+                line <- readLines(con, n = 1)
+                trimws(strsplit(line, "\t")[[1]])
+            }, error = function(e) character(0))
+            if (length(hdr) > 4) all_traits <- hdr[5:length(hdr)]
+        }
+    }
+
+    # No metadata yet — show placeholder
+    if (length(all_traits) == 0) {
+        return(htmltools::tagList(
+            htmltools::div(
+                class = "text-muted small fst-italic",
+                "Run processing mode first to discover phenotype traits."
+            ),
+            # Hidden bridge with empty value so field is skipped on collect
+            htmltools::div(
+                class = "bio-chips-bridge",
+                shiny::textInput(input_id, label = NULL, value = "", width = "100%")
+            )
+        ))
+    }
+
+    # Parse current selection; default to all selected when empty/NULL
+    selected <- if (!is.null(display_val) && nzchar(trimws(as.character(display_val)))) {
+        trimws(strsplit(as.character(display_val), ",")[[1]])
+    } else {
+        all_traits
+    }
+    # Remove any saved traits no longer in metadata
+    selected <- intersect(selected, all_traits)
+    if (length(selected) == 0) selected <- all_traits
+
+    chips <- lapply(all_traits, function(tr) {
+        cls <- if (tr %in% selected) "bc-chip bc-active" else "bc-chip"
+        htmltools::tags$button(
+            type       = "button",
+            class      = cls,
+            `data-trait` = tr,
+            tr
+        )
+    })
+
+    container_id <- paste0(input_id, "_container")
+
+    js_code <- sprintf('
+(function() {
+    var container = document.getElementById("%s");
+    var inputEl   = document.getElementById("%s");
+    if (!container || !inputEl) return;
+
+    function syncValue() {
+        var active = container.querySelectorAll(".bc-chip.bc-active");
+        var vals = Array.from(active).map(function(el) { return el.dataset.trait; });
+        var csv = vals.join(",");
+        inputEl.value = csv;
+        Shiny.setInputValue("%s", csv, {priority: "event"});
+    }
+
+    container.addEventListener("click", function(e) {
+        var chip = e.target.closest(".bc-chip");
+        if (!chip) return;
+        chip.classList.toggle("bc-active");
+        syncValue();
+    });
+})();
+', container_id, input_id, input_id)
+
+    htmltools::tagList(
+        htmltools::div(
+            id    = container_id,
+            class = "bio-chips"
+        ) |> htmltools::tagAppendChildren(.list = chips),
+        htmltools::div(
+            class = "bio-chips-bridge",
+            shiny::textInput(input_id, label = NULL,
+                             value = paste(selected, collapse = ","), width = "100%")
+        ),
+        htmltools::tags$script(htmltools::HTML(js_code))
+    )
+}
+
+#' JS message handler for pheno_chips_reset (registered in www/config-dirty.js)
+#' @noRd
+NULL

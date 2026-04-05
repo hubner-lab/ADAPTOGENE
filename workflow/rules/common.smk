@@ -406,6 +406,12 @@ except Exception:
     META_HAS_PHENO = False
 if PHENO_ASSOC_CONFIGS:
     PHENO_TRAITS = _meta_header[4:] if META_HAS_PHENO else []
+    # Filter by phenotype_association.traits if specified in config
+    _pheno_trait_filter = _pheno.get('traits', '')
+    if _pheno_trait_filter:
+        _allowed = [t.strip() for t in str(_pheno_trait_filter).split(',') if t.strip()]
+        if _allowed:
+            PHENO_TRAITS = [t for t in PHENO_TRAITS if t in _allowed]
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
 # HAPLOTYPE parameters

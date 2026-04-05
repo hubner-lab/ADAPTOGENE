@@ -30,6 +30,35 @@ Shiny.addCustomMessageHandler("bio_chips_reset", function(msg) {
     }
 });
 
+// pheno_chips_reset — sync phenotype trait chip active states when Reset is clicked
+// Receives: { container_id, input_id, value: "height,flowering_time" }
+Shiny.addCustomMessageHandler("pheno_chips_reset", function(msg) {
+    var container = document.getElementById(msg.container_id);
+    var inputEl   = document.getElementById(msg.input_id);
+    if (!container) return;
+
+    // Parse selected traits; empty = all selected
+    var selected = msg.value ? msg.value.split(",").map(function(s) { return s.trim(); }).filter(Boolean) : [];
+    var allChips = container.querySelectorAll(".bc-chip");
+    if (selected.length === 0) {
+        // Default: select all
+        allChips.forEach(function(chip) { chip.classList.add("bc-active"); });
+        var all = Array.from(allChips).map(function(c) { return c.dataset.trait; });
+        if (inputEl) {
+            inputEl.value = all.join(",");
+            Shiny.setInputValue(msg.input_id, all.join(","), {priority: "event"});
+        }
+    } else {
+        allChips.forEach(function(chip) {
+            chip.classList.toggle("bc-active", selected.indexOf(chip.dataset.trait) !== -1);
+        });
+        if (inputEl) {
+            inputEl.value = selected.join(",");
+            Shiny.setInputValue(msg.input_id, selected.join(","), {priority: "event"});
+        }
+    }
+});
+
 Shiny.addCustomMessageHandler("config_dirty_update", function(msg) {
     var sid  = msg.sidebar_id;
     var n    = msg.dirty_count;
