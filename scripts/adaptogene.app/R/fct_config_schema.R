@@ -105,9 +105,8 @@ config_schema <- function() {
           "checkbox", TRUE,
           help = "Download WorldClim data and enable GEA / maladaptation analysis"),
         s("climate.predictors", "Climate predictors", "association", "Climate",
-          "text",    TRUE,
-          help = "Comma-separated bioclim variable names for GEA (review piemaps in Structure K first, e.g. bio_1,bio_12)",
-          placeholder = "bio_1,bio_12"),
+          "bio_chips", TRUE,
+          help = "Click to toggle variables for GEA. Review piemaps in Structure K first to drop collinear or low-variance predictors."),
         # Optional — map
         s("map.climate_extent", "Map extent",        "structure_k", "Map",
           "text",    TRUE,
