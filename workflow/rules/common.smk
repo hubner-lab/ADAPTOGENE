@@ -805,7 +805,9 @@ def piemap_notrait(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}.png"
 def assoc_pvalues(method): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
 def assoc_sigsnps(method, adjust): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def manhattan_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
-def manhattan_plot_regions(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
+def manhattan_plot_regions(method, trait, adjust):
+    base = f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions"
+    return [f"{base}.png", f"{base}.svg", f"{base}_background.png"]
 def qq_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Templates for phenotype association outputs
@@ -813,7 +815,9 @@ def pheno_pvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_
 def pheno_qvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_qvalues_K{K_BEST}.tsv"
 def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
 def pheno_manhattan(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
-def pheno_manhattan_regions(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions.png"
+def pheno_manhattan_regions(method, trait, adjust):
+    base = f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}_regions"
+    return [f"{base}.png", f"{base}.svg", f"{base}_background.png"]
 def pheno_qq(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Per-trait DROP mode paths
@@ -1031,7 +1035,7 @@ def get_targets(mode):
             # Each rule produces both PNG and SVG
             for trait in predictors:
                 targets.append(manhattan_plot(method, trait, adjust))
-                targets.append(manhattan_plot_regions(method, trait, adjust))
+                targets.extend(manhattan_plot_regions(method, trait, adjust))
                 targets.append(qq_plot(method, trait, adjust))
 
         # Combined analysis targets
@@ -1112,7 +1116,7 @@ def get_targets(mode):
             targets.append(pheno_sigsnps(method, adjust))
             for trait in PHENO_TRAITS:
                 targets.append(pheno_manhattan(method, trait, adjust))
-                targets.append(pheno_manhattan_regions(method, trait, adjust))
+                targets.extend(pheno_manhattan_regions(method, trait, adjust))
                 targets.append(pheno_qq(method, trait, adjust))
 
         targets.extend([
