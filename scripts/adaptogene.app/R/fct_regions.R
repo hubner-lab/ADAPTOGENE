@@ -619,7 +619,7 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 .module_to_hap_source <- function(module) {
     switch(module,
         phenotype_association = "association_phenotypes",
-        overlapping           = "overlapping",
+        overlapping           = "association",  # overlap regions use GEA haplotype source
         NULL
     )
 }

@@ -101,6 +101,107 @@ build_dual_region_shapes <- function(all_regions, current_region_id,
     c(shapes_gray, shapes_blue)
 }
 
+#' Build region shapes for the Miami plot with 4-category coloring
+#'
+#' Used by the Overlapping tab where GEA and GWAS regions are displayed
+#' independently, with overlap regions highlighted across both halves.
+#'
+#' @param gea_regions      data.table of all GEA regions (region_id, chr, start, end)
+#' @param gwas_regions     data.table of all GWAS regions (region_id, chr, start, end)
+#' @param overlap_regions  data.table from compute_all_overlap_regions() — must have
+#'                         gea_region_id, gwas_region_id, plus standard region columns.
+#'                         May be NULL / empty when no overlaps exist.
+#' @param selected_overlap_region_id  region_id of the selected overlap region, or NULL
+#' @param coords   coordinate mapping list (from load_coords)
+#' @return list of plotly shape objects
+#' @noRd
+build_miami_region_shapes <- function(gea_regions, gwas_regions, overlap_regions,
+                                       selected_overlap_region_id, coords) {
+    if (is.null(coords)) return(list())
+
+    y_range  <- coords$y_range
+    y_top_lo <- 0
+    y_top_hi <- y_range[2]
+    y_bot_lo <- y_range[1]
+    y_bot_hi <- 0
+
+    # Identify GEA/GWAS region IDs that participate in at least one overlap
+    overlap_gea_ids  <- character(0)
+    overlap_gwas_ids <- character(0)
+    # Region IDs of the SELECTED overlap's GEA + GWAS components (scalar "")
+    sel_gea_id  <- ""
+    sel_gwas_id <- ""
+
+    if (!is.null(overlap_regions) && nrow(overlap_regions) > 0) {
+        overlap_gea_ids  <- unique(overlap_regions$gea_region_id)
+        overlap_gwas_ids <- unique(overlap_regions$gwas_region_id)
+
+        if (!is.null(selected_overlap_region_id) && isTRUE(nzchar(selected_overlap_region_id))) {
+            sel_row <- overlap_regions[region_id == selected_overlap_region_id]
+            if (nrow(sel_row) > 0) {
+                sel_gea_id  <- sel_row$gea_region_id[1]  %||% ""
+                sel_gwas_id <- sel_row$gwas_region_id[1] %||% ""
+            }
+        }
+    }
+
+    shapes <- list()
+
+    # ── GEA regions (top half) ───────────────────────────────────────────────
+    if (!is.null(gea_regions) && nrow(gea_regions) > 0) {
+        for (i in seq_len(nrow(gea_regions))) {
+            rid <- gea_regions$region_id[i]
+            row <- gea_regions[i]
+
+            if (isTRUE(nzchar(sel_gea_id)) && isTRUE(rid == sel_gea_id)) {
+                # Selected: blue, full height
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_range[1], y_hi = y_range[2]))
+            } else if (rid %in% overlap_gea_ids) {
+                # Overlapping (not selected): orange, top half
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_top_lo, y_hi = y_top_hi,
+                    fill_color = "rgba(230, 159, 0, 0.18)",
+                    line_color = "rgba(230, 159, 0, 0.50)"))
+            } else {
+                # GEA-only (no GWAS overlap): gray, top half
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_top_lo, y_hi = y_top_hi,
+                    fill_color = "rgba(180, 180, 180, 0.10)",
+                    line_color = "rgba(180, 180, 180, 0.25)"))
+            }
+        }
+    }
+
+    # ── GWAS regions (bottom half) ───────────────────────────────────────────
+    if (!is.null(gwas_regions) && nrow(gwas_regions) > 0) {
+        for (i in seq_len(nrow(gwas_regions))) {
+            rid <- gwas_regions$region_id[i]
+            row <- gwas_regions[i]
+
+            if (isTRUE(nzchar(sel_gwas_id)) && isTRUE(rid == sel_gwas_id)) {
+                # Selected GWAS component: blue, full height
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_range[1], y_hi = y_range[2]))
+            } else if (rid %in% overlap_gwas_ids) {
+                # Overlapping (not selected): orange, bottom half
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_bot_lo, y_hi = y_bot_hi,
+                    fill_color = "rgba(230, 159, 0, 0.18)",
+                    line_color = "rgba(230, 159, 0, 0.50)"))
+            } else {
+                # GWAS-only: gray, bottom half
+                shapes <- c(shapes, build_region_shapes(
+                    row, coords, y_lo = y_bot_lo, y_hi = y_bot_hi,
+                    fill_color = "rgba(180, 180, 180, 0.10)",
+                    line_color = "rgba(180, 180, 180, 0.25)"))
+            }
+        }
+    }
+
+    shapes
+}
+
 #' Build the plotly Manhattan overlay plot
 #' @param bg_uri base64 encoded background PNG (from encode_background_png)
 #' @param coords coordinate mapping list (from load_coords)
@@ -118,7 +219,8 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
                                     trait_colors = NULL,
                                     method_shapes = NULL,
                                     is_miami = FALSE,
-                                    source = "manhattan_overlay") {
+                                    source = "manhattan_overlay",
+                                    extra_shapes = NULL) {
     if (is.null(coords)) return(plotly::event_register(plotly::plot_ly(source = source), "plotly_click"))
 
     x_range <- coords$x_range
@@ -128,8 +230,11 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
     chr_mids  <- chr_midpoints(coords)
     chr_names <- names(unlist(coords$chr_offsets))
 
-    # Region shapes (dual-color if a current region is selected)
-    shapes <- if (!is.null(regions) && nrow(regions) > 0) {
+    # Region shapes — use extra_shapes directly if provided (e.g. Miami 4-category),
+    # otherwise fall back to standard dual-color building from regions data.
+    shapes <- if (!is.null(extra_shapes)) {
+        extra_shapes
+    } else if (!is.null(regions) && nrow(regions) > 0) {
         if (!is.null(current_region_id) && nzchar(current_region_id %||% "")) {
             build_dual_region_shapes(regions, current_region_id, coords,
                                      y_lo = y_range[1], y_hi = y_range[2])

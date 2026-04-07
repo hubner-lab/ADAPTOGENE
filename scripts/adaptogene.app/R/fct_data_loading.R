@@ -241,20 +241,6 @@ load_gf_site_table <- function(project, suffix) {
     }, error = function(e) data.table::data.table())
 }
 
-#' Load overlap summary table
-#' @noRd
-load_overlap_summary <- function(project) {
-    p <- mod_path(project, MOD_OVERLAP, "tables", "overlap_summary.tsv")
-    if (!file.exists(p)) return(data.table::data.table())
-    tryCatch({
-        data.table::fread(p, sep = "\t", header = TRUE,
-                          colClasses = c(chr = "character",
-                                         gea_region_id = "character",
-                                         gwas_region_id = "character"))
-    }, error = function(e) data.table::data.table())
-}
-
-#' Load all per-method sig SNPs from both association and phenotype_association modules
 #' Load pairwise trait overlap table (pipeline-computed)
 #' @noRd
 load_pairwise_table <- function(project) {

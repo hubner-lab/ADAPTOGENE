@@ -385,10 +385,6 @@ if _overlap_rdist_raw is None:
 else:
     OVERLAP_REGION_DISTANCE_AUTO = (str(_overlap_rdist_raw).lower() == 'auto')
     OVERLAP_REGION_DISTANCE = 'auto' if OVERLAP_REGION_DISTANCE_AUTO else int(_overlap_rdist_raw)
-OVERLAP_PROMOTER_LENGTH = _overlap.get('promoter_length', None)
-if OVERLAP_PROMOTER_LENGTH is None:
-    OVERLAP_PROMOTER_LENGTH = max(PROMOTER_LENGTH, PHENO_PROMOTER_LENGTH)
-
 # PAIRWISE OVERLAP parameters (trait-vs-trait comparison across all sources)
 _pairwise = _overlap.get('pairwise', {})
 PAIRWISE_WINDOW_SIZE = int(_pairwise.get('window_size', 500000))
@@ -450,17 +446,12 @@ def get_hap_sources():
             sources.append('association')
         if PHENO_ASSOC_CONFIGS:
             sources.append('association_phenotypes')
-        if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
-            sources.append('overlapping')
         return sources if sources else ['association']
     # Validate source against available configs
     src = HAP_SCAN_SOURCE
     if src == 'association_phenotypes' and not PHENO_ASSOC_CONFIGS:
         raise ValueError(f"HAPLOTYPE_SCAN_REGIONS_SOURCE is '{src}' but PHENO_ASSOC_CONFIGS is not set. "
                          f"Run mode=association_phenotypes first or change source to 'association'.")
-    if src == 'overlapping' and not (ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS):
-        raise ValueError(f"HAPLOTYPE_SCAN_REGIONS_SOURCE is '{src}' but both ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS are required. "
-                         f"Run mode=association and mode=association_phenotypes first.")
     return [src]
 
 HAP_SOURCES = get_hap_sources()
@@ -721,15 +712,7 @@ def add_overlap_paths():
 
     # GEA × GWAS combined analysis — requires both sources
     if has_gea and has_gwas:
-        O['overlap_selected_snps'] = f"{MOD_OVERLAP}tables/selected_snps_all.tsv"
-        O['overlap_regions_per_trait'] = f"{MOD_OVERLAP}tables/regions_per_trait_all.tsv"
-        O['overlap_regions_combined'] = f"{MOD_OVERLAP}tables/regions_combined.tsv"
-        O['overlap_summary'] = f"{MOD_OVERLAP}tables/overlap_summary.tsv"
-        O['overlap_genes_per_region'] = f"{MOD_OVERLAP}tables/genes_per_region.tsv"
-        O['overlap_genes_collapsed'] = f"{MOD_OVERLAP}tables/genes_per_region_collapsed.tsv"
-        O['overlap_genes_combined'] = f"{MOD_OVERLAP}tables/genes_combined.tsv"
-        W['overlap_enrichment_done'] = f"{INTER}flags/overlap_enrichment_done.flag"
-        # Miami plots (static GEA vs GWAS)
+        # Miami plots (static GEA vs GWAS — background PNG + coords JSON for Shiny overlay)
         O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
         O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
 
@@ -1150,22 +1133,11 @@ def get_targets(mode):
             O['pairwise_overlap_table'],
         ]
 
-        # GEA × GWAS combined analysis (only when both sources available)
+        # Miami plot (only when both GEA and GWAS available)
         if has_gea and has_gwas:
-            targets.extend([
-                O['overlap_selected_snps'],
-                O['overlap_regions_per_trait'],
-                O['overlap_regions_combined'],
-                O['overlap_summary'],
-                O['overlap_genes_per_region'],
-                O['overlap_genes_collapsed'],
-                O['overlap_genes_combined'],
-            ])
             targets.extend([
                 O['overlap_miami'], O['overlap_miami_svg'],
             ])
-            if GO_FIELD and GO_FIELD != 'NULL':
-                targets.append(W['overlap_enrichment_done'])
 
         targets.append(W['summary_done'])
         return targets

@@ -107,8 +107,7 @@ pairwise_collapsed_path <- function(project) {
 #' Selected SNPs table (combined all methods)
 #' @noRd
 selected_snps_path <- function(project, module = MOD_ASSOC) {
-    fname <- if (module == MOD_OVERLAP) "selected_snps_all.tsv" else "selected_snps.tsv"
-    mod_path(project, module, "tables", fname)
+    mod_path(project, module, "tables", "selected_snps.tsv")
 }
 
 #' Per-method sig SNPs table (glob pattern for discovery)
@@ -128,8 +127,7 @@ method_sigsnps_direct_path <- function(project, module = MOD_ASSOC, method, k, a
 #' Per-trait regions table
 #' @noRd
 regions_per_trait_path <- function(project, module = MOD_ASSOC) {
-    fname <- if (module == MOD_OVERLAP) "regions_per_trait_all.tsv" else "regions_per_trait.tsv"
-    mod_path(project, module, "tables", fname)
+    mod_path(project, module, "tables", "regions_per_trait.tsv")
 }
 
 #' Combined regions table

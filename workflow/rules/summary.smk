@@ -141,27 +141,12 @@ elif MODE in ('association_phenotypes', 'phenotype_association'):
 
 elif MODE == 'overlapping':
     rule write_summary:
-        """Write overlapping mode summary to Pipeline_summary.tsv."""
+        """Overlapping mode: region analysis is fully interactive (Shiny). Just mark done."""
         input:
-            overlap_summary = O['overlap_summary'],
-            selected_snps = O['overlap_selected_snps'],
-            regions_per_trait = O['overlap_regions_per_trait'],
-            regions_combined = O['overlap_regions_combined'],
-            genes = O['overlap_genes_per_region'],
-            enrichment_done = W['overlap_enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else []
+            [O['overlap_miami']] if (ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS) else [],
+            [O['pairwise_overlap_table']] if (ASSOC_CONFIGS or PHENO_ASSOC_CONFIGS) else [],
         output: W['summary_done']
-        params:
-            enrichment_path = W['overlap_enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL',
-            summary_tsv = O['summary']
-        log: f"{LOGDIR}overlapping/write_summary.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/write_summary.R \
-                overlapping {params.summary_tsv} \
-                {input.overlap_summary} {input.selected_snps} {input.regions_per_trait} \
-                {input.regions_combined} {input.genes} {params.enrichment_path} > {log} 2>&1
-            touch {output}
-            """
+        shell: "touch {output}"
 
 elif MODE == 'haplotype_scan':
     _hap_scan_inputs = {}

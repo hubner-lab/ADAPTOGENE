@@ -65,7 +65,12 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           show_regions_control = TRUE,
                                           sig_snps_override    = shiny::reactive(NULL),
                                           trait_colors         = shiny::reactive(NULL),
-                                          method_shapes        = shiny::reactive(NULL)) {
+                                          method_shapes        = shiny::reactive(NULL),
+                                          # Overlapping-tab Miami extensions:
+                                          # When both provided AND is_miami=TRUE, use
+                                          # build_miami_region_shapes() for 4-category coloring.
+                                          gwas_regions      = shiny::reactive(NULL),
+                                          overlap_regions   = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -185,19 +190,52 @@ mod_manhattan_overlay_server <- function(id, project_data,
             }
 
             # Regions overlay data
-            reg_data <- if (show_regions()) regions() else NULL
+            # For the Overlapping Miami tab, use 4-category shape building
+            # when gwas_regions + overlap_regions are supplied.
+            gwas_reg  <- gwas_regions()
+            ov_reg    <- overlap_regions()
+            use_miami_shapes <- is_miami &&
+                !is.null(gwas_reg) && !is.null(ov_reg)
 
-            build_manhattan_plotly(
-                bg_uri            = bg_uri,
-                coords            = co,
-                sig_snps          = if (nrow(snps) > 0) snps else NULL,
-                regions           = reg_data,
-                current_region_id = current_region_id(),
-                trait_colors      = trait_colors(),
-                method_shapes     = method_shapes(),
-                is_miami          = is_miami,
-                source            = ns("overlay")
-            )
+            if (use_miami_shapes) {
+                # 4-category Miami shapes (GEA-only gray / GWAS-only gray / overlap orange / selected blue)
+                custom_shapes <- if (show_regions()) {
+                    build_miami_region_shapes(
+                        gea_regions                = regions(),
+                        gwas_regions               = gwas_reg,
+                        overlap_regions            = ov_reg,
+                        selected_overlap_region_id = current_region_id(),
+                        coords                     = co
+                    )
+                } else {
+                    list()
+                }
+                build_manhattan_plotly(
+                    bg_uri            = bg_uri,
+                    coords            = co,
+                    sig_snps          = if (nrow(snps) > 0) snps else NULL,
+                    regions           = NULL,       # shapes handled above
+                    current_region_id = NULL,
+                    trait_colors      = trait_colors(),
+                    method_shapes     = method_shapes(),
+                    is_miami          = is_miami,
+                    source            = ns("overlay"),
+                    extra_shapes      = custom_shapes
+                )
+            } else {
+                reg_data <- if (show_regions()) regions() else NULL
+                build_manhattan_plotly(
+                    bg_uri            = bg_uri,
+                    coords            = co,
+                    sig_snps          = if (nrow(snps) > 0) snps else NULL,
+                    regions           = reg_data,
+                    current_region_id = current_region_id(),
+                    trait_colors      = trait_colors(),
+                    method_shapes     = method_shapes(),
+                    is_miami          = is_miami,
+                    source            = ns("overlay")
+                )
+            }
         })
 
         # ── Sig SNP click → region_id reactive ────────────────────────────────

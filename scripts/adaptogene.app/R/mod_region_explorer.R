@@ -40,12 +40,16 @@ mod_region_explorer_ui <- function(id) {
 #' @noRd
 mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
                                         interactive_sigsnps = shiny::reactive(NULL),
-                                        region_distance     = shiny::reactive(2000000L)) {
+                                        region_distance     = shiny::reactive(2000000L),
+                                        override_regions    = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
         # ── Computed regions ───────────────────────────────────────────────────
         computed_regions <- shiny::reactive({
+            # Overlapping tab supplies pre-computed overlap regions directly
+            ovr <- override_regions()
+            if (!is.null(ovr)) return(ovr)
             snps <- interactive_sigsnps()
             if (is.null(snps) || nrow(snps) == 0) return(.empty_regions())
             compute_all_regions(snps, region_distance())

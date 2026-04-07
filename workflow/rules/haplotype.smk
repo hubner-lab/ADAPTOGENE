@@ -8,8 +8,6 @@ def get_hap_regions_input(source):
         return O.get('regions_combined', '')
     elif source == 'association_phenotypes':
         return O.get('pheno_regions_combined', '')
-    elif source == 'overlapping':
-        return O.get('overlap_regions_combined', '')
     elif source == 'custom':
         # Custom path is relative to pipeline root, convert to absolute
         return os.path.join('/pipeline', HAP_SCAN_REGIONS_FILE) if HAP_SCAN_REGIONS_FILE != 'NULL' else ''

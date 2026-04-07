@@ -190,20 +190,26 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 #'
 #' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
 #'
-#' @param ns         Shiny namespace function from session$ns
-#' @param traits     Character vector of trait names
-#' @param methods    Character vector of method names
+#' @param ns           Shiny namespace function from session$ns
+#' @param traits       Character vector of trait names
+#' @param methods      Character vector of method names
 #' @param trait_colors Named character vector: trait -> hex colour
 #' @param combo_counts Named list: "trait::method" -> integer SNP count
 #' @param default_strategy_value Character scalar: "All", "Overlap", or "MethodOverlap"
 #' @param region_distance_value Integer scalar: current region distance (bp)
 #' @param combine_gap_value Integer scalar: current combine gap (bp)
+#' @param input_prefix Character scalar: prefix for all Shiny input IDs inside this bar.
+#'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
+#'   coexist in the same module to avoid input ID collisions.
 #' @return tagList
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
                                 region_distance_value,
-                                combine_gap_value = 100000L) {
+                                combine_gap_value = 100000L,
+                                input_prefix = "") {
+    # Helper: produce an input id with optional prefix
+    pid <- function(name) ns(paste0(input_prefix, name))
     if (length(traits) == 0) return(NULL)
 
     # Build table header row: blank + method column headers
@@ -265,12 +271,12 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 
     # Hidden input bridge updated by JS
     hidden_input <- shiny::textInput(
-        ns("tm_selection"), label = NULL, value = ""
+        pid("tm_selection"), label = NULL, value = ""
     )
 
     # JS: delegated click on matrix container
-    container_id <- ns("tm_container")
-    input_id     <- ns("tm_selection")
+    container_id <- pid("tm_container")
+    input_id     <- pid("tm_selection")
     js_code <- sprintf('
 (function() {
     var container = document.getElementById("%s");
@@ -327,7 +333,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                 class = "d-flex flex-column me-4",
                 htmltools::span("Strategy", class = "filter-label mb-1"),
                 shiny::radioButtons(
-                    ns("combine_strategy"), label = NULL,
+                    pid("combine_strategy"), label = NULL,
                     choices  = c("All", "Overlap", "MethodOverlap"),
                     selected = default_strategy_value,
                     inline   = FALSE
@@ -338,7 +344,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                 class = "d-flex flex-column me-4",
                 htmltools::span("Combine gap (bp)", class = "filter-label mb-1"),
                 shiny::numericInput(
-                    ns("combine_gap"), label = NULL,
+                    pid("combine_gap"), label = NULL,
                     value = combine_gap_value, min = 0L, step = 10000L,
                     width = "130px"
                 )
@@ -348,7 +354,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                 class = "d-flex flex-column",
                 htmltools::span("Distance (bp)", class = "filter-label mb-1"),
                 shiny::numericInput(
-                    ns("region_distance"), label = NULL,
+                    pid("region_distance"), label = NULL,
                     value = region_distance_value, min = 1000L, step = 100000L,
                     width = "130px"
                 )
