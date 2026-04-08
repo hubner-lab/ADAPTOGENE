@@ -47,7 +47,6 @@ snmf:
   k_start: 2
   k_end: 12
   k_best: 8                     # Complex structure — adjust after cross-entropy
-  ploidy: 2
   repeats: 10
 
 #-----------------------------------------------------------------------------
@@ -94,7 +93,6 @@ association:
     - method: "LFMM"
       adjust: "bonf"
       threshold: '0.05'
-  combine_method: 'Sum'
   combine_gap: 50000
   region_distance: 500000        # Small genome — tighter regions
   promoter_length: 2000          # Arabidopsis has compact promoters

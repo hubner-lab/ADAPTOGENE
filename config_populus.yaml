@@ -47,7 +47,6 @@ snmf:
   k_start: 2
   k_end: 6
   k_best: 3                     # Approximate — set after reviewing cross-entropy
-  ploidy: 2
   repeats: 10
 
 #-----------------------------------------------------------------------------
@@ -94,7 +93,6 @@ association:
     - method: "LFMM"
       adjust: "bonf"
       threshold: '0.05'
-  combine_method: 'Sum'
   combine_gap: 100000
   region_distance: 2000000
   promoter_length: 10000
@@ -135,11 +133,3 @@ gradient_forest:
   suffix: 'Populus_EMMAX'
   random_model: TRUE
 
-#-----------------------------------------------------------------------------
-# REGIONPLOT
-#-----------------------------------------------------------------------------
-regionplot:
-  region: '12:10965547-15673977'
-  traits: 'bio_1'
-  method: 'LFMM'
-  genes: 5

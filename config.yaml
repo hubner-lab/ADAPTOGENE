@@ -40,8 +40,7 @@ snmf:
   k_start: 3                    # Minimum K (number of ancestral populations) to test
   k_end: 7                      # Maximum K to test
   k_best: 5                     # Selected K for downstream analyses (set after reviewing cross-entropy)
-  ploidy: 2                     # Ploidy level (2 for diploid)
-  repeats: 10                   # Number of repetitions per K (higher = more stable)
+repeats: 10                   # Number of repetitions per K (higher = more stable)
 
 #-----------------------------------------------------------------------------
 # MAP: Geographic extent and resolution for climate data
@@ -136,7 +135,6 @@ gradient_forest:
   spatial_correction: 'with'    # Include spatial variables: with/without
   run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
   random_model: TRUE            # Also build neutral model for comparison
-  combine_method: 'All'         # SNP selection strategy: All/Overlap/MethodOverlap/EMMAX/LFMM/etc. (explore in Association tab)
   combine_gap: 100000           # Max distance (bp) for cross-method overlap (Overlap/MethodOverlap strategies only)
 
 #-----------------------------------------------------------------------------
@@ -157,7 +155,6 @@ gradient_forest:
 # Defaults to max of association and phenotype_association values if not set
 # overlap:
 #   region_distance: 2000000
-#   promoter_length: 10000
 overlap:
   pairwise:
     window_size: 500000

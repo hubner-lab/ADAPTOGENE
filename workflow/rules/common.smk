@@ -41,144 +41,6 @@ def k_range(start, end):
     return list(range(int(start), int(end) + 1))
 
 #=============================================================================
-# CONFIG MIGRATION (backward compatibility with flat YAML keys)
-#=============================================================================
-def _migrate_config(cfg):
-    """Detect old flat config keys and map them to nested structure.
-    Allows old configs to keep working with deprecation warnings."""
-    # If 'input' key exists as a dict, assume new-style config
-    if isinstance(cfg.get('input'), dict):
-        return cfg
-
-    import sys
-    print("WARNING: Detected old flat-key config format. Migrating automatically.", file=sys.stderr)
-    print("WARNING: Please update your config to nested YAML format. See config_SIMDATA.yaml for reference.", file=sys.stderr)
-
-    migrated = dict(cfg)
-
-    # Mapping: old flat key -> (nested group, nested key)
-    _FLAT_TO_NESTED = {
-        'INPUT_DIR': ('input', 'dir'),
-        'INPUT_VCF': ('input', 'vcf'),
-        'INPUT_METADATA': ('input', 'metadata'),
-        'INPUT_GFF': ('input', 'gff'),
-        'PROJECT_NAME': ('project_name', None),
-        'CPU': ('cpu', None),
-        'FILTER_MAF': ('filter', 'maf'),
-        'FILTER_SNP_MISS': ('filter', 'snp_miss'),
-        'FILTER_SAMPLE_MISS': ('filter', 'sample_miss'),
-        'LD_WINDOW': ('ld', 'window'),
-        'LD_STEP': ('ld', 'step'),
-        'LD_R2': ('ld', 'r2'),
-        'SNMF_K_START': ('snmf', 'k_start'),
-        'SNMF_K_END': ('snmf', 'k_end'),
-        'SNMF_K_BEST': ('snmf', 'k_best'),
-        'SNMF_PLOIDY': ('snmf', 'ploidy'),
-        'SNMF_REPEATS': ('snmf', 'repeats'),
-        'MAP_CROP_REGION': ('map', 'climate_extent'),
-        'MAP_GAP': ('map', 'gap'),
-        'MAP_RESOLUTION': ('map', 'resolution'),
-        'MAP_REGIONMAP_EXTENT': ('map', 'zoom_extent'),
-        'CLIMATE_PREDICTORS': ('climate', 'predictors'),
-        'POP_CALC_STATS': ('pop', 'calc_stats'),
-        'POP_WINDOW_SIZE': ('pop', 'window_size'),
-        'POP_CUSTOM_TRAIT': ('pop', 'custom_trait_file'),
-        'PIEMAP_ALPHA': ('piemap', 'alpha'),
-        'PIEMAP_SHOW_LABELS': ('piemap', 'show_labels'),
-        'PIEMAP_LABEL_SIZE': ('piemap', 'label_size'),
-        'PIEMAP_PIE_SCALE': ('piemap', 'pie_scale'),
-        'PIEMAP_USE_POINTS': ('piemap', 'use_points'),
-        'ASSOC_CONFIGS': ('association', 'configs'),
-        'ASSOC_COMBINE_METHOD': ('association', 'combine_method'),
-        'ASSOC_COMBINE_GAP': ('association', 'combine_gap'),
-        'ASSOC_REGION_DISTANCE': ('association', 'region_distance'),
-        'ASSOC_PROMOTER_LENGTH': ('association', 'promoter_length'),
-        'ASSOC_GO_FIELD': ('association', 'go_field'),
-        'GFF_FEATURE': ('gff', 'feature'),
-        'GFF_GENE_NAME': ('gff', 'gene_name'),
-        'GFF_BIOTYPE': ('gff', 'biotype'),
-        'ENRICHMENT_TOP_TERMS': ('enrichment', 'top_terms'),
-        'ENRICHMENT_PLOT_WIDTH': ('enrichment', 'plot_width'),
-        'ENRICHMENT_PLOT_HEIGHT': ('enrichment', 'plot_height'),
-        'ENRICHMENT_CNET_LABEL': ('enrichment', 'cnet_label'),
-        'FUTURE_SSP': ('future', 'ssp'),
-        'FUTURE_YEAR': ('future', 'year'),
-        'FUTURE_MODELS': ('future', 'models'),
-        'GF_NTREE': ('gradient_forest', 'ntree'),
-        'GF_COR_THRESHOLD': ('gradient_forest', 'cor_threshold'),
-        'GF_PCNM': ('gradient_forest', 'spatial_correction'),
-        'GF_SUFFIX': ('gradient_forest', 'run_label'),
-        'GF_RANDOM_MODEL': ('gradient_forest', 'random_model'),
-        'PHENO_ASSOC_CONFIGS': ('phenotype_association', 'configs'),
-        'PHENO_MISSING_STRATEGY': ('phenotype_association', 'missing_strategy'),
-        'PHENO_COMBINE_METHOD': ('phenotype_association', 'combine_method'),
-        'PHENO_COMBINE_GAP': ('phenotype_association', 'combine_gap'),
-        'PHENO_REGION_DISTANCE': ('phenotype_association', 'region_distance'),
-        'PHENO_PROMOTER_LENGTH': ('phenotype_association', 'promoter_length'),
-        'OVERLAP_REGION_DISTANCE': ('overlap', 'region_distance'),
-        'OVERLAP_PROMOTER_LENGTH': ('overlap', 'promoter_length'),
-        'HAPLOTYPE_SCAN_REGIONS_SOURCE': ('haplotype', 'scan', 'regions_source'),
-        'HAPLOTYPE_SCAN_REGIONS_FILE': ('haplotype', 'scan', 'regions_file'),
-        'HAPLOTYPE_SCAN_TOP_REGIONS': ('haplotype', 'scan', 'top_regions'),
-        'HAPLOTYPE_SCAN_MIN_SNPS': ('haplotype', 'scan', 'min_snps'),
-        'HAPLOTYPE_SCAN_MGMIN': ('haplotype', 'scan', 'min_group_size'),
-        'HAPLOTYPE_SCAN_MINHAP': ('haplotype', 'scan', 'min_haplotype_size'),
-        'HAPLOTYPE_SCAN_EPSILON_RANGE': ('haplotype', 'scan', 'epsilon_range'),
-        'HAPLOTYPE_SCAN_METADATA_TYPE': ('haplotype', 'scan', 'metadata_type'),
-        'HAPLOTYPE_EPSILON_SELECTED': ('haplotype', 'epsilon_selected'),
-    }
-
-    # Also migrate old METHOD/ADJUST/THRESHOLD keys in configs lists
-    def _migrate_configs_list(configs_list):
-        """Convert [{METHOD:..., ADJUST:..., THRESHOLD:...}] to [{method:..., adjust:..., threshold:...}]."""
-        if not configs_list:
-            return configs_list
-        migrated_list = []
-        for entry in configs_list:
-            if 'METHOD' in entry:
-                migrated_list.append({
-                    'method': entry['METHOD'],
-                    'adjust': entry['ADJUST'],
-                    'threshold': entry['THRESHOLD']
-                })
-            else:
-                migrated_list.append(entry)
-        return migrated_list
-
-    for flat_key, path in _FLAT_TO_NESTED.items():
-        if flat_key not in cfg:
-            continue
-        val = cfg[flat_key]
-
-        if path[1] is None:
-            # Top-level key (e.g., project_name, cpu)
-            migrated[path[0]] = val
-        elif len(path) == 2:
-            group, key = path
-            if group not in migrated or not isinstance(migrated.get(group), dict):
-                migrated[group] = {}
-            migrated[group][key] = val
-        elif len(path) == 3:
-            group, sub, key = path
-            if group not in migrated or not isinstance(migrated.get(group), dict):
-                migrated[group] = {}
-            if sub not in migrated[group] or not isinstance(migrated[group].get(sub), dict):
-                migrated[group][sub] = {}
-            migrated[group][sub][key] = val
-
-    # Migrate ASSOC_CONFIGS list entries (METHOD -> method)
-    assoc_cfg = migrated.get('association', {})
-    if 'configs' in assoc_cfg:
-        assoc_cfg['configs'] = _migrate_configs_list(assoc_cfg['configs'])
-    pheno_cfg = migrated.get('phenotype_association', {})
-    if 'configs' in pheno_cfg:
-        pheno_cfg['configs'] = _migrate_configs_list(pheno_cfg['configs'])
-
-    return migrated
-
-config = _migrate_config(config)
-
-#=============================================================================
 # PARSE AND VALIDATE CONFIGURATION
 #=============================================================================
 # Helper to read nested config with defaults
@@ -231,7 +93,7 @@ LD_R2 = config['ld']['r2']; check_float(LD_R2, 'ld.r2')
 # SNMF parameters
 K_START = config['snmf']['k_start']; check_numeric(K_START, 'snmf.k_start')
 K_END = config['snmf']['k_end']; check_numeric(K_END, 'snmf.k_end')
-PLOIDY = 2  # diploid only; haploid support requires changes in lfmm2vcf.R, amova.R, plink
+PLOIDY = 2  # diploid only
 REPEAT = config['snmf']['repeats']; check_numeric(REPEAT, 'snmf.repeats')
 K_BEST = int(_cfg('snmf', 'k_best', None)) if _cfg('snmf', 'k_best', None) is not None else None
 SNMF_PROJECT_MODE = 'new'  # LEA project mode: 'new' for fresh runs, 'continue' to resume
@@ -305,9 +167,6 @@ ENRICHMENT_TOP_TERMS = _enrich.get('top_terms', 20)
 ENRICHMENT_PLOT_WIDTH = _enrich.get('plot_width', 12)
 ENRICHMENT_PLOT_HEIGHT = _enrich.get('plot_height', 10)
 ENRICHMENT_CNET_LABEL = _enrich.get('cnet_label', 'gene_id')
-
-# Note: regionplot mode deprecated — regionplots generated on-demand in Shiny app
-GENES_TO_HIGHLIGHT = config.get('regionplot', {}).get('genes', 'all')
 
 # FUTURE parameters
 _future = config.get('future', {})
