@@ -1,5 +1,7 @@
 #=============================================================================
-# MODULE 4: ASSOCIATION (EMMAX/LFMM)
+# MODULE 4: ASSOCIATION (GEA)
+# Non-GAPIT methods are declared dynamically from GEA_METHODS registry.
+# GAPIT models are declared as a single multi-output rule (gapit_analysis).
 #=============================================================================
 
 # Full dataset processing (non-LD pruned) - needed for LFMM
@@ -74,53 +76,40 @@ rule kinship_assoc:
     shell:
         "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
-# EMMAX analysis
-rule emmax_analysis:
-    """Run EMMAX association analysis for all traits."""
-    input:
-        vcf = W['vcf_filt'],
-        tped = W['assoc_tped'],
-        kinship = W['assoc_kinship'],
-        traits = O['climate_site_scaled'],
-        covariates = W['pca_projections'],  # LEA PCA projections
-        metadata = O['metadata']
-    output: assoc_pvalues("EMMAX")
-    params:
-        k = K_BEST,
-        predictors = PREDICTORS_SELECTED,
-        inter_dir = INTER,
-        tables_dir = f"{MOD_ASSOC}tables/methods/EMMAX/",
-        tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}"
-    log: f"{LOGDIR}association/emmax_analysis.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/emmax.R \
-            {input.vcf} {params.k} {input.traits} {input.covariates} \
-            {params.predictors} {params.inter_dir} {input.metadata} \
-            {params.tables_dir} {params.tped_prefix} {input.kinship} > {log} 2>&1
-        """
+# Non-GAPIT GEA rules — one rule per method, driven by registry.
+# Shell strings are inlined per engine (not from a variable) to avoid Snakemake's
+# deferred shell evaluation capturing the loop variable by reference.
+for _method in ASSOC_OTHER_CONFIGS:
+    _engine  = GEA_METHODS[_method]["engine"]
+    _inputs  = _gea_inputs(_engine)
+    _params  = _gea_params(_engine, _method)
+    _output  = assoc_pvalues(_method)
+    _logpath = f"{LOGDIR}association/assoc_{_method.lower()}.log"
 
-# LFMM analysis
-rule lfmm_analysis:
-    """Run LFMM association analysis for all traits."""
-    input:
-        lfmm_ld = W['lfmm_imp'],       # LD-pruned imputed (for model training)
-        lfmm_full = W['lfmm_imp_full'], # Full imputed (for testing)
-        climate = O['climate_site_scaled'],
-        vcfsnp = W['vcfsnp_full']
-    output: assoc_pvalues("LFMM")
-    params:
-        k = K_BEST,
-        predictors = PREDICTORS_SELECTED,
-        tables_dir = f"{MOD_ASSOC}tables/methods/LFMM/"
-    log: f"{LOGDIR}association/lfmm_analysis.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/lfmm.R \
-            {input.lfmm_ld} {input.lfmm_full} {input.climate} \
-            {params.k} {params.predictors} {input.vcfsnp} \
-            {params.tables_dir} > {log} 2>&1
-        """
+    if _engine == "emmax":
+        rule:
+            name:   f"assoc_{_method.lower()}"
+            input:  **_inputs
+            output: _output
+            params: **_params
+            log:    _logpath
+            shell:
+                "Rscript /pipeline/scripts/emmax.R "
+                "{input.vcf} {params.k} {input.traits} {input.covariates} "
+                "{params.predictors} {params.inter_dir} {input.metadata} "
+                "{params.tables_dir} {params.tped_prefix} {input.kinship} > {log} 2>&1"
+    elif _engine == "lfmm":
+        rule:
+            name:   f"assoc_{_method.lower()}"
+            input:  **_inputs
+            output: _output
+            params: **_params
+            log:    _logpath
+            shell:
+                "Rscript /pipeline/scripts/lfmm.R "
+                "{input.lfmm_ld} {input.lfmm_full} {input.climate} "
+                "{params.k} {params.predictors} {input.vcfsnp} "
+                "{params.tables_dir} > {log} 2>&1"
 
 # VCF to GAPIT numeric (shared by GEA and GWAS GAPIT models)
 if ASSOC_GAPIT_CONFIGS or PHENO_GAPIT_CONFIGS:
@@ -135,7 +124,7 @@ if ASSOC_GAPIT_CONFIGS or PHENO_GAPIT_CONFIGS:
         shell:
             "Rscript /pipeline/scripts/vcf_to_gapit_numeric.R {input.vcf} {output.gd} {output.gm} > {log} 2>&1"
 
-# GAPIT GEA analysis (GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK)
+# GAPIT GEA analysis — one rule emits all configured GAPIT model outputs
 if ASSOC_GAPIT_CONFIGS:
 
     rule gapit_analysis:

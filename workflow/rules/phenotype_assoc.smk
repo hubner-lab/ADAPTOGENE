@@ -45,26 +45,25 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING != 'DROP':
         shell:
             "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
-    rule emmax_pheno:
-        """Run EMMAX for all phenotype traits (MEAN/MEDIAN mode)."""
-        input:
-            vcf = W['vcf_filt'],
-            tped = W['pheno_tped'],
-            kinship = W['pheno_kinship'],
-            pca = W['pca_projections'],
-            phenotypes = W['pheno_all_phenotypes']
-        output: pheno_pvalues("EMMAX")
-        params:
-            tped_prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}",
-            k = K_BEST,
-            tables_dir = f"{MOD_PHENO}tables/methods/"
-        log: f"{LOGDIR}phenotype_association/emmax_pheno.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/emmax_phenotypes.R \
-                {input.vcf} {params.tped_prefix} {input.kinship} {input.pca} \
-                {params.k} {input.phenotypes} {params.tables_dir} NULL {output} > {log} 2>&1
-            """
+    # Non-GAPIT phenotype Path A rules — one rule per method, shell inlined per engine
+    for _method in PHENO_OTHER_CONFIGS:
+        _engine  = GWAS_METHODS[_method]["engine"]
+        _inputs  = _pheno_a_inputs(_engine)
+        _params  = _pheno_a_params(_engine, _method)
+        _output  = pheno_pvalues(_method)
+        _logpath = f"{LOGDIR}phenotype_association/pheno_a_{_method.lower()}.log"
+
+        if _engine == "emmax":
+            rule:
+                name:   f"pheno_a_{_method.lower()}"
+                input:  **_inputs
+                output: _output
+                params: **_params
+                log:    _logpath
+                shell:
+                    "Rscript /pipeline/scripts/emmax_phenotypes.R "
+                    "{input.vcf} {params.tped_prefix} {input.kinship} {input.pca} "
+                    "{params.k} {input.phenotypes} {params.tables_dir} NULL {output} > {log} 2>&1"
 
     if PHENO_GAPIT_CONFIGS:
         rule gapit_pheno:
@@ -158,42 +157,51 @@ if PHENO_ASSOC_CONFIGS and PHENO_MISSING == 'DROP':
         shell:
             "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
-    rule emmax_pheno_trait:
-        """Run EMMAX for a single phenotype trait (DROP mode)."""
-        input:
-            vcf = f"{WORK_FILT}phenotypes/{{pheno_trait}}/{VCF_BASE}.vcf",
-            kinship = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aBN.kinf",
-            pca = W['pca_projections'],
-            phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv"
-        output: f"{MOD_PHENO}tables/methods/EMMAX/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
-        wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
-        params:
-            tped_prefix = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}",
-            k = K_BEST,
-            tables_dir = f"{MOD_PHENO}tables/methods/EMMAX/",
-            samples_order = W['samples_order']
-        log: f"{LOGDIR}phenotype_association/emmax_pheno_trait_{{pheno_trait}}.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/emmax_phenotypes.R \
-                {input.vcf} {params.tped_prefix} {input.kinship} {input.pca} \
-                {params.k} {input.phenotype} {params.tables_dir} {params.samples_order} \
-                {output} > {log} 2>&1
-            """
+    # Non-GAPIT phenotype Path B: per-trait rule + combine rule, one pair per method.
+    # Shell strings are inlined per engine to avoid deferred-evaluation closure capture.
+    for _method in PHENO_OTHER_CONFIGS:
+        _engine           = GWAS_METHODS[_method]["engine"]
+        _out_path         = f"{MOD_PHENO}tables/methods/{_method}/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
+        _logpath          = f"{LOGDIR}phenotype_association/pheno_b_{_method.lower()}_{{pheno_trait}}.log"
+        _tped_pfx         = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}"
+        _per_trait_inputs = expand(
+            f"{MOD_PHENO}tables/methods/{_method}/{{trait}}_pvalues_K{K_BEST}.tsv",
+            trait=PHENO_TRAITS,
+        )
 
-    rule combine_pheno_pvalues:
-        """Merge per-trait p-value files into combined table (DROP mode)."""
-        input: expand(f"{MOD_PHENO}tables/methods/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv", trait=PHENO_TRAITS)
-        output:
-            pvals = pheno_pvalues("EMMAX"),
-            qvals = pheno_qvalues("EMMAX")
-        params: files_str = lambda wc, input: ' '.join(input)
-        log: f"{LOGDIR}phenotype_association/combine_pheno_pvalues.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/combine_pheno_pvalues.R \
-                "{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1
-            """
+        if _engine == "emmax":
+            rule:
+                name:   f"pheno_b_{_method.lower()}_trait"
+                input:
+                    vcf       = f"{WORK_FILT}phenotypes/{{pheno_trait}}/{VCF_BASE}.vcf",
+                    kinship   = f"{WORK_FILT}phenotypes/{{pheno_trait}}/emmax/{VCF_BASE}.aBN.kinf",
+                    pca       = W['pca_projections'],
+                    phenotype = f"{WORK_FILT}phenotypes/{{pheno_trait}}_phenotype.tsv",
+                output: _out_path
+                wildcard_constraints: pheno_trait = r"[a-zA-Z]\w*"
+                params:
+                    tped_prefix   = _tped_pfx,
+                    k             = K_BEST,
+                    tables_dir    = f"{MOD_PHENO}tables/methods/{_method}/",
+                    samples_order = W['samples_order'],
+                log: _logpath
+                shell:
+                    "Rscript /pipeline/scripts/emmax_phenotypes.R "
+                    "{input.vcf} {params.tped_prefix} {input.kinship} {input.pca} "
+                    "{params.k} {input.phenotype} {params.tables_dir} "
+                    "{params.samples_order} {output} > {log} 2>&1"
+
+        rule:
+            name:  f"combine_pheno_pvalues_{_method.lower()}"
+            input: _per_trait_inputs
+            output:
+                pvals = pheno_pvalues(_method),
+                qvals = pheno_qvalues(_method),
+            params: files_str = lambda wc, input: ' '.join(input)
+            log: f"{LOGDIR}phenotype_association/combine_pheno_pvalues_{_method.lower()}.log"
+            shell:
+                "Rscript /pipeline/scripts/combine_pheno_pvalues.R "
+                '"{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1'
 
     if PHENO_GAPIT_CONFIGS:
         rule gapit_pheno_trait:

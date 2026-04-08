@@ -1,8 +1,14 @@
 # ADAPTOGENE Pipeline - Refactored
 # vim: filetype=python
 import os
+import sys
 import subprocess
 from pathlib import Path
+
+# Method registries — import before config parsing so GAPIT_MODELS can be derived
+sys.path.insert(0, os.path.join(workflow.basedir, "workflow"))
+from methods.gea import GEA_METHODS
+from methods.gwas import GWAS_METHODS
 
 #=============================================================================
 # CONFIGURATION
@@ -199,8 +205,8 @@ def parse_association_configs(configs_list):
 
 ASSOC_CONFIGS = parse_association_configs(_assoc.get('configs', []))
 
-# GAPIT model detection — auto-route methods to GAPIT or legacy (EMMAX/LFMM) engine
-GAPIT_MODELS = {'GLM', 'MLM', 'CMLM', 'ECMLM', 'SUPER', 'MLMM', 'FarmCPU', 'BLINK'}
+# GAPIT model detection — derived from registry (single source of truth)
+GAPIT_MODELS = {name for name, cfg in GEA_METHODS.items() if cfg["engine"] == "gapit"}
 
 def split_configs_by_engine(configs):
     """Split configs into GAPIT and non-GAPIT (legacy) engines."""
@@ -221,6 +227,21 @@ PHENO_METHOD_REGEX = '|'.join(PHENO_ASSOC_CONFIGS.keys()) if PHENO_ASSOC_CONFIGS
 PHENO_MISSING = _pheno.get('missing_strategy', 'DROP')
 if PHENO_ASSOC_CONFIGS:
     check_in_list(PHENO_MISSING, ['MEAN', 'MEDIAN', 'DROP'], 'phenotype_association.missing_strategy')
+
+def _validate_methods_in_registry(configs, registry, context):
+    """Fail early with a clear error when a config method is not in the registry."""
+    unknown = [m for m in configs if m not in registry]
+    if unknown:
+        raise ValueError(
+            f"Unknown method(s) in {context}: {unknown}. "
+            f"Known methods: {sorted(registry.keys())}"
+        )
+
+if ASSOC_CONFIGS:
+    _validate_methods_in_registry(ASSOC_CONFIGS, GEA_METHODS, "association.configs")
+if PHENO_ASSOC_CONFIGS:
+    _validate_methods_in_registry(PHENO_ASSOC_CONFIGS, GWAS_METHODS, "phenotype_association.configs")
+
 # Inherit from association.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 PHENO_COMBINE_GAP = _pheno.get('combine_gap', SIGSNPS_GAP)
@@ -478,16 +499,18 @@ def add_association_paths():
     W['lfmm_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.lfmm"
     W['vcf_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.vcf"
 
-    # EMMAX work directory and pre-computed TPED/kinship
-    W['emmax_work'] = f"{WORK_FILT}emmax/"
-    W['assoc_tped'] = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
-    W['assoc_tfam'] = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
-    W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
-
-    # GAPIT numeric format (GD + GM)
-    W['gapit_gd'] = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
-    W['gapit_gm'] = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
-    W['gapit_work'] = f"{INTER}gapit/association/"
+    # Engine-specific working paths — only populate for engines actually in use
+    _assoc_engines = {GEA_METHODS[m]["engine"] for m in ASSOC_CONFIGS}
+    if "emmax" in _assoc_engines:
+        W['emmax_work']    = f"{WORK_FILT}emmax/"
+        W['assoc_tped']    = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
+        W['assoc_tfam']    = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
+        W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
+    if "gapit" in _assoc_engines:
+        W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
+        W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
+        W['gapit_work'] = f"{INTER}gapit/association/"
+    # lfmm uses W['lfmm_imp'] / W['lfmm_imp_full'] from add_kbest_paths()
 
     # Combined outputs - association
     O['selected_snps'] = f"{MOD_ASSOC}tables/selected_snps.tsv"
@@ -520,15 +543,16 @@ def add_pheno_association_paths():
     W['pheno_emmax_work'] = f"{PHENO_WORK}emmax/"
     W['pheno_gapit_work'] = f"{INTER}gapit/phenotype_association/"
 
-    # Ensure GAPIT paths exist even if association mode isn't configured
-    if PHENO_GAPIT_CONFIGS and 'gapit_gd' not in W:
-        W['gapit_gd'] = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
-        W['gapit_gm'] = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
+    # Engine-specific paths for phenotype methods — only populate if not already set by GEA
+    _pheno_engines = {GWAS_METHODS[m]["engine"] for m in PHENO_ASSOC_CONFIGS}
+    if "gapit" in _pheno_engines and 'gapit_gd' not in W:
+        W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
+        W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
         W['gapit_work'] = f"{INTER}gapit/association/"
-    if PHENO_GAPIT_CONFIGS and 'assoc_kinship' not in W:
-        W['emmax_work'] = f"{WORK_FILT}emmax/"
-        W['assoc_tped'] = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
-        W['assoc_tfam'] = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
+    if "emmax" in _pheno_engines and 'assoc_kinship' not in W:
+        W['emmax_work']    = f"{WORK_FILT}emmax/"
+        W['assoc_tped']    = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
+        W['assoc_tfam']    = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
         W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
 
     # Path A (MEAN/MEDIAN) — single set of TPED/kinship
@@ -664,6 +688,75 @@ def pheno_trait_tped(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_B
 def pheno_trait_tfam(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tfam"
 def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aBN.kinf"
 def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/methods/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+
+#=============================================================================
+# RULE FACTORIES — per-engine helpers for dynamic rule declaration
+#=============================================================================
+# These are called from the top-level for-loops in association.smk /
+# phenotype_assoc.smk (same idiom as haplotype.smk). Each helper returns a
+# plain Python dict or string; the rule: blocks live in the .smk files.
+
+def _gea_inputs(engine):
+    """Input dict for a GEA non-GAPIT rule of a given engine."""
+    if engine == "emmax":
+        return dict(
+            vcf      = W['vcf_filt'],
+            tped     = W['assoc_tped'],
+            kinship  = W['assoc_kinship'],
+            traits   = O['climate_site_scaled'],
+            covariates = W['pca_projections'],
+            metadata = O['metadata'],
+        )
+    elif engine == "lfmm":
+        return dict(
+            lfmm_ld  = W['lfmm_imp'],
+            lfmm_full = W['lfmm_imp_full'],
+            climate  = O['climate_site_scaled'],
+            vcfsnp   = W['vcfsnp_full'],
+        )
+    raise ValueError(f"_gea_inputs: unknown engine '{engine}'")
+
+def _gea_params(engine, method):
+    """Params dict for a GEA non-GAPIT rule of a given engine."""
+    if engine == "emmax":
+        return dict(
+            k           = K_BEST,
+            predictors  = PREDICTORS_SELECTED,
+            inter_dir   = INTER,
+            tables_dir  = f"{MOD_ASSOC}tables/methods/EMMAX/",
+            tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}",
+        )
+    elif engine == "lfmm":
+        return dict(
+            k          = K_BEST,
+            predictors = PREDICTORS_SELECTED,
+            tables_dir = f"{MOD_ASSOC}tables/methods/LFMM/",
+        )
+    raise ValueError(f"_gea_params: unknown engine '{engine}'")
+
+
+def _pheno_a_inputs(engine):
+    """Input dict for phenotype Path A (MEAN/MEDIAN) rule of a given engine."""
+    if engine == "emmax":
+        return dict(
+            vcf        = W['vcf_filt'],
+            tped       = W['pheno_tped'],
+            kinship    = W['pheno_kinship'],
+            pca        = W['pca_projections'],
+            phenotypes = W['pheno_all_phenotypes'],
+        )
+    raise ValueError(f"_pheno_a_inputs: unknown engine '{engine}'")
+
+def _pheno_a_params(engine, method):
+    """Params dict for phenotype Path A (MEAN/MEDIAN) rule of a given engine."""
+    if engine == "emmax":
+        return dict(
+            tped_prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}",
+            k           = K_BEST,
+            tables_dir  = f"{MOD_PHENO}tables/methods/",
+        )
+    raise ValueError(f"_pheno_a_params: unknown engine '{engine}'")
+
 
 #=============================================================================
 # CREATE DIRECTORIES
