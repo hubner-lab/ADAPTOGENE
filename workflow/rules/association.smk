@@ -290,38 +290,6 @@ rule find_genes_combined_regions:
         rm -f $TEMP_COLLAPSED
         """
 
-# GO enrichment analysis (only if GO_FIELD is specified)
-rule run_enrichment:
-    """Run per-region GO enrichment analysis for genes around significant regions.
-
-    Creates per-region enrichment files in trait-specific subdirectories:
-    - intermediate/enrichment/{trait}/Region_{region_id}_enrichment.qs (enrichResult object)
-    - tables/association/enrichment/{trait}/Region_{region_id}_enrichment.tsv (summary table)
-    - tables/association/enrichment/{trait}/Enrichment_{trait}_summary.tsv
-
-    Output files are determined dynamically based on regions in Genes_per_region.tsv.
-    """
-    input:
-        genes = O['genes_per_region'],  # Use redundant table (one row per region-gene pair)
-        gff = W['gff_normalized']
-    output: W['enrichment_done']
-    params:
-        go_field = GO_FIELD,
-        feature = GFF_FEATURE,
-        tables_dir = f"{MOD_ASSOC}tables/enrichment/",
-        intermediate_dir = f"{INTER}enrichment/association/"
-    log: f"{LOGDIR}association/run_enrichment.log"
-    shell:
-        """
-        # Run enrichment (creates per-region and per-trait summary files)
-        Rscript /pipeline/scripts/run_enrichment.R \
-            {input.genes} {input.gff} {params.go_field} {params.feature} \
-            {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
-
-        # Touch done file to indicate completion
-        touch {output}
-        """
-
 # Combined Manhattan plots (all traits and methods)
 rule manhattan_combined:
     """Generate combined Manhattan and QQ plots showing all traits and methods together."""

@@ -83,10 +83,8 @@ elif MODE == 'association':
             regions_per_trait = O['regions_per_trait'],
             regions_combined = O['regions_combined'],
             genes = O['genes_per_region'],
-            enrichment_done = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else []
         output: W['summary_done']
         params:
-            enrichment_path = W['enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL',
             summary_tsv = O['summary']
         log: f"{LOGDIR}association/write_summary.log"
         shell:
@@ -94,7 +92,7 @@ elif MODE == 'association':
             Rscript /pipeline/scripts/write_summary.R \
                 association {params.summary_tsv} \
                 {input.selected_snps} {input.regions_per_trait} {input.regions_combined} \
-                {input.genes} {params.enrichment_path} > {log} 2>&1
+                {input.genes} > {log} 2>&1
             touch {output}
             """
 
@@ -124,10 +122,8 @@ elif MODE in ('association_phenotypes', 'phenotype_association'):
             regions_per_trait = O['pheno_regions_per_trait'],
             regions_combined = O['pheno_regions_combined'],
             genes = O['pheno_genes_per_region'],
-            enrichment_done = W['pheno_enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else []
         output: W['summary_done']
         params:
-            enrichment_path = W['pheno_enrichment_done'] if (GO_FIELD and GO_FIELD != 'NULL') else 'NULL',
             summary_tsv = O['summary']
         log: f"{LOGDIR}phenotype_association/write_summary.log"
         shell:
@@ -135,7 +131,7 @@ elif MODE in ('association_phenotypes', 'phenotype_association'):
             Rscript /pipeline/scripts/write_summary.R \
                 association_phenotypes {params.summary_tsv} \
                 {input.missing_summary} {input.selected_snps} {input.regions_per_trait} \
-                {input.regions_combined} {input.genes} {params.enrichment_path} > {log} 2>&1
+                {input.regions_combined} {input.genes} > {log} 2>&1
             touch {output}
             """
 
@@ -148,46 +144,3 @@ elif MODE == 'overlapping':
         output: W['summary_done']
         shell: "touch {output}"
 
-elif MODE == 'haplotype_scan':
-    _hap_scan_inputs = {}
-    for i, tag in enumerate(HAP_TAGS):
-        _hap_scan_inputs[f'scan_done_{i}'] = W[f'hap_scan_done_{tag}']
-        _hap_scan_inputs[f'regions_{i}'] = O[f'hap_selected_regions_{tag}']
-
-    rule write_summary:
-        """Write haplotype_scan mode summary to Pipeline_summary.tsv."""
-        input: **_hap_scan_inputs
-        output: W['summary_done']
-        params:
-            summary_tsv = O['summary'],
-            tags = ','.join(HAP_TAGS)
-        log: f"{LOGDIR}haplotype_scan/write_summary.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/write_summary.R \
-                haplotype_scan {params.summary_tsv} \
-                {params.tags} > {log} 2>&1
-            touch {output}
-            """
-
-elif MODE == 'haplotype':
-    _hap_viz_inputs = {}
-    for i, tag in enumerate(HAP_TAGS):
-        _hap_viz_inputs[f'viz_done_{i}'] = W[f'hap_viz_done_{tag}']
-
-    rule write_summary:
-        """Write haplotype mode summary to Pipeline_summary.tsv."""
-        input: **_hap_viz_inputs
-        output: W['summary_done']
-        params:
-            summary_tsv = O['summary'],
-            tags = ','.join(HAP_TAGS),
-            epsilon = HAP_EPSILON_SELECTED
-        log: f"{LOGDIR}haplotype/write_summary.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/write_summary.R \
-                haplotype {params.summary_tsv} \
-                {params.tags} {params.epsilon} > {log} 2>&1
-            touch {output}
-            """

@@ -352,26 +352,6 @@ if PHENO_ASSOC_CONFIGS:
           rm -f $TEMP_COLLAPSED
           """
   
-  rule run_enrichment_pheno:
-      """Run GO enrichment for phenotype association regions."""
-      input:
-          genes = O['pheno_genes_per_region'],
-          gff = W['gff_normalized']
-      output: W['pheno_enrichment_done']
-      params:
-          go_field = GO_FIELD,
-          feature = GFF_FEATURE,
-          tables_dir = f"{MOD_PHENO}tables/enrichment/",
-          intermediate_dir = f"{INTER}enrichment_phenotypes/"
-      log: f"{LOGDIR}phenotype_association/run_enrichment_pheno.log"
-      shell:
-          """
-          Rscript /pipeline/scripts/run_enrichment.R \
-              {input.genes} {input.gff} {params.go_field} {params.feature} \
-              {params.tables_dir} {params.intermediate_dir} > {log} 2>&1
-          touch {output}
-          """
-  
   # Manhattan plots for phenotype traits
   rule manhattan_pheno:
       """Generate Manhattan plot and QQ plot for a phenotype trait."""

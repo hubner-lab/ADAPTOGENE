@@ -290,55 +290,6 @@ if PHENO_ASSOC_CONFIGS:
             PHENO_TRAITS = [t for t in PHENO_TRAITS if t in _allowed]
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
-# HAPLOTYPE parameters
-_hap = config.get('haplotype', {})
-_hap_scan = _hap.get('scan', {})
-HAP_SCAN_SOURCE = _hap_scan.get('regions_source', 'association')
-HAP_SCAN_REGIONS_FILE = _hap_scan.get('regions_file', 'NULL')
-HAP_SCAN_TOP_REGIONS = _hap_scan.get('top_regions', 5)
-HAP_SCAN_MIN_SNPS = int(_hap_scan.get('min_snps', 10))
-HAP_SCAN_MGMIN = _hap_scan.get('min_group_size', 50)
-HAP_SCAN_MINHAP = _hap_scan.get('min_haplotype_size', 15)
-HAP_SCAN_EPSILON_RANGE = _hap_scan.get('epsilon_range', [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0])
-HAP_SCAN_META_TYPE = _hap_scan.get('metadata_type', 'site')
-HAP_EPSILON_SELECTED = _hap.get('epsilon_selected', 'NULL')
-
-# Expand metadata types: 'both' -> ['site', 'cluster_K{K_BEST}']
-def get_hap_meta_types():
-    if HAP_SCAN_META_TYPE == 'site':
-        return ['site']
-    elif HAP_SCAN_META_TYPE == 'cluster':
-        return [f'cluster_K{K_BEST}'] if K_BEST else ['cluster']
-    elif HAP_SCAN_META_TYPE == 'both':
-        types = ['site']
-        if K_BEST:
-            types.append(f'cluster_K{K_BEST}')
-        return types
-    return ['site']
-
-HAP_META_TYPES = get_hap_meta_types()
-
-# Expand region sources: 'all' -> every available source
-def get_hap_sources():
-    if HAP_SCAN_SOURCE == 'all':
-        sources = []
-        if ASSOC_CONFIGS:
-            sources.append('association')
-        if PHENO_ASSOC_CONFIGS:
-            sources.append('association_phenotypes')
-        return sources if sources else ['association']
-    # Validate source against available configs
-    src = HAP_SCAN_SOURCE
-    if src == 'association_phenotypes' and not PHENO_ASSOC_CONFIGS:
-        raise ValueError(f"HAPLOTYPE_SCAN_REGIONS_SOURCE is '{src}' but PHENO_ASSOC_CONFIGS is not set. "
-                         f"Run mode=association_phenotypes first or change source to 'association'.")
-    return [src]
-
-HAP_SOURCES = get_hap_sources()
-
-# Build list of (meta_tag, source) combos as combined tags
-HAP_TAGS = [f"{mt}_{src}" for mt in HAP_META_TYPES for src in HAP_SOURCES]
-
 #=============================================================================
 # PATH DEFINITIONS
 #=============================================================================
@@ -519,14 +470,9 @@ def add_association_paths():
     O['genes_per_region'] = f"{MOD_ASSOC}tables/genes_per_region.tsv"
     O['genes_per_region_collapsed'] = f"{MOD_ASSOC}tables/genes_per_region_collapsed.tsv"
     O['genes_combined_regions'] = f"{MOD_ASSOC}tables/genes_combined.tsv"
-    W['enrichment_done'] = f"{INTER}flags/enrichment_done.flag"
-
     # Combined Manhattan plots (all traits and methods)
     O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
     O['qq_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
-
-    # Regionplot outputs
-    O['gff_topr'] = f"{INTER}annotation/topr_gene_annotation.tsv"
 
 add_association_paths()
 
@@ -571,8 +517,6 @@ def add_pheno_association_paths():
     O['pheno_genes_per_region'] = f"{MOD_PHENO}tables/genes_per_region.tsv"
     O['pheno_genes_collapsed'] = f"{MOD_PHENO}tables/genes_per_region_collapsed.tsv"
     O['pheno_genes_combined'] = f"{MOD_PHENO}tables/genes_combined.tsv"
-    W['pheno_enrichment_done'] = f"{INTER}flags/pheno_enrichment_done.flag"
-
     # Manhattan combined
     O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
     O['pheno_qq_combined'] = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
@@ -600,18 +544,6 @@ def add_overlap_paths():
         O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
 
 add_overlap_paths()
-
-# Haplotype analysis paths
-def add_haplotype_paths():
-    """Add haplotype analysis paths to W and O dictionaries."""
-    if K_BEST is None:
-        return
-    for tag in HAP_TAGS:
-        W[f'hap_scan_done_{tag}'] = f"{INTER}flags/haplotype_{tag}_scan_done.flag"
-        W[f'hap_viz_done_{tag}'] = f"{INTER}flags/haplotype_{tag}_viz_done.flag"
-        O[f'hap_selected_regions_{tag}'] = f"{OUTDIR}haplotype_scan/{tag}/tables/selected_regions.tsv"
-
-add_haplotype_paths()
 
 # Maladaptation paths
 def add_maladaptation_paths():
@@ -838,16 +770,6 @@ if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
     dirs_to_create.append(f"{INTER}enrichment_overlapping/")
     dirs_to_create.append(f"{LOGDIR}overlapping/")
 
-# Add haplotype analysis directories
-for tag in HAP_TAGS:
-    dirs_to_create.append(f"{OUTDIR}haplotype_scan/{tag}/plots/clustree/")
-    dirs_to_create.append(f"{OUTDIR}haplotype_scan/{tag}/tables/")
-    dirs_to_create.append(f"{OUTDIR}haplotype/{tag}/plots/")
-    dirs_to_create.append(f"{OUTDIR}haplotype/{tag}/tables/")
-    dirs_to_create.append(f"{INTER}haplotype/{tag}/")
-dirs_to_create.append(f"{LOGDIR}haplotype_scan/")
-dirs_to_create.append(f"{LOGDIR}haplotype/")
-
 # Add LD decay directories
 if K_BEST is not None:
     dirs_to_create.append(W['ld_decay_work'])
@@ -980,10 +902,6 @@ def get_targets(mode):
         targets.append(O['manhattan_combined'])
         targets.append(O['qq_combined'])
 
-        # Enrichment (if GO_FIELD is specified)
-        if GO_FIELD and GO_FIELD != 'NULL':
-            targets.append(W['enrichment_done'])
-
         targets.append(W['summary_done'])
         return targets
 
@@ -1060,10 +978,6 @@ def get_targets(mode):
             for trait in PHENO_TRAITS:
                 targets.append(f"{MOD_PHENO}plots/piemap/phenomap_{trait}.png")
 
-        # Enrichment (if GO_FIELD is specified)
-        if GO_FIELD and GO_FIELD != 'NULL':
-            targets.append(W['pheno_enrichment_done'])
-
         targets.append(W['summary_done'])
         return targets
 
@@ -1094,27 +1008,8 @@ def get_targets(mode):
         targets.append(W['summary_done'])
         return targets
 
-    elif mode == 'haplotype_scan':
-        check_numeric(K_BEST, 'K_BEST')
-        targets = []
-        for tag in HAP_TAGS:
-            targets.append(O[f'hap_selected_regions_{tag}'])
-            targets.append(W[f'hap_scan_done_{tag}'])
-        targets.append(W['summary_done'])
-        return targets
-
-    elif mode == 'haplotype':
-        check_numeric(K_BEST, 'K_BEST')
-        if str(HAP_EPSILON_SELECTED) == 'NULL':
-            raise ValueError("Set HAPLOTYPE_EPSILON_SELECTED after reviewing clustree plots from haplotype_scan mode")
-        targets = []
-        for tag in HAP_TAGS:
-            targets.append(W[f'hap_viz_done_{tag}'])
-        targets.append(W['summary_done'])
-        return targets
-
     elif mode is None:
-        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=phenotype_association or mode=overlapping or mode=haplotype_scan or mode=haplotype")
+        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=overlapping or mode=maladaptation")
     else:
         raise ValueError(f"Unknown mode: {mode}")
 

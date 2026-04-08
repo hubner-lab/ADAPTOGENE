@@ -14,9 +14,7 @@ if PHENO_ASSOC_CONFIGS:
     include: "workflow/rules/phenotype_assoc.smk"
 if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
     include: "workflow/rules/overlapping.smk"
-include: "workflow/rules/regionplot.smk"
 include: "workflow/rules/maladaptation.smk"
-include: "workflow/rules/haplotype.smk"
 include: "workflow/rules/summary.smk"
 
 rule all:

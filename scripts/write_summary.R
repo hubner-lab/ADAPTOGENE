@@ -183,12 +183,10 @@ if (MODE == 'processing') {
 
 } else if (MODE == 'association') {
     # args: MODE OUTPUT selected_snps regions_per_trait regions_combined genes_per_region
-    #       enrichment_done [optional]
     SELECTED_SNPS = args[3]
     REGIONS_PER_TRAIT = args[4]
     REGIONS_COMBINED = args[5]
     GENES_PER_REGION = args[6]
-    ENRICHMENT_DONE = if (length(args) >= 7) args[7] else "NULL"
 
     # Count selected SNPs
     snps <- fread(SELECTED_SNPS)
@@ -210,19 +208,12 @@ if (MODE == 'processing') {
     genes <- fread(GENES_PER_REGION)
     n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
 
-    # Count enrichment
-    enrichment_summary <- ''
-    if (ENRICHMENT_DONE != "NULL" && file.exists(ENRICHMENT_DONE)) {
-        enrichment_summary <- 'completed'
-    }
-
     new_rows <- rbind(
         row('association', 'selected_snps_total', n_selected_snps),
         do.call(rbind, method_rows),
         row('association', 'regions_per_trait', nrow(regions_trait)),
         row('association', 'regions_combined', nrow(regions_combined)),
-        row('association', 'genes_found', n_genes),
-        row('association', 'enrichment_status', enrichment_summary)
+        row('association', 'genes_found', n_genes)
     )
 
     # Add per-trait region counts
@@ -261,13 +252,12 @@ if (MODE == 'processing') {
     )
 
 } else if (MODE == 'association_phenotypes') {
-    # args: MODE OUTPUT missing_summary selected_snps regions_per_trait regions_combined genes_per_region [enrichment_done]
+    # args: MODE OUTPUT missing_summary selected_snps regions_per_trait regions_combined genes_per_region
     MISSING_SUMMARY = args[3]
     SELECTED_SNPS = args[4]
     REGIONS_PER_TRAIT = args[5]
     REGIONS_COMBINED = args[6]
     GENES_PER_REGION = args[7]
-    ENRICHMENT_DONE = if (length(args) >= 8) args[8] else "NULL"
 
     # Read missing value summary
     missing <- fread(MISSING_SUMMARY)
@@ -285,20 +275,13 @@ if (MODE == 'processing') {
     genes <- fread(GENES_PER_REGION)
     n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
 
-    # Enrichment status
-    enrichment_summary <- ''
-    if (ENRICHMENT_DONE != "NULL" && file.exists(ENRICHMENT_DONE)) {
-        enrichment_summary <- 'completed'
-    }
-
     new_rows <- rbind(
         row('association_phenotypes', 'n_phenotype_traits', n_traits),
         row('association_phenotypes', 'missing_strategy', missing$strategy[1]),
         row('association_phenotypes', 'selected_snps_total', n_selected_snps),
         row('association_phenotypes', 'regions_per_trait', nrow(regions_trait)),
         row('association_phenotypes', 'regions_combined', nrow(regions_combined)),
-        row('association_phenotypes', 'genes_found', n_genes),
-        row('association_phenotypes', 'enrichment_status', enrichment_summary)
+        row('association_phenotypes', 'genes_found', n_genes)
     )
 
     # Per-trait missing info
@@ -373,97 +356,6 @@ if (MODE == 'processing') {
         row('overlapping', 'genes_found', n_genes),
         row('overlapping', 'enrichment_status', enrichment_summary)
     )
-
-} else if (MODE == 'haplotype_scan') {
-    TAGS <- args[3]
-    tags_list <- strsplit(TAGS, ",")[[1]]
-
-    new_rows <- rbind(
-        row('haplotype_scan', 'tags_analyzed', paste(tags_list, collapse = "; ")),
-        row('haplotype_scan', 'n_tag_combos', length(tags_list))
-    )
-
-    # Read scan_status.tsv for each tag and extract comprehensive stats
-    for (tag in tags_list) {
-        # Try to read scan status file
-        inter_base <- dirname(dirname(OUTPUT))  # Go up from tables/ to results/
-        status_file <- file.path(inter_base, 'intermediate', paste0('haplotype_', tag), 'scan_status.tsv')
-
-        if (file.exists(status_file)) {
-            status <- fread(status_file)
-            summary_row <- status[region_id == 'SUMMARY']
-            detail <- status[region_id != 'SUMMARY']
-
-            if (nrow(summary_row) > 0) {
-                n_total <- summary_row$start[1]
-                n_success <- summary_row$end[1]
-                n_skipped <- summary_row$snp_count[1]
-                n_failed <- as.integer(summary_row$status[1])
-            } else {
-                n_total <- nrow(detail)
-                n_success <- sum(detail$status == 'success')
-                n_skipped <- sum(detail$status == 'skipped_low_snps')
-                n_failed <- sum(grepl('failed', detail$status))
-            }
-
-            # Average SNPs per successful region
-            avg_snps <- if (n_success > 0) {
-                mean(detail[status == 'success']$snp_count, na.rm = TRUE)
-            } else { 0 }
-
-            # Most common failure reason
-            failure_counts <- detail[status != 'success', .N, by = failure_reason][order(-N)]
-            top_failure <- if (nrow(failure_counts) > 0) {
-                substr(failure_counts$failure_reason[1], 1, 100)
-            } else { '' }
-
-            new_rows <- rbind(new_rows,
-                row(paste0('haplotype_scan_', tag), 'regions_attempted', n_total),
-                row(paste0('haplotype_scan_', tag), 'regions_succeeded', n_success),
-                row(paste0('haplotype_scan_', tag), 'regions_skipped_low_snps', n_skipped),
-                row(paste0('haplotype_scan_', tag), 'regions_failed', n_failed),
-                row(paste0('haplotype_scan_', tag), 'avg_snps_per_success_region', sprintf('%.1f', avg_snps))
-            )
-
-            if (top_failure != '') {
-                new_rows <- rbind(new_rows,
-                    row(paste0('haplotype_scan_', tag), 'most_common_failure', top_failure)
-                )
-            }
-        } else {
-            # Fallback: just count regions file if scan_status.tsv doesn't exist
-            regions_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Selected_regions.tsv"))
-            if (file.exists(regions_file)) {
-                reg <- fread(regions_file)
-                new_rows <- rbind(new_rows,
-                    row(paste0('haplotype_scan_', tag), 'regions_selected', nrow(reg))
-                )
-            }
-        }
-    }
-
-} else if (MODE == 'haplotype') {
-    TAGS <- args[3]
-    EPSILON <- args[4]
-    tags_list <- strsplit(TAGS, ",")[[1]]
-
-    new_rows <- rbind(
-        row('haplotype', 'epsilon_selected', EPSILON),
-        row('haplotype', 'tags_analyzed', paste(tags_list, collapse = "; "))
-    )
-
-    for (tag in tags_list) {
-        assign_file <- file.path(dirname(OUTPUT), paste0("haplotype_", tag, "/Haplotype_assignments.tsv"))
-        if (file.exists(assign_file)) {
-            assigns <- fread(assign_file)
-            n_haps <- if ('haplotype' %in% names(assigns)) n_distinct(assigns$haplotype) else 0
-            n_regions <- if ('region_id' %in% names(assigns)) n_distinct(assigns$region_id) else 0
-            new_rows <- rbind(new_rows,
-                row('haplotype', paste0('haplotype_groups_', tag), n_haps),
-                row('haplotype', paste0('regions_with_results_', tag), n_regions)
-            )
-        }
-    }
 
 } else {
     message(paste0('WARNING: Unknown mode "', MODE, '", skipping summary'))
