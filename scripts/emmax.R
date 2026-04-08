@@ -10,6 +10,9 @@ library(purrr)
 library(stringr)
 library(qvalue)
 
+source("/pipeline/scripts/R/utils/emmax_core.R")
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+
 args = commandArgs(trailingOnly=TRUE)
 ########################
 VCF = args[1]
@@ -34,17 +37,7 @@ message(paste0("INFO: Kinship file: ", KINSHIP_FILE))
 trait <- fread(TRAIT_FILE, sep = '\t', header = T)
 
 # Load covariates (PCs from LEA projections or PLINK eigenvec)
-# LEA format: space-separated, no header, cols = PCs (no FID/IID)
-# PLINK format: space-separated, no header, cols = FID IID PC1 PC2 ...
-cov_raw <- fread(COVARIATES_FILE, sep = ' ', header = F)
-# Detect format: if first column is all same value (FID) and second is different (IID), it's PLINK format
-if (ncol(cov_raw) > 2 && length(unique(cov_raw[[1]])) == 1 && length(unique(cov_raw[[2]])) == nrow(cov_raw)) {
-    message("INFO: Detected PLINK eigenvec format")
-    covariates <- cov_raw[, 3:(2 + Kbest)] %>% setNames(paste0('PC', 1:Kbest))
-} else {
-    message("INFO: Detected LEA projections format")
-    covariates <- cov_raw[, 1:Kbest] %>% setNames(paste0('PC', 1:Kbest))
-}
+covariates <- load_pca_covariates(COVARIATES_FILE, Kbest)
 
 ################################ Functions
 
@@ -53,14 +46,10 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, TPED_PREFIX, KINSHIP_FILE) {
     tfam <- paste0(TPED_PREFIX, '.tfam')
 
     message("INFO: Read VCF and extract SNPID")
-    snpid <- fread(cmd = paste('grep -v "##"', VCF, '| cut -f1-2')) %>%
-        setNames(c('CHROM', 'POS')) %>%
-        dplyr::mutate(SNPID = paste0(CHROM, ':', POS)) %>%
-        .$SNPID
+    snpid <- read_vcf_snpids(VCF)
 
     message("INFO: Read VCF and extract SampleNames")
-    SampleName <- fread(cmd = paste("head -1000", VCF, "| grep '#CHROM' | cut -f10- "), header = F) %>%
-        as.character()
+    SampleName <- read_vcf_samples(VCF)
 
     # FILES produced
     traitname <- colnames(trait)[1]
@@ -85,14 +74,14 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, TPED_PREFIX, KINSHIP_FILE) {
             write.table(COVAR, sep = '\t', col.names = F, row.names = F, quote = F)
 
         # Run EMMAX
-        system(paste('/pipeline/scripts/emmax-intel64 -v -d 10 -t', TPED_PREFIX,
+        system(paste(EMMAX_BIN, '-v -d 10 -t', TPED_PREFIX,
                      '-p', PHEN,
                      '-k', KINSHIP_FILE,
                      '-c', COVAR,
                      '-o', EMMAXOUT))
     } else {
         message('RUN emmax without PCA correction')
-        system(paste('/pipeline/scripts/emmax-intel64 -v -d 10 -t', TPED_PREFIX,
+        system(paste(EMMAX_BIN, '-v -d 10 -t', TPED_PREFIX,
                      '-p', PHEN,
                      '-k', KINSHIP_FILE,
                      '-o', EMMAXOUT))
@@ -135,9 +124,9 @@ pval_dt <- lapply(1:ncol(trait), function(i) {
 
 message(pval_dt %>% str)
 
-# Calculate q-values
+# Calculate q-values (with safe fallback to BH if qvalue fails)
 qval_dt <- lapply(pval_dt %>% dplyr::select(-SNPID, -chr, -pos), function(biovec) {
-    qvalue(biovec)$qvalues
+    compute_qvalues_safe(biovec)
 }) %>%
     do.call(cbind, .) %>%
     cbind(pval_dt %>% dplyr::select(SNPID, chr, pos), .)

@@ -12,6 +12,9 @@ library(scales)
 library(scattermore)
 library(jsonlite)
 
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+source("/pipeline/scripts/R/utils/manhattan_utils.R")
+
 args = commandArgs(trailingOnly=TRUE)
 ################################
 ASSOC_TABLE = args[1]   # SNPID chr pos TRAITS...
@@ -26,128 +29,6 @@ ALL_PREDICTORS = args[7]  # Comma-separated list of all trait names (for consist
 message(paste0('INFO: Manhattan plot for ', METHOD, ' - ', TRAIT))
 message(paste0('INFO: K = ', Kbest))
 message(paste0('INFO: Adjustment: ', ADJUST))
-
-################################ Functions
-
-# Okabe-Ito colorblind-safe palette for traits
-get_trait_colors <- function(traits) {
-    okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                   "#0072B2", "#D55E00", "#CC79A7", "#999999")
-    if (length(traits) <= 8) {
-        setNames(okabe_ito[1:length(traits)], traits)
-    } else {
-        setNames(viridis::turbo(length(traits)), traits)
-    }
-}
-
-FUN_max_pvalue_fdr <- function(pvalues, pval_threshold) {
-    qvalues_result <- qvalue(pvalues)
-    significant_pvalues <- pvalues[qvalues_result$qvalues < pval_threshold]
-    if (length(significant_pvalues) > 0) {
-        return(max(significant_pvalues))
-    } else {
-        return(NULL)
-    }
-}
-
-FUN_max_pvalue_top <- function(pvalues, topN) {
-    if (length(pvalues) < topN) {
-        stop("topN is larger than the number of available p-values")
-    }
-    sorted_pvalues <- sort(pvalues, decreasing = FALSE)
-    return(max(sorted_pvalues[1:topN]))
-}
-
-# Create cumulative position for Manhattan plot
-prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_col) {
-    # Get chromosome order (natural sort)
-    chr_order <- df[[chr_col]] %>% unique() %>%
-        .[order(as.numeric(str_extract(., "\\d+")))]
-
-    df <- df %>%
-        dplyr::mutate(chr_f = factor(.data[[chr_col]], levels = chr_order))
-
-    # Calculate cumulative positions
-    chr_lengths <- df %>%
-        group_by(chr_f) %>%
-        summarise(chr_len = max(.data[[pos_col]]), .groups = 'drop')
-
-    # Add gaps between chromosomes (2% of mean chr length)
-    chr_gap <- mean(chr_lengths$chr_len) * 0.02
-
-    chr_lengths <- chr_lengths %>%
-        dplyr::mutate(
-            chr_idx = dplyr::row_number(),
-            tot = cumsum(as.numeric(chr_len)) - chr_len + (chr_idx - 1) * chr_gap,
-            center = tot + chr_len / 2
-        ) %>%
-        dplyr::select(-chr_idx)
-
-    df <- df %>%
-        left_join(chr_lengths %>% dplyr::select(chr_f, tot), by = "chr_f") %>%
-        dplyr::mutate(
-            pos_cum = .data[[pos_col]] + tot,
-            log10p = -log10(.data[[pval_col]])
-        )
-
-    list(data = df, chr_info = chr_lengths)
-}
-
-# Manhattan plot theme
-theme_manhattan <- function() {
-    theme_minimal() +
-    theme(
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        axis.line.y = element_line(color = "grey30", linewidth = 0.3),
-        axis.ticks.y = element_line(color = "grey30", linewidth = 0.3),
-        axis.text.x = element_text(angle = 60, hjust = 1, size = 8),
-        axis.text.y = element_text(size = 9),
-        axis.title = element_text(size = 10),
-        plot.title = element_text(size = 11, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40"),
-        legend.position = "none",
-        plot.margin = margin(10, 15, 10, 10)
-    )
-}
-
-# Generate color palette for chromosomes
-get_chr_colors <- function(n_chr) {
-    # Alternating colors: dark blue and light blue-grey
-    rep(c("#2166AC", "#92C5DE"), length.out = n_chr)
-}
-
-# Generate color palette for highlighted regions
-get_region_colors <- function(n_regions) {
-    if (n_regions <= 10) {
-        # Distinct colors for up to 10 regions
-        colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
-                   "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5")
-        return(colors[1:n_regions])
-    } else {
-        return(scales::hue_pal()(n_regions))
-    }
-}
-
-# scattermore layer: pre-computes colors (scattermore doesn't work with ggplot2 color scales)
-# Parameters:
-#   data: data frame with pos_cum, log10p, and chr_f for coloring
-#   chr_colors: named vector of colors (names = chromosome levels)
-#   pointsize: for scattermore, use 3-4 for visibility (non-integers like 3.2 look better)
-#   pixels: raster resolution, should match output size (width*dpi, height*dpi)
-add_scatter_layer <- function(data, chr_colors, alpha = 0.5, pointsize = 10) {
-    if (nrow(data) == 0) {
-        return(geom_blank())
-    }
-    # scattermore needs pre-computed colors (doesn't work with scale_color_manual)
-    data$point_color <- chr_colors[as.character(data$chr_f)]
-    # pixels should match output: 10in x 4in @ 300dpi = 3000x1200
-    geom_scattermore(data = data,
-                     aes(x = pos_cum, y = log10p, color = point_color),
-                     alpha = alpha, pointsize = pointsize,
-                     pixels = c(3000, 1200), interpolate = FALSE)
-}
 
 ################################ Compute trait color
 
@@ -176,26 +57,13 @@ if (!(TRAIT %in% colnames(snps_assoc))) {
 
 # Parse adjustment parameters
 adjustment <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
-pval_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
+original_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
 
 message(paste0('INFO: Adjustment method: ', adjustment))
-message(paste0('INFO: Threshold: ', pval_threshold))
+message(paste0('INFO: Threshold: ', original_threshold))
 
 # Calculate threshold based on adjustment method
-original_threshold <- pval_threshold
-if (adjustment == 'bonf') {
-    pval_threshold <- original_threshold / nrow(snps_assoc)
-}
-if (adjustment == 'qval') {
-    pval_threshold <- FUN_max_pvalue_fdr(snps_assoc[[TRAIT]], original_threshold)
-    if (is.null(pval_threshold)) {
-        message('WARNING: No significant SNPs at q-value threshold')
-        pval_threshold <- original_threshold / nrow(snps_assoc)  # fallback to Bonferroni
-    }
-}
-if (adjustment == 'top') {
-    pval_threshold <- FUN_max_pvalue_top(snps_assoc[[TRAIT]], original_threshold)
-}
+pval_threshold <- compute_pval_threshold(snps_assoc[[TRAIT]], adjustment, original_threshold)
 
 message(paste0('INFO: Final p-value threshold: ', pval_threshold))
 threshold_log10 <- -log10(pval_threshold)

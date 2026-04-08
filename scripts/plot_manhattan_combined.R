@@ -17,6 +17,10 @@ library(scattermore)
 library(ggnewscale)
 library(jsonlite)
 
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+source("/pipeline/scripts/R/utils/manhattan_utils.R")
+source("/pipeline/scripts/R/utils/io_pvalues.R")
+
 args = commandArgs(trailingOnly=TRUE)
 ################################
 ASSOC_FILES_STR = args[1]   # Comma-separated "METHOD:ADJUST:FILEPATH"
@@ -28,18 +32,8 @@ PLOT_DIR = args[4]          # Output directory
 message('INFO: Combined Manhattan plot for all traits and methods')
 message(paste0('INFO: K = ', Kbest))
 
-# Parse ASSOC_FILES_STR into list
-assoc_list <- str_split(ASSOC_FILES_STR, ',')[[1]]
-assoc_info <- list()
-for (item in assoc_list) {
-    parts <- str_split(item, ':')[[1]]
-    if (length(parts) == 3) {
-        method <- parts[1]
-        adjust <- parts[2]
-        filepath <- parts[3]
-        assoc_info[[method]] <- list(method = method, adjust = adjust, filepath = filepath)
-    }
-}
+# Parse ASSOC_FILES_STR into named list
+assoc_info <- parse_assoc_files_str(ASSOC_FILES_STR)
 
 if (length(assoc_info) == 0) {
     stop("No valid association files provided")
@@ -51,178 +45,13 @@ message(paste0('INFO: Found ', length(assoc_info), ' methods: ', paste(names(ass
 traits <- str_split(PREDICTORS, ',')[[1]] %>% str_trim()
 message(paste0('INFO: Traits: ', paste(traits, collapse = ', ')))
 
-################################ Functions
-
-FUN_max_pvalue_fdr <- function(pvalues, pval_threshold) {
-    qvalues_result <- qvalue(pvalues)
-    significant_pvalues <- pvalues[qvalues_result$qvalues < pval_threshold]
-    if (length(significant_pvalues) > 0) {
-        return(max(significant_pvalues))
-    } else {
-        return(NULL)
-    }
-}
-
-FUN_max_pvalue_top <- function(pvalues, topN) {
-    if (length(pvalues) < topN) {
-        stop("topN is larger than the number of available p-values")
-    }
-    sorted_pvalues <- sort(pvalues, decreasing = FALSE)
-    return(max(sorted_pvalues[1:topN]))
-}
-
-# Okabe-Ito colorblind-safe palette for traits
-get_trait_colors <- function(traits) {
-    okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                   "#0072B2", "#D55E00", "#CC79A7", "#999999")
-    if (length(traits) <= 8) {
-        setNames(okabe_ito[1:length(traits)], traits)
-    } else {
-        setNames(viridis::turbo(length(traits)), traits)
-    }
-}
-
-# Distinct shapes for methods (up to 10)
-get_method_shapes <- function(methods) {
-    shapes <- c(16, 17, 15, 18, 3, 4, 8, 6, 9, 14)
-    # circle, triangle, square, diamond, cross, X, star, inv-triangle, diamond+cross, square+triangle
-    setNames(shapes[1:length(methods)], methods)
-}
-
-# Create cumulative position for Manhattan plot
-prepare_manhattan_data <- function(df, chr_col = "chr", pos_col = "pos", pval_col) {
-    # Get chromosome order (natural sort)
-    chr_order <- df[[chr_col]] %>% unique() %>%
-        .[order(as.numeric(str_extract(., "\\d+")))]
-
-    df <- df %>%
-        dplyr::mutate(chr_f = factor(.data[[chr_col]], levels = chr_order))
-
-    # Calculate cumulative positions
-    chr_lengths <- df %>%
-        group_by(chr_f) %>%
-        summarise(chr_len = max(.data[[pos_col]]), .groups = 'drop')
-
-    # Add gaps between chromosomes (2% of mean chr length)
-    chr_gap <- mean(chr_lengths$chr_len) * 0.02
-
-    chr_lengths <- chr_lengths %>%
-        dplyr::mutate(
-            chr_idx = dplyr::row_number(),
-            tot = cumsum(as.numeric(chr_len)) - chr_len + (chr_idx - 1) * chr_gap,
-            center = tot + chr_len / 2
-        ) %>%
-        dplyr::select(-chr_idx)
-
-    df <- df %>%
-        left_join(chr_lengths %>% dplyr::select(chr_f, tot), by = "chr_f") %>%
-        dplyr::mutate(
-            pos_cum = .data[[pos_col]] + tot,
-            log10p = -log10(.data[[pval_col]])
-        )
-
-    list(data = df, chr_info = chr_lengths)
-}
-
-# Manhattan plot theme
-theme_manhattan <- function() {
-    theme_minimal() +
-    theme(
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        axis.line.y = element_line(color = "grey30", linewidth = 0.3),
-        axis.ticks.y = element_line(color = "grey30", linewidth = 0.3),
-        axis.text.x = element_text(angle = 60, hjust = 1, size = 8),
-        axis.text.y = element_text(size = 9),
-        axis.title = element_text(size = 10),
-        plot.title = element_text(size = 11, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey40"),
-        plot.margin = margin(10, 15, 10, 10)
-    )
-}
-
-# Generate color palette for regions
-get_region_colors <- function(n_regions) {
-    if (n_regions <= 10) {
-        colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
-                   "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5")
-        return(colors[1:n_regions])
-    } else {
-        return(scales::hue_pal()(n_regions))
-    }
-}
-
 ################################ Main
 
-# Load and combine all association data
+# Load and threshold all association data
 message('INFO: Loading association data for all methods and traits')
-
-all_data <- list()
-method_thresholds <- list()
-
-for (method_name in names(assoc_info)) {
-    info <- assoc_info[[method_name]]
-    message(paste0('INFO: Loading ', method_name, ' from ', info$filepath))
-
-    snps_assoc <- fread(info$filepath, sep = '\t', header = TRUE)
-    snps_assoc$chr <- as.character(snps_assoc$chr)
-
-    # Parse adjustment parameters
-    adjustment <- str_split(info$adjust, '_')[[1]][1]
-    pval_threshold <- str_split(info$adjust, '_')[[1]][2] %>% as.numeric()
-
-    message(paste0('INFO: ', method_name, ' adjustment: ', adjustment, ' ', pval_threshold))
-
-    # For each trait, create long-format data
-    for (trait in traits) {
-        if (!(trait %in% colnames(snps_assoc))) {
-            message(paste0('WARNING: Trait ', trait, ' not found in ', method_name, ' data'))
-            next
-        }
-
-        # Calculate threshold
-        original_threshold <- pval_threshold
-        threshold_value <- pval_threshold
-
-        if (adjustment == 'bonf') {
-            threshold_value <- original_threshold / nrow(snps_assoc)
-        }
-        if (adjustment == 'qval') {
-            threshold_value <- FUN_max_pvalue_fdr(snps_assoc[[trait]], original_threshold)
-            if (is.null(threshold_value)) {
-                message(paste0('WARNING: No significant SNPs at q-value threshold for ', method_name, ' ', trait))
-                threshold_value <- original_threshold / nrow(snps_assoc)
-            }
-        }
-        if (adjustment == 'top') {
-            threshold_value <- FUN_max_pvalue_top(snps_assoc[[trait]], original_threshold)
-        }
-
-        threshold_log10 <- -log10(threshold_value)
-        method_thresholds[[paste0(method_name, "_", trait)]] <- threshold_log10
-
-        # Create long-format data
-        trait_data <- snps_assoc %>%
-            dplyr::select(SNPID, chr, pos, !!sym(trait)) %>%
-            dplyr::rename(pvalue = !!sym(trait)) %>%
-            dplyr::mutate(
-                method = method_name,
-                trait = trait,
-                log10p = -log10(pvalue),
-                is_significant = log10p >= threshold_log10
-            )
-
-        all_data[[paste0(method_name, "_", trait)]] <- trait_data
-
-        n_sig <- sum(trait_data$is_significant)
-        message(paste0('INFO: ', method_name, ' - ', trait, ': ', n_sig, ' significant SNPs'))
-    }
-}
-
-# Combine all data
-plot_data_all <- bind_rows(all_data)
-message(paste0('INFO: Combined data: ', nrow(plot_data_all), ' total data points'))
+assoc_result    <- load_assoc_data(assoc_info, traits)
+plot_data_all   <- assoc_result$data
+method_thresholds <- assoc_result$thresholds
 
 # Calculate minimum threshold (most stringent)
 min_threshold <- min(unlist(method_thresholds))
@@ -245,7 +74,7 @@ plot_data_all <- plot_data_all %>%
     dplyr::mutate(pos_cum = pos + tot)
 
 # Get palettes
-trait_colors <- get_trait_colors(traits)
+trait_colors  <- get_trait_colors(traits)
 method_shapes <- get_method_shapes(names(assoc_info))
 
 # Calculate y-axis limit
@@ -271,7 +100,6 @@ message(paste0('INFO: Unique significant SNPs: ', n_sig_unique))
 p_simple <- ggplot()
 
 # Per-trait background SNPs (scattermore, first method only)
-first_method <- names(assoc_info)[1]
 for (t in traits) {
     df_t <- df_background %>% dplyr::filter(trait == t)
     df_t$point_color <- unname(trait_colors[t])

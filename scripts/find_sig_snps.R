@@ -9,6 +9,9 @@ library(stringr)
 library(GenomicRanges)
 library(parallel)
 
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+source("/pipeline/scripts/R/utils/io_selected_snps.R")
+
 args = commandArgs(trailingOnly=TRUE)
 ################
 ASSOC_TABLE = args[1]  # p-values table
@@ -25,24 +28,6 @@ message(paste0('INFO: Distance: ', DISTANCE))
 
 ######################## Functions
 
-FUN_max_pvalue_fdr <- function(pvalues, pval_threshold) {
-    qvalues_result <- qvalue(pvalues)
-    significant_pvalues <- pvalues[qvalues_result$qvalues < pval_threshold]
-    if (length(significant_pvalues) > 0) {
-        return(max(significant_pvalues))
-    } else {
-        return(NA)
-    }
-}
-
-FUN_max_pvalue_top <- function(pvalues, topN) {
-    if (length(pvalues) < topN) {
-        stop("topN is larger than the number of available p-values")
-    }
-    sorted_pvalues <- sort(pvalues, decreasing = FALSE)
-    return(max(sorted_pvalues[1:topN]))
-}
-
 FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
 
     snps_assoc <- fread(ASSOC_PVAL)
@@ -58,12 +43,12 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
     }
     if (adjustment == 'qval') {
         pval_thresholds <- sapply(snps_assoc %>% dplyr::select(-SNPID, -chr, -pos),
-                                  function(x) FUN_max_pvalue_fdr(x, pval_threshold)) %>%
+                                  function(x) max_pvalue_fdr(x, pval_threshold)) %>%
             setNames(traits)
     }
     if (adjustment == 'top') {
         pval_thresholds <- sapply(snps_assoc %>% dplyr::select(-SNPID, -chr, -pos),
-                                  function(x) FUN_max_pvalue_top(x, pval_threshold)) %>%
+                                  function(x) max_pvalue_top(x, pval_threshold)) %>%
             setNames(traits)
     }
 
@@ -161,7 +146,7 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
 ######################################### Main
 
 # Parse parameters
-adjustment <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
+adjustment     <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
 pval_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
 
 snps_sig <- FUN_find_sigSNPs(ASSOC_TABLE, adjustment, pval_threshold, CPU)
@@ -171,6 +156,6 @@ snps_sig %>%
     dplyr::mutate(method = METHOD) %>%
     dplyr::select(SNPID, chr, pos, pvalue, pval_threshold, method,
                   trait, overlap_traits, overlap_snps, overlap_distance) %>%
-    fwrite(OUTPUT, sep = '\t')
+    write_selected_snps(OUTPUT)
 
 message(paste0('INFO: Saved significant SNPs to ', OUTPUT))

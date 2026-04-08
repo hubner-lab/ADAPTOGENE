@@ -10,6 +10,9 @@ library(purrr)
 library(stringr)
 library(qvalue)
 
+source("/pipeline/scripts/R/utils/emmax_core.R")
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+
 args = commandArgs(trailingOnly=TRUE)
 ########################
 VCF              = args[1]                # Filtered VCF (possibly per-trait subset for DROP mode)
@@ -35,41 +38,18 @@ message(paste0("INFO: Samples order: ", ifelse(is.null(SAMPLES_ORDER), "not prov
 # Create output directory
 dir.create(TABLES_DIR, recursive = TRUE, showWarnings = FALSE)
 
-# --- Extract SNP IDs from VCF ---
+# --- Extract SNP IDs and sample names from VCF ---
 message("INFO: Extracting SNP IDs from VCF")
-snpid <- fread(cmd = paste('grep -v "##"', VCF, '| cut -f1-2')) %>%
-    setNames(c('CHROM', 'POS')) %>%
-    dplyr::mutate(SNPID = paste0(CHROM, ':', POS)) %>%
-    .$SNPID
+snpid <- read_vcf_snpids(VCF)
 
-# --- Extract sample names from VCF header ---
 message("INFO: Extracting sample names from VCF")
-SampleName <- fread(cmd = paste("head -1000", VCF, "| grep '#CHROM' | cut -f10-"), header = F) %>%
-    as.character()
+SampleName <- read_vcf_samples(VCF)
 message(paste0("INFO: ", length(SampleName), " samples in VCF"))
 
-# --- Load PCA projections and subset if needed ---
+# --- Load PCA projections (autodetect format, optional DROP-mode subsetting) ---
 message("INFO: Loading PCA projections")
-cov_raw <- fread(PCA_PROJECTIONS, sep = ' ', header = F)
-message(paste0("INFO: PCA matrix: ", nrow(cov_raw), " rows x ", ncol(cov_raw), " cols"))
-
-if (nrow(cov_raw) > length(SampleName) && !is.null(SAMPLES_ORDER)) {
-    # DROP mode: PCA is from whole dataset, VCF is per-trait subset
-    message("INFO: PCA has more rows than VCF samples — subsetting (DROP mode)")
-    all_samples <- fread(SAMPLES_ORDER, header = FALSE, colClasses = "character")$V1
-    message(paste0("INFO: Full sample order: ", length(all_samples), " samples"))
-    keep_idx <- which(all_samples %in% SampleName)
-    cov_raw <- cov_raw[keep_idx, ]
-    message(paste0("INFO: Subsetted PCA to ", nrow(cov_raw), " rows"))
-}
-
-if (nrow(cov_raw) != length(SampleName)) {
-    stop(paste0("ERROR: PCA row count (", nrow(cov_raw),
-                ") does not match VCF sample count (", length(SampleName),
-                "). Provide SAMPLES_ORDER for DROP mode."))
-}
-
-covariates <- cov_raw[, 1:K_BEST] %>% setNames(paste0('PC', 1:K_BEST))
+covariates <- load_pca_covariates(PCA_PROJECTIONS, K_BEST, SAMPLES_ORDER, SampleName)
+message(paste0("INFO: Covariates matrix: ", nrow(covariates), " rows x ", ncol(covariates), " cols"))
 
 # --- Read phenotype file ---
 message("INFO: Reading phenotype file")
@@ -110,7 +90,7 @@ results <- lapply(trait_cols, function(trait) {
 
     # Run EMMAX
     out_prefix <- file.path(work_dir, paste0('EMMAX_OUT_', trait))
-    cmd <- paste('/pipeline/scripts/emmax-intel64 -v -d 10',
+    cmd <- paste(EMMAX_BIN, '-v -d 10',
                  '-t', TPED_PREFIX,
                  '-p', phen_file,
                  '-k', KINSHIP_FILE,
@@ -151,16 +131,10 @@ pval_dt <- results %>%
 
 message(paste0("INFO: Combined p-value table: ", nrow(pval_dt), " SNPs x ", length(trait_cols), " traits"))
 
-# --- Compute q-values ---
+# --- Compute q-values (with safe fallback to BH if qvalue fails) ---
 message("INFO: Computing q-values")
 qval_dt <- lapply(pval_dt %>% dplyr::select(-SNPID, -chr, -pos), function(pvals) {
-    tryCatch(
-        qvalue(pvals)$qvalues,
-        error = function(e) {
-            message(paste0("WARNING: qvalue failed (", e$message, "), using BH adjustment"))
-            p.adjust(pvals, method = 'BH')
-        }
-    )
+    compute_qvalues_safe(pvals)
 }) %>%
     do.call(cbind, .) %>%
     as.data.table() %>%
