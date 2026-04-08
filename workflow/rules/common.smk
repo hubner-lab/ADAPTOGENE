@@ -489,6 +489,13 @@ def add_pheno_association_paths():
     W['pheno_emmax_work'] = f"{PHENO_WORK}emmax/"
     W['pheno_gapit_work'] = f"{INTER}gapit/phenotype_association/"
 
+    # Ensure full-VCF derived paths exist (needed by unified downstream gene-finding rules)
+    if 'vcfsnp_full' not in W:
+        W['geno_full']    = f"{WORK_FILT}{VCF_BASE}.geno"
+        W['lfmm_full']    = f"{WORK_FILT}{VCF_BASE}.lfmm"
+        W['vcfsnp_full']  = f"{WORK_FILT}{VCF_BASE}.vcfsnp"
+        W['removed_full'] = f"{WORK_FILT}{VCF_BASE}.removed"
+
     # Engine-specific paths for phenotype methods — only populate if not already set by GEA
     _pheno_engines = {GWAS_METHODS[m]["engine"] for m in PHENO_ASSOC_CONFIGS}
     if "gapit" in _pheno_engines and 'gapit_gd' not in W:
@@ -620,6 +627,77 @@ def pheno_trait_tped(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_B
 def pheno_trait_tfam(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tfam"
 def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aBN.kinf"
 def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/methods/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+
+#=============================================================================
+# PHASE 4: Source-indexed config for unified GEA/GWAS downstream rules
+#=============================================================================
+# Keys are current directory names ("association", "phenotype_association").
+# Phase 5 will rename these to "gea"/"gwas" along with the filesystem rename.
+ASSOC_SOURCES = {}
+
+if K_BEST is not None and ASSOC_CONFIGS:
+    ASSOC_SOURCES["association"] = {
+        "mod":             MOD_ASSOC,
+        "logdir":          f"{LOGDIR}association/",
+        "configs":         ASSOC_CONFIGS,
+        "method_regex":    ASSOC_METHOD_REGEX,
+        "trait_regex":     r"bio_\d+",
+        "predictors":      PREDICTORS_SELECTED,
+        "snp_distance":    SNP_DISTANCE,
+        "region_distance": REGION_DISTANCE,
+        "region_auto":     REGION_DISTANCE_AUTO,
+        "promoter_length": PROMOTER_LENGTH,
+        "combine_method":  SIGSNPS_METHOD,
+        "combine_gap":     SIGSNPS_GAP,
+        "pvalues_fn":      assoc_pvalues,
+        "sigsnps_fn":      assoc_sigsnps,
+    }
+
+if K_BEST is not None and PHENO_ASSOC_CONFIGS:
+    ASSOC_SOURCES["phenotype_association"] = {
+        "mod":             MOD_PHENO,
+        "logdir":          f"{LOGDIR}phenotype_association/",
+        "configs":         PHENO_ASSOC_CONFIGS,
+        "method_regex":    PHENO_METHOD_REGEX,
+        "trait_regex":     r"[a-zA-Z]\w*",
+        "predictors":      PHENO_PREDICTORS,
+        "snp_distance":    PHENO_SNP_DISTANCE,
+        "region_distance": PHENO_REGION_DISTANCE,
+        "region_auto":     PHENO_REGION_DISTANCE_AUTO,
+        "promoter_length": PHENO_PROMOTER_LENGTH,
+        "combine_method":  PHENO_COMBINE_METHOD,
+        "combine_gap":     PHENO_COMBINE_GAP,
+        "pvalues_fn":      pheno_pvalues,
+        "sigsnps_fn":      pheno_sigsnps,
+    }
+
+def _src(source, key):
+    """Look up a source-indexed config value in unified downstream rule bodies."""
+    return ASSOC_SOURCES[source][key]
+
+# Wildcard regex matching all configured sources (used in _assoc_downstream.smk)
+SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "association"
+# Trait wildcard: union of GEA (bio_\d+) and GWAS (identifier) patterns.
+# {source} in the output path disambiguates which branch a match belongs to.
+TRAIT_REGEX_ANY = r"(bio_\d+|[a-zA-Z]\w*)"
+
+def assoc_out(source, key):
+    """Return the per-source output path for a logical downstream key."""
+    _templates = {
+        "selected_snps":              "tables/selected_snps.tsv",
+        "regions_per_trait":          "tables/regions_per_trait.tsv",
+        "regions_combined":           "tables/regions_combined.tsv",
+        "genes_per_region":           "tables/genes_per_region.tsv",
+        "genes_per_region_collapsed": "tables/genes_per_region_collapsed.tsv",
+        "genes_combined":             "tables/genes_combined.tsv",
+        "manhattan_combined_png":     f"plots/manhattan/combined/manhattan_combined_K{K_BEST}.png",
+        "manhattan_combined_svg":     f"plots/manhattan/combined/manhattan_combined_K{K_BEST}.svg",
+        "qq_combined_png":            f"plots/manhattan/combined/qq_combined_K{K_BEST}.png",
+        "qq_combined_svg":            f"plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
+        "manhattan_combined_bg":      f"plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
+        "manhattan_combined_coords":  f"plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
+    }
+    return f"{ASSOC_SOURCES[source]['mod']}{_templates[key]}"
 
 #=============================================================================
 # RULE FACTORIES — per-engine helpers for dynamic rule declaration
@@ -799,6 +877,26 @@ def get_predictors_list():
         return []
     return [p.strip() for p in PREDICTORS_SELECTED.split(',')]
 
+def _targets_for_assoc_source(source):
+    """Build the shared downstream target list for a GEA or GWAS source."""
+    src = ASSOC_SOURCES[source]
+    traits = get_predictors_list() if source == "association" else PHENO_TRAITS
+    targets = []
+    for method, adjust in src["configs"].items():
+        targets.append(src["pvalues_fn"](method))
+        targets.append(src["sigsnps_fn"](method, adjust))
+        for trait in traits:
+            targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png")
+            targets.append(f"{src['mod']}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png")
+    for key in (
+        "selected_snps", "regions_per_trait", "regions_combined",
+        "genes_per_region", "genes_per_region_collapsed", "genes_combined",
+        "manhattan_combined_png", "qq_combined_png",
+    ):
+        targets.append(assoc_out(source, key))
+    return targets
+
+
 def get_targets(mode):
     if mode == 'processing':
         targets = [
@@ -868,40 +966,14 @@ def get_targets(mode):
         if not CLIMATE_ENABLED:
             raise ValueError("association mode requires climate.enabled: true (GEA uses climate predictors as traits)")
         check_numeric(K_BEST, 'K_BEST')
-        predictors = get_predictors_list()
-        if not predictors:
+        if not get_predictors_list():
             raise ValueError("climate.predictors must be set for association mode")
         if not ASSOC_CONFIGS:
             raise ValueError("ASSOCIATION_CONFIGS must be set for association mode")
         if GFF:
             check_file_exists(INDIR, GFF, 'GFF')
 
-        targets = []
-
-        # Per-method targets
-        for method, adjust in ASSOC_CONFIGS.items():
-            # P-values table
-            targets.append(assoc_pvalues(method))
-            # Significant SNPs per method
-            targets.append(assoc_sigsnps(method, adjust))
-            # Manhattan plots per trait (simple + with regions)
-            # Each rule produces both PNG and SVG
-            for trait in predictors:
-                targets.append(manhattan_plot(method, trait, adjust))
-                targets.append(qq_plot(method, trait, adjust))
-
-        # Combined analysis targets
-        targets.append(O['selected_snps'])
-        targets.append(O['regions_per_trait'])
-        targets.append(O['regions_combined'])
-        targets.append(O['genes_per_region'])
-        targets.append(O['genes_per_region_collapsed'])
-        targets.append(O['genes_combined_regions'])
-
-        # Combined Manhattan plots (all traits and methods)
-        targets.append(O['manhattan_combined'])
-        targets.append(O['qq_combined'])
-
+        targets = _targets_for_assoc_source("association")
         targets.append(W['summary_done'])
         return targets
 
@@ -955,23 +1027,7 @@ def get_targets(mode):
         if GFF:
             check_file_exists(INDIR, GFF, 'GFF')
 
-        targets = [O['pheno_missing_summary']]
-
-        # Per-method targets
-        for method, adjust in PHENO_ASSOC_CONFIGS.items():
-            targets.append(pheno_pvalues(method))
-            targets.append(pheno_sigsnps(method, adjust))
-            for trait in PHENO_TRAITS:
-                targets.append(pheno_manhattan(method, trait, adjust))
-                targets.append(pheno_qq(method, trait, adjust))
-
-        targets.extend([
-            O['pheno_selected_snps'],
-            O['pheno_regions_per_trait'], O['pheno_regions_combined'],
-            O['pheno_genes_per_region'], O['pheno_genes_collapsed'], O['pheno_genes_combined'],
-            O['pheno_manhattan_combined'],
-            O['pheno_qq_combined'],
-        ])
+        targets = [O['pheno_missing_summary']] + _targets_for_assoc_source("phenotype_association")
 
         # Phenotype piemaps (require climate raster for background)
         if CLIMATE_ENABLED:

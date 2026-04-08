@@ -12,6 +12,8 @@ include: "workflow/rules/structure_k.smk"
 include: "workflow/rules/association.smk"
 if PHENO_ASSOC_CONFIGS:
     include: "workflow/rules/phenotype_assoc.smk"
+if ASSOC_SOURCES:
+    include: "workflow/rules/_assoc_downstream.smk"
 if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
     include: "workflow/rules/overlapping.smk"
 include: "workflow/rules/maladaptation.smk"
