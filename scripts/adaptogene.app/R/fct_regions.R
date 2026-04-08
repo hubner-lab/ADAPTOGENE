@@ -468,7 +468,13 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
     if (!file_ok(gff_topr_p))
         return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
 
-    method_files <- find_method_sigsnps_files(pd$name, module)
+    # For MOD_OVERLAP, regions combine GEA + GWAS signals; pull method files from both sources.
+    method_files <- if (identical(module, MOD_OVERLAP)) {
+        c(find_method_sigsnps_files(pd$name, MOD_ASSOC),
+          find_method_sigsnps_files(pd$name, MOD_PHENO))
+    } else {
+        find_method_sigsnps_files(pd$name, module)
+    }
     if (length(method_files) == 0)
         return(list(error = "No method result files found. Run the association mode first."))
     # Filter to k_best only — glob returns files for all K values, causing each method
