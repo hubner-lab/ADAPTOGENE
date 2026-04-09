@@ -73,11 +73,11 @@ app_server <- function(input, output, session) {
     # ── Config sidebar servers (one per tab) ───────────────────────────────────
     mod_config_sidebar_server("config_home",          config_state, "home")
     mod_config_sidebar_server("config_processing",    config_state, "processing")
+    mod_config_sidebar_server("config_prestructure",  config_state, "prestructure")
     mod_config_sidebar_server("config_structure",     config_state, "structure")
-    mod_config_sidebar_server("config_structure_k",   config_state, "structure_k")
-    mod_config_sidebar_server("config_association",   config_state, "association")
-    mod_config_sidebar_server("config_phenotype",     config_state, "phenotype")
-    mod_config_sidebar_server("config_overlapping",   config_state, "overlapping")
+    mod_config_sidebar_server("config_gea",           config_state, "gea")
+    mod_config_sidebar_server("config_gwas",          config_state, "gwas")
+    mod_config_sidebar_server("config_gea_x_gwas",    config_state, "gea_x_gwas")
     mod_config_sidebar_server("config_maladaptation", config_state, "maladaptation")
 
     # ── Save project files button (Home tab) ──────────────────────────────────
@@ -94,28 +94,28 @@ app_server <- function(input, output, session) {
     })
 
     # ── Pipeline runner servers (one per tab / mode) ───────────────────────────
-    mod_pipeline_runner_server("runner_processing",   config_state, pipeline_running,
+    mod_pipeline_runner_server("runner_processing",    config_state, pipeline_running,
                                 project_data_trigger, tab_name = "processing")
-    mod_pipeline_runner_server("runner_structure",    config_state, pipeline_running,
+    mod_pipeline_runner_server("runner_prestructure",  config_state, pipeline_running,
+                                project_data_trigger, tab_name = "prestructure")
+    mod_pipeline_runner_server("runner_structure",     config_state, pipeline_running,
                                 project_data_trigger, tab_name = "structure")
-    mod_pipeline_runner_server("runner_structure_k",  config_state, pipeline_running,
-                                project_data_trigger, tab_name = "structure_k")
-    mod_pipeline_runner_server("runner_association",  config_state, pipeline_running,
-                                project_data_trigger, tab_name = "association")
-    mod_pipeline_runner_server("runner_phenotype",    config_state, pipeline_running,
-                                project_data_trigger, tab_name = "phenotype")
-    mod_pipeline_runner_server("runner_overlapping",  config_state, pipeline_running,
-                                project_data_trigger, tab_name = "overlapping")
-    mod_pipeline_runner_server("runner_maladaptation",config_state, pipeline_running,
+    mod_pipeline_runner_server("runner_gea",           config_state, pipeline_running,
+                                project_data_trigger, tab_name = "gea")
+    mod_pipeline_runner_server("runner_gwas",          config_state, pipeline_running,
+                                project_data_trigger, tab_name = "gwas")
+    mod_pipeline_runner_server("runner_gea_x_gwas",    config_state, pipeline_running,
+                                project_data_trigger, tab_name = "gea_x_gwas")
+    mod_pipeline_runner_server("runner_maladaptation", config_state, pipeline_running,
                                 project_data_trigger, tab_name = "maladaptation")
 
     # ── Module servers ─────────────────────────────────────────────────────────
-    mod_home_server("home",               project_data = project_data)
-    mod_processing_server("processing",   project_data = project_data)
-    mod_structure_server("structure",     project_data = project_data)
-    mod_structure_k_server("structure_k", project_data = project_data)
-    mod_association_server("association", project_data = project_data)
-    mod_phenotype_server("phenotype",     project_data = project_data)
-    mod_overlapping_server("overlapping", project_data = project_data)
-    mod_maladaptation_server("maladaptation", project_data = project_data)
+    mod_home_server("home",                    project_data = project_data)
+    mod_processing_server("processing",        project_data = project_data)
+    mod_prestructure_server("prestructure",    project_data = project_data)
+    mod_structure_server("structure",          project_data = project_data)
+    mod_gea_server("gea",                      project_data = project_data)
+    mod_gwas_server("gwas",                    project_data = project_data)
+    mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data)
+    mod_maladaptation_server("maladaptation",  project_data = project_data)
 }

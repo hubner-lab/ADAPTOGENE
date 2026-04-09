@@ -6,10 +6,10 @@ find_projects <- function(pipeline_path = get_pipeline_path()) {
     sort(projects)
 }
 
-#' Find K values for a project (from structure/plots/K{k}/ directories)
+#' Find K values for a project (from PreStructure/plots/K{k}/ directories)
 #' @noRd
 find_k_values <- function(project) {
-    struct_plots <- mod_path(project, MOD_STRUCT, "plots")
+    struct_plots <- mod_path(project, MOD_PRESTRUCT, "plots")
     if (!dir.exists(struct_plots)) return(integer(0))
     k_dirs <- list.dirs(struct_plots, full.names = FALSE, recursive = FALSE)
     k_nums <- as.integer(gsub("^K", "", k_dirs[grepl("^K\\d+$", k_dirs)]))
@@ -19,7 +19,7 @@ find_k_values <- function(project) {
 #' Find K_start and K_end from cross_entropy plot filenames
 #' @noRd
 find_k_range <- function(project) {
-    struct_plots <- mod_path(project, MOD_STRUCT, "plots")
+    struct_plots <- mod_path(project, MOD_PRESTRUCT, "plots")
     files <- list.files(struct_plots, pattern = "^cross_entropy_K.*\\.png$",
                         full.names = TRUE)
     if (length(files) == 0) return(list(k_start = NA, k_end = NA, path = NULL))
@@ -35,7 +35,7 @@ find_k_range <- function(project) {
 
 #' Find all association methods available for a module
 #' @noRd
-find_assoc_methods <- function(project, module = MOD_ASSOC) {
+find_assoc_methods <- function(project, module = MOD_GEA) {
     methods_dir <- mod_path(project, module, "tables", "methods")
     if (!dir.exists(methods_dir)) return(character(0))
     list.dirs(methods_dir, full.names = FALSE, recursive = FALSE)
@@ -43,7 +43,7 @@ find_assoc_methods <- function(project, module = MOD_ASSOC) {
 
 #' Find traits from regions_per_trait.tsv (unique trait column values)
 #' @noRd
-find_assoc_traits <- function(project, module = MOD_ASSOC) {
+find_assoc_traits <- function(project, module = MOD_GEA) {
     rpt <- regions_per_trait_path(project, module)
     if (!file.exists(rpt)) return(character(0))
     tryCatch({
@@ -55,7 +55,7 @@ find_assoc_traits <- function(project, module = MOD_ASSOC) {
 #' Find bio variable numbers from piemap filenames
 #' @noRd
 find_bio_values <- function(project) {
-    piemap_dir <- mod_path(project, MOD_SK, "plots", "piemap")
+    piemap_dir <- mod_path(project, MOD_STRUCT, "plots", "piemap")
     if (!dir.exists(piemap_dir)) return(integer(0))
     files <- list.files(piemap_dir, pattern = "^piemap_bio_\\d+\\.png$")
     sort(as.integer(gsub("piemap_bio_(\\d+)\\.png", "\\1", files)))
@@ -63,10 +63,10 @@ find_bio_values <- function(project) {
 
 #' Find GF run suffixes from maladaptation output directories
 #' @noRd
-find_gf_suffixes <- function(project) {
-    malad_dir <- mod_path(project, MOD_MALAD, "plots")
-    if (!dir.exists(malad_dir)) return(character(0))
-    dirs <- list.dirs(malad_dir, full.names = FALSE, recursive = FALSE)
+find_gf_suffixes <- function(project, method = "gradient_forest") {
+    method_dir <- mod_path(project, MOD_MALAD, "plots", method)
+    if (!dir.exists(method_dir)) return(character(0))
+    dirs <- list.dirs(method_dir, full.names = FALSE, recursive = FALSE)
     dirs[dirs != "zoom"]
 }
 
@@ -109,21 +109,20 @@ check_module_status <- function(project, summary_dt = NULL) {
     }
     module_steps <- c(
         processing    = "processing",
+        prestructure  = "prestructure",
         structure     = "structure",
-        structure_k   = "structure_K",
-        association   = "association",
-        phenotype     = "association_phenotypes",
-        overlapping   = "overlapping",
-        maladaptation = "maladaptation",
-        haplotype     = "haplotype"
+        gea           = "gea",
+        gwas          = "gwas",
+        gea_x_gwas    = "gea_x_gwas",
+        maladaptation = "maladaptation"
     )
     vapply(module_steps, function(s) s %in% steps_present, logical(1))
 }
 
 #' Find zoom region tags for a GF suffix
 #' @noRd
-find_gf_zooms <- function(project, suffix) {
-    zoom_dir <- mod_path(project, MOD_MALAD, "plots", suffix, "zoom")
+find_gf_zooms <- function(project, suffix, method = "gradient_forest") {
+    zoom_dir <- mod_path(project, MOD_MALAD, "plots", method, suffix, "zoom")
     if (!dir.exists(zoom_dir)) return(character(0))
     files <- list.files(zoom_dir, pattern = "\\.png$")
     gsub("\\.png$", "", files)
@@ -143,7 +142,7 @@ find_haplotype_regions <- function(project, tag) {
 #' Find haplotype regions that have clustree plots (scan completed)
 #' @noRd
 find_haplotype_scan_regions <- function(project, tag) {
-    clustree_dir <- mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree")
+    clustree_dir <- mod_path(project, MOD_INTER, "haplotype", tag, "plots", "clustree")
     if (!dir.exists(clustree_dir)) return(character(0))
     files <- list.files(clustree_dir, pattern = "^Region_(.*)_clustree_MG\\.png$")
     gsub("^Region_(.*)_clustree_MG\\.png$", "\\1", files)
@@ -152,7 +151,7 @@ find_haplotype_scan_regions <- function(project, tag) {
 #' Find traits available for a haplotype region (from boxplot files)
 #' @noRd
 find_haplotype_traits <- function(project, tag, region_id) {
-    plots_dir <- mod_path(project, MOD_HAP, tag, "plots")
+    plots_dir <- mod_path(project, MOD_INTER, "haplotype", tag, "plots")
     if (!dir.exists(plots_dir)) return(character(0))
     rid_esc <- gsub("([\\-\\.])", "\\\\\\1", region_id, perl = TRUE)
     pat <- paste0("^Region_", rid_esc, "_boxplot_(.*)\\.png$")
@@ -170,7 +169,7 @@ find_haplotype_traits <- function(project, tag, region_id) {
     exact <- find_haplotype_traits(project, tag, region_id)
     if (length(exact) > 0L) return(list(traits = exact, matched_rid = region_id))
 
-    plots_dir <- mod_path(project, MOD_HAP, tag, "plots")
+    plots_dir <- mod_path(project, MOD_INTER, "haplotype", tag, "plots")
     if (!dir.exists(plots_dir)) return(NULL)
 
     all_files <- list.files(plots_dir, pattern = "^Region_.*_boxplot_.*\\.png$")

@@ -1,16 +1,13 @@
 # Module path constants — match workflow/rules/common.smk MOD_* values
-MOD_PROC    <- "processing"
-MOD_STRUCT  <- "structure"
-MOD_CLIMATE <- "climate"
-MOD_SK      <- "structure_k"
-MOD_ASSOC   <- "association"
-MOD_PHENO   <- "phenotype_association"
-MOD_OVERLAP <- "overlapping"
-MOD_REGPLOT <- "regionplot"
-MOD_MALAD   <- "maladaptation"
-MOD_HAPSCAN <- "haplotype_scan"
-MOD_HAP     <- "haplotype"
-MOD_INTER   <- "_intermediate"
+MOD_PROC      <- "Processing"
+MOD_PRESTRUCT <- "PreStructure"
+MOD_STRUCT    <- "Structure"
+MOD_CLIMATE   <- "climate"
+MOD_GEA       <- "GEA"
+MOD_GWAS      <- "GWAS"
+MOD_GEAXGWAS  <- "GEAxGWAS"
+MOD_MALAD     <- "Maladaptation"
+MOD_INTER     <- "_intermediate"
 
 #' Base results directory for a project
 #' @noRd
@@ -28,42 +25,42 @@ mod_path <- function(project, module, ...) {
 
 #' Per-method Manhattan background PNG path
 #' @noRd
-manhattan_bg_path <- function(project, module = MOD_ASSOC, method, trait, k, adjust) {
+manhattan_bg_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
     mod_path(project, module, "plots", "manhattan", method,
              paste0("manhattan_", trait, "_K", k, "_", adjust, "_background.png"))
 }
 
 #' Per-method coordinate mapping JSON path
 #' @noRd
-manhattan_coords_path <- function(project, module = MOD_ASSOC, method, trait, k, adjust) {
+manhattan_coords_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
     mod_path(project, module, "plots", "manhattan", method,
              paste0("manhattan_", trait, "_K", k, "_", adjust, "_coords.json"))
 }
 
 #' Combined Manhattan background PNG path
 #' @noRd
-combined_manhattan_bg_path <- function(project, module = MOD_ASSOC, k) {
+combined_manhattan_bg_path <- function(project, module = MOD_GEA, k) {
     mod_path(project, module, "plots", "manhattan", "combined",
              paste0("manhattan_combined_K", k, "_background.png"))
 }
 
 #' Combined Manhattan coordinate mapping JSON path
 #' @noRd
-combined_manhattan_coords_path <- function(project, module = MOD_ASSOC, k) {
+combined_manhattan_coords_path <- function(project, module = MOD_GEA, k) {
     mod_path(project, module, "plots", "manhattan", "combined",
              paste0("manhattan_combined_K", k, "_coords.json"))
 }
 
 #' QQ plot path (per-method)
 #' @noRd
-qq_plot_path <- function(project, module = MOD_ASSOC, method, trait, k, adjust) {
+qq_plot_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
     mod_path(project, module, "plots", "manhattan", method,
              paste0("qq_", trait, "_K", k, "_", adjust, ".png"))
 }
 
 #' Combined QQ plot path
 #' @noRd
-qq_combined_path <- function(project, module = MOD_ASSOC, k) {
+qq_combined_path <- function(project, module = MOD_GEA, k) {
     mod_path(project, module, "plots", "manhattan", "combined",
              paste0("qq_combined_K", k, ".png"))
 }
@@ -73,14 +70,14 @@ qq_combined_path <- function(project, module = MOD_ASSOC, k) {
 #' Miami background PNG path
 #' @noRd
 miami_bg_path <- function(project, k) {
-    mod_path(project, MOD_OVERLAP, "plots",
+    mod_path(project, MOD_GEAXGWAS, "plots",
              paste0("miami_combined_K", k, "_background.png"))
 }
 
 #' Miami coordinate mapping JSON path
 #' @noRd
 miami_coords_path <- function(project, k) {
-    mod_path(project, MOD_OVERLAP, "plots",
+    mod_path(project, MOD_GEAXGWAS, "plots",
              paste0("miami_combined_K", k, "_coords.json"))
 }
 
@@ -88,63 +85,63 @@ miami_coords_path <- function(project, k) {
 
 #' Glob all per-method sig SNPs files for a module (across all methods and adjustments)
 #' @noRd
-find_method_sigsnps_files <- function(project, module = MOD_ASSOC) {
+find_method_sigsnps_files <- function(project, module = MOD_GEA) {
     Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_sig_snps_*.tsv"))
 }
 
 #' Pairwise trait overlap table (pipeline-computed)
 #' @noRd
 pairwise_table_path <- function(project) {
-    mod_path(project, MOD_OVERLAP, "tables", "pairwise_overlap_table.tsv")
+    mod_path(project, MOD_GEAXGWAS, "tables", "pairwise_overlap_table.tsv")
 }
 
 #' Pairwise collapsed sig SNPs (long format, one row per SNP per trait)
 #' @noRd
 pairwise_collapsed_path <- function(project) {
-    mod_path(project, MOD_OVERLAP, "tables", "pairwise_collapsed_snps.tsv")
+    mod_path(project, MOD_GEAXGWAS, "tables", "pairwise_collapsed_snps.tsv")
 }
 
 #' Selected SNPs table (combined all methods)
 #' @noRd
-selected_snps_path <- function(project, module = MOD_ASSOC) {
+selected_snps_path <- function(project, module = MOD_GEA) {
     mod_path(project, module, "tables", "selected_snps.tsv")
 }
 
 #' Per-method sig SNPs table (glob pattern for discovery)
 #' @noRd
-method_sigsnps_path <- function(project, module = MOD_ASSOC, method, adjust) {
+method_sigsnps_path <- function(project, module = MOD_GEA, method, adjust) {
     mod_path(project, module, "tables", "methods", method,
              paste0(method, "_pvalues_K*_sig_snps_", adjust, ".tsv"))
 }
 
 #' Per-method sig SNPs table (exact K — for loading in Shiny overlay)
 #' @noRd
-method_sigsnps_direct_path <- function(project, module = MOD_ASSOC, method, k, adjust) {
+method_sigsnps_direct_path <- function(project, module = MOD_GEA, method, k, adjust) {
     mod_path(project, module, "tables", "methods", method,
              paste0(method, "_pvalues_K", k, "_sig_snps_", adjust, ".tsv"))
 }
 
 #' Per-trait regions table
 #' @noRd
-regions_per_trait_path <- function(project, module = MOD_ASSOC) {
+regions_per_trait_path <- function(project, module = MOD_GEA) {
     mod_path(project, module, "tables", "regions_per_trait.tsv")
 }
 
 #' Combined regions table
 #' @noRd
-regions_combined_path <- function(project, module = MOD_ASSOC) {
+regions_combined_path <- function(project, module = MOD_GEA) {
     mod_path(project, module, "tables", "regions_combined.tsv")
 }
 
 #' Genes per region table
 #' @noRd
-genes_per_region_path <- function(project, module = MOD_ASSOC) {
+genes_per_region_path <- function(project, module = MOD_GEA) {
     mod_path(project, module, "tables", "genes_per_region_collapsed.tsv")
 }
 
 #' GO enrichment table for a specific region and trait
 #' @noRd
-enrichment_table_path <- function(project, module = MOD_ASSOC, trait, region_id) {
+enrichment_table_path <- function(project, module = MOD_GEA, trait, region_id) {
     mod_path(project, module, "tables", "enrichment", trait,
              paste0("Region_", region_id, "_", trait, "_enrichment.tsv"))
 }
@@ -153,59 +150,59 @@ enrichment_table_path <- function(project, module = MOD_ASSOC, trait, region_id)
 
 #' Enrichment plot path
 #' @noRd
-enrichment_plot_path <- function(project, module = MOD_ASSOC, trait, region_id, plot_type) {
+enrichment_plot_path <- function(project, module = MOD_GEA, trait, region_id, plot_type) {
     mod_path(project, module, "plots", "enrichment", trait,
              paste0("Region_", region_id, "_", trait, "_", plot_type, ".png"))
 }
 
-# ─── Structure ────────────────────────────────────────────────────────────────
+# ─── PreStructure ─────────────────────────────────────────────────────────────
 
 #' PCA plot path
 #' @noRd
 pca_path <- function(project) {
-    mod_path(project, MOD_STRUCT, "plots", "pca.png")
+    mod_path(project, MOD_PRESTRUCT, "plots", "pca.png")
 }
 
 #' Tracy-Widom path
 #' @noRd
 tracy_widom_path <- function(project) {
-    mod_path(project, MOD_STRUCT, "plots", "tracy_widom.png")
+    mod_path(project, MOD_PRESTRUCT, "plots", "tracy_widom.png")
 }
 
 #' Cross-entropy plot path
 #' @noRd
 cross_entropy_path <- function(project, k_start, k_end) {
-    mod_path(project, MOD_STRUCT, "plots",
+    mod_path(project, MOD_PRESTRUCT, "plots",
              paste0("cross_entropy_K", k_start, "-", k_end, ".png"))
 }
 
 #' Structure barplot path for a given K
 #' @noRd
 structure_k_path <- function(project, k) {
-    mod_path(project, MOD_STRUCT, "plots", paste0("K", k),
+    mod_path(project, MOD_PRESTRUCT, "plots", paste0("K", k),
              paste0("structure_K", k, ".png"))
 }
 
 #' PCA structure plot path for a given K
 #' @noRd
 pca_structure_path <- function(project, k) {
-    mod_path(project, MOD_STRUCT, "plots", paste0("K", k),
+    mod_path(project, MOD_PRESTRUCT, "plots", paste0("K", k),
              paste0("pca_structure_K", k, ".png"))
 }
 
 #' Pop differentiation path for a given K
 #' @noRd
 pop_diff_path <- function(project, k) {
-    mod_path(project, MOD_STRUCT, "plots", paste0("K", k),
+    mod_path(project, MOD_PRESTRUCT, "plots", paste0("K", k),
              paste0("pop_diff_K", k, ".png"))
 }
 
-# ─── Structure K ─────────────────────────────────────────────────────────────
+# ─── Structure ────────────────────────────────────────────────────────────────
 
 #' Piemap path
 #' @noRd
 piemap_path <- function(project, bio, metric = NULL, zoom = NULL) {
-    dir <- mod_path(project, MOD_SK, "plots", "piemap")
+    dir <- mod_path(project, MOD_STRUCT, "plots", "piemap")
     if (!is.null(zoom) && nzchar(zoom) && zoom != "none") {
         dir <- file.path(dir, "zoom", zoom)
         fname <- paste0("piemap_bio_", bio,
@@ -250,41 +247,40 @@ climate_invariant_path <- function(project) {
 #' @noRd
 ld_decay_path <- function(project, per_chr = FALSE) {
     fname <- if (per_chr) "ld_decay_per_chromosome.png" else "ld_decay_genome_wide.png"
-    mod_path(project, MOD_SK, "plots", "ld_decay", fname)
+    mod_path(project, MOD_STRUCT, "plots", "ld_decay", fname)
 }
 
 # ─── Maladaptation ───────────────────────────────────────────────────────────
 
-#' GF importance plot path
+#' GF selected SNPs path (intermediate file under _intermediate/{method}/{suffix}/)
 #' @noRd
-#' GF selected SNPs path (intermediate file produced by combine_gf_snps rule)
-#' @noRd
-gf_selected_snps_path <- function(project, suffix) {
-    mod_path(project, MOD_INTER, "gradient_forest",
-             paste0("gf_selected_snps_", suffix, ".tsv"))
+gf_selected_snps_path <- function(project, suffix, method = "gradient_forest") {
+    mod_path(project, MOD_INTER, method, suffix, "selected_snps.tsv")
 }
 
-gf_importance_path <- function(project, suffix, type = "overall") {
-    mod_path(project, MOD_MALAD, "plots", suffix,
+#' GF importance plot path
+#' @noRd
+gf_importance_path <- function(project, suffix, type = "overall", method = "gradient_forest") {
+    mod_path(project, MOD_MALAD, "plots", method, suffix,
              paste0(type, "_importance.png"))
 }
 
 #' GF genetic offset piemap path
 #' @noRd
-gf_offset_piemap_path <- function(project, suffix, variant = "base") {
+gf_offset_piemap_path <- function(project, suffix, variant = "base", method = "gradient_forest") {
     # "base" maps to no suffix (genetic_offset_piemap.png); other variants appended
     fname <- if (is.null(variant) || variant == "base" || !nzchar(variant)) {
         "genetic_offset_piemap.png"
     } else {
         paste0("genetic_offset_piemap_", variant, ".png")
     }
-    mod_path(project, MOD_MALAD, "plots", suffix, fname)
+    mod_path(project, MOD_MALAD, "plots", method, suffix, fname)
 }
 
 #' GF site offset table path
 #' @noRd
-gf_site_table_path <- function(project, suffix) {
-    mod_path(project, MOD_MALAD, "tables", suffix, "genetic_offset_site.tsv")
+gf_site_table_path <- function(project, suffix, method = "gradient_forest") {
+    mod_path(project, MOD_MALAD, "tables", method, suffix, "genetic_offset_site.tsv")
 }
 
 # ─── Phenotype piemap ────────────────────────────────────────────────────────
@@ -292,7 +288,7 @@ gf_site_table_path <- function(project, suffix) {
 #' Phenotype association piemap (phenomap) path
 #' @noRd
 pheno_piemap_path <- function(project, trait) {
-    mod_path(project, MOD_PHENO, "plots", "piemap",
+    mod_path(project, MOD_GWAS, "plots", "piemap",
              paste0("phenomap_", trait, ".png"))
 }
 
@@ -302,8 +298,8 @@ pheno_piemap_path <- function(project, trait) {
 #' @noRd
 gff_path <- function(project, pipeline_path = get_pipeline_path()) {
     config  <- read_project_config(project, pipeline_path)
-    inp_dir <- config_get(config, "input", "dir", default = "data")
-    gff_rel <- config_get(config, "input", "gff", default = "")
+    inp_dir <- config_get(config, "Input", "dir", default = "data")
+    gff_rel <- config_get(config, "Input", "gff", default = "")
     if (is.null(gff_rel) || gff_rel == "") return("")
     file.path(pipeline_path, inp_dir, gff_rel)
 }
@@ -313,8 +309,8 @@ gff_path <- function(project, pipeline_path = get_pipeline_path()) {
 #' Directory for on-demand regionplots persisted to disk.
 #' Subdirectory per combo_hash keeps files for different filter combinations separate.
 #' @noRd
-ondemand_regionplot_dir <- function(project, module = MOD_ASSOC, combo_hash) {
-    mod_path(project, MOD_REGPLOT, module, combo_hash)
+ondemand_regionplot_dir <- function(project, module = MOD_GEA, combo_hash) {
+    mod_path(project, "regionplot", module, combo_hash)
 }
 
 #' Regionplot image path
@@ -327,36 +323,38 @@ regionplot_path <- function(project, region_id, trait = NULL) {
     } else {
         paste0("regionplot_", safe_id, "_", trait, ".png")
     }
-    mod_path(project, MOD_REGPLOT, fname)
+    mod_path(project, "regionplot", fname)
 }
 
 # ─── Haplotype ────────────────────────────────────────────────────────────────
+# All haplotype outputs live under _intermediate/haplotype/{tag}/ (Shiny on-demand only;
+# no pipeline haplotype modes since Phase 3).
 
 #' Haplotype clustree path (per-region)
 #' @noRd
 hap_clustree_path <- function(project, tag, region_id, type = "MG") {
-    mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree",
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots", "clustree",
              paste0("Region_", region_id, "_clustree_", type, ".png"))
 }
 
 #' Haplotype crosshap_viz path (per-trait)
 #' @noRd
 crosshap_viz_path <- function(project, tag, region_id, trait) {
-    mod_path(project, MOD_HAP, tag, "plots",
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots",
              paste0("Region_", region_id, "_crosshap_viz_", trait, ".png"))
 }
 
 #' Haplotype boxplot path (per-trait)
 #' @noRd
 hap_boxplot_path <- function(project, tag, region_id, trait) {
-    mod_path(project, MOD_HAP, tag, "plots",
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots",
              paste0("Region_", region_id, "_boxplot_", trait, ".png"))
 }
 
 #' Haplotype piemap path (per-trait)
 #' @noRd
 hap_piemap_path <- function(project, tag, region_id, trait) {
-    mod_path(project, MOD_HAP, tag, "plots",
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots",
              paste0("haplotype_piemap_region_", region_id, "_", trait, ".png"))
 }
 
@@ -369,19 +367,19 @@ hap_scan_status_path <- function(project, tag) {
 #' Haplotype selected regions path
 #' @noRd
 hap_selected_regions_path <- function(project, tag) {
-    mod_path(project, MOD_HAPSCAN, tag, "tables", "selected_regions.tsv")
+    mod_path(project, MOD_INTER, "haplotype", tag, "tables", "selected_regions.tsv")
 }
 
 #' Haplotype assignments table path
 #' @noRd
 hap_assignments_path <- function(project, tag) {
-    mod_path(project, MOD_HAP, tag, "tables", "Haplotype_assignments.tsv")
+    mod_path(project, MOD_INTER, "haplotype", tag, "tables", "Haplotype_assignments.tsv")
 }
 
 #' Haplotype frequencies table path
 #' @noRd
 hap_frequencies_path <- function(project, tag) {
-    mod_path(project, MOD_HAP, tag, "tables", "Haplotype_frequencies.tsv")
+    mod_path(project, MOD_INTER, "haplotype", tag, "tables", "Haplotype_frequencies.tsv")
 }
 
 #' Haplotype intermediate directory (HapObject .qs files)
@@ -393,19 +391,19 @@ hap_intermediate_dir <- function(project, tag) {
 #' Haplotype scan clustree plots output directory
 #' @noRd
 hap_scan_plots_dir <- function(project, tag) {
-    mod_path(project, MOD_HAPSCAN, tag, "plots", "clustree")
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots", "clustree")
 }
 
 #' Haplotype viz plots output directory
 #' @noRd
 hap_viz_plots_dir <- function(project, tag) {
-    mod_path(project, MOD_HAP, tag, "plots")
+    mod_path(project, MOD_INTER, "haplotype", tag, "plots")
 }
 
 #' Haplotype viz tables output directory
 #' @noRd
 hap_viz_tables_dir <- function(project, tag) {
-    mod_path(project, MOD_HAP, tag, "tables")
+    mod_path(project, MOD_INTER, "haplotype", tag, "tables")
 }
 
 #' Filtered VCF path (glob from _work, returns first match)
@@ -434,19 +432,19 @@ hap_metadata_path <- function(project) {
 #' Clusters table path for k_best
 #' @noRd
 hap_clusters_path <- function(project, k_best) {
-    mod_path(project, MOD_STRUCT, "tables", paste0("K", k_best),
+    mod_path(project, MOD_PRESTRUCT, "tables", paste0("K", k_best),
              paste0("clusters_K", k_best, ".tsv"))
 }
 
 # ── Processing QC paths ──────────────────────────────────────────────────────
 
-#' QC plot path (processing/plots/<filename>)
+#' QC plot path (Processing/plots/<filename>)
 #' @noRd
 qc_plot_path <- function(project, filename) {
     mod_path(project, MOD_PROC, "plots", filename)
 }
 
-#' QC table path (processing/tables/<filename>)
+#' QC table path (Processing/tables/<filename>)
 #' @noRd
 qc_table_path <- function(project, filename) {
     mod_path(project, MOD_PROC, "tables", filename)

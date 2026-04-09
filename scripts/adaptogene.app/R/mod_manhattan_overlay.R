@@ -39,7 +39,7 @@ mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
 #'
 #' @param id module namespace id
 #' @param project_data reactive returning project data bundle from make_project_data()
-#' @param module character: MOD_ASSOC, MOD_PHENO, or MOD_OVERLAP
+#' @param module character: MOD_GEA, MOD_GWAS, or MOD_GEAXGWAS
 #' @param method character reactive: method name (or NULL for combined)
 #' @param trait character reactive: trait name (or NULL for combined)
 #' @param combined logical: TRUE = combined multi-trait/method view
@@ -54,7 +54,7 @@ mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
 #' @return reactive of clicked region_id (character or NULL)
 #' @noRd
 mod_manhattan_overlay_server <- function(id, project_data,
-                                          module             = MOD_ASSOC,
+                                          module             = MOD_GEA,
                                           method             = shiny::reactive(NULL),
                                           trait              = shiny::reactive(NULL),
                                           combined           = FALSE,
@@ -101,7 +101,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 m <- method(); t <- trait()
                 shiny::req(m, t)
                 cfg <- pd$config
-                adj <- resolve_adjust(cfg, m, if (module == MOD_PHENO) "phenotype_association" else "association")
+                adj <- resolve_adjust(cfg, m, if (module == MOD_GWAS) MOD_GWAS else MOD_GEA)
                 if (is.null(adj)) return(NULL)
                 manhattan_bg_path(pd$name, module, m, t, k, adj)
             }
@@ -118,7 +118,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 m <- method(); t <- trait()
                 shiny::req(m, t)
                 adj <- resolve_adjust(pd$config, m,
-                    if (module == MOD_PHENO) "phenotype_association" else "association")
+                    if (module == MOD_GWAS) MOD_GWAS else MOD_GEA)
                 if (is.null(adj)) return(NULL)
                 manhattan_coords_path(pd$name, module, m, t, k, adj)
             }
@@ -144,7 +144,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 m   <- method(); t <- trait()
                 k   <- pd$k_best
                 adj <- resolve_adjust(pd$config, m,
-                    if (module == MOD_PHENO) "phenotype_association" else "association")
+                    if (module == MOD_GWAS) MOD_GWAS else MOD_GEA)
                 shiny::req(m, k, adj)
                 cache_key <- paste0("method_sigsnps_", pd$name, "_", module,
                                     "_", m, "_", k, "_", adj)

@@ -1,11 +1,11 @@
-#' Association tab UI
+#' GEA tab UI
 #'
 #' GEA results: combined Manhattan with interactive filter/strategy bar,
 #' per-method accordion, and region-centric detail panel.
 #'
 #' @param id module namespace id
 #' @noRd
-mod_association_ui <- function(id) {
+mod_gea_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
         # Combined Manhattan — filter bar injected inside the card
@@ -43,9 +43,9 @@ mod_association_ui <- function(id) {
 #'
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
-#' @param module character: MOD_ASSOC or MOD_PHENO
+#' @param module character: MOD_GEA or MOD_GWAS
 #' @noRd
-mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
+mod_gea_server <- function(id, project_data, module = MOD_GEA) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -99,9 +99,9 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
         shiny::observe({
             pd      <- project_data()
             rp      <- read_region_params(pd$name)
-            saved_d <- get_global_param(rp, MOD_ASSOC, "region_distance")
+            saved_d <- get_global_param(rp, MOD_GEA, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else as.integer(config_get(pd$config, "association", "region_distance", default = 1000000L))
+                 else as.integer(config_get(pd$config, "GEA", "region_distance", default = 1000000L))
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -110,7 +110,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             pd <- project_data()
             if (is.null(v) || is.na(v) || v < 1000L || is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_ASSOC, "region_distance", as.integer(v))
+            rp <- set_global_param(rp, MOD_GEA, "region_distance", as.integer(v))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
@@ -118,7 +118,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             v <- input$region_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "association", "region_distance",
+                as.integer(config_get(pd$config, "GEA", "region_distance",
                                       default = 1000000L))
             } else {
                 as.integer(v)
@@ -129,9 +129,9 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
         shiny::observe({
             pd      <- project_data()
             rp      <- read_region_params(pd$name)
-            saved_g <- get_global_param(rp, MOD_ASSOC, "combine_gap")
+            saved_g <- get_global_param(rp, MOD_GEA, "combine_gap")
             g <- if (!is.null(saved_g)) as.integer(saved_g)
-                 else as.integer(config_get(pd$config, "association", "combine_gap", default = 100000L))
+                 else as.integer(config_get(pd$config, "GEA", "combine_gap", default = 100000L))
             shiny::updateNumericInput(session, "combine_gap", value = g)
         })
 
@@ -140,7 +140,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             pd <- project_data()
             if (is.null(v) || is.na(v) || v < 0L || is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_ASSOC, "combine_gap", as.integer(v))
+            rp <- set_global_param(rp, MOD_GEA, "combine_gap", as.integer(v))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
@@ -148,7 +148,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             v <- input$combine_gap
             if (is.null(v) || is.na(v) || v < 0L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "association", "combine_gap", default = 100000L))
+                as.integer(config_get(pd$config, "GEA", "combine_gap", default = 100000L))
             } else {
                 as.integer(v)
             }
@@ -262,7 +262,7 @@ mod_association_server <- function(id, project_data, module = MOD_ASSOC) {
             k   <- pd$k_best
             if (is.null(m) || is.null(t) || is.na(k)) return(NULL)
             adj <- resolve_adjust(pd$config, m,
-                if (module == MOD_PHENO) "phenotype_association" else "association")
+                if (module == MOD_GWAS) MOD_GWAS else MOD_GEA)
             if (is.null(adj)) return(NULL)
             qq_plot_path(pd$name, module, m, t, k, adj)
         })

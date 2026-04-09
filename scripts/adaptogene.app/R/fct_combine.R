@@ -375,7 +375,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 #' @param strategy           Character: "All", "Overlap", "MethodOverlap", or method name
 #' @param gap                Integer: combine_gap in bp
 #' @param project_name       Character: project name (for assign_region_ids)
-#' @param module             Character: MOD_ASSOC, MOD_PHENO, or MOD_OVERLAP
+#' @param module             Character: MOD_GEA, MOD_GWAS, or MOD_GEAXGWAS
 #' @return data.table (SNPID/chr/pos/pvalue/method/trait/region_id) or .empty_sigsnps_assoc()
 #' @noRd
 compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,

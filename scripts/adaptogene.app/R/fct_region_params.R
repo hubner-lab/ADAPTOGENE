@@ -6,8 +6,8 @@
 #'
 #' File: {PROJECT}_results/_intermediate/region_params.json
 #' Structure:
-#'   global$module$key          — e.g., global$association$region_distance
-#'   regions$module$region_id$type — e.g., regions$association$5_7100000-19350376$hap_scan
+#'   global$module$key          — e.g., global$gea$region_distance
+#'   regions$module$region_id$type — e.g., regions$gea$5_7100000-19350376$hap_scan
 #'
 #' @noRd
 
@@ -50,7 +50,7 @@ save_region_params <- function(project, params_list) {
 
 #' Get a stored computation's params for a specific region.
 #' @param params Result of read_region_params()
-#' @param module Module constant string ("association", "phenotype_association", "overlapping")
+#' @param module Module constant string ("gea", "gwas", "gea_x_gwas")
 #' @param region_id Region id string (e.g., "5_7100000-19350376")
 #' @param type Computation type ("hap_scan" or "hap_viz")
 #' @return Named list of params, or NULL if not found

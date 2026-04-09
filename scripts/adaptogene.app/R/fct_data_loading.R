@@ -36,7 +36,7 @@ load_pipeline_summary <- function(project) {
 
 #' Load regions per trait
 #' @noRd
-load_regions_per_trait <- function(project, module = MOD_ASSOC) {
+load_regions_per_trait <- function(project, module = MOD_GEA) {
     p <- regions_per_trait_path(project, module)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -48,7 +48,7 @@ load_regions_per_trait <- function(project, module = MOD_ASSOC) {
 
 #' Load combined regions
 #' @noRd
-load_regions_combined <- function(project, module = MOD_ASSOC) {
+load_regions_combined <- function(project, module = MOD_GEA) {
     p <- regions_combined_path(project, module)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -63,7 +63,7 @@ load_regions_combined <- function(project, module = MOD_ASSOC) {
 #' Region IDs are in combined format (chr_start-end, no trait suffix).
 #' @param snps_dt data.table with columns SNPID, chr, pos
 #' @param project project name
-#' @param module pipeline module (MOD_ASSOC, MOD_PHENO, MOD_OVERLAP)
+#' @param module pipeline module (MOD_GEA, MOD_GWAS, MOD_GEAXGWAS)
 #' @return snps_dt with region_id column added (NA for SNPs outside any region)
 #' @noRd
 assign_region_ids <- function(snps_dt, project, module) {
@@ -109,7 +109,7 @@ assign_region_ids <- function(snps_dt, project, module) {
 #' where method columns contain the trait name (or "" if not significant for that method).
 #' Returns long format: SNPID, chr, pos, pvalue, method, trait, region_id
 #' @noRd
-load_selected_snps <- function(project, module = MOD_ASSOC, k_best = NA) {
+load_selected_snps <- function(project, module = MOD_GEA, k_best = NA) {
     p <- selected_snps_path(project, module)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -173,7 +173,7 @@ load_selected_snps <- function(project, module = MOD_ASSOC, k_best = NA) {
 #' because each method's background PNG has a y-range calibrated to its own p-values.
 #' Returns long format: SNPID, chr, pos, pvalue, method, trait, region_id
 #' @noRd
-load_method_sigsnps <- function(project, module = MOD_ASSOC, method, k, adjust) {
+load_method_sigsnps <- function(project, module = MOD_GEA, method, k, adjust) {
     p <- method_sigsnps_direct_path(project, module, method, k, adjust)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -193,7 +193,7 @@ load_method_sigsnps <- function(project, module = MOD_ASSOC, method, k, adjust) 
 
 #' Load genes per region (collapsed)
 #' @noRd
-load_genes <- function(project, module = MOD_ASSOC) {
+load_genes <- function(project, module = MOD_GEA) {
     p <- genes_per_region_path(project, module)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -211,7 +211,7 @@ load_genes <- function(project, module = MOD_ASSOC) {
 
 #' Load GO enrichment table for a specific region and trait
 #' @noRd
-load_enrichment_table <- function(project, module = MOD_ASSOC, trait, region_id) {
+load_enrichment_table <- function(project, module = MOD_GEA, trait, region_id) {
     p <- enrichment_table_path(project, module, trait, region_id)
     if (!file.exists(p)) return(data.table::data.table())
     tryCatch({
@@ -302,9 +302,9 @@ parse_gff_attributes <- function(attr_strings) {
 load_gff_genes <- function(project, config) {
     cache_key <- paste0("gff_genes_", project)
     load_cached(cache_key, function() {
-        inp_dir  <- config_get(config, "input", "dir",    default = "data")
-        gff_rel  <- config_get(config, "input", "gff",    default = "")
-        feat     <- config_get(config, "gff",   "feature", default = "mRNA")
+        inp_dir  <- config_get(config, "Input", "dir",     default = "data")
+        gff_rel  <- config_get(config, "Input", "gff",     default = "")
+        feat     <- config_get(config, "GFF",   "feature", default = "mRNA")
 
         if (is.null(gff_rel) || gff_rel == "") return(data.table::data.table())
 
@@ -360,7 +360,7 @@ load_gff_genes <- function(project, config) {
 #' Each data.table has columns: SNPID, chr, pos, pvalue, method, trait.
 #' Returns an empty list when no files exist (old pipeline run / fallback).
 #' @noRd
-load_all_method_sigsnps <- function(project, module = MOD_ASSOC, k = NA) {
+load_all_method_sigsnps <- function(project, module = MOD_GEA, k = NA) {
     files <- find_method_sigsnps_files(project, module)
     if (length(files) == 0) return(list())
     if (!is.na(k)) {
@@ -395,7 +395,7 @@ load_all_method_sigsnps <- function(project, module = MOD_ASSOC, k = NA) {
 
 #' Load all per-method sig SNPs for the Overlapping tab
 #'
-#' Combines per-method sig SNPs from both MOD_ASSOC (GEA) and MOD_PHENO (GWAS).
+#' Combines per-method sig SNPs from both MOD_GEA and MOD_GWAS.
 #' GEA traits (bio_*) and GWAS traits (phenotype columns) are naturally distinct,
 #' so same method names across modules are merged without prefixing.
 #'
@@ -404,8 +404,8 @@ load_all_method_sigsnps <- function(project, module = MOD_ASSOC, k = NA) {
 #' @return Named list of data.tables (method -> dt), same format as load_all_method_sigsnps()
 #' @noRd
 load_all_overlap_method_sigsnps <- function(project, k = NA) {
-    gea  <- load_all_method_sigsnps(project, MOD_ASSOC, k)
-    gwas <- load_all_method_sigsnps(project, MOD_PHENO, k)
+    gea  <- load_all_method_sigsnps(project, MOD_GEA,  k)
+    gwas <- load_all_method_sigsnps(project, MOD_GWAS, k)
 
     all_methods <- union(names(gea), names(gwas))
     result <- list()

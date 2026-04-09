@@ -70,6 +70,18 @@ app_ui <- function(request) {
             )
         ),
 
+        bslib::nav_panel("PreStructure",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_prestructure", "PreStructure Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_prestructure",
+                                                       btn_label = "Run PreStructure")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_prestructure_ui("prestructure")
+            )
+        ),
+
         bslib::nav_panel("Structure",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
@@ -82,51 +94,39 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Structure K",
+        bslib::nav_panel("GEA",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
-                    "config_structure_k", "Structure K Config",
-                    runner_ui = mod_pipeline_runner_ui("runner_structure_k",
-                                                       btn_label = "Run Structure K")
-                ),
-                fill = FALSE, fillable = FALSE,
-                mod_structure_k_ui("structure_k")
-            )
-        ),
-
-        bslib::nav_panel("Association",
-            bslib::layout_sidebar(
-                sidebar = mod_config_sidebar_ui(
-                    "config_association", "GEA Config",
-                    runner_ui = mod_pipeline_runner_ui("runner_association",
+                    "config_gea", "GEA Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_gea",
                                                        btn_label = "Run GEA")
                 ),
                 fill = FALSE, fillable = FALSE,
-                mod_association_ui("association")
+                mod_gea_ui("gea")
             )
         ),
 
-        bslib::nav_panel("Phenotype Association",
+        bslib::nav_panel("GWAS",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
-                    "config_phenotype", "GWAS Config",
-                    runner_ui = mod_pipeline_runner_ui("runner_phenotype",
+                    "config_gwas", "GWAS Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_gwas",
                                                        btn_label = "Run GWAS")
                 ),
                 fill = FALSE, fillable = FALSE,
-                mod_phenotype_ui("phenotype")
+                mod_gwas_ui("gwas")
             )
         ),
 
-        bslib::nav_panel("Overlapping Regions",
+        bslib::nav_panel("GEAxGWAS",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
-                    "config_overlapping", "Overlap Config",
-                    runner_ui = mod_pipeline_runner_ui("runner_overlapping",
-                                                       btn_label = "Run Overlapping")
+                    "config_gea_x_gwas", "GEAxGWAS Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_gea_x_gwas",
+                                                       btn_label = "Run GEAxGWAS")
                 ),
                 fill = FALSE, fillable = FALSE,
-                mod_overlapping_ui("overlapping")
+                mod_gea_x_gwas_ui("gea_x_gwas")
             )
         ),
 

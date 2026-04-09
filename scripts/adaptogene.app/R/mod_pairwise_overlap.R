@@ -83,7 +83,7 @@ mod_pairwise_overlap_server <- function(id, project_data, coords) {
         output$pairwise_table <- DT::renderDataTable({
             tbl <- filtered_tbl()
             if (nrow(tbl) == 0) {
-                return(safe_datatable(data.frame(message = "No pairwise overlap data found. Run mode=overlapping first.")))
+                return(safe_datatable(data.frame(message = "No pairwise overlap data found. Run mode=gea_x_gwas first.")))
             }
             display <- as.data.frame(tbl[, c("trait_a", "source_a", "n_snps_a",
                                               "trait_b", "source_b", "n_snps_b",

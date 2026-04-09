@@ -30,25 +30,25 @@ config_get <- function(config, ..., default = NULL) {
 #' Get K_best from config
 #' @noRd
 config_k_best <- function(config) {
-    config_get(config, "snmf", "k_best", default = NA_integer_)
+    config_get(config, "sNMF", "k_best", default = NA_integer_)
 }
 
 #' Get association configs list from config
 #' @noRd
 config_assoc_configs <- function(config) {
-    config_get(config, "association", "configs", default = list())
+    config_get(config, "GEA", "configs", default = list())
 }
 
 #' Get predictors (climate variables) from config
 #' @noRd
 config_predictors <- function(config) {
-    preds <- config_get(config, "climate", "predictors", default = character(0))
+    preds <- config_get(config, "Climate", "predictors", default = character(0))
     if (is.character(preds)) preds else character(0)
 }
 
 #' Get top_regions setting from config
 #' @noRd
-config_top_regions <- function(config, module = "association") {
+config_top_regions <- function(config, module = "GEA") {
     config_get(config, module, "top_regions", default = 10L)
 }
 

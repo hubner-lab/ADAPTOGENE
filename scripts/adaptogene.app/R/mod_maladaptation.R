@@ -205,9 +205,9 @@ mod_maladaptation_server <- function(id, project_data) {
                 dt <- data.table::fread(p, colClasses = c("site" = "character",
                                                             "sample" = "character"))
                 # Join pop stats (TajimaD, PI) if available
-                tajima_p <- mod_path(project_data()$name, MOD_SK,
+                tajima_p <- mod_path(project_data()$name, MOD_STRUCT,
                                      "tables", "pop_stats", "tajima_d_by_pop.tsv")
-                pi_p     <- mod_path(project_data()$name, MOD_SK,
+                pi_p     <- mod_path(project_data()$name, MOD_STRUCT,
                                      "tables", "pop_stats", "pi_diversity_by_pop.tsv")
                 if (file_ok(tajima_p)) {
                     taj <- data.table::fread(tajima_p, colClasses = c("site" = "character"))

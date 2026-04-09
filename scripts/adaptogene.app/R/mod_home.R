@@ -159,30 +159,28 @@ mod_home_server <- function(id, project_data) {
             if (length(methods) > 0) as.character(length(methods)) else "—"
         })
         output$n_regions <- shiny::renderText(
-            summary_val("association", "n_regions_combined")()
+            summary_val("gea", "n_regions_combined")()
         )
 
         # ── Module status — clickable rows ────────────────────────────────────
         module_labels <- c(
             processing    = "Processing",
+            prestructure  = "PreStructure",
             structure     = "Structure",
-            structure_k   = "Structure K",
-            association   = "Association",
-            phenotype     = "Phenotype Association",
-            overlapping   = "Overlapping Regions",
-            maladaptation = "Maladaptation",
-            haplotype     = "Haplotype Analysis"
+            gea           = "GEA",
+            gwas          = "GWAS",
+            gea_x_gwas    = "GEAxGWAS",
+            maladaptation = "Maladaptation"
         )
         # Step name used in pipeline_summary.tsv per module
         module_steps <- c(
             processing    = "processing",
+            prestructure  = "prestructure",
             structure     = "structure",
-            structure_k   = "structure_K",
-            association   = "association",
-            phenotype     = "association_phenotypes",
-            overlapping   = "overlapping",
-            maladaptation = "maladaptation",
-            haplotype     = "haplotype"
+            gea           = "gea",
+            gwas          = "gwas",
+            gea_x_gwas    = "gea_x_gwas",
+            maladaptation = "maladaptation"
         )
 
         selected_module <- shiny::reactiveVal(NULL)

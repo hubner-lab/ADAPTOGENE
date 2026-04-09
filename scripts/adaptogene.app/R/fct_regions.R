@@ -131,15 +131,15 @@ find_genes_in_region <- function(gff_genes, region_row, promoter_length = 10000L
 run_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data) {
     pd <- project_data
 
-    go_field   <- config_get(pd$config, "association", "go_field",  default = NULL)
-    gff_feat   <- config_get(pd$config, "gff", "feature",           default = "mRNA")
-    top_terms  <- config_get(pd$config, "enrichment", "top_terms",  default = 10L)
-    plot_w     <- config_get(pd$config, "enrichment", "plot_width",  default = 10L)
-    plot_h     <- config_get(pd$config, "enrichment", "plot_height", default = 8L)
-    cnet_label <- config_get(pd$config, "enrichment", "cnet_label", default = "gene_id")
+    go_field   <- config_get(pd$config, "GFF",        "go_field",   default = NULL)
+    gff_feat   <- config_get(pd$config, "GFF",        "feature",    default = "mRNA")
+    top_terms  <- config_get(pd$config, "Enrichment", "top_terms",  default = 10L)
+    plot_w     <- config_get(pd$config, "Enrichment", "plot_width",  default = 10L)
+    plot_h     <- config_get(pd$config, "Enrichment", "plot_height", default = 8L)
+    cnet_label <- config_get(pd$config, "Enrichment", "cnet_label", default = "gene_id")
 
     if (is.null(go_field) || go_field == "" || go_field == "NULL") {
-        return(list(error = "GO field not configured (association.go_field)"))
+        return(list(error = "GO field not configured (GFF.go_field)"))
     }
 
     gff <- .resolve_gff_path(pd)
@@ -251,10 +251,10 @@ run_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data) 
 #' @param region_row single-row data.table with chr, start, end
 #' @param trait character trait name
 #' @param project_data project data bundle
-#' @param module character pipeline module (MOD_ASSOC or MOD_PHENO)
+#' @param module character pipeline module (MOD_GEA or MOD_GWAS)
 #' @return character path to generated PNG, or NULL on failure
 #' @noRd
-run_regionplot_subprocess <- function(region_row, trait, project_data, module = MOD_ASSOC) {
+run_regionplot_subprocess <- function(region_row, trait, project_data, module = MOD_GEA) {
     pd <- project_data
 
     # Convert GFF on-the-fly if the topr annotation doesn't exist yet
@@ -335,18 +335,18 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
 #' @return list(process, log_file, type, tmp_tables, tmp_plots, per_trait_id, trait)
 #'   or list(error=) if pre-flight validation fails.
 #' @noRd
-launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data, module = MOD_ASSOC) {
+launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_data, module = MOD_GEA) {
     pd <- project_data
 
-    go_field   <- config_get(pd$config, "association", "go_field",  default = NULL)
-    gff_feat   <- config_get(pd$config, "gff", "feature",           default = "mRNA")
-    top_terms  <- config_get(pd$config, "enrichment", "top_terms",  default = 10L)
-    plot_w     <- config_get(pd$config, "enrichment", "plot_width",  default = 10L)
-    plot_h     <- config_get(pd$config, "enrichment", "plot_height", default = 8L)
-    cnet_label <- config_get(pd$config, "enrichment", "cnet_label", default = "gene_id")
+    go_field   <- config_get(pd$config, "GFF",        "go_field",   default = NULL)
+    gff_feat   <- config_get(pd$config, "GFF",        "feature",    default = "mRNA")
+    top_terms  <- config_get(pd$config, "Enrichment", "top_terms",  default = 10L)
+    plot_w     <- config_get(pd$config, "Enrichment", "plot_width",  default = 10L)
+    plot_h     <- config_get(pd$config, "Enrichment", "plot_height", default = 8L)
+    cnet_label <- config_get(pd$config, "Enrichment", "cnet_label", default = "gene_id")
 
     if (is.null(go_field) || go_field == "" || go_field == "NULL")
-        return(list(error = "GO field not configured (association.go_field)"))
+        return(list(error = "GO field not configured (GFF.go_field)"))
 
     gff <- .resolve_gff_path(pd)
     if (!file_ok(gff))
@@ -461,17 +461,17 @@ launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_dat
 #' @param region_snps data.table with columns trait, method — sig SNPs in the region
 #' @return list(process, log_file, type, tmp_base) or list(error=)
 #' @noRd
-launch_regionplot_subprocess <- function(region_row, region_snps, project_data, module = MOD_ASSOC) {
+launch_regionplot_subprocess <- function(region_row, region_snps, project_data, module = MOD_GEA) {
     pd <- project_data
 
     gff_topr_p <- .ensure_gff_topr(pd)
     if (!file_ok(gff_topr_p))
         return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
 
-    # For MOD_OVERLAP, regions combine GEA + GWAS signals; pull method files from both sources.
-    method_files <- if (identical(module, MOD_OVERLAP)) {
-        c(find_method_sigsnps_files(pd$name, MOD_ASSOC),
-          find_method_sigsnps_files(pd$name, MOD_PHENO))
+    # For MOD_GEAXGWAS, regions combine GEA + GWAS signals; pull method files from both sources.
+    method_files <- if (identical(module, MOD_GEAXGWAS)) {
+        c(find_method_sigsnps_files(pd$name, MOD_GEA),
+          find_method_sigsnps_files(pd$name, MOD_GWAS))
     } else {
         find_method_sigsnps_files(pd$name, module)
     }
@@ -567,8 +567,8 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 #' @noRd
 .resolve_gff_path <- function(pd) {
     cfg     <- pd$config
-    inp_dir <- config_get(cfg, "input", "dir",  default = "data")
-    gff_rel <- config_get(cfg, "input", "gff",  default = "")
+    inp_dir <- config_get(cfg, "Input", "dir",  default = "data")
+    gff_rel <- config_get(cfg, "Input", "gff",  default = "")
     if (is.null(gff_rel) || gff_rel == "") return("")
     file.path(get_pipeline_path(), inp_dir, gff_rel)
 }
@@ -594,9 +594,9 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 
     # Read GFF config values
     cfg       <- pd$config
-    feature   <- config_get(cfg, "gff", "feature",   default = "mRNA")
-    gene_name <- config_get(cfg, "gff", "gene_name", default = "description")
-    biotype   <- config_get(cfg, "gff", "biotype",   default = "biotype")
+    feature   <- config_get(cfg, "GFF", "feature",   default = "mRNA")
+    gene_name <- config_get(cfg, "GFF", "gene_name", default = "description")
+    biotype   <- config_get(cfg, "GFF", "biotype",   default = "biotype")
 
     out_path <- mod_path(pd$name, MOD_INTER, "annotation", "topr_gene_annotation.tsv")
     dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
@@ -624,8 +624,8 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 #' @noRd
 .module_to_hap_source <- function(module) {
     switch(module,
-        phenotype_association = "association_phenotypes",
-        overlapping           = "association",  # overlap regions use GEA haplotype source
+        gwas       = "gwas",
+        gea_x_gwas = "gea",  # GEAxGWAS regions use GEA haplotype source
         NULL
     )
 }

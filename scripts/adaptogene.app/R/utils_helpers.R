@@ -27,10 +27,10 @@ resolve_k_best <- function(project, config = NULL) {
 #' Resolve adjust string for a method from ASSOC_CONFIGS entries
 #' Returns "bonf_0.05" style string or NULL
 #' @noRd
-resolve_adjust <- function(config, method, module = "association") {
-    # Try module-specific configs first (e.g. phenotype_association.configs)
+resolve_adjust <- function(config, method, module = "GEA") {
+    # Try module-specific configs first (e.g. GWAS.configs)
     configs <- config_get(config, module, "configs", default = list())
-    # Fall back to association.configs (phenotype_association inherits from association)
+    # Fall back to GEA.configs (GWAS inherits from GEA)
     if (length(configs) == 0) configs <- config_assoc_configs(config)
     for (cfg in configs) {
         if (identical(cfg$method, method)) {
@@ -60,13 +60,13 @@ make_project_data <- function(project, pipeline_path = get_pipeline_path()) {
 tab_to_mode <- function(tab) {
     switch(tab,
         processing    = "processing",
+        prestructure  = "prestructure",
         structure     = "structure",
-        structure_k   = "structure_K",
-        association   = "association",
-        phenotype     = "association_phenotypes",
-        overlapping   = "overlapping",
+        gea           = "gea",
+        gwas          = "gwas",
+        gea_x_gwas    = "gea_x_gwas",
         maladaptation = "maladaptation",
-        haplotype     = NULL
+        NULL
     )
 }
 

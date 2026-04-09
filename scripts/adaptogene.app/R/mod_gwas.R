@@ -1,11 +1,11 @@
-#' Phenotype Association tab UI
+#' GWAS tab UI
 #'
 #' GWAS results: phenotype piemap + combined Manhattan with interactive
 #' filter/strategy bar + per-method accordion + region explorer.
 #'
 #' @param id module namespace id
 #' @noRd
-mod_phenotype_ui <- function(id) {
+mod_gwas_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
         # Trait selector inline above phenomap
@@ -73,11 +73,11 @@ mod_phenotype_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @noRd
-mod_phenotype_server <- function(id, project_data) {
+mod_gwas_server <- function(id, project_data) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
-        module <- MOD_PHENO
+        module <- MOD_GWAS
 
         # ── Data loading ───────────────────────────────────────────────────────
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
@@ -126,9 +126,9 @@ mod_phenotype_server <- function(id, project_data) {
         shiny::observe({
             pd      <- project_data()
             rp      <- read_region_params(pd$name)
-            saved_d <- get_global_param(rp, MOD_PHENO, "region_distance")
+            saved_d <- get_global_param(rp, MOD_GWAS, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else as.integer(config_get(pd$config, "phenotype_association", "region_distance",
+                 else as.integer(config_get(pd$config, "GWAS", "region_distance",
                                             default = 1000000L))
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
@@ -138,7 +138,7 @@ mod_phenotype_server <- function(id, project_data) {
             pd <- project_data()
             if (is.null(v) || is.na(v) || v < 1000L || is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_PHENO, "region_distance", as.integer(v))
+            rp <- set_global_param(rp, MOD_GWAS, "region_distance", as.integer(v))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
@@ -146,7 +146,7 @@ mod_phenotype_server <- function(id, project_data) {
             v <- input$region_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "phenotype_association", "region_distance",
+                as.integer(config_get(pd$config, "GWAS", "region_distance",
                                       default = 1000000L))
             } else {
                 as.integer(v)
@@ -157,9 +157,9 @@ mod_phenotype_server <- function(id, project_data) {
         shiny::observe({
             pd      <- project_data()
             rp      <- read_region_params(pd$name)
-            saved_g <- get_global_param(rp, MOD_PHENO, "combine_gap")
+            saved_g <- get_global_param(rp, MOD_GWAS, "combine_gap")
             g <- if (!is.null(saved_g)) as.integer(saved_g)
-                 else as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
+                 else as.integer(config_get(pd$config, "GWAS", "combine_gap",
                                             default = 100000L))
             shiny::updateNumericInput(session, "combine_gap", value = g)
         })
@@ -169,7 +169,7 @@ mod_phenotype_server <- function(id, project_data) {
             pd <- project_data()
             if (is.null(v) || is.na(v) || v < 0L || is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_PHENO, "combine_gap", as.integer(v))
+            rp <- set_global_param(rp, MOD_GWAS, "combine_gap", as.integer(v))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
@@ -177,7 +177,7 @@ mod_phenotype_server <- function(id, project_data) {
             v <- input$combine_gap
             if (is.null(v) || is.na(v) || v < 0L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "phenotype_association", "combine_gap",
+                as.integer(config_get(pd$config, "GWAS", "combine_gap",
                                       default = 100000L))
             } else {
                 as.integer(v)
@@ -233,7 +233,7 @@ mod_phenotype_server <- function(id, project_data) {
                 shiny::imageOutput(ns("phenomap_img"), height = "auto", width = "100%")
             } else {
                 plot_placeholder("Phenotype map not available",
-                    "Run mode=association_phenotypes to generate phenotype piemaps")
+                    "Run mode=gwas to generate phenotype piemaps")
             }
         })
 
@@ -318,7 +318,7 @@ mod_phenotype_server <- function(id, project_data) {
             pd  <- project_data()
             k   <- pd$k_best
             if (is.null(m) || is.null(t) || is.na(k)) return(NULL)
-            adj <- resolve_adjust(pd$config, m, "phenotype_association")
+            adj <- resolve_adjust(pd$config, m, MOD_GWAS)
             if (is.null(adj)) return(NULL)
             qq_plot_path(pd$name, module, m, t, k, adj)
         })

@@ -34,11 +34,11 @@ mod_region_explorer_ui <- function(id) {
 #'
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
-#' @param module character: MOD_ASSOC or MOD_PHENO
+#' @param module character: MOD_GEA or MOD_GWAS
 #' @param interactive_sigsnps reactive data.table of current filtered sig SNPs
 #' @return list with computed_regions (reactive) and selected_region_id (reactiveVal)
 #' @noRd
-mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
+mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                                         interactive_sigsnps = shiny::reactive(NULL),
                                         region_distance     = shiny::reactive(2000000L),
                                         override_regions    = shiny::reactive(NULL)) {
@@ -137,7 +137,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_ASSOC,
             gff  <- gff_genes()
             if (is.null(gff) || nrow(gff) == 0) return(data.table::data.table())
             pd   <- project_data()
-            plen <- config_get(pd$config, "association", "promoter_length", default = 10000L)
+            plen <- config_get(pd$config, "GEA", "promoter_length", default = 10000L)
             find_genes_in_region(gff, row, as.integer(plen))
         })
 

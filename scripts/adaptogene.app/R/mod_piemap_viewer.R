@@ -100,7 +100,7 @@ mod_piemap_viewer_server <- function(id, project_data,
                     "This climate variable has near-zero spatial variation across sampling sites."
                 }
             } else {
-                "Run mode=structure_K to generate piemaps for all bioclimatic variables."
+                "Run mode=structure to generate piemaps for all bioclimatic variables."
             }
         })
 

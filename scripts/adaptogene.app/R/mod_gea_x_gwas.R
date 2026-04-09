@@ -1,4 +1,4 @@
-#' Overlapping Regions tab UI
+#' GEAxGWAS tab UI
 #'
 #' Two independent filter bars (GEA above Miami, GWAS below) drive independent
 #' region sets on each half of the Miami plot. Overlap regions — where a GEA region
@@ -7,7 +7,7 @@
 #'
 #' @param id module namespace id
 #' @noRd
-mod_overlapping_ui <- function(id) {
+mod_gea_x_gwas_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
         # GEA filter bar
@@ -85,20 +85,20 @@ mod_overlapping_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @noRd
-mod_overlapping_server <- function(id, project_data) {
+mod_gea_x_gwas_server <- function(id, project_data) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
-        module <- MOD_OVERLAP
+        module <- MOD_GEAXGWAS
 
         # ── GEA side data ──────────────────────────────────────────────────────
-        gea_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_ASSOC))
-        gea_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_ASSOC))
+        gea_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GEA))
+        gea_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_GEA))
 
         gea_method_sigsnps <- shiny::reactive({
             pd <- project_data()
-            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_ASSOC),
-                        function() load_all_method_sigsnps(pd$name, MOD_ASSOC, k = pd$k_best))
+            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_GEA),
+                        function() load_all_method_sigsnps(pd$name, MOD_GEA, k = pd$k_best))
         })
 
         gea_trait_colors  <- shiny::reactive(trait_color_map(gea_traits()))
@@ -119,13 +119,13 @@ mod_overlapping_server <- function(id, project_data) {
         })
 
         # ── GWAS side data ─────────────────────────────────────────────────────
-        gwas_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_PHENO))
-        gwas_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_PHENO))
+        gwas_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GWAS))
+        gwas_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_GWAS))
 
         gwas_method_sigsnps <- shiny::reactive({
             pd <- project_data()
-            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_PHENO),
-                        function() load_all_method_sigsnps(pd$name, MOD_PHENO, k = pd$k_best))
+            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_GWAS),
+                        function() load_all_method_sigsnps(pd$name, MOD_GWAS, k = pd$k_best))
         })
 
         gwas_trait_colors  <- shiny::reactive({
@@ -172,15 +172,15 @@ mod_overlapping_server <- function(id, project_data) {
         }
 
         .init_filter_param("gea_region_distance", "gea_region_distance", function(cfg)
-            config_get(cfg, "association", "region_distance", default = 1000000L))
+            config_get(cfg, "GEA", "region_distance", default = 1000000L))
         .init_filter_param("gea_combine_gap", "gea_combine_gap", function(cfg)
-            config_get(cfg, "association", "combine_gap", default = 100000L))
+            config_get(cfg, "GEA", "combine_gap", default = 100000L))
         .init_filter_param("gwas_region_distance", "gwas_region_distance", function(cfg)
-            config_get(cfg, "phenotype_association", "region_distance",
-                       default = config_get(cfg, "association", "region_distance", default = 1000000L)))
+            config_get(cfg, "GWAS", "region_distance",
+                       default = config_get(cfg, "GEA", "region_distance", default = 1000000L)))
         .init_filter_param("gwas_combine_gap", "gwas_combine_gap", function(cfg)
-            config_get(cfg, "phenotype_association", "combine_gap",
-                       default = config_get(cfg, "association", "combine_gap", default = 100000L)))
+            config_get(cfg, "GWAS", "combine_gap",
+                       default = config_get(cfg, "GEA", "combine_gap", default = 100000L)))
 
         gea_region_distance <- shiny::reactive({
             v <- input$gea_region_distance
@@ -258,7 +258,7 @@ mod_overlapping_server <- function(id, project_data) {
                 strategy           = input$gea_combine_strategy %||% "All",
                 gap                = gea_combine_gap(),
                 project_name       = project_data()$name,
-                module             = MOD_ASSOC
+                module             = MOD_GEA
             )
         })
 
@@ -271,7 +271,7 @@ mod_overlapping_server <- function(id, project_data) {
                 strategy           = input$gwas_combine_strategy %||% "All",
                 gap                = gwas_combine_gap(),
                 project_name       = project_data()$name,
-                module             = MOD_PHENO
+                module             = MOD_GWAS
             )
         })
 
