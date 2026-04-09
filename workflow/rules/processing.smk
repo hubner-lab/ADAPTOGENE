@@ -369,8 +369,8 @@ rule plot_qc_processing:
         has_dp             = 'TRUE' if HAS_FORMAT_DP else 'FALSE',
         depth_sample       = O['qc_depth_sample'] if HAS_FORMAT_DP else 'NULL',
         depth_site         = O['qc_depth_site'] if HAS_FORMAT_DP else 'NULL',
-        plots_dir          = f"{MOD_PROC}plots/",
-        tables_dir         = f"{MOD_PROC}tables/"
+        plots_dir          = f"{MOD_PROCESSING}plots/",
+        tables_dir         = f"{MOD_PROCESSING}tables/"
     log: f"{LOGDIR}processing/plot_qc_processing.log"
     shell:
         """

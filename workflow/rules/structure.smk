@@ -1,107 +1,379 @@
 #=============================================================================
-# MODULE 2: POPULATION STRUCTURE
+# MODULE 3: STRUCTURE_K (requires K_BEST selection)
 #=============================================================================
 
-rule snmf:
-    """Run sNMF across K range."""
-    input:  geno = W['geno']
-    output: W['snmf']
-    params: ks = K_START, ke = K_END, ploidy = PLOIDY, rep = REPEAT, mode = SNMF_PROJECT_MODE
-    log:    f"{LOGDIR}structure/snmf.log"
+rule impute_ld:
+    """Impute missing genotypes using SNMF results for K_BEST."""
+    input:  snmf = W['snmf'], lfmm = W['lfmm']
+    output: W['lfmm_imp']
+    params: k = K_BEST
+    log:    f"{LOGDIR}structure/impute_ld.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        """
+
+rule lfmm2vcf_ld:
+    """Convert imputed LFMM back to VCF format."""
+    input:  vcf = W['vcf_ld'], lfmm_imp = W['lfmm_imp']
+    output: W['vcf_imp']
+    params: blocksize = 20000
+    log:    f"{LOGDIR}structure/lfmm2vcf_ld.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/lfmm2vcf.R {input.lfmm_imp} {input.vcf} {params.blocksize} > {log} 2>&1
+        """
+    # NOTE: lfmm2vcf.R already exists, outputs .vcf with same base as .lfmm input
+
+rule download_climate_present:
+    """Download and process present climate data for sampling locations."""
+    input:  meta = O['metadata']
+    output:
+        site = O['climate_site'],
+        site_scaled = O['climate_site_scaled'],
+        all_vals = O['climate_all'],
+        raster = W['climate_raster']
+    params:
+        crop = CLIMATE_EXTENT,
+        gap = GAP,
+        resolution = RESOLUTION,
+        data_dir = f"{INDIR}",
+        raster_dir = f"{MOD_CLIMATE}rasters/present/",
+        tables_dir = f"{MOD_CLIMATE}tables/present/"
+    log: f"{LOGDIR}structure/download_climate_present.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/download_climate_present.R \
+            {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
+            {params.raster_dir} {params.tables_dir} > {log} 2>&1
+        """
+
+rule check_climate_variance:
+    """Detect invariant (zero-variance or all-NA) bioclimatic predictors at sample sites."""
+    input:  site = O['climate_site']
+    output: O['climate_invariant']
+    log:    f"{LOGDIR}structure/check_climate_variance.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/check_climate_variance.R \
+            {input.site} {output} > {log} 2>&1
+        """
+
+rule density_plot:
+    """Generate combined density plot for all climate predictors (all BIO columns)."""
+    input:  climate = O['climate_site']
+    output: DENSITY_PLOT_COMBINED
+    params:
+        predictors = "all",
+        inter_dir = INTER
+    log:    f"{LOGDIR}structure/density_plot.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_density.R \
+            {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
+        """
+
+if META_HAS_PHENO:
+    rule density_plot_phenotypes:
+        """Generate combined density plot for phenotype traits (metadata columns 5+)."""
+        input:  meta = O['metadata']
+        output: DENSITY_PLOT_PHENOTYPES
+        params:
+            predictors = "all",
+            inter_dir = INTER
+        log:    f"{LOGDIR}structure/density_plot_phenotypes.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/plot_density.R \
+                {input.meta} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
+            """
+
+rule tajima_d:
+    """Calculate Tajima's D per population."""
+    input:  vcf = W['vcf_filt'], meta = O['metadata']
+    output: O['tajima']
+    params: winsize = METRICS_WINSIZE, inter_dir = INTER
+    log:    f"{LOGDIR}structure/tajima_d.log"
     threads: CPU
     shell:
         """
-        Rscript /pipeline/scripts/snmf.R {input.geno} \
-            {params.ks} {params.ke} {params.ploidy} {params.rep} \
-            {threads} {params.mode} > {log} 2>&1
+        Rscript /pipeline/scripts/tajima_d.R \
+            {input.vcf} {input.meta} {params.winsize} {threads} \
+            {output} {params.inter_dir} > {log} 2>&1
         """
 
-rule pca_plot:
-    """Generate PCA and Tracy-Widom plots (also creates LEA PCA projections/eigenvalues)."""
-    input:  lfmm = W['lfmm'], meta = O['metadata']
-    output:
-        pca = O['pca'],
-        pca_svg = O['pca_svg'],
-        tracy = O['tracy'],
-        projections = W['pca_projections'],
-        eigenvalues = W['pca_eigenvalues']
+rule pi_diversity:
+    """Calculate nucleotide diversity (Pi) per population."""
+    input:  vcf = W['vcf_filt'], meta = O['metadata']
+    output: O['pi_div']
+    params: winsize = METRICS_WINSIZE, inter_dir = INTER
+    log:    f"{LOGDIR}structure/pi_diversity.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/pi_diversity.R \
+            {input.vcf} {input.meta} {params.winsize} {threads} \
+            {output} {params.inter_dir} > {log} 2>&1
+        """
+
+rule ibd:
+    """Calculate isolation by distance between populations."""
+    input:  clusters = clusters_table(K_BEST), meta = O['metadata']
+    output: raw = O['ibd_raw'], pairs = O['ibd_pairs']
+    params: tables_dir = f"{MOD_STRUCT}tables/pop_stats/"
+    log:    f"{LOGDIR}structure/ibd.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/ibd.R \
+            {input.clusters} {input.meta} {threads} {params.tables_dir} > {log} 2>&1
+        """
+
+rule correlation_heatmap:
+    """Generate correlation heatmap of climate variables and traits."""
+    input:  climate = O['climate_site'], meta = O['metadata']
+    output: O['corr_heatmap']
     params: inter_dir = INTER
-    log:    f"{LOGDIR}structure/pca_plot.log"
+    log:    f"{LOGDIR}structure/correlation_heatmap.log"
     shell:
         """
-        Rscript /pipeline/scripts/plot_pca.R \
-            {input.lfmm} {input.meta} {output.pca} {output.tracy} {params.inter_dir} > {log} 2>&1
+        Rscript /pipeline/scripts/plot_correlation_heatmap.R \
+            {input.climate} {input.meta} {output} {params.inter_dir} > {log} 2>&1
         """
 
-rule cross_entropy_plot:
-    """Plot cross-entropy for K selection."""
-    input:  snmf = W['snmf']
-    output: O['cross_entropy']
-    params: ks = K_START, ke = K_END, inter_dir = INTER
-    log:    f"{LOGDIR}structure/cross_entropy.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_cross_entropy.R \
-            {input.snmf} {params.ks} {params.ke} \
-            {output} {params.inter_dir} > {log} 2>&1
-        """
-
-rule extract_clusters:
-    """Extract Q-matrix (cluster assignments) for specific K."""
-    input:  snmf = W['snmf'], meta = O['metadata']
-    output: clusters_table("{k}")
-    wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k
-    log:    f"{LOGDIR}structure/extract_clusters_K{{k}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/extract_clusters.R \
-            {input.snmf} {input.meta} {params.k} {output} > {log} 2>&1
-        """
-
-rule structure_barplot:
-    """Generate structure barplot for specific K."""
-    input:  clusters = clusters_table("{k}")
-    output: structure_plot("{k}")
-    wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k, inter_dir = INTER
-    log:    f"{LOGDIR}structure/structure_plot_K{{k}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_structure.R \
-            {input.clusters} {params.k} {output} {params.inter_dir} > {log} 2>&1
-        """
-
-rule pca_structure_plot:
-    """Generate PCA with structure pie charts for specific K (uses LEA PCA)."""
-    input:
-        clusters = clusters_table("{k}"),
-        projections = W['pca_projections'],
-        eigenvalues = W['pca_eigenvalues']
-    output: pca_struct_plot("{k}")
-    wildcard_constraints: k = r"\d+"
-    params: k = lambda wc: wc.k, inter_dir = INTER
-    log:    f"{LOGDIR}structure/pca_structure_K{{k}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_pca_structure.R \
-            {input.clusters} {input.projections} {input.eigenvalues} \
-            {params.k} {output} {params.inter_dir} > {log} 2>&1
-        """
-
-rule pop_diff_test:
-    """Population differentiation test for specific K."""
-    input:  snmf = W['snmf']
-    output: pop_diff_plot("{k}")
-    wildcard_constraints: k = r"\d+"
+rule mantel_test:
+    """Perform Mantel test for IBD/IBE."""
+    input:  meta = O['metadata'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
+    output: O['mantel']
     params:
-        k = lambda wc: wc.k,
-        ploidy = PLOIDY,
+        predictors = ALL_BIO_STR,
+        plot_dir = f"{MOD_STRUCT}plots/pop_stats/",
         inter_dir = INTER
-    log:    f"{LOGDIR}structure/pop_diff_K{{k}}.log"
+    log: f"{LOGDIR}structure/mantel_test.log"
     shell:
         """
-        Rscript /pipeline/scripts/plot_pop_diff.R \
-            {input.snmf} {params.k} {params.ploidy} \
-            {output} {params.inter_dir} > {log} 2>&1
+        Rscript /pipeline/scripts/mantel_test.R \
+            {input.meta} {input.clusters} {input.climate} {params.predictors} \
+            {params.plot_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+rule amova:
+    """Perform AMOVA analysis."""
+    input:  vcf = W['vcf_imp'], meta = O['metadata']
+    output: table = O['amova'], plot = O['amova_plot']
+    params: plot_dir = f"{MOD_STRUCT}plots/pop_stats/", tables_dir = f"{MOD_STRUCT}tables/pop_stats/", inter_dir = INTER
+    log:    f"{LOGDIR}structure/amova.log"
+    threads: CPU
+    shell:
+        """
+        Rscript /pipeline/scripts/amova.R \
+            {input.vcf} {input.meta} {threads} \
+            {params.plot_dir} {params.tables_dir} {params.inter_dir} > {log} 2>&1
+        """
+
+rule piemap_plot:
+    """Generate PieMap plots for a climate predictor with trait-scaled pie sizes."""
+    input:
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        raster = W['climate_raster'],
+        tajima = O['tajima'],
+        diversity = O['pi_div']
+    output:
+        tajima_plot = piemap_tajima("{bio}"),
+        diversity_plot = piemap_diversity("{bio}")
+    wildcard_constraints: bio = r"bio_\d+"
+    params:
+        bio = lambda wc: wc.bio,
+        pie_alpha = PIEMAP_ALPHA,
+        pop_label = PIEMAP_SHOW_LABELS,
+        pop_label_size = PIEMAP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
+        plot_dir = f"{MOD_STRUCT}plots/piemap/",
+        inter_dir = INTER,
+        regionmap_extent = REGIONMAP_EXTENT
+    log: f"{LOGDIR}structure/piemap_{{bio}}.log"
+    shell:
+        """
+        # TajimaD piemap
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            {input.tajima} "Tajima's D" \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            piemap_{params.bio}_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+
+        # PiDiversity piemap
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            {input.diversity} "Pi Diversity" \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            piemap_{params.bio}_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} >> {log} 2>&1
+        """
+
+rule piemap_simple:
+    """Generate basic PieMap plots with autoscaled uniform pie size (no trait overlay)."""
+    input:
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST),
+        raster = W['climate_raster']
+    output: piemap_notrait("{bio}")
+    wildcard_constraints: bio = r"bio_\d+"
+    params:
+        bio = lambda wc: wc.bio,
+        pie_alpha = PIEMAP_ALPHA,
+        pop_label = PIEMAP_SHOW_LABELS,
+        pop_label_size = PIEMAP_LABEL_SIZE,
+        pie_scale = PIEMAP_PIE_SCALE,
+        use_points = PIEMAP_USE_POINTS,
+        plot_dir = f"{MOD_STRUCT}plots/piemap/",
+        inter_dir = INTER,
+        regionmap_extent = REGIONMAP_EXTENT
+    log: f"{LOGDIR}structure/piemap_simple_{{bio}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            NULL NULL \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            piemap_{params.bio} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+        """
+
+#=============================================================================
+# LD DECAY ANALYSIS
+#=============================================================================
+
+rule ld_decay_prepare:
+    """Create sample lists per group and split VCF by chromosome if needed."""
+    input:
+        vcf = W['vcf_filt'],
+        meta = O['metadata'],
+        clusters = clusters_table(K_BEST) if LD_DECAY_GROUP_BY == 'cluster' else []
+    output:
+        flag = touch(W['ld_decay_prep_done'])
+    params:
+        group_by = LD_DECAY_GROUP_BY,
+        min_samples = LD_DECAY_MIN_SAMPLES,
+        scope = LD_DECAY_SCOPE,
+        sample_lists_dir = W['ld_decay_sample_lists'],
+        chr_vcfs_dir = W['ld_decay_chr_vcfs'],
+        clusters_path = clusters_table(K_BEST) if LD_DECAY_GROUP_BY == 'cluster' else 'NULL'
+    log: f"{LOGDIR}structure/ld_decay_prepare.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/ld_decay_prepare.R \
+            {input.vcf} {input.meta} {params.group_by} \
+            {params.min_samples} {params.scope} \
+            {params.sample_lists_dir} {params.chr_vcfs_dir} \
+            {params.clusters_path} > {log} 2>&1
+        """
+
+rule ld_decay_run_gw:
+    """Run PopLDdecay genome-wide for each group + All."""
+    input:
+        vcf = W['vcf_filt'],
+        prep = W['ld_decay_prep_done']
+    output:
+        flag = touch(W['ld_decay_gw_done'])
+    params:
+        max_dist = LD_DECAY_MAX_DISTANCE,
+        sample_lists_dir = W['ld_decay_sample_lists'],
+        stat_dir = W['ld_decay_stat_gw']
+    log: f"{LOGDIR}structure/ld_decay_run_gw.log"
+    shell:
+        """
+        mkdir -p {params.stat_dir}
+        LDFLAGS="-MAF 0 -Miss 1 -Het 1"
+
+        # Run for "All" (no -SubPop)
+        PopLDdecay -InVCF {input.vcf} \
+            -OutStat {params.stat_dir}/All \
+            -MaxDist {params.max_dist} $LDFLAGS \
+            >> {log} 2>&1
+
+        # Run per group
+        for sample_list in {params.sample_lists_dir}/*.txt; do
+            group=$(basename "$sample_list" .txt)
+            [ "$group" = "manifest" ] && continue
+            [ "$group" = "All" ] && continue
+            PopLDdecay -InVCF {input.vcf} \
+                -OutStat {params.stat_dir}/"$group" \
+                -MaxDist {params.max_dist} $LDFLAGS \
+                -SubPop "$sample_list" \
+                >> {log} 2>&1
+        done
+        """
+
+if LD_DECAY_SCOPE in ('per_chromosome', 'both'):
+    rule ld_decay_run_chr:
+        """Run PopLDdecay per chromosome for each group."""
+        input:
+            prep = W['ld_decay_prep_done']
+        output:
+            flag = touch(W['ld_decay_chr_done'])
+        params:
+            max_dist = LD_DECAY_MAX_DISTANCE,
+            sample_lists_dir = W['ld_decay_sample_lists'],
+            chr_vcfs_dir = W['ld_decay_chr_vcfs'],
+            stat_dir = W['ld_decay_stat_chr']
+        log: f"{LOGDIR}structure/ld_decay_run_chr.log"
+        shell:
+            """
+            mkdir -p {params.stat_dir}
+            LDFLAGS="-MAF 0 -Miss 1 -Het 1"
+
+            while IFS= read -r chr; do
+                # Run for "All" (no -SubPop)
+                PopLDdecay -InVCF {params.chr_vcfs_dir}/"$chr".vcf \
+                    -OutStat {params.stat_dir}/All_"$chr" \
+                    -MaxDist {params.max_dist} $LDFLAGS \
+                    >> {log} 2>&1
+
+                # Run per group
+                for sample_list in {params.sample_lists_dir}/*.txt; do
+                    group=$(basename "$sample_list" .txt)
+                    [ "$group" = "manifest" ] && continue
+                    [ "$group" = "All" ] && continue
+                    PopLDdecay -InVCF {params.chr_vcfs_dir}/"$chr".vcf \
+                        -OutStat {params.stat_dir}/"$group"_"$chr" \
+                        -MaxDist {params.max_dist} $LDFLAGS \
+                        -SubPop "$sample_list" \
+                        >> {log} 2>&1
+                done
+            done < {params.chr_vcfs_dir}/chromosomes.txt
+            """
+
+rule ld_decay_analyze:
+    """Read PopLDdecay outputs, fit Hill-Weir curves, extract half-decay distances, plot."""
+    input:
+        gw = W['ld_decay_gw_done'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        chr = W['ld_decay_chr_done'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else []
+    output:
+        table = O['ld_decay_table'],
+        plot_gw = O['ld_decay_plot_gw'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        plot_gw_svg = O['ld_decay_plot_gw_svg'] if LD_DECAY_SCOPE in ('genome_wide', 'both') else [],
+        plot_chr = O['ld_decay_plot_chr'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else [],
+        plot_chr_svg = O['ld_decay_plot_chr_svg'] if LD_DECAY_SCOPE in ('per_chromosome', 'both') else []
+    params:
+        scope = LD_DECAY_SCOPE,
+        stat_gw_dir = W['ld_decay_stat_gw'],
+        stat_chr_dir = W['ld_decay_stat_chr'],
+        manifest = f"{W['ld_decay_sample_lists']}manifest.tsv",
+        chr_list = f"{W['ld_decay_chr_vcfs']}chromosomes.txt",
+        plot_gw_path = O.get('ld_decay_plot_gw', 'NULL'),
+        plot_chr_path = O.get('ld_decay_plot_chr', 'NULL')
+    log: f"{LOGDIR}structure/ld_decay_analyze.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/ld_decay_analyze.R \
+            {params.scope} {params.stat_gw_dir} {params.stat_chr_dir} \
+            {params.manifest} {params.chr_list} \
+            {output.table} {params.plot_gw_path} {params.plot_chr_path} \
+            > {log} 2>&1
         """

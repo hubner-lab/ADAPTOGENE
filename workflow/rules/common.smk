@@ -62,23 +62,23 @@ def _cfg_bool(group, key, default=False):
     return bool(val)
 
 # INPUT parameters
-INDIR = '/pipeline/' + config['input']['dir']
+INDIR = '/pipeline/' + config['Input']['dir']
 PROJECT = config['project_name']
 OUTDIR = f'/pipeline/{PROJECT}_results/'
 LOGDIR = f'/pipeline/{PROJECT}_logs/'
 
 CPU = config.get('cpu', max(1, os.cpu_count() - 2)); check_numeric(CPU, 'cpu')
-VCF_RAW = config['input']['vcf']; check_file_exists(INDIR, VCF_RAW, 'input.vcf')
-SAMPLES = config['input']['metadata']; check_file_exists(INDIR, SAMPLES, 'input.metadata')
+VCF_RAW = config['Input']['vcf']; check_file_exists(INDIR, VCF_RAW, 'input.vcf')
+SAMPLES = config['Input']['metadata']; check_file_exists(INDIR, SAMPLES, 'input.metadata')
 VCF_BASE = get_vcf_basename(VCF_RAW)
 
 # FILTER parameters
-MAF = config['filter']['maf']; check_float(MAF, 'filter.maf')
-MISS = config['filter']['snp_miss']; check_float(MISS, 'filter.snp_miss')
-SAMPLE_MISS = _cfg('filter', 'sample_miss', 0.5); check_float(SAMPLE_MISS, 'filter.sample_miss')
-MIN_DEPTH    = _cfg('filter', 'min_depth', None)
-MAX_DEPTH    = _cfg('filter', 'max_depth', None)
-HET_OUTLIER_SD = _cfg('filter', 'het_outlier_sd', None)
+MAF = config['Filter']['maf']; check_float(MAF, 'filter.maf')
+MISS = config['Filter']['snp_miss']; check_float(MISS, 'filter.snp_miss')
+SAMPLE_MISS = _cfg('Filter', 'sample_miss', 0.5); check_float(SAMPLE_MISS, 'filter.sample_miss')
+MIN_DEPTH    = _cfg('Filter', 'min_depth', None)
+MAX_DEPTH    = _cfg('Filter', 'max_depth', None)
+HET_OUTLIER_SD = _cfg('Filter', 'het_outlier_sd', None)
 
 # Detect FORMAT/DP field in raw VCF header at parse time (reads header only — fast)
 _raw_vcf_path = os.path.join(INDIR, VCF_RAW)
@@ -92,23 +92,23 @@ except Exception:
     HAS_FORMAT_DP = False
 
 # LD parameters
-LD_WIN = config['ld']['window']; check_numeric(LD_WIN, 'ld.window')
-LD_STEP = config['ld']['step']; check_numeric(LD_STEP, 'ld.step')
-LD_R2 = config['ld']['r2']; check_float(LD_R2, 'ld.r2')
+LD_WIN = config['LD']['window']; check_numeric(LD_WIN, 'ld.window')
+LD_STEP = config['LD']['step']; check_numeric(LD_STEP, 'ld.step')
+LD_R2 = config['LD']['r2']; check_float(LD_R2, 'ld.r2')
 
 # SNMF parameters
-K_START = config['snmf']['k_start']; check_numeric(K_START, 'snmf.k_start')
-K_END = config['snmf']['k_end']; check_numeric(K_END, 'snmf.k_end')
+K_START = config['sNMF']['k_start']; check_numeric(K_START, 'snmf.k_start')
+K_END = config['sNMF']['k_end']; check_numeric(K_END, 'snmf.k_end')
 PLOIDY = 2  # diploid only
-REPEAT = config['snmf']['repeats']; check_numeric(REPEAT, 'snmf.repeats')
-K_BEST = int(_cfg('snmf', 'k_best', None)) if _cfg('snmf', 'k_best', None) is not None else None
+REPEAT = config['sNMF']['repeats']; check_numeric(REPEAT, 'snmf.repeats')
+K_BEST = int(_cfg('sNMF', 'k_best', None)) if _cfg('sNMF', 'k_best', None) is not None else None
 SNMF_PROJECT_MODE = 'new'  # LEA project mode: 'new' for fresh runs, 'continue' to resume
 
 # MAP parameters
-CROP_REGION = _cfg('map', 'climate_extent', 'auto')
-GAP = _cfg('map', 'gap', 0.5)
-RESOLUTION = _cfg('map', 'resolution', 0.5)
-REGIONMAP_EXTENT = _cfg('map', 'zoom_extent', 'NULL')
+CLIMATE_EXTENT = _cfg('Map', 'climate_extent', 'auto')
+GAP = _cfg('Map', 'gap', 0.5)
+RESOLUTION = _cfg('Map', 'resolution', 0.5)
+REGIONMAP_EXTENT = _cfg('Map', 'zoom_extent', 'NULL')
 HAS_REGIONMAP = REGIONMAP_EXTENT not in ['NULL', '', None]
 
 def get_zoom_suffix():
@@ -121,76 +121,90 @@ def get_zoom_suffix():
     return f"_zoom_{coords}"
 
 # CLIMATE parameters
-CLIMATE_ENABLED = _cfg_bool('climate', 'enabled', True)
-PREDICTORS_SELECTED = _cfg('climate', 'predictors', '') if CLIMATE_ENABLED else ''
+CLIMATE_ENABLED = _cfg_bool('Climate', 'enabled', True)
+PREDICTORS_SELECTED = _cfg('Climate', 'predictors', '') if CLIMATE_ENABLED else ''
 
 # All 19 WorldClim bioclimatic variables — always available in the raster stack
 ALL_BIO     = [f"bio_{i}" for i in range(1, 20)]
 ALL_BIO_STR = ",".join(ALL_BIO)
 
 # POP parameters
-CALC_POP_STATS = _cfg_bool('pop', 'calc_stats', False)
-METRICS_WINSIZE = _cfg('pop', 'window_size', 10000)
-CUSTOM_TRAIT = _cfg('pop', 'custom_trait_file', 'NULL')
+CALC_POP_STATS = _cfg_bool('Population', 'calc_stats', False)
+METRICS_WINSIZE = _cfg('Population', 'window_size', 10000)
+CUSTOM_TRAIT = _cfg('Population', 'custom_trait_file', 'NULL')
 
 # PIEMAP parameters (palette fixed to viridis plasma)
-PIEMAP_ALPHA = _cfg('piemap', 'alpha', 0.6)
-PIEMAP_SHOW_LABELS = 'T' if _cfg_bool('piemap', 'show_labels', False) else 'F'
-PIEMAP_LABEL_SIZE = _cfg('piemap', 'label_size', 10)
-PIEMAP_PIE_SCALE = _cfg('piemap', 'pie_scale', 1.0)
-PIEMAP_USE_POINTS = 'T' if _cfg_bool('piemap', 'use_points', False) else 'F'
+PIEMAP_ALPHA = _cfg('Piemap', 'alpha', 0.6)
+PIEMAP_SHOW_LABELS = 'T' if _cfg_bool('Piemap', 'show_labels', False) else 'F'
+PIEMAP_LABEL_SIZE = _cfg('Piemap', 'label_size', 10)
+PIEMAP_PIE_SCALE = _cfg('Piemap', 'pie_scale', 1.0)
+PIEMAP_USE_POINTS = 'T' if _cfg_bool('Piemap', 'use_points', False) else 'F'
 
 # LD DECAY parameters
-_ld_decay = config.get('ld_decay', {})
+_ld_decay = config.get('LDdecay', {})
 LD_DECAY_GROUP_BY = _ld_decay.get('group_by', 'site')
-check_in_list(LD_DECAY_GROUP_BY, ['site', 'cluster'], 'ld_decay.group_by')
+check_in_list(LD_DECAY_GROUP_BY, ['site', 'cluster'], 'LDdecay.group_by')
 LD_DECAY_MIN_SAMPLES = int(_ld_decay.get('min_samples', 10))
 LD_DECAY_MAX_DISTANCE = int(_ld_decay.get('max_distance', 500))
 LD_DECAY_SCOPE = _ld_decay.get('scope', 'both')
-check_in_list(LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome', 'both'], 'ld_decay.scope')
+check_in_list(LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome', 'both'], 'LDdecay.scope')
 LD_DECAY_TAG = f"grp{LD_DECAY_GROUP_BY}_min{LD_DECAY_MIN_SAMPLES}_dist{LD_DECAY_MAX_DISTANCE}"
 
 # GFF parameters
-GFF = _cfg('input', 'gff', '')
-GFF_FEATURE = _cfg('gff', 'feature', 'mRNA')
-GFF_GENE_NAME = _cfg('gff', 'gene_name', 'description')
-GFF_BIOTYPE = _cfg('gff', 'biotype', 'biotype')
+GFF = _cfg('Input', 'gff', '')
+GFF_FEATURE = _cfg('GFF', 'feature', 'mRNA')
+GFF_GENE_NAME = _cfg('GFF', 'gene_name', 'description')
+GFF_BIOTYPE = _cfg('GFF', 'biotype', 'biotype')
 
 # ASSOCIATION parameters
-_assoc = config.get('association', {})
-PROMOTER_LENGTH = _assoc.get('promoter_length', 10000)
+_assoc = config.get('GEA', {})
+_gff = config.get('GFF', {})
 SIGSNPS_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
-SIGSNPS_GAP = _assoc.get('combine_gap', 100000)
-SNP_DISTANCE = SIGSNPS_GAP  # overlap annotation distance
-_region_distance_raw = _assoc.get('region_distance', 1000000)
-REGION_DISTANCE_AUTO = (str(_region_distance_raw).lower() == 'auto')
-REGION_DISTANCE = 'auto' if REGION_DISTANCE_AUTO else int(_region_distance_raw)
-GO_FIELD = _assoc.get('go_field', 'NULL')
+
+def resolve_region_params(group_dict, defaults=None):
+    """Parse region_distance, combine_gap, promoter_length from a config group dict."""
+    defaults = defaults or {}
+    raw_rdist = group_dict.get('region_distance', defaults.get('region_distance', 1000000))
+    auto = (str(raw_rdist).lower() == 'auto')
+    return {
+        'region_distance':      'auto' if auto else int(raw_rdist),
+        'region_distance_auto': auto,
+        'combine_gap':          int(group_dict.get('combine_gap',      defaults.get('combine_gap', 100000))),
+        'promoter_length':      int(group_dict.get('promoter_length',  defaults.get('promoter_length', 10000))),
+    }
+
+_gea_rdp = resolve_region_params(_assoc)
+PROMOTER_LENGTH    = _gea_rdp['promoter_length']
+SIGSNPS_GAP        = _gea_rdp['combine_gap']
+SNP_DISTANCE       = SIGSNPS_GAP
+REGION_DISTANCE    = _gea_rdp['region_distance']
+REGION_DISTANCE_AUTO = _gea_rdp['region_distance_auto']
+GO_FIELD           = _gff.get('go_field', 'NULL')
 
 # ENRICHMENT parameters
-_enrich = config.get('enrichment', {})
+_enrich = config.get('Enrichment', {})
 ENRICHMENT_TOP_TERMS = _enrich.get('top_terms', 20)
 ENRICHMENT_PLOT_WIDTH = _enrich.get('plot_width', 12)
 ENRICHMENT_PLOT_HEIGHT = _enrich.get('plot_height', 10)
 ENRICHMENT_CNET_LABEL = _enrich.get('cnet_label', 'gene_id')
 
 # FUTURE parameters
-_future = config.get('future', {})
+_future = config.get('Future', {})
 SSP = _future.get('ssp', '585')
 YEAR = _future.get('year', '2061-2080')
 MODELS_STR = _future.get('models', '')
 MODELS_LIST = [m.strip() for m in MODELS_STR.split(',') if m.strip()] if MODELS_STR else []
 
 # GRADIENT FOREST parameters
-_gf = config.get('gradient_forest', {})
+_gf = config.get('Maladaptation', {}).get('methods', {}).get('gradient_forest', {})
 NTREE = _gf.get('ntree', '500')
 COR_THRESHOLD = _gf.get('cor_threshold', '0.5')
-PCNM = _gf.get('spatial_correction', 'with')
-GF_SUFFIX = _gf.get('run_label', _gf.get('suffix', ''))
+SPATIAL_CORRECTION = _gf.get('spatial_correction', 'with')
+GF_RUN_LABEL = _gf.get('run_label', '')
 GF_RANDOM_MODEL = _gf.get('random_model', True)
 GF_COMBINE_METHOD = _gf.get('combine_method', 'All')
 GF_COMBINE_GAP = int(_gf.get('combine_gap', 100000))
-PCNM_TAG = 'PCNM' if PCNM == 'with' else 'noPCNM'
+SPATIAL_TAG = 'spatial' if SPATIAL_CORRECTION == 'with' else 'nospatial'
 
 def parse_association_configs(configs_list):
     """Parse association configs list into method -> adjust_threshold dict."""
@@ -203,7 +217,7 @@ def parse_association_configs(configs_list):
         configs[method] = adjust
     return configs
 
-ASSOC_CONFIGS = parse_association_configs(_assoc.get('configs', []))
+GEA_CONFIGS = parse_association_configs(_assoc.get('configs', []))
 
 # GAPIT model detection — derived from registry (single source of truth)
 GAPIT_MODELS = {name for name, cfg in GEA_METHODS.items() if cfg["engine"] == "gapit"}
@@ -214,19 +228,19 @@ def split_configs_by_engine(configs):
     other = {m: a for m, a in configs.items() if m not in GAPIT_MODELS}
     return gapit, other
 
-ASSOC_GAPIT_CONFIGS, ASSOC_OTHER_CONFIGS = split_configs_by_engine(ASSOC_CONFIGS)
+GEA_GAPIT_CONFIGS, GEA_OTHER_CONFIGS = split_configs_by_engine(GEA_CONFIGS)
 
 # Dynamic wildcard constraint regex for association methods
-ASSOC_METHOD_REGEX = '|'.join(ASSOC_CONFIGS.keys()) if ASSOC_CONFIGS else 'EMMAX'
+GEA_METHOD_REGEX = '|'.join(GEA_CONFIGS.keys()) if GEA_CONFIGS else 'EMMAX'
 
-# PHENOTYPE ASSOCIATION parameters (inherits from association.* by default)
-_pheno = config.get('phenotype_association', {})
-PHENO_ASSOC_CONFIGS = parse_association_configs(_pheno.get('configs', []))
-PHENO_GAPIT_CONFIGS, PHENO_OTHER_CONFIGS = split_configs_by_engine(PHENO_ASSOC_CONFIGS)
-PHENO_METHOD_REGEX = '|'.join(PHENO_ASSOC_CONFIGS.keys()) if PHENO_ASSOC_CONFIGS else 'EMMAX'
+# PHENOTYPE ASSOCIATION parameters (inherits from GEA.* by default)
+_pheno = config.get('GWAS', {})
+GWAS_CONFIGS = parse_association_configs(_pheno.get('configs', []))
+GWAS_GAPIT_CONFIGS, GWAS_OTHER_CONFIGS = split_configs_by_engine(GWAS_CONFIGS)
+GWAS_METHOD_REGEX = '|'.join(GWAS_CONFIGS.keys()) if GWAS_CONFIGS else 'EMMAX'
 PHENO_MISSING = _pheno.get('missing_strategy', 'DROP')
-if PHENO_ASSOC_CONFIGS:
-    check_in_list(PHENO_MISSING, ['MEAN', 'MEDIAN', 'DROP'], 'phenotype_association.missing_strategy')
+if GWAS_CONFIGS:
+    check_in_list(PHENO_MISSING, ['MEAN', 'MEDIAN', 'DROP'], 'GWAS.missing_strategy')
 
 def _validate_methods_in_registry(configs, registry, context):
     """Fail early with a clear error when a config method is not in the registry."""
@@ -237,22 +251,22 @@ def _validate_methods_in_registry(configs, registry, context):
             f"Known methods: {sorted(registry.keys())}"
         )
 
-if ASSOC_CONFIGS:
-    _validate_methods_in_registry(ASSOC_CONFIGS, GEA_METHODS, "association.configs")
-if PHENO_ASSOC_CONFIGS:
-    _validate_methods_in_registry(PHENO_ASSOC_CONFIGS, GWAS_METHODS, "phenotype_association.configs")
+if GEA_CONFIGS:
+    _validate_methods_in_registry(GEA_CONFIGS, GEA_METHODS, "GEA.configs")
+if GWAS_CONFIGS:
+    _validate_methods_in_registry(GWAS_CONFIGS, GWAS_METHODS, "GWAS.configs")
 
-# Inherit from association.* with optional override
+# Inherit from GEA.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
-PHENO_COMBINE_GAP = _pheno.get('combine_gap', SIGSNPS_GAP)
-PHENO_SNP_DISTANCE = PHENO_COMBINE_GAP  # overlap annotation distance
-_pheno_rdist_raw = _pheno.get('region_distance', 1000000)
-PHENO_REGION_DISTANCE_AUTO = (str(_pheno_rdist_raw).lower() == 'auto')
-PHENO_REGION_DISTANCE = 'auto' if PHENO_REGION_DISTANCE_AUTO else int(_pheno_rdist_raw)
-PHENO_PROMOTER_LENGTH = _pheno.get('promoter_length', PROMOTER_LENGTH)
+_gwas_rdp = resolve_region_params(_pheno, defaults=_gea_rdp)
+PHENO_COMBINE_GAP          = _gwas_rdp['combine_gap']
+PHENO_SNP_DISTANCE         = PHENO_COMBINE_GAP
+PHENO_REGION_DISTANCE      = _gwas_rdp['region_distance']
+PHENO_REGION_DISTANCE_AUTO = _gwas_rdp['region_distance_auto']
+PHENO_PROMOTER_LENGTH      = _gwas_rdp['promoter_length']
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
-_overlap = config.get('overlap', {})
+_overlap = config.get('GEAxGWAS', {})
 _overlap_rdist_raw = _overlap.get('region_distance', None)
 if _overlap_rdist_raw is None:
     # Default: inherit auto if either source is auto, otherwise use max of both
@@ -280,9 +294,9 @@ try:
     META_HAS_PHENO = len(_meta_header) > 4
 except Exception:
     META_HAS_PHENO = False
-if PHENO_ASSOC_CONFIGS:
+if GWAS_CONFIGS:
     PHENO_TRAITS = _meta_header[4:] if META_HAS_PHENO else []
-    # Filter by phenotype_association.traits if specified in config
+    # Filter by GWAS.traits if specified in config
     _pheno_trait_filter = _pheno.get('traits', '')
     if _pheno_trait_filter:
         _allowed = [t.strip() for t in str(_pheno_trait_filter).split(',') if t.strip()]
@@ -313,14 +327,14 @@ WORK_FILT = f"{WORK}{FILT_TAG}/"
 WORK_LD = f"{WORK_FILT}{LD_TAG}/"
 
 # Module output directories
-MOD_PROC = f"{OUTDIR}processing/"
-MOD_STRUCT = f"{OUTDIR}structure/"
-MOD_CLIMATE = f"{OUTDIR}climate/"
-MOD_STRUCTK = f"{OUTDIR}structure_k/"
-MOD_ASSOC = f"{OUTDIR}association/"
-MOD_PHENO = f"{OUTDIR}phenotype_association/"
-MOD_OVERLAP = f"{OUTDIR}overlapping/"
-MOD_MALAD = f"{OUTDIR}maladaptation/"
+MOD_PROCESSING = f"{OUTDIR}Processing/"
+MOD_PRESTRUCT  = f"{OUTDIR}PreStructure/"
+MOD_CLIMATE    = f"{OUTDIR}climate/"
+MOD_STRUCT     = f"{OUTDIR}Structure/"
+MOD_GEA        = f"{OUTDIR}GEA/"
+MOD_GWAS       = f"{OUTDIR}GWAS/"
+MOD_GEAXGWAS   = f"{OUTDIR}GEAxGWAS/"
+MOD_MALAD      = f"{OUTDIR}Maladaptation/"
 
 # Working paths
 W = {
@@ -359,16 +373,16 @@ W = {
 # Output paths (organized by module)
 O = {
     'summary': f"{OUTDIR}pipeline_summary.tsv",
-    'metadata': f"{MOD_PROC}tables/metadata.tsv",
-    'sample_missing_stats': f"{MOD_PROC}tables/sample_missing_stats.tsv",
-    'pca': f"{MOD_STRUCT}plots/pca.png",
-    'pca_svg': f"{MOD_STRUCT}plots/pca.svg",
-    'tracy': f"{MOD_STRUCT}plots/tracy_widom.png",
-    'cross_entropy': f"{MOD_STRUCT}plots/cross_entropy_K{K_START}-{K_END}.png",
+    'metadata': f"{MOD_PROCESSING}tables/metadata.tsv",
+    'sample_missing_stats': f"{MOD_PROCESSING}tables/sample_missing_stats.tsv",
+    'pca': f"{MOD_PRESTRUCT}plots/pca.png",
+    'pca_svg': f"{MOD_PRESTRUCT}plots/pca.svg",
+    'tracy': f"{MOD_PRESTRUCT}plots/tracy_widom.png",
+    'cross_entropy': f"{MOD_PRESTRUCT}plots/cross_entropy_K{K_START}-{K_END}.png",
     # QC intermediate stats
-    'qc_raw_summary':      f"{MOD_PROC}tables/vcf_raw_summary.tsv",
-    'qc_filtering_summary':f"{MOD_PROC}tables/filtering_summary.tsv",
-    'qc_sample_het':       f"{MOD_PROC}tables/sample_heterozygosity.tsv",
+    'qc_raw_summary':      f"{MOD_PROCESSING}tables/vcf_raw_summary.tsv",
+    'qc_filtering_summary':f"{MOD_PROCESSING}tables/filtering_summary.tsv",
+    'qc_sample_het':       f"{MOD_PROCESSING}tables/sample_heterozygosity.tsv",
     'qc_maf_raw':          f"{INTER}qc/maf_raw.frq",
     'qc_maf_filtered':     f"{INTER}qc/maf_filtered.frq",
     'qc_snp_miss_raw':     f"{INTER}qc/snp_missingness_raw.lmiss",
@@ -377,13 +391,13 @@ O = {
     'qc_depth_sample':     f"{INTER}qc/depth_per_sample.idepth",
     'qc_depth_site':       f"{INTER}qc/depth_per_site.ldepth.mean",
     # QC plots
-    'qc_plot_sample_miss': f"{MOD_PROC}plots/sample_missingness_distribution.png",
-    'qc_plot_het_miss':    f"{MOD_PROC}plots/het_vs_missingness.png",
-    'qc_plot_maf':         f"{MOD_PROC}plots/maf_distribution.png",
-    'qc_plot_snp_miss':    f"{MOD_PROC}plots/snp_missingness_distribution.png",
-    'qc_plot_attrition':   f"{MOD_PROC}plots/filtering_attrition.png",
-    'qc_plot_snp_density': f"{MOD_PROC}plots/snp_density_by_chr.png",
-    'qc_plot_depth':       f"{MOD_PROC}plots/depth_distribution.png",
+    'qc_plot_sample_miss': f"{MOD_PROCESSING}plots/sample_missingness_distribution.png",
+    'qc_plot_het_miss':    f"{MOD_PROCESSING}plots/het_vs_missingness.png",
+    'qc_plot_maf':         f"{MOD_PROCESSING}plots/maf_distribution.png",
+    'qc_plot_snp_miss':    f"{MOD_PROCESSING}plots/snp_missingness_distribution.png",
+    'qc_plot_attrition':   f"{MOD_PROCESSING}plots/filtering_attrition.png",
+    'qc_plot_snp_density': f"{MOD_PROCESSING}plots/snp_density_by_chr.png",
+    'qc_plot_depth':       f"{MOD_PROCESSING}plots/depth_distribution.png",
 }
 
 # K_BEST dependent paths (added dynamically when K_BEST is set)
@@ -405,17 +419,17 @@ def add_kbest_paths():
     O['climate_all'] = f"{MOD_CLIMATE}tables/present/climate_present_all.tsv"
     O['climate_invariant'] = f"{MOD_CLIMATE}tables/present/climate_invariant_predictors.tsv"
     # Tables - structure_k/population stats
-    O['tajima'] = f"{MOD_STRUCTK}tables/pop_stats/tajima_d_by_pop.tsv"
-    O['pi_div'] = f"{MOD_STRUCTK}tables/pop_stats/pi_diversity_by_pop.tsv"
-    O['ibd_raw'] = f"{MOD_STRUCTK}tables/pop_stats/ibd_raw.tsv"
-    O['ibd_pairs'] = f"{MOD_STRUCTK}tables/pop_stats/ibd_pairs.tsv"
-    O['amova'] = f"{MOD_STRUCTK}tables/pop_stats/amova.tsv"
+    O['tajima'] = f"{MOD_STRUCT}tables/pop_stats/tajima_d_by_pop.tsv"
+    O['pi_div'] = f"{MOD_STRUCT}tables/pop_stats/pi_diversity_by_pop.tsv"
+    O['ibd_raw'] = f"{MOD_STRUCT}tables/pop_stats/ibd_raw.tsv"
+    O['ibd_pairs'] = f"{MOD_STRUCT}tables/pop_stats/ibd_pairs.tsv"
+    O['amova'] = f"{MOD_STRUCT}tables/pop_stats/amova.tsv"
 
     # Plots - climate
     O['corr_heatmap'] = f"{MOD_CLIMATE}plots/correlation_heatmap.png"
     # Plots - structure_k
-    O['mantel'] = f"{MOD_STRUCTK}plots/pop_stats/mantel_test.png"
-    O['amova_plot'] = f"{MOD_STRUCTK}plots/pop_stats/amova.png"
+    O['mantel'] = f"{MOD_STRUCT}plots/pop_stats/mantel_test.png"
+    O['amova_plot'] = f"{MOD_STRUCT}plots/pop_stats/amova.png"
 
     # LD decay paths (parameterized by group_by, min_samples, max_distance)
     _ld_base = f"{INTER}ld_decay/{LD_DECAY_TAG}/"
@@ -427,18 +441,18 @@ def add_kbest_paths():
     W['ld_decay_prep_done']    = f"{_ld_base}prep_done.flag"
     W['ld_decay_gw_done']      = f"{_ld_base}gw_done.flag"
     W['ld_decay_chr_done']     = f"{_ld_base}chr_done.flag"
-    O['ld_decay_table'] = f"{MOD_STRUCTK}tables/ld_decay_half_distances.tsv"
-    O['ld_decay_plot_gw'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.png"
-    O['ld_decay_plot_gw_svg'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_genome_wide.svg"
-    O['ld_decay_plot_chr'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_per_chromosome.png"
-    O['ld_decay_plot_chr_svg'] = f"{MOD_STRUCTK}plots/ld_decay/ld_decay_per_chromosome.svg"
+    O['ld_decay_table'] = f"{MOD_STRUCT}tables/ld_decay_half_distances.tsv"
+    O['ld_decay_plot_gw'] = f"{MOD_STRUCT}plots/ld_decay/ld_decay_genome_wide.png"
+    O['ld_decay_plot_gw_svg'] = f"{MOD_STRUCT}plots/ld_decay/ld_decay_genome_wide.svg"
+    O['ld_decay_plot_chr'] = f"{MOD_STRUCT}plots/ld_decay/ld_decay_per_chromosome.png"
+    O['ld_decay_plot_chr_svg'] = f"{MOD_STRUCT}plots/ld_decay/ld_decay_per_chromosome.svg"
 
 add_kbest_paths()
 
 # Association paths (added when K_BEST is set and association mode is used)
 def add_association_paths():
     """Add association-specific paths to W and O dictionaries."""
-    if K_BEST is None or not ASSOC_CONFIGS:
+    if K_BEST is None or not GEA_CONFIGS:
         return
 
     # Full (non-LD pruned) files for association analysis
@@ -451,7 +465,7 @@ def add_association_paths():
     W['vcf_imp_full'] = f"{WORK_FILT}{VCF_BASE}_K{K_BEST}imp.vcf"
 
     # Engine-specific working paths — only populate for engines actually in use
-    _assoc_engines = {GEA_METHODS[m]["engine"] for m in ASSOC_CONFIGS}
+    _assoc_engines = {GEA_METHODS[m]["engine"] for m in GEA_CONFIGS}
     if "emmax" in _assoc_engines:
         W['emmax_work']    = f"{WORK_FILT}emmax/"
         W['assoc_tped']    = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
@@ -460,26 +474,26 @@ def add_association_paths():
     if "gapit" in _assoc_engines:
         W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
         W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
-        W['gapit_work'] = f"{INTER}gapit/association/"
+        W['gapit_work'] = f"{INTER}gapit/gea/"
     # lfmm uses W['lfmm_imp'] / W['lfmm_imp_full'] from add_kbest_paths()
 
     # Combined outputs - association
-    O['selected_snps'] = f"{MOD_ASSOC}tables/selected_snps.tsv"
-    O['regions_per_trait'] = f"{MOD_ASSOC}tables/regions_per_trait.tsv"
-    O['regions_combined'] = f"{MOD_ASSOC}tables/regions_combined.tsv"
-    O['genes_per_region'] = f"{MOD_ASSOC}tables/genes_per_region.tsv"
-    O['genes_per_region_collapsed'] = f"{MOD_ASSOC}tables/genes_per_region_collapsed.tsv"
-    O['genes_combined_regions'] = f"{MOD_ASSOC}tables/genes_combined.tsv"
+    O['selected_snps'] = f"{MOD_GEA}tables/selected_snps.tsv"
+    O['regions_per_trait'] = f"{MOD_GEA}tables/regions_per_trait.tsv"
+    O['regions_combined'] = f"{MOD_GEA}tables/regions_combined.tsv"
+    O['genes_per_region'] = f"{MOD_GEA}tables/genes_per_region.tsv"
+    O['genes_per_region_collapsed'] = f"{MOD_GEA}tables/genes_per_region_collapsed.tsv"
+    O['genes_combined_regions'] = f"{MOD_GEA}tables/genes_combined.tsv"
     # Combined Manhattan plots (all traits and methods)
-    O['manhattan_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
-    O['qq_combined'] = f"{MOD_ASSOC}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
+    O['manhattan_combined'] = f"{MOD_GEA}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
+    O['qq_combined'] = f"{MOD_GEA}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
 
 add_association_paths()
 
 # Phenotype association paths
 def add_pheno_association_paths():
     """Add phenotype association paths to W and O dictionaries."""
-    if K_BEST is None or not PHENO_ASSOC_CONFIGS:
+    if K_BEST is None or not GWAS_CONFIGS:
         return
 
     PHENO_WORK = f"{WORK_FILT}phenotypes/"
@@ -487,7 +501,7 @@ def add_pheno_association_paths():
     # Working paths
     W['pheno_work'] = PHENO_WORK
     W['pheno_emmax_work'] = f"{PHENO_WORK}emmax/"
-    W['pheno_gapit_work'] = f"{INTER}gapit/phenotype_association/"
+    W['pheno_gapit_work'] = f"{INTER}gapit/gwas/"
 
     # Ensure full-VCF derived paths exist (needed by unified downstream gene-finding rules)
     if 'vcfsnp_full' not in W:
@@ -497,11 +511,11 @@ def add_pheno_association_paths():
         W['removed_full'] = f"{WORK_FILT}{VCF_BASE}.removed"
 
     # Engine-specific paths for phenotype methods — only populate if not already set by GEA
-    _pheno_engines = {GWAS_METHODS[m]["engine"] for m in PHENO_ASSOC_CONFIGS}
+    _pheno_engines = {GWAS_METHODS[m]["engine"] for m in GWAS_CONFIGS}
     if "gapit" in _pheno_engines and 'gapit_gd' not in W:
         W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
         W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
-        W['gapit_work'] = f"{INTER}gapit/association/"
+        W['gapit_work'] = f"{INTER}gapit/gea/"
     if "emmax" in _pheno_engines and 'assoc_kinship' not in W:
         W['emmax_work']    = f"{WORK_FILT}emmax/"
         W['assoc_tped']    = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
@@ -515,18 +529,18 @@ def add_pheno_association_paths():
     W['pheno_all_phenotypes'] = f"{PHENO_WORK}all_phenotypes.tsv"
 
     # Prep outputs
-    O['pheno_missing_summary'] = f"{MOD_PHENO}tables/phenotype_missing_summary.tsv"
+    O['pheno_missing_summary'] = f"{MOD_GWAS}tables/phenotype_missing_summary.tsv"
 
     # Combined analysis outputs
-    O['pheno_selected_snps'] = f"{MOD_PHENO}tables/selected_snps.tsv"
-    O['pheno_regions_per_trait'] = f"{MOD_PHENO}tables/regions_per_trait.tsv"
-    O['pheno_regions_combined'] = f"{MOD_PHENO}tables/regions_combined.tsv"
-    O['pheno_genes_per_region'] = f"{MOD_PHENO}tables/genes_per_region.tsv"
-    O['pheno_genes_collapsed'] = f"{MOD_PHENO}tables/genes_per_region_collapsed.tsv"
-    O['pheno_genes_combined'] = f"{MOD_PHENO}tables/genes_combined.tsv"
+    O['pheno_selected_snps'] = f"{MOD_GWAS}tables/selected_snps.tsv"
+    O['pheno_regions_per_trait'] = f"{MOD_GWAS}tables/regions_per_trait.tsv"
+    O['pheno_regions_combined'] = f"{MOD_GWAS}tables/regions_combined.tsv"
+    O['pheno_genes_per_region'] = f"{MOD_GWAS}tables/genes_per_region.tsv"
+    O['pheno_genes_collapsed'] = f"{MOD_GWAS}tables/genes_per_region_collapsed.tsv"
+    O['pheno_genes_combined'] = f"{MOD_GWAS}tables/genes_combined.tsv"
     # Manhattan combined
-    O['pheno_manhattan_combined'] = f"{MOD_PHENO}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
-    O['pheno_qq_combined'] = f"{MOD_PHENO}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
+    O['pheno_manhattan_combined'] = f"{MOD_GWAS}plots/manhattan/combined/manhattan_combined_K{K_BEST}.png"
+    O['pheno_qq_combined'] = f"{MOD_GWAS}plots/manhattan/combined/qq_combined_K{K_BEST}.png"
 
 add_pheno_association_paths()
 
@@ -536,19 +550,19 @@ def add_overlap_paths():
     if K_BEST is None:
         return
 
-    has_gea  = bool(ASSOC_CONFIGS)
-    has_gwas = bool(PHENO_ASSOC_CONFIGS)
+    has_gea  = bool(GEA_CONFIGS)
+    has_gwas = bool(GWAS_CONFIGS)
 
     # Pairwise trait overlap — available when at least one source exists
     if has_gea or has_gwas:
-        O['pairwise_collapsed_snps'] = f"{MOD_OVERLAP}tables/pairwise_collapsed_snps.tsv"
-        O['pairwise_overlap_table']  = f"{MOD_OVERLAP}tables/pairwise_overlap_table.tsv"
+        O['pairwise_collapsed_snps'] = f"{MOD_GEAXGWAS}tables/pairwise_collapsed_snps.tsv"
+        O['pairwise_overlap_table']  = f"{MOD_GEAXGWAS}tables/pairwise_overlap_table.tsv"
 
     # GEA × GWAS combined analysis — requires both sources
     if has_gea and has_gwas:
         # Miami plots (static GEA vs GWAS — background PNG + coords JSON for Shiny overlay)
-        O['overlap_miami'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.png"
-        O['overlap_miami_svg'] = f"{MOD_OVERLAP}plots/miami_combined_K{K_BEST}.svg"
+        O['overlap_miami'] = f"{MOD_GEAXGWAS}plots/miami_combined_K{K_BEST}.png"
+        O['overlap_miami_svg'] = f"{MOD_GEAXGWAS}plots/miami_combined_K{K_BEST}.svg"
 
 add_overlap_paths()
 
@@ -558,7 +572,7 @@ def add_maladaptation_paths():
     if K_BEST is None or not MODELS_LIST:
         return
 
-    SUFFIX = f"{GF_SUFFIX}_{PCNM_TAG}"
+    SUFFIX = f"{GF_RUN_LABEL}_{SPATIAL_TAG}"
 
     # Per-model future climate rasters
     for model in MODELS_LIST:
@@ -596,51 +610,50 @@ def add_maladaptation_paths():
 add_maladaptation_paths()
 
 # Templates for K-dependent outputs
-def clusters_table(k): return f"{MOD_STRUCT}tables/K{k}/clusters_K{k}.tsv"
-def structure_plot(k): return f"{MOD_STRUCT}plots/K{k}/structure_K{k}.png"
-def pca_struct_plot(k): return f"{MOD_STRUCT}plots/K{k}/pca_structure_K{k}.png"
-def pop_diff_plot(k): return f"{MOD_STRUCT}plots/K{k}/pop_diff_K{k}.png"
+def clusters_table(k): return f"{MOD_PRESTRUCT}tables/K{k}/clusters_K{k}.tsv"
+def structure_plot(k): return f"{MOD_PRESTRUCT}plots/K{k}/structure_K{k}.png"
+def pca_struct_plot(k): return f"{MOD_PRESTRUCT}plots/K{k}/pca_structure_K{k}.png"
+def pop_diff_plot(k): return f"{MOD_PRESTRUCT}plots/K{k}/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
 DENSITY_PLOT_COMBINED    = f"{MOD_CLIMATE}plots/density_plot_present.png"
 DENSITY_PLOT_PHENOTYPES  = f"{MOD_CLIMATE}plots/density_plot_phenotypes.png"
-def piemap_tajima(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_tajima_d.png"
-def piemap_diversity(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}_pi_diversity.png"
-def piemap_notrait(bio): return f"{MOD_STRUCTK}plots/piemap/piemap_{bio}.png"
+def piemap_tajima(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_tajima_d.png"
+def piemap_diversity(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_pi_diversity.png"
+def piemap_notrait(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}.png"
 
 # Templates for association outputs
-def assoc_pvalues(method): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
-def assoc_sigsnps(method, adjust): return f"{MOD_ASSOC}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
-def manhattan_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
-def qq_plot(method, trait, adjust): return f"{MOD_ASSOC}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
+def assoc_pvalues(method): return f"{MOD_GEA}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
+def assoc_sigsnps(method, adjust): return f"{MOD_GEA}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
+def manhattan_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
+def qq_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Templates for phenotype association outputs
-def pheno_pvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
-def pheno_qvalues(method): return f"{MOD_PHENO}tables/methods/{method}/{method}_qvalues_K{K_BEST}.tsv"
-def pheno_sigsnps(method, adjust): return f"{MOD_PHENO}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
-def pheno_manhattan(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
-def pheno_qq(method, trait, adjust): return f"{MOD_PHENO}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
+def pheno_pvalues(method): return f"{MOD_GWAS}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
+def pheno_qvalues(method): return f"{MOD_GWAS}tables/methods/{method}/{method}_qvalues_K{K_BEST}.tsv"
+def pheno_sigsnps(method, adjust): return f"{MOD_GWAS}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
+def pheno_manhattan(method, trait, adjust): return f"{MOD_GWAS}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
+def pheno_qq(method, trait, adjust): return f"{MOD_GWAS}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
 # Per-trait DROP mode paths
 def pheno_trait_vcf(trait): return f"{WORK_FILT}phenotypes/{trait}/{VCF_BASE}.vcf"
 def pheno_trait_tped(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tped"
 def pheno_trait_tfam(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.tfam"
 def pheno_trait_kinship(trait): return f"{WORK_FILT}phenotypes/{trait}/emmax/{VCF_BASE}.aBN.kinf"
-def pheno_trait_pvalues(method, trait): return f"{MOD_PHENO}tables/methods/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+def pheno_trait_pvalues(method, trait): return f"{MOD_GWAS}tables/methods/{method}/{trait}_pvalues_K{K_BEST}.tsv"
 
 #=============================================================================
 # PHASE 4: Source-indexed config for unified GEA/GWAS downstream rules
 #=============================================================================
-# Keys are current directory names ("association", "phenotype_association").
-# Phase 5 will rename these to "gea"/"gwas" along with the filesystem rename.
+# Keys match output directory names. "gea" and "gwas" will be set in Sub-step C.
 ASSOC_SOURCES = {}
 
-if K_BEST is not None and ASSOC_CONFIGS:
-    ASSOC_SOURCES["association"] = {
-        "mod":             MOD_ASSOC,
-        "logdir":          f"{LOGDIR}association/",
-        "configs":         ASSOC_CONFIGS,
-        "method_regex":    ASSOC_METHOD_REGEX,
+if K_BEST is not None and GEA_CONFIGS:
+    ASSOC_SOURCES["GEA"] = {
+        "mod":             MOD_GEA,
+        "logdir":          f"{LOGDIR}GEA/",
+        "configs":         GEA_CONFIGS,
+        "method_regex":    GEA_METHOD_REGEX,
         "trait_regex":     r"bio_\d+",
         "predictors":      PREDICTORS_SELECTED,
         "snp_distance":    SNP_DISTANCE,
@@ -653,12 +666,12 @@ if K_BEST is not None and ASSOC_CONFIGS:
         "sigsnps_fn":      assoc_sigsnps,
     }
 
-if K_BEST is not None and PHENO_ASSOC_CONFIGS:
-    ASSOC_SOURCES["phenotype_association"] = {
-        "mod":             MOD_PHENO,
-        "logdir":          f"{LOGDIR}phenotype_association/",
-        "configs":         PHENO_ASSOC_CONFIGS,
-        "method_regex":    PHENO_METHOD_REGEX,
+if K_BEST is not None and GWAS_CONFIGS:
+    ASSOC_SOURCES["GWAS"] = {
+        "mod":             MOD_GWAS,
+        "logdir":          f"{LOGDIR}GWAS/",
+        "configs":         GWAS_CONFIGS,
+        "method_regex":    GWAS_METHOD_REGEX,
         "trait_regex":     r"[a-zA-Z]\w*",
         "predictors":      PHENO_PREDICTORS,
         "snp_distance":    PHENO_SNP_DISTANCE,
@@ -676,7 +689,7 @@ def _src(source, key):
     return ASSOC_SOURCES[source][key]
 
 # Wildcard regex matching all configured sources (used in _assoc_downstream.smk)
-SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "association"
+SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "gea"
 # Trait wildcard: union of GEA (bio_\d+) and GWAS (identifier) patterns.
 # {source} in the output path disambiguates which branch a match belongs to.
 TRAIT_REGEX_ANY = r"(bio_\d+|[a-zA-Z]\w*)"
@@ -703,7 +716,7 @@ def assoc_out(source, key):
 # RULE FACTORIES — per-engine helpers for dynamic rule declaration
 #=============================================================================
 # These are called from the top-level for-loops in association.smk /
-# phenotype_assoc.smk (same idiom as haplotype.smk). Each helper returns a
+# phenotype_assoc.smk (same loop idiom). Each helper returns a
 # plain Python dict or string; the rule: blocks live in the .smk files.
 
 def _gea_inputs(engine):
@@ -733,14 +746,14 @@ def _gea_params(engine, method):
             k           = K_BEST,
             predictors  = PREDICTORS_SELECTED,
             inter_dir   = INTER,
-            tables_dir  = f"{MOD_ASSOC}tables/methods/EMMAX/",
+            tables_dir  = f"{MOD_GEA}tables/methods/EMMAX/",
             tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}",
         )
     elif engine == "lfmm":
         return dict(
             k          = K_BEST,
             predictors = PREDICTORS_SELECTED,
-            tables_dir = f"{MOD_ASSOC}tables/methods/LFMM/",
+            tables_dir = f"{MOD_GEA}tables/methods/LFMM/",
         )
     raise ValueError(f"_gea_params: unknown engine '{engine}'")
 
@@ -763,7 +776,7 @@ def _pheno_a_params(engine, method):
         return dict(
             tped_prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}",
             k           = K_BEST,
-            tables_dir  = f"{MOD_PHENO}tables/methods/",
+            tables_dir  = f"{MOD_GWAS}tables/methods/",
         )
     raise ValueError(f"_pheno_a_params: unknown engine '{engine}'")
 
@@ -776,37 +789,37 @@ dirs_to_create = [
     f"{INTER}samples/", f"{INTER}annotation/", f"{INTER}flags/", f"{INTER}qc/",
     LOGDIR,
     # Module directories
-    f"{MOD_PROC}tables/", f"{MOD_PROC}plots/",
-    f"{MOD_STRUCT}plots/", f"{MOD_STRUCT}tables/",
-    *[f"{MOD_STRUCT}plots/K{k}/" for k in k_range(K_START, K_END)],
-    *[f"{MOD_STRUCT}tables/K{k}/" for k in k_range(K_START, K_END)],
+    f"{MOD_PROCESSING}tables/", f"{MOD_PROCESSING}plots/",
+    f"{MOD_PRESTRUCT}plots/", f"{MOD_PRESTRUCT}tables/",
+    *[f"{MOD_PRESTRUCT}plots/K{k}/" for k in k_range(K_START, K_END)],
+    *[f"{MOD_PRESTRUCT}tables/K{k}/" for k in k_range(K_START, K_END)],
     *([ f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}rasters/present/" ] if CLIMATE_ENABLED else []),
-    f"{MOD_STRUCTK}plots/piemap/", f"{MOD_STRUCTK}tables/",
+    f"{MOD_STRUCT}plots/piemap/", f"{MOD_STRUCT}tables/",
     # Log subdirectories
-    f"{LOGDIR}processing/", f"{LOGDIR}structure/", f"{LOGDIR}structure_k/",
-    f"{LOGDIR}association/", f"{LOGDIR}maladaptation/",
+    f"{LOGDIR}processing/", f"{LOGDIR}prestructure/", f"{LOGDIR}structure/",
+    f"{LOGDIR}gea/", f"{LOGDIR}GEA/", f"{LOGDIR}maladaptation/",
 ]
 
 # Add association directories for each method
-for method in ASSOC_CONFIGS:
-    dirs_to_create.append(f"{MOD_ASSOC}plots/manhattan/{method}/")
-    dirs_to_create.append(f"{MOD_ASSOC}tables/methods/{method}/")
+for method in GEA_CONFIGS:
+    dirs_to_create.append(f"{MOD_GEA}plots/manhattan/{method}/")
+    dirs_to_create.append(f"{MOD_GEA}tables/methods/{method}/")
 
 # Add enrichment directories
-dirs_to_create.append(f"{MOD_ASSOC}tables/")
-dirs_to_create.append(f"{MOD_ASSOC}tables/enrichment/")
-dirs_to_create.append(f"{MOD_ASSOC}plots/")
-dirs_to_create.append(f"{MOD_ASSOC}plots/enrichment/")
-dirs_to_create.append(f"{MOD_ASSOC}plots/manhattan/combined/")
-dirs_to_create.append(f"{INTER}enrichment/association/")
+dirs_to_create.append(f"{MOD_GEA}tables/")
+dirs_to_create.append(f"{MOD_GEA}tables/enrichment/")
+dirs_to_create.append(f"{MOD_GEA}plots/")
+dirs_to_create.append(f"{MOD_GEA}plots/enrichment/")
+dirs_to_create.append(f"{MOD_GEA}plots/manhattan/combined/")
+dirs_to_create.append(f"{INTER}enrichment/gea/")
 
 # Add GAPIT directories
-if ASSOC_GAPIT_CONFIGS:
+if GEA_GAPIT_CONFIGS:
     dirs_to_create.append(f"{WORK_FILT}gapit/")
-    dirs_to_create.append(f"{INTER}gapit/association/")
-    dirs_to_create.append(f"{MOD_ASSOC}GAPIT_native_output/")
-    for model in ASSOC_GAPIT_CONFIGS:
-        dirs_to_create.append(f"{MOD_ASSOC}GAPIT_native_output/{model}/")
+    dirs_to_create.append(f"{INTER}gapit/gea/")
+    dirs_to_create.append(f"{MOD_GEA}GAPIT_native_output/")
+    for model in GEA_GAPIT_CONFIGS:
+        dirs_to_create.append(f"{MOD_GEA}GAPIT_native_output/{model}/")
 
 # Add maladaptation directories (require climate)
 if CLIMATE_ENABLED:
@@ -815,38 +828,40 @@ if CLIMATE_ENABLED:
     dirs_to_create.append(f"{MOD_CLIMATE}tables/future/")
 
 # Add phenotype association directories
-if PHENO_ASSOC_CONFIGS:
-    dirs_to_create.append(f"{MOD_PHENO}tables/")
-    dirs_to_create.append(f"{MOD_PHENO}tables/enrichment/")
-    dirs_to_create.append(f"{MOD_PHENO}plots/")
-    dirs_to_create.append(f"{MOD_PHENO}plots/enrichment/")
-    dirs_to_create.append(f"{MOD_PHENO}plots/piemap/")
-    dirs_to_create.append(f"{MOD_PHENO}plots/manhattan/combined/")
-    dirs_to_create.append(f"{INTER}enrichment_phenotypes/")
-    dirs_to_create.append(f"{LOGDIR}phenotype_association/")
-    for method in PHENO_ASSOC_CONFIGS:
-        dirs_to_create.append(f"{MOD_PHENO}plots/manhattan/{method}/")
-        dirs_to_create.append(f"{MOD_PHENO}tables/methods/{method}/")
+if GWAS_CONFIGS:
+    dirs_to_create.append(f"{MOD_GWAS}tables/")
+    dirs_to_create.append(f"{MOD_GWAS}tables/enrichment/")
+    dirs_to_create.append(f"{MOD_GWAS}plots/")
+    dirs_to_create.append(f"{MOD_GWAS}plots/enrichment/")
+    dirs_to_create.append(f"{MOD_GWAS}plots/piemap/")
+    dirs_to_create.append(f"{MOD_GWAS}plots/manhattan/combined/")
+    dirs_to_create.append(f"{INTER}enrichment_gwas/")
+    dirs_to_create.append(f"{LOGDIR}gwas/")
+    dirs_to_create.append(f"{LOGDIR}GWAS/")
+    for method in GWAS_CONFIGS:
+        dirs_to_create.append(f"{MOD_GWAS}plots/manhattan/{method}/")
+        dirs_to_create.append(f"{MOD_GWAS}tables/methods/{method}/")
     if PHENO_MISSING == 'DROP':
         for trait in PHENO_TRAITS:
             dirs_to_create.append(f"{WORK_FILT}phenotypes/{trait}/emmax/")
-    if PHENO_GAPIT_CONFIGS:
-        dirs_to_create.append(f"{INTER}gapit/phenotype_association/")
-        dirs_to_create.append(f"{MOD_PHENO}GAPIT_native_output/")
-        for model in PHENO_GAPIT_CONFIGS:
-            dirs_to_create.append(f"{MOD_PHENO}GAPIT_native_output/{model}/")
-        if not ASSOC_GAPIT_CONFIGS:
+    if GWAS_GAPIT_CONFIGS:
+        dirs_to_create.append(f"{INTER}gapit/gwas/")
+        dirs_to_create.append(f"{MOD_GWAS}GAPIT_native_output/")
+        for model in GWAS_GAPIT_CONFIGS:
+            dirs_to_create.append(f"{MOD_GWAS}GAPIT_native_output/{model}/")
+        if not GEA_GAPIT_CONFIGS:
             # GAPIT numeric dir needed even when only pheno uses GAPIT
             dirs_to_create.append(f"{WORK_FILT}gapit/")
 
 # Add overlapping analysis directories
-if ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS:
-    dirs_to_create.append(f"{MOD_OVERLAP}tables/")
-    dirs_to_create.append(f"{MOD_OVERLAP}tables/enrichment/")
-    dirs_to_create.append(f"{MOD_OVERLAP}plots/")
-    dirs_to_create.append(f"{MOD_OVERLAP}plots/enrichment/")
-    dirs_to_create.append(f"{INTER}enrichment_overlapping/")
-    dirs_to_create.append(f"{LOGDIR}overlapping/")
+if GEA_CONFIGS and GWAS_CONFIGS:
+    dirs_to_create.append(f"{MOD_GEAXGWAS}tables/")
+    dirs_to_create.append(f"{MOD_GEAXGWAS}tables/enrichment/")
+    dirs_to_create.append(f"{MOD_GEAXGWAS}plots/")
+    dirs_to_create.append(f"{MOD_GEAXGWAS}plots/enrichment/")
+    dirs_to_create.append(f"{INTER}enrichment_gea_x_gwas/")
+    dirs_to_create.append(f"{LOGDIR}gea_x_gwas/")
+    dirs_to_create.append(f"{LOGDIR}GEAxGWAS/")
 
 # Add LD decay directories
 if K_BEST is not None:
@@ -858,8 +873,8 @@ if K_BEST is not None:
 
 # Add pop stats directories if enabled
 if CALC_POP_STATS:
-    dirs_to_create.append(f"{MOD_STRUCTK}plots/pop_stats/")
-    dirs_to_create.append(f"{MOD_STRUCTK}tables/pop_stats/")
+    dirs_to_create.append(f"{MOD_STRUCT}plots/pop_stats/")
+    dirs_to_create.append(f"{MOD_STRUCT}tables/pop_stats/")
 
 for d in dirs_to_create:
     os.makedirs(d, exist_ok=True)
@@ -880,7 +895,7 @@ def get_predictors_list():
 def _targets_for_assoc_source(source):
     """Build the shared downstream target list for a GEA or GWAS source."""
     src = ASSOC_SOURCES[source]
-    traits = get_predictors_list() if source == "association" else PHENO_TRAITS
+    traits = get_predictors_list() if source == "GEA" else PHENO_TRAITS
     targets = []
     for method, adjust in src["configs"].items():
         targets.append(src["pvalues_fn"](method))
@@ -915,7 +930,7 @@ def get_targets(mode):
             targets.append(O['qc_plot_depth'])
         return targets
     
-    elif mode == 'structure':
+    elif mode == 'prestructure':
         ks = k_range(K_START, K_END)
         return (
             [clusters_table(k) for k in ks] +
@@ -925,7 +940,7 @@ def get_targets(mode):
             [O['pca'], O['tracy'], O['cross_entropy'], W['summary_done']]
         )
     
-    elif mode == 'structure_K':
+    elif mode == 'structure':
         check_numeric(K_BEST, 'K_BEST')
 
         # Imputed data (always needed)
@@ -962,18 +977,18 @@ def get_targets(mode):
         targets.append(W['summary_done'])
         return targets
 
-    elif mode == 'association':
+    elif mode == 'gea':
         if not CLIMATE_ENABLED:
             raise ValueError("association mode requires climate.enabled: true (GEA uses climate predictors as traits)")
         check_numeric(K_BEST, 'K_BEST')
         if not get_predictors_list():
             raise ValueError("climate.predictors must be set for association mode")
-        if not ASSOC_CONFIGS:
-            raise ValueError("ASSOCIATION_CONFIGS must be set for association mode")
+        if not GEA_CONFIGS:
+            raise ValueError("GEA.configs must be set for association mode")
         if GFF:
             check_file_exists(INDIR, GFF, 'GFF')
 
-        targets = _targets_for_assoc_source("association")
+        targets = _targets_for_assoc_source("GEA")
         targets.append(W['summary_done'])
         return targets
 
@@ -1018,29 +1033,29 @@ def get_targets(mode):
         targets.append(W['summary_done'])
         return targets
 
-    elif mode in ('association_phenotypes', 'phenotype_association'):
+    elif mode == 'gwas':
         check_numeric(K_BEST, 'K_BEST')
         if not PHENO_TRAITS:
             raise ValueError("No phenotype columns found in metadata (expected columns 5+ after site, sample, latitude, longitude)")
-        if not PHENO_ASSOC_CONFIGS:
-            raise ValueError("PHENO_ASSOC_CONFIGS must be set for association_phenotypes mode")
+        if not GWAS_CONFIGS:
+            raise ValueError("GWAS.configs must be set for association_phenotypes mode")
         if GFF:
             check_file_exists(INDIR, GFF, 'GFF')
 
-        targets = [O['pheno_missing_summary']] + _targets_for_assoc_source("phenotype_association")
+        targets = [O['pheno_missing_summary']] + _targets_for_assoc_source("GWAS")
 
         # Phenotype piemaps (require climate raster for background)
         if CLIMATE_ENABLED:
             for trait in PHENO_TRAITS:
-                targets.append(f"{MOD_PHENO}plots/piemap/phenomap_{trait}.png")
+                targets.append(f"{MOD_GWAS}plots/piemap/phenomap_{trait}.png")
 
         targets.append(W['summary_done'])
         return targets
 
-    elif mode == 'overlapping':
+    elif mode == 'gea_x_gwas':
         check_numeric(K_BEST, 'K_BEST')
-        has_gea  = bool(ASSOC_CONFIGS) and CLIMATE_ENABLED
-        has_gwas = bool(PHENO_ASSOC_CONFIGS)
+        has_gea  = bool(GEA_CONFIGS) and CLIMATE_ENABLED
+        has_gwas = bool(GWAS_CONFIGS)
         if not has_gea and not has_gwas:
             raise ValueError(
                 "overlapping mode requires at least one of: "
@@ -1065,7 +1080,7 @@ def get_targets(mode):
         return targets
 
     elif mode is None:
-        raise ValueError("Specify mode: --config mode=processing or mode=structure or mode=structure_K or mode=association or mode=association_phenotypes or mode=overlapping or mode=maladaptation")
+        raise ValueError("Specify mode: --config mode=processing or mode=prestructure or mode=structure or mode=gea or mode=gwas or mode=gea_x_gwas or mode=maladaptation")
     else:
         raise ValueError(f"Unknown mode: {mode}")
 

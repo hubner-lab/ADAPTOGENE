@@ -9,7 +9,7 @@ rule download_climate_future_model:
     output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.tif"
     wildcard_constraints: model = r"[A-Za-z0-9_-]+"
     params:
-        crop = CROP_REGION,
+        crop = CLIMATE_EXTENT,
         gap = GAP,
         resolution = RESOLUTION,
         data_dir = INDIR
@@ -64,7 +64,7 @@ rule density_plot_future:
 rule combine_gf_snps:
     """Combine significant SNPs for Gradient Forest using the gradient_forest.combine_method strategy."""
     input:
-        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in ASSOC_CONFIGS.items()]
+        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in GEA_CONFIGS.items()]
     output: W['gf_selected_snps']
     params:
         sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
@@ -94,7 +94,7 @@ rule gradient_forest_adaptive:
         predictors = PREDICTORS_SELECTED,
         ntree = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm = PCNM
+        pcnm = SPATIAL_CORRECTION
     log: f"{LOGDIR}maladaptation/gradient_forest_adaptive.log"
     shell:
         """
@@ -120,7 +120,7 @@ rule gradient_forest_random:
         predictors = PREDICTORS_SELECTED,
         ntree = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm = PCNM
+        pcnm = SPATIAL_CORRECTION
     log: f"{LOGDIR}maladaptation/gradient_forest_random.log"
     shell:
         """
@@ -206,9 +206,9 @@ rule plot_gf_offset_piemap:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
+        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap.log"
     shell:
@@ -236,9 +236,9 @@ rule plot_gf_offset_piemap_tajima:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
+        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_tajima.log"
     shell:
@@ -266,9 +266,9 @@ rule plot_gf_offset_piemap_diversity:
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_SUFFIX}_{PCNM_TAG}/",
+        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
         inter_dir = INTER,
-        suffix = f"{GF_SUFFIX}_{PCNM_TAG}",
+        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_diversity.log"
     shell:

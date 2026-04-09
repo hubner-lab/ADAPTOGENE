@@ -21,7 +21,7 @@ if MODE == 'processing':
             summary_tsv    = O['summary'],
             het_outlier_sd = HET_OUTLIER_SD if HET_OUTLIER_SD is not None else 'NULL',
             has_dp         = 'TRUE' if HAS_FORMAT_DP else 'FALSE',
-            depth_summary  = f"{MOD_PROC}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL'
+            depth_summary  = f"{MOD_PROCESSING}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL'
         log: f"{LOGDIR}processing/write_summary.log"
         shell:
             """
@@ -34,25 +34,25 @@ if MODE == 'processing':
             touch {output}
             """
 
-elif MODE == 'structure':
+elif MODE == 'prestructure':
     rule write_summary:
-        """Write structure mode summary to Pipeline_summary.tsv."""
+        """Write prestructure mode summary to Pipeline_summary.tsv."""
         input:
             cross_entropy = O['cross_entropy']
         output: W['summary_done']
         params: ks = K_START, ke = K_END, summary_tsv = O['summary']
-        log: f"{LOGDIR}structure/write_summary.log"
+        log: f"{LOGDIR}prestructure/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                structure {params.summary_tsv} \
+                prestructure {params.summary_tsv} \
                 {params.ks} {params.ke} > {log} 2>&1
             touch {output}
             """
 
-elif MODE == 'structure_K':
+elif MODE == 'structure':
     rule write_summary:
-        """Write structure_K mode summary to Pipeline_summary.tsv."""
+        """Write structure mode summary to Pipeline_summary.tsv."""
         input:
             climate_site = O['climate_site'] if CLIMATE_ENABLED else [],
             ld_decay = O['ld_decay_table']
@@ -65,19 +65,19 @@ elif MODE == 'structure_K':
             ld_decay_path = O['ld_decay_table'],
             ld_decay_group_by = LD_DECAY_GROUP_BY,
             ld_decay_scope = LD_DECAY_SCOPE
-        log: f"{LOGDIR}structure_k/write_summary.log"
+        log: f"{LOGDIR}structure/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                structure_K {params.summary_tsv} \
+                structure {params.summary_tsv} \
                 {params.k} {params.climate_site_path} {params.predictors} \
                 {params.ld_decay_path} {params.ld_decay_group_by} {params.ld_decay_scope} > {log} 2>&1
             touch {output}
             """
 
-elif MODE == 'association':
+elif MODE == 'gea':
     rule write_summary:
-        """Write association mode summary to Pipeline_summary.tsv."""
+        """Write gea mode summary to Pipeline_summary.tsv."""
         input:
             selected_snps = O['selected_snps'],
             regions_per_trait = O['regions_per_trait'],
@@ -86,11 +86,11 @@ elif MODE == 'association':
         output: W['summary_done']
         params:
             summary_tsv = O['summary']
-        log: f"{LOGDIR}association/write_summary.log"
+        log: f"{LOGDIR}gea/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                association {params.summary_tsv} \
+                gea {params.summary_tsv} \
                 {input.selected_snps} {input.regions_per_trait} {input.regions_combined} \
                 {input.genes} > {log} 2>&1
             touch {output}
@@ -113,9 +113,9 @@ elif MODE == 'maladaptation':
             touch {output}
             """
 
-elif MODE in ('association_phenotypes', 'phenotype_association'):
+elif MODE == 'gwas':
     rule write_summary:
-        """Write association_phenotypes mode summary to Pipeline_summary.tsv."""
+        """Write gwas mode summary to Pipeline_summary.tsv."""
         input:
             missing_summary = O['pheno_missing_summary'],
             selected_snps = O['pheno_selected_snps'],
@@ -125,22 +125,22 @@ elif MODE in ('association_phenotypes', 'phenotype_association'):
         output: W['summary_done']
         params:
             summary_tsv = O['summary']
-        log: f"{LOGDIR}phenotype_association/write_summary.log"
+        log: f"{LOGDIR}gwas/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
-                association_phenotypes {params.summary_tsv} \
+                gwas {params.summary_tsv} \
                 {input.missing_summary} {input.selected_snps} {input.regions_per_trait} \
                 {input.regions_combined} {input.genes} > {log} 2>&1
             touch {output}
             """
 
-elif MODE == 'overlapping':
+elif MODE == 'gea_x_gwas':
     rule write_summary:
         """Overlapping mode: region analysis is fully interactive (Shiny). Just mark done."""
         input:
-            [O['overlap_miami']] if (ASSOC_CONFIGS and PHENO_ASSOC_CONFIGS) else [],
-            [O['pairwise_overlap_table']] if (ASSOC_CONFIGS or PHENO_ASSOC_CONFIGS) else [],
+            [O['overlap_miami']] if (GEA_CONFIGS and GWAS_CONFIGS) else [],
+            [O['pairwise_overlap_table']] if (GEA_CONFIGS or GWAS_CONFIGS) else [],
         output: W['summary_done']
         shell: "touch {output}"
 

@@ -12,7 +12,7 @@
 #-----------------------------------------------------------------------------
 # INPUT
 #-----------------------------------------------------------------------------
-input:
+Input:
   dir: "data/"
   vcf: 'Arabidopsis_1001G.vcf'
   metadata: 'Arabidopsis_1001G_metadata.tsv'
@@ -24,7 +24,7 @@ cpu: 10
 #-----------------------------------------------------------------------------
 # FILTER
 #-----------------------------------------------------------------------------
-filter:
+Filter:
   maf: 0.05
   snp_miss: 0.1
   sample_miss: 0.5
@@ -35,7 +35,7 @@ filter:
 #-----------------------------------------------------------------------------
 # LD
 #-----------------------------------------------------------------------------
-ld:
+LD:
   window: 50
   step: 10
   r2: 0.2
@@ -43,7 +43,7 @@ ld:
 #-----------------------------------------------------------------------------
 # SNMF
 #-----------------------------------------------------------------------------
-snmf:
+sNMF:
   k_start: 2
   k_end: 12
   k_best: 8                     # Complex structure — adjust after cross-entropy
@@ -52,7 +52,7 @@ snmf:
 #-----------------------------------------------------------------------------
 # MAP
 #-----------------------------------------------------------------------------
-map:
+Map:
   climate_extent: "auto"
   gap: 2.0                      # Global distribution (Europe + Asia + Americas)
   resolution: 2.5
@@ -61,14 +61,14 @@ map:
 #-----------------------------------------------------------------------------
 # CLIMATE
 #-----------------------------------------------------------------------------
-climate:
+Climate:
   enabled: true
   predictors: "bio_1,bio_4,bio_12,bio_15"
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS
 #-----------------------------------------------------------------------------
-pop:
+Population:
   calc_stats: TRUE
   window_size: 100000            # Small genome (~135 Mb), 50K SNPs
   custom_trait_file: 'NULL'
@@ -76,7 +76,7 @@ pop:
 #-----------------------------------------------------------------------------
 # PIEMAP
 #-----------------------------------------------------------------------------
-piemap:
+Piemap:
   alpha: 0.6
   show_labels: 'F'
   label_size: 8
@@ -85,7 +85,7 @@ piemap:
 #-----------------------------------------------------------------------------
 # ASSOCIATION (GEA — climate)
 #-----------------------------------------------------------------------------
-association:
+GEA:
   configs:
     - method: "EMMAX"
       adjust: "bonf"
@@ -96,20 +96,20 @@ association:
   combine_gap: 50000
   region_distance: 500000        # Small genome — tighter regions
   promoter_length: 2000          # Arabidopsis has compact promoters
-  go_field: 'Ontology_term'     # Ensembl attribute (no GO terms available)
 
 #-----------------------------------------------------------------------------
 # GFF
 #-----------------------------------------------------------------------------
-gff:
+GFF:
   feature: 'mRNA'
   gene_name: 'description'
   biotype: 'biotype'
+  go_field: 'Ontology_term'     # Ensembl attribute (no GO terms available)
 
 #-----------------------------------------------------------------------------
 # ENRICHMENT
 #-----------------------------------------------------------------------------
-enrichment:
+Enrichment:
   top_terms: 20
   plot_width: 12
   plot_height: 10
@@ -118,7 +118,7 @@ enrichment:
 #-----------------------------------------------------------------------------
 # PHENOTYPE ASSOCIATION (GWAS — FT10, FT16)
 #-----------------------------------------------------------------------------
-phenotype_association:
+GWAS:
   configs:
     - method: "EMMAX"
       adjust: "bonf"
@@ -128,17 +128,19 @@ phenotype_association:
 #-----------------------------------------------------------------------------
 # FUTURE CLIMATE
 #-----------------------------------------------------------------------------
-future:
+Future:
   ssp: '585'
   year: '2061-2080'
   models: 'MPI-ESM1-2-HR'
 
 #-----------------------------------------------------------------------------
-# GRADIENT FOREST
+# MALADAPTATION
 #-----------------------------------------------------------------------------
-gradient_forest:
-  ntree: '1000'
-  cor_threshold: '0.5'
-  spatial_correction: 'with'
-  suffix: 'Arabidopsis_EMMAX'
-  random_model: TRUE
+Maladaptation:
+  methods:
+    gradient_forest:
+      ntree: '1000'
+      cor_threshold: '0.5'
+      spatial_correction: 'with'
+      run_label: 'Arabidopsis_EMMAX'
+      random_model: TRUE

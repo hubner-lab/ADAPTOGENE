@@ -8,7 +8,7 @@ library(stringr)
 
 args = commandArgs(trailingOnly=TRUE)
 ################
-MODE = args[1]           # Pipeline mode: processing, structure, structure_K, association, maladaptation
+MODE = args[1]           # Pipeline mode: processing, prestructure, structure, gea, gwas, gea_x_gwas, maladaptation
 OUTPUT = args[2]         # Pipeline_summary.tsv path
 # Remaining args are mode-specific input files
 ################
@@ -133,16 +133,16 @@ if (MODE == 'processing') {
         }
     }
 
-} else if (MODE == 'structure') {
+} else if (MODE == 'prestructure') {
     # args: MODE OUTPUT cross_entropy_plot K_START K_END
     K_START = args[3] %>% as.numeric
     K_END = args[4] %>% as.numeric
 
     new_rows <- rbind(
-        row('structure', 'K_range', paste0(K_START, '-', K_END))
+        row('prestructure',  'K_range', paste0(K_START, '-', K_END))
     )
 
-} else if (MODE == 'structure_K') {
+} else if (MODE == 'structure') {
     # args: MODE OUTPUT K_BEST climate_site predictors ld_decay_path ld_decay_group_by ld_decay_scope
     K_BEST = args[3]
     CLIMATE_SITE = args[4]
@@ -151,7 +151,7 @@ if (MODE == 'processing') {
     LD_DECAY_GROUP_BY = if (length(args) >= 7) args[7] else "NULL"
     LD_DECAY_SCOPE_VAL = if (length(args) >= 8) args[8] else "NULL"
 
-    new_rows <- rbind(row('structure_K', 'K_best', K_BEST))
+    new_rows <- rbind(row('structure', 'K_best', K_BEST))
 
     if (CLIMATE_SITE != 'NULL') {
         predictors_list <- str_split(PREDICTORS, ',')[[1]]
@@ -159,8 +159,8 @@ if (MODE == 'processing') {
         n_climate_vars <- ncol(climate) - 4  # Subtract site, sample, lat, lon columns
 
         new_rows <- rbind(new_rows,
-            row('structure_K', 'climate_predictors', PREDICTORS),
-            row('structure_K', 'n_climate_variables', n_climate_vars)
+            row('structure', 'climate_predictors', PREDICTORS),
+            row('structure', 'n_climate_variables', n_climate_vars)
         )
     }
 
@@ -170,18 +170,18 @@ if (MODE == 'processing') {
         gw_all <- ld_table[group == 'All' & scope == 'genome_wide']
         if (nrow(gw_all) > 0) {
             new_rows <- rbind(new_rows,
-                row('structure_K', 'ld_decay_half_decay_genome_wide', gw_all$half_decay_bp[1]),
-                row('structure_K', 'ld_decay_r2_02_genome_wide', gw_all$r2_02_bp[1])
+                row('structure', 'ld_decay_half_decay_genome_wide', gw_all$half_decay_bp[1]),
+                row('structure', 'ld_decay_r2_02_genome_wide', gw_all$r2_02_bp[1])
             )
         }
         new_rows <- rbind(new_rows,
-            row('structure_K', 'ld_decay_group_by', LD_DECAY_GROUP_BY),
-            row('structure_K', 'ld_decay_groups_analyzed', nrow(ld_table[scope == 'genome_wide'])),
-            row('structure_K', 'ld_decay_scope', LD_DECAY_SCOPE_VAL)
+            row('structure', 'ld_decay_group_by', LD_DECAY_GROUP_BY),
+            row('structure', 'ld_decay_groups_analyzed', nrow(ld_table[scope == 'genome_wide'])),
+            row('structure', 'ld_decay_scope', LD_DECAY_SCOPE_VAL)
         )
     }
 
-} else if (MODE == 'association') {
+} else if (MODE == 'gea') {
     # args: MODE OUTPUT selected_snps regions_per_trait regions_combined genes_per_region
     SELECTED_SNPS = args[3]
     REGIONS_PER_TRAIT = args[4]
@@ -197,7 +197,7 @@ if (MODE == 'processing') {
     method_rows <- list()
     for (m in method_cols) {
         n_method <- sum(!is.na(snps[[m]]) & snps[[m]] != '' & snps[[m]] != '""')
-        method_rows <- c(method_rows, list(row('association', paste0('sig_snps_', m), n_method)))
+        method_rows <- c(method_rows, list(row('gea', paste0('sig_snps_', m), n_method)))
     }
 
     # Count regions
@@ -209,11 +209,11 @@ if (MODE == 'processing') {
     n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
 
     new_rows <- rbind(
-        row('association', 'selected_snps_total', n_selected_snps),
+        row('gea', 'selected_snps_total', n_selected_snps),
         do.call(rbind, method_rows),
-        row('association', 'regions_per_trait', nrow(regions_trait)),
-        row('association', 'regions_combined', nrow(regions_combined)),
-        row('association', 'genes_found', n_genes)
+        row('gea', 'regions_per_trait', nrow(regions_trait)),
+        row('gea', 'regions_combined', nrow(regions_combined)),
+        row('gea', 'genes_found', n_genes)
     )
 
     # Add per-trait region counts
@@ -223,7 +223,7 @@ if (MODE == 'processing') {
             dplyr::summarise(n = dplyr::n(), .groups = 'drop')
         for (i in seq_len(nrow(trait_counts))) {
             new_rows <- rbind(new_rows,
-                row('association', paste0('regions_', trait_counts$trait[i]), trait_counts$n[i]))
+                row('gea', paste0('regions_', trait_counts$trait[i]), trait_counts$n[i]))
         }
     }
 
@@ -251,7 +251,7 @@ if (MODE == 'processing') {
         row('maladaptation', 'offset_mean', offset_mean)
     )
 
-} else if (MODE == 'association_phenotypes') {
+} else if (MODE == 'gwas') {
     # args: MODE OUTPUT missing_summary selected_snps regions_per_trait regions_combined genes_per_region
     MISSING_SUMMARY = args[3]
     SELECTED_SNPS = args[4]
@@ -276,23 +276,23 @@ if (MODE == 'processing') {
     n_genes <- if (nrow(genes) > 0 && 'gene_id' %in% colnames(genes)) n_distinct(genes$gene_id) else 0
 
     new_rows <- rbind(
-        row('association_phenotypes', 'n_phenotype_traits', n_traits),
-        row('association_phenotypes', 'missing_strategy', missing$strategy[1]),
-        row('association_phenotypes', 'selected_snps_total', n_selected_snps),
-        row('association_phenotypes', 'regions_per_trait', nrow(regions_trait)),
-        row('association_phenotypes', 'regions_combined', nrow(regions_combined)),
-        row('association_phenotypes', 'genes_found', n_genes)
+        row('gwas', 'n_phenotype_traits', n_traits),
+        row('gwas', 'missing_strategy', missing$strategy[1]),
+        row('gwas', 'selected_snps_total', n_selected_snps),
+        row('gwas', 'regions_per_trait', nrow(regions_trait)),
+        row('gwas', 'regions_combined', nrow(regions_combined)),
+        row('gwas', 'genes_found', n_genes)
     )
 
     # Per-trait missing info
     for (i in seq_len(nrow(missing))) {
         t <- missing$trait[i]
         new_rows <- rbind(new_rows,
-            row('association_phenotypes', paste0(t, '_n_available'), missing$n_available[i]),
-            row('association_phenotypes', paste0(t, '_n_missing'), missing$n_missing[i]))
+            row('gwas', paste0(t, '_n_available'), missing$n_available[i]),
+            row('gwas', paste0(t, '_n_missing'), missing$n_missing[i]))
         if (missing$n_missing[i] > 0 && nchar(missing$missing_samples[i]) > 0) {
             new_rows <- rbind(new_rows,
-                row('association_phenotypes', paste0(t, '_dropped_samples'), missing$missing_samples[i]))
+                row('gwas', paste0(t, '_dropped_samples'), missing$missing_samples[i]))
         }
     }
 
@@ -303,11 +303,11 @@ if (MODE == 'processing') {
             dplyr::summarise(n = dplyr::n(), .groups = 'drop')
         for (i in seq_len(nrow(trait_counts))) {
             new_rows <- rbind(new_rows,
-                row('association_phenotypes', paste0('regions_', trait_counts$trait[i]), trait_counts$n[i]))
+                row('gwas', paste0('regions_', trait_counts$trait[i]), trait_counts$n[i]))
         }
     }
 
-} else if (MODE == 'overlapping') {
+} else if (MODE == 'gea_x_gwas') {
     # args: MODE OUTPUT overlap_summary selected_snps regions_per_trait regions_combined genes_per_region [enrichment_done]
     OVERLAP_SUMMARY = args[3]
     SELECTED_SNPS = args[4]
@@ -343,18 +343,18 @@ if (MODE == 'processing') {
     }
 
     new_rows <- rbind(
-        row('overlapping', 'gea_regions', n_gea),
-        row('overlapping', 'gwas_regions', n_gwas),
-        row('overlapping', 'overlap_pairs', n_pairs),
-        row('overlapping', 'gea_overlapping', n_gea_overlap),
-        row('overlapping', 'gwas_overlapping', n_gwas_overlap),
-        row('overlapping', 'gea_overlap_pct', gea_pct),
-        row('overlapping', 'gwas_overlap_pct', gwas_pct),
-        row('overlapping', 'merged_snps_total', nrow(snps)),
-        row('overlapping', 'new_regions_per_trait', nrow(regions_trait)),
-        row('overlapping', 'new_regions_combined', nrow(regions_combined)),
-        row('overlapping', 'genes_found', n_genes),
-        row('overlapping', 'enrichment_status', enrichment_summary)
+        row('gea_x_gwas', 'gea_regions', n_gea),
+        row('gea_x_gwas', 'gwas_regions', n_gwas),
+        row('gea_x_gwas', 'overlap_pairs', n_pairs),
+        row('gea_x_gwas', 'gea_overlapping', n_gea_overlap),
+        row('gea_x_gwas', 'gwas_overlapping', n_gwas_overlap),
+        row('gea_x_gwas', 'gea_overlap_pct', gea_pct),
+        row('gea_x_gwas', 'gwas_overlap_pct', gwas_pct),
+        row('gea_x_gwas', 'merged_snps_total', nrow(snps)),
+        row('gea_x_gwas', 'new_regions_per_trait', nrow(regions_trait)),
+        row('gea_x_gwas', 'new_regions_combined', nrow(regions_combined)),
+        row('gea_x_gwas', 'genes_found', n_genes),
+        row('gea_x_gwas', 'enrichment_status', enrichment_summary)
     )
 
 } else {

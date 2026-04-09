@@ -5,7 +5,7 @@
 #-----------------------------------------------------------------------------
 # INPUT: Files and project settings
 #-----------------------------------------------------------------------------
-input:
+Input:
   dir: "data/"                   # Directory containing input files
   vcf: 'Test.vcf'               # VCF file (supports .vcf and .vcf.gz)
   metadata: 'Test_metadata.tsv'  # Sample metadata (site, sample, latitude, longitude)
@@ -17,7 +17,7 @@ cpu: 10                          # Number of CPU cores to use
 #-----------------------------------------------------------------------------
 # FILTER: VCF quality filtering (affects variant and sample retention)
 #-----------------------------------------------------------------------------
-filter:
+Filter:
   maf: 0.05                     # Minor allele frequency threshold (remove rare variants)
   snp_miss: 0.1                 # Max SNP missingness (remove SNPs missing in >10% samples)
   sample_miss: 0.5              # Max sample missingness (remove samples with >50% missing)
@@ -28,7 +28,7 @@ filter:
 #-----------------------------------------------------------------------------
 # LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)
 #-----------------------------------------------------------------------------
-ld:
+LD:
   window: 100                   # Window size in kb for LD calculation
   step: 20                      # Step size for sliding window
   r2: 0.2                       # R^2 threshold (keep SNPs with r^2 < this value)
@@ -36,7 +36,7 @@ ld:
 #-----------------------------------------------------------------------------
 # SNMF: Population structure inference (ancestry proportions)
 #-----------------------------------------------------------------------------
-snmf:
+sNMF:
   k_start: 3                    # Minimum K (number of ancestral populations) to test
   k_end: 7                      # Maximum K to test
   k_best: 5                     # Selected K for downstream analyses (set after reviewing cross-entropy)
@@ -45,7 +45,7 @@ repeats: 10                   # Number of repetitions per K (higher = more stabl
 #-----------------------------------------------------------------------------
 # MAP: Geographic extent and resolution for climate data
 #-----------------------------------------------------------------------------
-map:
+Map:
   climate_extent: "auto"         # Coordinates [min_lon, max_lon, min_lat, max_lat] or "auto"
   gap: 0.5                      # Buffer around samples in degrees (only used if auto)
   resolution: 0.5               # Climate data resolution in arc-minutes (0.5, 2.5, 5, 10)
@@ -54,14 +54,14 @@ map:
 #-----------------------------------------------------------------------------
 # CLIMATE: Bioclimatic variables for association and offset analyses
 #-----------------------------------------------------------------------------
-climate:
+Climate:
   enabled: true                    # Set false to skip all climate-dependent analysis (GEA, maladaptation)
   predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS: Population-level statistics (require >=3 samples per population)
 #-----------------------------------------------------------------------------
-pop:
+Population:
   calc_stats: FALSE              # Calculate Tajima's D, Pi, AMOVA, IBD (set FALSE if <3 samples/pop)
   window_size: 3000000           # Window size in bp for Tajima's D and Pi diversity
   custom_trait_file: 'NULL'      # Custom trait file for piemap sizing (site + trait columns)
@@ -69,7 +69,7 @@ pop:
 #-----------------------------------------------------------------------------
 # PIEMAP: Population structure visualization on maps
 #-----------------------------------------------------------------------------
-piemap:
+Piemap:
   alpha: 0.6                    # Pie chart transparency (0-1)
   show_labels: 'F'              # Show population labels (T/F)
   label_size: 8                 # Label font size
@@ -79,7 +79,7 @@ piemap:
 #-----------------------------------------------------------------------------
 # LD_DECAY: Linkage disequilibrium decay analysis
 #-----------------------------------------------------------------------------
-ld_decay:
+LDdecay:
   group_by: "site"          # "site" (metadata col 1) or "cluster" (sNMF K_BEST clusters)
   min_samples: 10            # Groups below this are skipped with warning
   max_distance: 500          # Max pairwise distance in kb (PopLDdecay -MaxDist)
@@ -88,7 +88,7 @@ ld_decay:
 #-----------------------------------------------------------------------------
 # ASSOCIATION: Association analysis settings (GEA)
 #-----------------------------------------------------------------------------
-association:
+GEA:
   configs:                       # Methods and significance thresholds
     - method: "EMMAX"            # EMMAX: mixed model, accounts for population structure
       adjust: "bonf"             # Correction: bonf (Bonferroni) or qval (FDR)
@@ -99,20 +99,20 @@ association:
   combine_gap: 100000            # Max distance (bp) for cross-method overlap annotation in find_sig_snps
   region_distance: 1000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   promoter_length: 10000         # Promoter region length for SNP annotation
-  go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
 
 #-----------------------------------------------------------------------------
 # GFF: Gene annotation parsing
 #-----------------------------------------------------------------------------
-gff:
+GFF:
   feature: 'mRNA'               # Feature type to extract (mRNA, gene, CDS, etc.)
   gene_name: 'description'      # Attribute for gene names
   biotype: 'biotype'            # Attribute for gene biotype
+  go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
 
 #-----------------------------------------------------------------------------
 # ENRICHMENT: GO enrichment visualization settings
 #-----------------------------------------------------------------------------
-enrichment:
+Enrichment:
   top_terms: 20                  # Number of top enriched terms to show in plots
   plot_width: 12                 # Plot width in inches
   plot_height: 10                # Plot height in inches
@@ -121,49 +121,51 @@ enrichment:
 #-----------------------------------------------------------------------------
 # FUTURE CLIMATE: Climate projections for maladaptation analysis
 #-----------------------------------------------------------------------------
-future:
+Future:
   ssp: '585'                    # Shared Socioeconomic Pathway (126, 245, 370, 585)
   year: '2061-2080'             # Time period for projections
   models: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'  # Climate models to average
 
 #-----------------------------------------------------------------------------
-# GRADIENT FOREST: Gradient Forest modeling for genetic offset
+# MALADAPTATION: Gradient Forest modeling for genetic offset
 #-----------------------------------------------------------------------------
-gradient_forest:
-  ntree: '1000'                 # Number of trees (higher = more accurate, slower)
-  cor_threshold: '0.5'          # Correlation threshold for variable selection
-  spatial_correction: 'with'    # Include spatial variables: with/without
-  run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
-  random_model: TRUE            # Also build neutral model for comparison
-  combine_gap: 100000           # Max distance (bp) for cross-method overlap (Overlap/MethodOverlap strategies only)
+Maladaptation:
+  methods:
+    gradient_forest:
+      ntree: '1000'                 # Number of trees (higher = more accurate, slower)
+      cor_threshold: '0.5'          # Correlation threshold for variable selection
+      spatial_correction: 'with'    # Include spatial variables: with/without
+      run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
+      random_model: TRUE            # Also build neutral model for comparison
+      combine_gap: 100000           # Max distance (bp) for cross-method overlap (Overlap/MethodOverlap strategies only)
 
 #-----------------------------------------------------------------------------
-# PHENOTYPE ASSOCIATION (GWAS) — inherits from association.* by default
+# PHENOTYPE ASSOCIATION (GWAS) — inherits from GEA.* by default
 #-----------------------------------------------------------------------------
-# phenotype_association:          # Uncomment to enable phenotype association mode
+# GWAS:                          # Uncomment to enable phenotype association mode
 #   configs:
 #     - method: "EMMAX"
 #       adjust: "bonf"
 #       threshold: '0.05'
 #   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
-#   # Override any association.* param only if different:
+#   # Override any GEA.* param only if different:
 #   # region_distance: 2000000
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
 #-----------------------------------------------------------------------------
-# Defaults to max of association and phenotype_association values if not set
-# overlap:
+# Defaults to max of GEA and GWAS values if not set
+# GEAxGWAS:
 #   region_distance: 2000000
-overlap:
+GEAxGWAS:
   pairwise:
     window_size: 500000
     min_snps: 2
 
 #-----------------------------------------------------------------------------
-# HAPLOTYPE
+# Haplotype
 #-----------------------------------------------------------------------------
-# haplotype:
+# Haplotype:
 #   scan:
 #     regions_source: 'association'    # 'association', 'association_phenotypes', 'overlapping', 'all', 'custom'
 #     regions_file: 'NULL'            # Path to custom regions TSV (when source='custom')

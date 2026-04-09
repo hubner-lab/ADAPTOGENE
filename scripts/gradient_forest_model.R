@@ -15,7 +15,7 @@ CLIM_PRESENT_SITE = args[6]
 PREDICTORS_SELECTED = args[7] %>% str_split(',') %>% unlist
 NTREE = args[8] %>% as.numeric
 COR_THRESHOLD = args[9] %>% as.numeric
-PCNM = args[10]         # "with" or "without"
+SPATIAL_CORRECTION = args[10]         # "with" or "without"
 MODEL_TYPE = args[11]   # "adaptive" or "random"
 OUTPUT = args[12]
 ##############
@@ -77,7 +77,7 @@ samples <- fread(SAMPLES,
 env.bio <- fread(CLIM_PRESENT_SITE) %>% dplyr::select(!!PREDICTORS_SELECTED)
 
 # Build input matrix and predictor list
-if (PCNM == 'with') {
+if (SPATIAL_CORRECTION == 'with') {
   coords <- data.frame(long = samples$longitude, lat = samples$latitude)
   pcnm_result <- pcnm(dist(coords))
   keep <- round(length(which(pcnm_result$value > 0)) / 2)

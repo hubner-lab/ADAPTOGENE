@@ -6,7 +6,7 @@ library(stringr)
 args = commandArgs(trailingOnly=TRUE)
 #################################
 SAMPLES = args[1]
-CROP_REGION = args[2]
+CLIMATE_EXTENT = args[2]
 GAP = args[3] %>% as.numeric
 INDIR = args[4]
 SSP = args[5]
@@ -24,14 +24,14 @@ samples <- fread(SAMPLES,
                                 'longitude' = 'numeric'))
 
 # Define crop region
-if (CROP_REGION == "auto") {
+if (CLIMATE_EXTENT == "auto") {
   min_lat <- min(samples$latitude) - GAP
   max_lat <- max(samples$latitude) + GAP
   min_long <- min(samples$longitude) - GAP
   max_long <- max(samples$longitude) + GAP
   crop_region <- c(min_long, max_long, min_lat, max_lat)
 } else {
-  crop_region <- CROP_REGION %>% str_split(',') %>% unlist %>% as.numeric
+  crop_region <- CLIMATE_EXTENT %>% str_split(',') %>% unlist %>% as.numeric
 }
 
 message(paste0('INFO: Downloading future climate for model: ', MODEL))

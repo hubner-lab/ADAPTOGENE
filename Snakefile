@@ -7,15 +7,15 @@
 
 include: "workflow/rules/common.smk"
 include: "workflow/rules/processing.smk"
+include: "workflow/rules/prestructure.smk"
 include: "workflow/rules/structure.smk"
-include: "workflow/rules/structure_k.smk"
-include: "workflow/rules/association.smk"
-if PHENO_ASSOC_CONFIGS:
-    include: "workflow/rules/phenotype_assoc.smk"
+include: "workflow/rules/gea.smk"
+if GWAS_CONFIGS:
+    include: "workflow/rules/gwas.smk"
 if ASSOC_SOURCES:
     include: "workflow/rules/_assoc_downstream.smk"
-if PHENO_ASSOC_CONFIGS and ASSOC_CONFIGS:
-    include: "workflow/rules/overlapping.smk"
+if GWAS_CONFIGS and GEA_CONFIGS:
+    include: "workflow/rules/gea_x_gwas.smk"
 include: "workflow/rules/maladaptation.smk"
 include: "workflow/rules/summary.smk"
 

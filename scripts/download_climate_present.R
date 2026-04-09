@@ -6,7 +6,7 @@ library(stringr)
 args = commandArgs(trailingOnly=TRUE)
 #################################
 SAMPLES = args[1]
-CROP_REGION = args[2]
+CLIMATE_EXTENT = args[2]
 GAP = args[3] %>% as.numeric
 DATA_DIR = args[4]      # directory for storing downloaded climate data
 RESOLUTION = args[5] %>% as.numeric
@@ -140,16 +140,16 @@ samples <- fread(SAMPLES,
                                 'longitude' = 'numeric'))
 
 # Define crop regions
-if (CROP_REGION == "auto") {
+if (CLIMATE_EXTENT == "auto") {
   crop_region <- FUN_define_crop_region(samples, gap = GAP)
   message(paste0('INFO: Extract climate data in region minLongitude=', crop_region[1],
                  '; maxLongitude=', crop_region[2],
                  '; minLatitude=', crop_region[3],
                  '; maxLatitude=', crop_region[4]))
-} else if (CROP_REGION == "world") {
+} else if (CLIMATE_EXTENT == "world") {
   crop_region <- 'world'
 } else {
-  crop_region <- CROP_REGION %>% str_split(',') %>% unlist %>% as.numeric
+  crop_region <- CLIMATE_EXTENT %>% str_split(',') %>% unlist %>% as.numeric
 }
 
 message(crop_region %>% str)
