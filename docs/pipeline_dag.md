@@ -433,9 +433,7 @@ flowchart TB
     offset["gradient_forest_offset\nGenetic offset present → future"]
     cumimp["plot_gf_cumimp\nCumulative importance curves"]
     importance["plot_gf_importance\nOverall R²-weighted importance"]
-    piemap_go["plot_gf_offset_piemap\nOffset PieMap (uniform)"]
-    piemap_taj["plot_gf_offset_piemap_tajima\nOffset PieMap + Tajima D"]:::optional
-    piemap_pi["plot_gf_offset_piemap_diversity\nOffset PieMap + Pi Diversity"]:::optional
+    piemap["plot_gf_offset_piemap\nOffset PieMap\n{size_trait} ∈ notrait | tajima_d | pi_diversity"]
     density_f["density_plot_future\nFuture climate density"]
     summary["write_summary"]
 
@@ -447,23 +445,23 @@ flowchart TB
     gf_adapt --> offset & cumimp & importance
     gf_random --> cumimp & importance
     merge --> offset & density_f
-    offset --> piemap_go & piemap_taj & piemap_pi
-    CLUST --> piemap_go & piemap_taj & piemap_pi
-    TAJIMA --> piemap_taj
-    PI --> piemap_pi
+    offset --> piemap
+    CLUST --> piemap
+    TAJIMA --> piemap
+    PI --> piemap
     gf_adapt & offset --> summary
 ```
 
-**Purple nodes** = optional (random model requires `gradient_forest.random_model: TRUE`; Tajima/Pi piemaps require `pop.calc_stats: TRUE`)
+**Purple nodes** = optional (random model requires `gradient_forest.random_model: TRUE`; `tajima_d`/`pi_diversity` piemaps require `pop.calc_stats: TRUE`)
 
-**Key outputs**:
+**Key outputs** (under `Maladaptation/{plots,tables}/{method}/{run_label}_{spatial_tag}/`):
 - `climate/tables/future/climate_future_year{Y}_ssp{S}_{site,all}.tsv`
 - `climate/rasters/future/` — CMIP6 future rasters
 - `climate/plots/density_plot_future_ssp{S}_{Y}.png/svg`
-- `maladaptation/plots/cumulative_importance_{suffix}.png/svg`
-- `maladaptation/plots/overall_importance_{suffix}.png/svg`
-- `maladaptation/plots/genetic_offset_piemap_{suffix}.png/svg/qs` (+ tajima_d, pi_diversity variants)
-- `maladaptation/tables/genetic_offset_map_{suffix}.tsv`, `genetic_offset_site_{suffix}.tsv`
+- `Maladaptation/plots/gradient_forest/{suffix}/cumulative_importance.png/svg`
+- `Maladaptation/plots/gradient_forest/{suffix}/overall_importance.png/svg`
+- `Maladaptation/plots/gradient_forest/{suffix}/genetic_offset_piemap[_{tajima_d,pi_diversity}].png/svg`
+- `Maladaptation/tables/gradient_forest/{suffix}/genetic_offset_{map,site}.tsv`
 
 ---
 

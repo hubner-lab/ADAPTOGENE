@@ -100,8 +100,8 @@ elif MODE == 'maladaptation':
     rule write_summary:
         """Write maladaptation mode summary to Pipeline_summary.tsv."""
         input:
-            gf_adaptive = W['gf_adaptive'],
-            offset_site = O['gf_offset_site_values']
+            gf_adaptive = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
+            offset_site = mala_offset_site_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
         output: W['summary_done']
         params: summary_tsv = O['summary']
         log: f"{LOGDIR}maladaptation/write_summary.log"

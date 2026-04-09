@@ -65,7 +65,7 @@ rule combine_gf_snps:
     """Combine significant SNPs for Gradient Forest using the gradient_forest.combine_method strategy."""
     input:
         sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in GEA_CONFIGS.items()]
-    output: W['gf_selected_snps']
+    output: mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
     params:
         sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
         method = GF_COMBINE_METHOD,
@@ -84,12 +84,12 @@ rule gradient_forest_adaptive:
     """Build adaptive Gradient Forest model using significant SNPs."""
     input:
         lfmm = W['lfmm_full'],
-        sigsnps = W['gf_selected_snps'],
+        sigsnps = mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
         vcfsnp = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
         climate = O['climate_site']
-    output: W['gf_adaptive']
+    output: mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive')
     params:
         predictors = PREDICTORS_SELECTED,
         ntree = NTREE,
@@ -110,12 +110,12 @@ rule gradient_forest_random:
     """Build neutral Gradient Forest model using random SNPs."""
     input:
         lfmm = W['lfmm_full'],
-        sigsnps = W['gf_selected_snps'],
+        sigsnps = mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
         vcfsnp = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
         climate = O['climate_site']
-    output: W['gf_random']
+    output: mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random')
     params:
         predictors = PREDICTORS_SELECTED,
         ntree = NTREE,
@@ -135,15 +135,15 @@ rule gradient_forest_random:
 rule gradient_forest_offset:
     """Calculate genetic offset between present and future climate."""
     input:
-        gf = W['gf_adaptive'],
+        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
         future_all = O['climate_future_all'],
         present_all = O['climate_all'],
         present_raster = W['climate_raster'],
         samples = O['metadata']
     output:
-        raster = W['gf_offset_raster'],
-        map_values = O['gf_offset_map_values'],
-        site_values = O['gf_offset_site_values']
+        raster = mala_offset_raster('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
+        map_values = mala_offset_map_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
+        site_values = mala_offset_site_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
     params:
         predictors = PREDICTORS_SELECTED
     log: f"{LOGDIR}maladaptation/gradient_forest_offset.log"
@@ -159,11 +159,11 @@ rule gradient_forest_offset:
 rule plot_gf_cumimp:
     """Plot cumulative importance curves for adaptive (and optionally neutral) GF model."""
     input:
-        gf = W['gf_adaptive'],
-        gf_random = W['gf_random'] if GF_RANDOM_MODEL else []
-    output: O['gf_cumimp']
+        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
+        gf_random = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else []
+    output: mala_cumimp('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
     params:
-        gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
+        gf_random_path = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else 'NULL',
         predictors = PREDICTORS_SELECTED,
         inter_dir = INTER
     log: f"{LOGDIR}maladaptation/plot_gf_cumimp.log"
@@ -178,11 +178,11 @@ rule plot_gf_cumimp:
 rule plot_gf_importance:
     """Plot R2-weighted importance for adaptive (and optionally neutral) GF model."""
     input:
-        gf = W['gf_adaptive'],
-        gf_random = W['gf_random'] if GF_RANDOM_MODEL else []
-    output: O['gf_importance']
+        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
+        gf_random = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else []
+    output: mala_importance('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
     params:
-        gf_random_path = W['gf_random'] if GF_RANDOM_MODEL else 'NULL',
+        gf_random_path = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else 'NULL',
         inter_dir = INTER
     log: f"{LOGDIR}maladaptation/plot_gf_importance.log"
     shell:
@@ -192,92 +192,55 @@ rule plot_gf_importance:
             {output} {params.inter_dir} > {log} 2>&1
         """
 
-# Genetic offset PieMap
+# Genetic offset PieMaps (collapsed: notrait / tajima_d / pi_diversity)
+def _piemap_trait_input(wc):
+    """Return trait file path for size-scaled piemaps, or [] for notrait."""
+    if wc.size_trait == 'tajima_d':
+        return O['tajima']
+    elif wc.size_trait == 'pi_diversity':
+        return O['pi_div']
+    return []
+
+def _piemap_trait_path(wc):
+    """Return trait file arg for plot_piemap.R shell command."""
+    if wc.size_trait == 'tajima_d':
+        return f"{O['tajima']} \"Tajima's D\""
+    elif wc.size_trait == 'pi_diversity':
+        return f"{O['pi_div']} \"Pi Diversity\""
+    return "NULL NULL"
+
+def _piemap_output_prefix(wc):
+    """Return OUTPUT_PREFIX arg for plot_piemap.R."""
+    return 'genetic_offset_piemap' if wc.size_trait == 'notrait' else f'genetic_offset_piemap_{wc.size_trait}'
+
 rule plot_gf_offset_piemap:
-    """Plot genetic offset on map with population structure pie charts (uniform pie size)."""
+    """Plot genetic offset piemap, optionally scaled by a population statistic."""
+    wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
-        offset_raster = W['gf_offset_raster'],
-        samples = O['metadata'],
-        clusters = clusters_table(K_BEST)
-    output: O['gf_offset_piemap']
-    params:
-        pie_alpha = PIEMAP_ALPHA,
-        pop_label = PIEMAP_SHOW_LABELS,
-        pop_label_size = PIEMAP_LABEL_SIZE,
-        pie_scale = PIEMAP_PIE_SCALE,
-        use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
-        inter_dir = INTER,
-        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
-        regionmap_extent = REGIONMAP_EXTENT
-    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_piemap.R \
-            {input.offset_raster} 1 "Genetic Offset" \
-            {input.samples} {input.clusters} \
-            NULL NULL \
-            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
-            {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
-        """
-
-rule plot_gf_offset_piemap_tajima:
-    """Plot genetic offset with Tajima's D-scaled pie sizes (requires CALC_POP_STATS=TRUE)."""
-    input:
-        offset_raster = W['gf_offset_raster'],
+        offset_raster = mala_offset_raster('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
         samples = O['metadata'],
         clusters = clusters_table(K_BEST),
-        tajima = O['tajima']
-    output: O['gf_offset_piemap_tajima']
+        trait_file = _piemap_trait_input
+    output: mala_offset_piemap('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, '{size_trait}')
     params:
         pie_alpha = PIEMAP_ALPHA,
         pop_label = PIEMAP_SHOW_LABELS,
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
         use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
+        plot_dir = mala_plot_dir('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
         inter_dir = INTER,
-        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
-        regionmap_extent = REGIONMAP_EXTENT
-    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_tajima.log"
+        regionmap_extent = REGIONMAP_EXTENT,
+        trait_path = _piemap_trait_path,
+        output_prefix = _piemap_output_prefix
+    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_{{size_trait}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_piemap.R \
             {input.offset_raster} 1 "Genetic Offset" \
             {input.samples} {input.clusters} \
-            {input.tajima} "Tajima's D" \
+            {params.trait_path} \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
-        """
-
-rule plot_gf_offset_piemap_diversity:
-    """Plot genetic offset with Pi Diversity-scaled pie sizes (requires CALC_POP_STATS=TRUE)."""
-    input:
-        offset_raster = W['gf_offset_raster'],
-        samples = O['metadata'],
-        clusters = clusters_table(K_BEST),
-        diversity = O['pi_div']
-    output: O['gf_offset_piemap_diversity']
-    params:
-        pie_alpha = PIEMAP_ALPHA,
-        pop_label = PIEMAP_SHOW_LABELS,
-        pop_label_size = PIEMAP_LABEL_SIZE,
-        pie_scale = PIEMAP_PIE_SCALE,
-        use_points = PIEMAP_USE_POINTS,
-        plot_dir = f"{MOD_MALAD}plots/{GF_RUN_LABEL}_{SPATIAL_TAG}/",
-        inter_dir = INTER,
-        suffix = f"{GF_RUN_LABEL}_{SPATIAL_TAG}",
-        regionmap_extent = REGIONMAP_EXTENT
-    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_diversity.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_piemap.R \
-            {input.offset_raster} 1 "Genetic Offset" \
-            {input.samples} {input.clusters} \
-            {input.diversity} "Pi Diversity" \
-            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
-            {params.plot_dir} {params.inter_dir} \
-            genetic_offset_piemap_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            {params.output_prefix} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
         """

@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(workflow.basedir, "workflow"))
 from methods.gea import GEA_METHODS
 from methods.gwas import GWAS_METHODS
+from methods.maladaptation import MALADAPTATION_METHODS
 
 #=============================================================================
 # CONFIGURATION
@@ -205,6 +206,14 @@ GF_RANDOM_MODEL = _gf.get('random_model', True)
 GF_COMBINE_METHOD = _gf.get('combine_method', 'All')
 GF_COMBINE_GAP = int(_gf.get('combine_gap', 100000))
 SPATIAL_TAG = 'spatial' if SPATIAL_CORRECTION == 'with' else 'nospatial'
+
+# Validate and derive active maladaptation methods from config
+_mala_methods_cfg = config.get('Maladaptation', {}).get('methods', {})
+_unknown_mala = set(_mala_methods_cfg.keys()) - set(MALADAPTATION_METHODS.keys())
+if _unknown_mala:
+    raise ValueError(f"Unknown maladaptation methods in config: {_unknown_mala}. "
+                     f"Registered: {list(MALADAPTATION_METHODS.keys())}")
+ACTIVE_MALA_METHODS = [m for m in _mala_methods_cfg if m in MALADAPTATION_METHODS] or ['gradient_forest']
 
 def parse_association_configs(configs_list):
     """Parse association configs list into method -> adjust_threshold dict."""
@@ -566,46 +575,69 @@ def add_overlap_paths():
 
 add_overlap_paths()
 
+# Templates for maladaptation outputs (method-parameterized)
+def _mala_suffix(run_label, spatial_tag):
+    return f"{run_label}_{spatial_tag}"
+
+def mala_plot_dir(method, run_label, spatial_tag):
+    return f"{MOD_MALAD}plots/{method}/{_mala_suffix(run_label, spatial_tag)}/"
+
+def mala_table_dir(method, run_label, spatial_tag):
+    return f"{MOD_MALAD}tables/{method}/{_mala_suffix(run_label, spatial_tag)}/"
+
+def mala_inter_dir(method, run_label, spatial_tag):
+    return f"{INTER}{method}/{_mala_suffix(run_label, spatial_tag)}/"
+
+def mala_model(method, run_label, spatial_tag, kind):
+    """kind: 'adaptive' or 'random'"""
+    return f"{mala_inter_dir(method, run_label, spatial_tag)}{kind}_model.qs"
+
+def mala_selected_snps(method, run_label, spatial_tag):
+    return f"{mala_inter_dir(method, run_label, spatial_tag)}selected_snps.tsv"
+
+def mala_offset_raster(method, run_label, spatial_tag):
+    return f"{mala_inter_dir(method, run_label, spatial_tag)}offset_raster.tif"
+
+def mala_offset_map_values(method, run_label, spatial_tag):
+    return f"{mala_table_dir(method, run_label, spatial_tag)}genetic_offset_map.tsv"
+
+def mala_offset_site_values(method, run_label, spatial_tag):
+    return f"{mala_table_dir(method, run_label, spatial_tag)}genetic_offset_site.tsv"
+
+def mala_cumimp(method, run_label, spatial_tag):
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}cumulative_importance.png"
+
+def mala_importance(method, run_label, spatial_tag):
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}overall_importance.png"
+
+def mala_offset_piemap(method, run_label, spatial_tag, size_trait):
+    """size_trait: 'notrait' | 'tajima_d' | 'pi_diversity'"""
+    stem = 'genetic_offset_piemap' if size_trait == 'notrait' else f'genetic_offset_piemap_{size_trait}'
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}{stem}.png"
+
 # Maladaptation paths
 def add_maladaptation_paths():
     """Add maladaptation-specific paths to W and O dictionaries."""
     if K_BEST is None or not MODELS_LIST:
         return
 
-    SUFFIX = f"{GF_RUN_LABEL}_{SPATIAL_TAG}"
-
-    # Per-model future climate rasters
+    # Per-model future climate rasters (method-agnostic)
     for model in MODELS_LIST:
         W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif"
 
-    # Merged future climate
+    # Merged future climate (method-agnostic)
     W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.tif"
     O['climate_future_all'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_all.tsv"
     O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
 
-    # Gradient Forest models
-    W['gf_selected_snps'] = f"{INTER}gradient_forest/gf_selected_snps_{SUFFIX}.tsv"
-    W['gf_adaptive'] = f"{INTER}gradient_forest/gradientforest_adaptive_{SUFFIX}.qs"
-    W['gf_random'] = f"{INTER}gradient_forest/gradientforest_random_{SUFFIX}.qs"
-
-    # Genetic offset outputs
-    W['gf_offset_raster'] = f"{INTER}gradient_forest/genetic_offset_{SUFFIX}.tif"
-    O['gf_offset_map_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_map.tsv"
-    O['gf_offset_site_values'] = f"{MOD_MALAD}tables/{SUFFIX}/genetic_offset_site.tsv"
-
-    # Gradient Forest plots
-    O['gf_offset_piemap'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap.png"
-    O['gf_offset_piemap_tajima'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_tajima_d.png"
-    O['gf_offset_piemap_diversity'] = f"{MOD_MALAD}plots/{SUFFIX}/genetic_offset_piemap_pi_diversity.png"
-    O['gf_cumimp'] = f"{MOD_MALAD}plots/{SUFFIX}/cumulative_importance.png"
-    O['gf_importance'] = f"{MOD_MALAD}plots/{SUFFIX}/overall_importance.png"
-
-    # Future climate density plot
+    # Future climate density plot (method-agnostic)
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"
 
-    # Create suffix-based directories
-    os.makedirs(f"{MOD_MALAD}plots/{SUFFIX}/", exist_ok=True)
-    os.makedirs(f"{MOD_MALAD}tables/{SUFFIX}/", exist_ok=True)
+    # Create method-level directories
+    for method in ACTIVE_MALA_METHODS:
+        os.makedirs(mala_plot_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
+        os.makedirs(mala_table_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
+        os.makedirs(mala_inter_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
 
 add_maladaptation_paths()
 
@@ -823,7 +855,8 @@ if GEA_GAPIT_CONFIGS:
 
 # Add maladaptation directories (require climate)
 if CLIMATE_ENABLED:
-    dirs_to_create.append(f"{INTER}gradient_forest/")
+    for _m in ACTIVE_MALA_METHODS:
+        dirs_to_create.append(f"{INTER}{_m}/")
     dirs_to_create.append(f"{MOD_CLIMATE}rasters/future/")
     dirs_to_create.append(f"{MOD_CLIMATE}tables/future/")
 
@@ -1004,31 +1037,29 @@ def get_targets(mode):
             raise ValueError("MODELS must be set for maladaptation mode")
 
         targets = [
-            # Future climate
+            # Future climate (method-agnostic)
             O['climate_future_site'],
             O['climate_future_all'],
             W['climate_future_raster'],
-            # Gradient Forest models
-            W['gf_adaptive'],
-            # Genetic offset
-            O['gf_offset_map_values'],
-            O['gf_offset_site_values'],
-            # Plots
-            O['gf_cumimp'],
-            O['gf_importance'],
-            O['gf_offset_piemap'],
             O['density_future'],
         ]
 
-        if GF_RANDOM_MODEL:
-            targets.append(W['gf_random'])
-
-        # Add TajimaD and PiDiversity GO piemap variants if population stats were calculated
-        if CALC_POP_STATS:
-            targets.extend([
-                O['gf_offset_piemap_tajima'],
-                O['gf_offset_piemap_diversity'],
-            ])
+        for method in ACTIVE_MALA_METHODS:
+            targets += [
+                mala_model(method, GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
+                mala_offset_map_values(method, GF_RUN_LABEL, SPATIAL_TAG),
+                mala_offset_site_values(method, GF_RUN_LABEL, SPATIAL_TAG),
+                mala_cumimp(method, GF_RUN_LABEL, SPATIAL_TAG),
+                mala_importance(method, GF_RUN_LABEL, SPATIAL_TAG),
+                mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'notrait'),
+            ]
+            if MALADAPTATION_METHODS[method]['supports_random_model'] and GF_RANDOM_MODEL:
+                targets.append(mala_model(method, GF_RUN_LABEL, SPATIAL_TAG, 'random'))
+            if CALC_POP_STATS:
+                targets += [
+                    mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'tajima_d'),
+                    mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'pi_diversity'),
+                ]
 
         targets.append(W['summary_done'])
         return targets
