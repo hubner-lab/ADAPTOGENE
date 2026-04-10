@@ -14,10 +14,10 @@ A Dockerized pipeline for population genomics: structure, association, and malad
 
 - Unified framework for **population structure, association, and maladaptation**
 - Automated **climate data download** (WorldClim bioclimatic variables, CMIP6 projections)
-- **EMMAX + LFMM** association methods with configurable combination strategies
-- **Region clustering → gene annotation → GO enrichment** pipeline with per-region visualizations
+- **EMMAX + LFMM + GAPIT3** (8 models) association methods with configurable combination strategies
+- **Region clustering → gene annotation → GO enrichment** with on-demand interactive visualization
 - Detection of **overlapping GEA/GWAS signals** across traits and methods
-- **Interactive Shiny dashboard** for exploring all results
+- **Interactive Shiny dashboard** for exploring all results (region-centric, on-demand enrichment/regionplot/haplotype)
 - **Pipeline summary table** accumulated across all modes
 - Fully reproducible via **Docker + Snakemake**
 
@@ -72,19 +72,17 @@ Run modes sequentially. Each mode is invoked via `--config mode=<MODE>`.
 
 | # | Mode | Purpose | Key Config | Main Outputs |
 |---|------|---------|------------|--------------|
-| 1 | `processing` | Filter VCF, LD prune, normalize | `FILTER_*`, `LD_*` | Filtered VCF, LEA formats |
-| 2 | `structure` | PCA, sNMF ancestry (K range) | `SNMF_K_START/END` | PCA plots, cross-entropy, Q-matrices |
-| 3 | `structure_K` | Impute, climate download, piemaps | `SNMF_K_BEST`, `MAP_*` | Piemaps, climate tables, pop stats |
-| 4 | `association` | GEA: EMMAX/LFMM → regions → genes → GO | `ASSOC_*`, `ENRICHMENT_*` | Manhattan plots, regions, genes, enrichment |
-| 5 | `association_phenotypes` | GWAS on metadata traits (cols 5+) | `PHENO_*` | Manhattan, piemaps, regions, genes |
-| 6 | `overlapping` | GEA ∩ GWAS overlap analysis | `OVERLAP_*` | Miami plot, overlap stats, combined regions |
-| 7 | `regionplot` | Regional Manhattan + gene annotations | `REGIONPLOT_*` | Publication-ready region figures |
-| 8 | `maladaptation` | Gradient Forest → genetic offset | `GF_*`, `FUTURE_*` | Offset maps, importance plots, site scores |
-| 9 | `haplotype_scan` | crosshap epsilon scanning | `HAPLOTYPE_SCAN_*` | HapObjects, clustree plots |
-| 10 | `haplotype` | Haplotype viz at selected epsilon | `HAPLOTYPE_EPSILON_SELECTED` | crosshap_viz, boxplots, piemaps |
+| 1 | `processing` | Filter VCF, LD prune, normalize | `Filter.*`, `LD.*` | Filtered VCF, LEA formats |
+| 2 | `prestructure` | PCA, sNMF ancestry (K range) | `sNMF.k_start`, `sNMF.k_end` | PCA plots, cross-entropy, Q-matrices |
+| 3 | `structure` | Impute, climate download, piemaps | `sNMF.k_best`, `Map.*` | Piemaps, climate tables, pop stats, LD decay |
+| 4 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
+| 5 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
+| 6 | `gea_x_gwas` | GEA + GWAS overlap analysis | `GEAxGWAS.*` | Miami plot, pairwise overlap tables |
+| 7 | `maladaptation` | Gradient Forest → genetic offset | `Maladaptation.*`, `Future.*` | Offset maps, importance plots, site scores |
 
-> **After mode 2**: inspect the cross-entropy plot and set `SNMF_K_BEST` in `config.yaml` before continuing.
-> **After mode 9**: inspect clustree plots and set `HAPLOTYPE_EPSILON_SELECTED` before running mode 10.
+> **After mode 2**: inspect the cross-entropy plot and set `sNMF.k_best` in `config.yaml` before continuing.
+
+> **Regionplot, GO enrichment, haplotype scanning, and haplotype visualization** are computed on-demand in the Shiny dashboard rather than as pipeline modes.
 
 ### Pipeline Flow
 
@@ -101,23 +99,18 @@ flowchart TB
     GFF["GFF3"]:::input
 
     proc["1 · processing\nFilter, LD prune, normalize"]:::preproc
-    struct["2 · structure\nPCA, sNMF (K range)"]:::struct
-    structK["3 · structure_K\nImpute, climate, piemaps"]:::struct
-    assoc["4 · association\nGEA → regions → genes → GO"]:::assoc
-    pheno["5 · association_phenotypes\nGWAS → regions → genes → GO"]:::assoc
-    overlap["6 · overlapping\nGEA ∩ GWAS → combined regions"]:::assoc
-    regplot["7 · regionplot\nRegional Manhattan + genes"]:::assoc
-    malad["8 · maladaptation\nGradient Forest → offset"]:::malad
-    hapscan["9 · haplotype_scan\ncrosshap epsilon scan"]:::assoc
-    hapviz["10 · haplotype\ncrosshap viz + boxplots"]:::assoc
+    prestruct["2 · prestructure\nPCA, sNMF (K range)"]:::struct
+    struct["3 · structure\nImpute, climate, piemaps"]:::struct
+    gea["4 · gea\nGEA → regions → genes"]:::assoc
+    gwas["5 · gwas\nGWAS → regions → genes"]:::assoc
+    geaxgwas["6 · gea_x_gwas\nGEA ∩ GWAS → Miami + overlap"]:::assoc
+    malad["7 · maladaptation\nGradient Forest → offset"]:::malad
 
-    VCF & META & GFF --> proc --> struct
-    struct -. "Set K_BEST" .-> structK
-    structK --> assoc & pheno
-    assoc --> regplot & malad
-    assoc & pheno --> overlap
-    assoc & pheno & overlap -.-> hapscan
-    hapscan -. "Set epsilon" .-> hapviz
+    VCF & META & GFF --> proc --> prestruct
+    prestruct -. "Set sNMF.k_best" .-> struct
+    struct --> gea & gwas
+    gea --> malad
+    gea & gwas --> geaxgwas
 ```
 
 ### Detailed Rule DAGs
@@ -155,7 +148,7 @@ flowchart TB
 </details>
 
 <details>
-<summary><b>Structure Mode</b> — Population structure inference</summary>
+<summary><b>PreStructure Mode</b> — Population structure inference</summary>
 
 ```mermaid
 flowchart TB
@@ -164,7 +157,7 @@ flowchart TB
     LFMM[/".lfmm (LD-pruned)"/]:::data
     META[/"Aligned Metadata"/]:::data
 
-    snmf["snmf\nsNMF ancestry K_START..K_END"]
+    snmf["snmf\nsNMF ancestry k_start..k_end"]
     pca["pca_plot\nPCA + Tracy-Widom test"]
     cross_ent["cross_entropy_plot\nK selection guide"]
     clusters["extract_clusters ×K\nQ-matrix per K"]
@@ -181,10 +174,16 @@ flowchart TB
     pca -- "projections\neigenvalues" --> pca_struct
     cross_ent --> summary
 ```
+
+**Key outputs**:
+- `PreStructure/plots/pca.png/svg`, `tracy_widom.png/svg`
+- `PreStructure/plots/cross_entropy_K{start}-{end}.png/svg`
+- `PreStructure/plots/K{k}/structure_K{k}.png/svg`
+- `PreStructure/tables/K{k}/clusters_K{k}.tsv`
 </details>
 
 <details>
-<summary><b>Structure K Mode</b> — Imputation, climate, population statistics</summary>
+<summary><b>Structure Mode</b> — Imputation, climate, population statistics</summary>
 
 ```mermaid
 flowchart TB
@@ -196,11 +195,12 @@ flowchart TB
     VCF_LD[/"LD-pruned VCF"/]:::data
     VCF_FILT[/"Filtered VCF"/]:::data
     META[/"Aligned Metadata"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
 
     impute_ld["impute_ld\nImpute LD-pruned (sNMF Q)"]
     lfmm2vcf["lfmm2vcf_ld\nImputed LFMM → VCF"]
     dl_climate["download_climate_present\nWorldClim bioclim rasters"]
+    check_variance["check_climate_variance\nDetect invariant predictors"]
     density["density_plot\nClimate density curves"]
     corr_heat["correlation_heatmap\nClimate × trait correlations"]
     piemap_s["piemap_simple ×bio\nPieMaps (uniform pie size)"]
@@ -211,6 +211,7 @@ flowchart TB
     mantel["mantel_test\nIBD/IBE Mantel test"]:::optional
     amova_rule["amova\nAMOVA analysis"]:::optional
     piemap_t["piemap_plot ×bio\nPieMaps (trait-scaled)"]:::optional
+    ld_decay["ld_decay_*\nLD decay analysis"]:::optional
     summary["write_summary"]
 
     SNMF --> impute_ld
@@ -218,25 +219,30 @@ flowchart TB
     impute_ld --> lfmm2vcf
     VCF_LD --> lfmm2vcf
     META --> dl_climate
-    dl_climate --> density & corr_heat & piemap_s & piemap_t & mantel & summary
+    dl_climate --> check_variance & density & corr_heat & piemap_s & piemap_t & mantel & summary
     META --> corr_heat & tajima & pi_div & ibd_rule
     CLUST --> piemap_s & piemap_t & ibd_rule & mantel
-    VCF_FILT --> tajima & pi_div
+    VCF_FILT --> tajima & pi_div & ld_decay
     tajima & pi_div --> piemap_t
     lfmm2vcf --> amova_rule
-    META --> amova_rule
+    META --> amova_rule & ld_decay
 ```
 
-Purple nodes = optional, require `POP_CALC_STATS: TRUE`.
+Purple nodes = optional (`Population.calc_stats: true`).
+
+**Key outputs**:
+- `climate/rasters/present/`, `climate/tables/present/`
+- `Structure/plots/piemap/piemap_{bio}.png/svg` + `zoom/`
+- `Structure/tables/pop_stats/tajima_d_by_pop.tsv`, `pi_diversity_by_pop.tsv`
+- `Structure/plots/ld_decay/ld_decay_genome_wide.png/svg`
 </details>
 
 <details>
-<summary><b>Association Mode (GEA)</b> — Climate association analysis</summary>
+<summary><b>GEA Mode</b> — Climate association analysis</summary>
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
 
     VCF_FILT[/"Filtered VCF"/]:::data
     CLIMATE[/"Climate (scaled)"/]:::data
@@ -249,160 +255,142 @@ flowchart TB
     snmf_full["snmf_full\nsNMF on full dataset"]
     impute_full["impute_full\nImpute full dataset"]
     lfmm2vcf_full["lfmm2vcf_full\nImputed → VCF"]
-    emmax["emmax_analysis\nEMMAX: kinship + PCA covariates"]
-    lfmm_rule["lfmm_analysis\nLFMM: latent factor model"]
-    sig_snps["find_sig_snps ×method\nPer-method significant SNPs"]
-    combine["combine_selected_snps\nMerge methods (Sum/Overlap)"]
-    regions["create_regions\nCluster SNPs → per-trait + combined"]
-    genes["find_genes_around_regions\nGenes in per-trait regions"]
-    genes_c["find_genes_combined_regions\nGenes in combined regions"]
-    enrichment["run_enrichment\nGO enrichment per region"]:::enrich
-    enrich_plots["plot_enrichment\nDotplot / emapplot / cnetplot"]:::enrich
-    manh_simple["manhattan_plot ×method×trait\nPer-trait Manhattan"]
-    manh_regions["manhattan_plot_regions ×method×trait\nManhattan + regions highlighted"]
-    manh_combined["manhattan_combined\nAll traits + methods combined"]
+    tped_gea["tped_gea\nVCF → TPED/TFAM"]
+    kinship_gea["kinship_gea\nBN kinship matrix"]
+    emmax["emmax_gea\nEMMAX: kinship + PCA covariates"]
+    lfmm_rule["lfmm_gea\nLFMM: latent factor model"]
+    gapit["gapit_gea ×model\nGAPIT3 (GLM/MLM/BLINK/FarmCPU/...)"]
+    sig_snps["assoc_find_sig_snps ×method\nPer-method significant SNPs"]
+    combine["assoc_combine_selected_snps\nMerge methods"]
+    regions["assoc_create_regions\nCluster SNPs → per-trait + combined"]
+    genes["assoc_find_genes_per_region\nGenes in per-trait regions"]
+    genes_c["assoc_find_genes_combined\nGenes in combined regions"]
+    manh_plot["assoc_manhattan_plot ×method×trait\nPer-trait Manhattan + QQ"]
+    manh_combined["assoc_manhattan_combined\nAll traits combined"]
     summary["write_summary"]
 
     VCF_FILT --> vcf2lfmm_full --> snmf_full --> impute_full
     vcf2lfmm_full -- ".lfmm" --> impute_full
-    VCF_FILT --> lfmm2vcf_full
+    VCF_FILT --> lfmm2vcf_full & tped_gea
     impute_full --> lfmm2vcf_full
+    tped_gea --> kinship_gea
     VCF_FILT --> emmax
-    CLIMATE --> emmax & lfmm_rule
-    PCA --> emmax
-    META --> emmax
+    CLIMATE --> emmax & lfmm_rule & gapit
+    PCA --> emmax & gapit
+    META --> emmax & gapit
+    kinship_gea --> emmax & gapit
     LFMM_IMP --> lfmm_rule
     impute_full --> lfmm_rule
     vcf2lfmm_full -- ".vcfsnp" --> lfmm_rule & genes & genes_c
-    emmax & lfmm_rule --> sig_snps --> combine --> regions
-    regions --> genes & genes_c & manh_regions & manh_combined
-    GFF --> genes & genes_c & enrichment
-    genes --> enrichment --> enrich_plots
-    emmax & lfmm_rule --> manh_simple
+    emmax & lfmm_rule & gapit --> sig_snps --> combine --> regions
+    regions --> genes & genes_c & manh_combined
+    GFF --> genes & genes_c
+    emmax & lfmm_rule & gapit --> manh_plot
     combine & regions & genes --> summary
 ```
+
+**Key outputs**:
+- `GEA/GAPIT_native_output/{model}/`
+- `GEA/tables/methods/{method}/` — per-method p-values + significant SNPs
+- `GEA/tables/selected_snps.tsv`, `regions_per_trait.tsv`, `regions_combined.tsv`
+- `GEA/tables/genes_per_region.tsv`, `genes_combined.tsv`
+- `GEA/plots/manhattan/{method}/manhattan_{trait}_K{k}_{adjust}.png/svg`
+- `GEA/plots/manhattan/combined/manhattan_combined_K{k}.png/svg`
 </details>
 
 <details>
-<summary><b>Phenotype Association Mode</b> — GWAS on phenotypic traits</summary>
+<summary><b>GWAS Mode</b> — Association on phenotypic traits</summary>
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
     classDef drop fill:#FFEBEE,stroke:#C62828,color:#333,stroke-dasharray:3 3
 
     META[/"Aligned Metadata"/]:::data
     VCF_FILT[/"Filtered VCF"/]:::data
     PCA[/"PCA projections"/]:::data
     GFF[/"Normalized GFF"/]:::data
-    VCFSNP[/".vcfsnp (full)"/]:::data
     CLIMATE[/"Climate raster"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
 
     prep["prepare_phenotypes\nExtract traits, handle missing (MEAN/MEDIAN/DROP)"]
 
     subgraph pathA["Path A: MEAN/MEDIAN"]
-        tped_a["tped_pheno\nVCF → TPED/TFAM"]
-        kin_a["kinship_pheno\nCompute kinship"]
-        emmax_a["emmax_pheno\nEMMAX all traits at once"]
+        tped_a["tped_gwas\nVCF → TPED/TFAM"]
+        kin_a["kinship_gwas\nCompute kinship"]
+        emmax_a["emmax_gwas\nEMMAX all traits"]
+        gapit_a["gapit_gwas ×model\nGAPIT3 all traits"]
     end
 
     subgraph pathB["Path B: DROP"]
-        subset["subset_vcf_pheno ×trait\nPer-trait VCF subset"]:::drop
-        tped_b["tped_pheno_trait ×trait\nPer-trait TPED"]:::drop
-        kin_b["kinship_pheno_trait ×trait\nPer-trait kinship"]:::drop
-        emmax_b["emmax_pheno_trait ×trait\nEMMAX per trait"]:::drop
-        combine_pv["combine_pheno_pvalues\nMerge per-trait p-values"]:::drop
+        subset["subset_vcf_gwas ×trait\nPer-trait VCF subset"]:::drop
+        tped_b["tped_gwas_trait ×trait\nPer-trait TPED"]:::drop
+        kin_b["kinship_gwas_trait ×trait\nPer-trait kinship"]:::drop
+        emmax_b["emmax_gwas_trait ×trait\nEMMAX per trait"]:::drop
+        gapit_b["gapit_gwas_trait ×model×trait\nGAPIT3 per trait"]:::drop
+        combine_pv["combine_gapit_gwas_pvalues\nMerge per-trait p-values"]:::drop
     end
 
-    sig["find_sig_snps_pheno\nSignificant phenotype SNPs"]
-    combine_sel["combine_selected_snps_pheno\nMerge methods"]
-    reg["create_regions_pheno\nCluster phenotype SNPs"]
-    genes_p["find_genes_pheno\nGenes in per-trait regions"]
-    genes_pc["find_genes_combined_pheno\nGenes in combined regions"]
-    enrichment_p["run_enrichment_pheno"]:::enrich
-    enrich_plots_p["plot_enrichment_pheno"]:::enrich
-    manh_p["manhattan_pheno ×trait"]
-    manh_pr["manhattan_pheno_regions ×trait"]
-    manh_pc["manhattan_combined_pheno\nAll traits combined"]
-    piemap_p["piemap_pheno ×trait\nTrait PieMaps"]
+    sig["assoc_find_sig_snps ×method"]
+    combine_sel["assoc_combine_selected_snps"]
+    reg["assoc_create_regions"]
+    genes_p["assoc_find_genes_per_region"]
+    genes_pc["assoc_find_genes_combined"]
+    manh_p["assoc_manhattan_plot ×method×trait"]
+    manh_pc["assoc_manhattan_combined"]
+    piemap_p["piemap_gwas ×trait\nTrait PieMaps"]
     summary["write_summary"]
 
     META --> prep
-    VCF_FILT --> tped_a --> kin_a --> emmax_a
-    PCA --> emmax_a & emmax_b
-    prep --> emmax_a
-
-    VCF_FILT & prep --> subset --> tped_b --> kin_b --> emmax_b
-    prep --> emmax_b
-    emmax_b --> combine_pv
-
-    emmax_a & combine_pv --> sig --> combine_sel --> reg
-    reg --> genes_p & genes_pc & manh_pr & manh_pc
-    GFF --> genes_p & genes_pc & enrichment_p
-    VCFSNP --> genes_p & genes_pc
-    genes_p --> enrichment_p --> enrich_plots_p
-    emmax_a & combine_pv --> manh_p
+    VCF_FILT --> tped_a --> kin_a --> emmax_a & gapit_a
+    PCA --> emmax_a & gapit_a & emmax_b & gapit_b
+    prep --> emmax_a & gapit_a
+    VCF_FILT & prep --> subset --> tped_b --> kin_b --> emmax_b & gapit_b
+    prep --> emmax_b & gapit_b
+    emmax_b & gapit_b --> combine_pv
+    emmax_a & gapit_a & combine_pv --> sig --> combine_sel --> reg
+    reg --> genes_p & genes_pc & manh_pc
+    GFF --> genes_p & genes_pc
+    emmax_a & gapit_a & combine_pv --> manh_p
     CLIMATE --> piemap_p
-    CLUST --> piemap_p
-    prep --> piemap_p
+    CLUST & prep --> piemap_p
     prep & combine_sel & reg & genes_p --> summary
 ```
 
-Red nodes = DROP path only (per-trait subsetting). Either Path A or Path B runs, not both.
+Red nodes = DROP path only.
+
+**Key outputs** (same structure as GEA but under `GWAS/`):
+- `GWAS/tables/selected_snps.tsv`, `regions_per_trait.tsv`, `regions_combined.tsv`
+- `GWAS/plots/manhattan/{method}/`, `GWAS/plots/manhattan/combined/`
+- `GWAS/plots/piemap/phenomap_{trait}.png/svg` + `zoom/`
 </details>
 
 <details>
-<summary><b>Overlapping Mode</b> — GEA + GWAS combined</summary>
+<summary><b>GEAxGWAS Mode</b> — GEA + GWAS overlap analysis</summary>
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
 
     GEA_SNPS[/"GEA Selected_SNPs"/]:::data
     GWAS_SNPS[/"GWAS Selected_SNPs"/]:::data
     GEA_REG[/"GEA Regions_combined"/]:::data
     GWAS_REG[/"GWAS Regions_combined"/]:::data
-    GFF[/"Normalized GFF"/]:::data
-    VCFSNP[/".vcfsnp (full)"/]:::data
 
-    combine["combine_overlap_snps\nMerge GEA+GWAS SNPs, compute overlaps\n→ new combined regions"]
-    genes_o["find_genes_overlap\nGenes in per-trait regions"]
-    genes_oc["find_genes_combined_overlap\nGenes in combined regions"]
-    enrich_o["run_enrichment_overlap"]:::enrich
-    enrich_plots_o["plot_enrichment_overlap"]:::enrich
+    miami["miami_plot\nGEA above / GWAS below"]
+    pairwise["compute_pairwise_overlaps\nAll-vs-all trait SNP overlap"]
     summary["write_summary"]
 
-    GEA_SNPS & GWAS_SNPS --> combine
-    GEA_REG & GWAS_REG --> combine
-    combine --> genes_o & genes_oc
-    GFF --> genes_o & genes_oc & enrich_o
-    VCFSNP --> genes_o & genes_oc
-    genes_o --> enrich_o --> enrich_plots_o
-    combine & genes_o & enrich_o --> summary
+    GEA_SNPS & GWAS_SNPS & GEA_REG & GWAS_REG --> miami
+    GEA_SNPS & GWAS_SNPS --> pairwise
+    miami & pairwise --> summary
 ```
-</details>
 
-<details>
-<summary><b>Regionplot Mode</b> — Regional Manhattan with gene annotations</summary>
+Region overlap detection, gene annotation, and GO enrichment are computed on-demand in the Shiny dashboard.
 
-```mermaid
-flowchart TB
-    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-
-    GFF[/"Normalized GFF"/]:::data
-    REGIONS[/"Regions_per_trait"/]:::data
-    PVALS[/"Association p-values\n(all methods)"/]:::data
-
-    gff2topr["gff2topr\nGFF → topr annotation format"]
-    regplot["regionplot\nRegional Manhattan + gene overlays"]
-
-    GFF --> gff2topr --> regplot
-    REGIONS --> regplot
-    PVALS --> regplot
-```
+**Key outputs**:
+- `GEAxGWAS/plots/miami_combined_K{k}.png/svg` + `_background.png` + `_coords.json`
+- `GEAxGWAS/tables/pairwise_collapsed_snps.tsv`, `pairwise_overlap_table.tsv`
 </details>
 
 <details>
@@ -418,58 +406,61 @@ flowchart TB
     LFMM_FULL[/".lfmm (full)"/]:::data
     VCFSNP[/".vcfsnp (full)"/]:::data
     SIG_SNPS[/"Selected_SNPs"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
     TAJIMA[/"Tajima D"/]:::data
     PI[/"Pi Diversity"/]:::data
 
     dl_future["download_climate_future_model ×model\nCMIP6 future climate per model"]
     merge["merge_climate_future\nEnsemble average across models"]
+    combine_gf["combine_gf_snps\nFilter + combine adaptive SNPs"]
     gf_adapt["gradient_forest_adaptive\nAdaptive GF model (sig SNPs)"]
     gf_random["gradient_forest_random\nNeutral GF model (random SNPs)"]:::optional
     offset["gradient_forest_offset\nGenetic offset present → future"]
     cumimp["plot_gf_cumimp\nCumulative importance curves"]
     importance["plot_gf_importance\nOverall R²-weighted importance"]
-    piemap_go["plot_gf_offset_piemap\nOffset PieMap (uniform)"]
-    piemap_taj["plot_gf_offset_piemap_tajima\nOffset PieMap + Tajima D"]:::optional
-    piemap_pi["plot_gf_offset_piemap_diversity\nOffset PieMap + Pi Diversity"]:::optional
+    piemap["plot_gf_offset_piemap\n{size_trait}: notrait | tajima_d | pi_diversity"]
     density_f["density_plot_future\nFuture climate density"]
     summary["write_summary"]
 
     META --> dl_future --> merge
+    SIG_SNPS --> combine_gf --> gf_adapt & gf_random
     CLIMATE --> merge & gf_adapt & gf_random & offset
     LFMM_FULL & VCFSNP --> gf_adapt & gf_random
-    SIG_SNPS --> gf_adapt & gf_random
     META --> gf_adapt & gf_random
     gf_adapt --> offset & cumimp & importance
     gf_random --> cumimp & importance
     merge --> offset & density_f
-    offset --> piemap_go & piemap_taj & piemap_pi
-    CLUST --> piemap_go & piemap_taj & piemap_pi
-    TAJIMA --> piemap_taj
-    PI --> piemap_pi
+    offset --> piemap
+    CLUST & TAJIMA & PI --> piemap
     gf_adapt & offset --> summary
 ```
 
-Purple nodes = optional (random model requires `GF_RANDOM_MODEL: TRUE`; Tajima/Pi piemaps require `POP_CALC_STATS: TRUE`).
+Purple nodes = optional (`Maladaptation.methods.gradient_forest.random_model: true`; `Population.calc_stats: true` for Tajima/Pi piemaps).
+
+**Key outputs** (under `Maladaptation/{plots,tables}/gradient_forest/{run_label}_{spatial_tag}/`):
+- `Maladaptation/plots/gradient_forest/{suffix}/cumulative_importance.png/svg`
+- `Maladaptation/plots/gradient_forest/{suffix}/overall_importance.png/svg`
+- `Maladaptation/plots/gradient_forest/{suffix}/genetic_offset_piemap[_{tajima_d,pi_diversity}].png/svg`
+- `Maladaptation/tables/gradient_forest/{suffix}/genetic_offset_{map,site}.tsv`
 </details>
 
 ---
 
 ## Configuration
 
-All parameters are defined in `config.yaml`. See the **[Configuration Reference](docs/configuration.md)** for full parameter documentation, YAML examples, GO enrichment details, and output directory structure.
+All parameters are defined in `config.yaml`. See the **[Configuration Reference](docs/configuration.md)** for full parameter documentation, YAML examples, and output directory structure.
 
 ---
 
 ## Interactive Results Viewer
 
-ADAPTOGENE includes a Shiny dashboard that auto-discovers all projects and organizes outputs into tabs: Structure, Structure K, Association, Phenotype Association, Haplotype Analysis, Overlapping Regions, Maladaptation.
+ADAPTOGENE includes a Shiny dashboard that auto-discovers all projects and organizes outputs into tabs: **Home**, **Processing**, **PreStructure**, **Structure**, **GEA**, **GWAS**, **GEAxGWAS**, **Maladaptation**.
 
-The interface is **region-centric**: selecting a genomic region (via click on the Manhattan plot or dropdown) reveals a consolidated detail panel with GO enrichment plots (dotplot + emapplot), gene annotations, enrichment tables, and haplotype analysis — all in one place, directly below the Manhattan plot. This lets researchers assess the biological importance and functional context of each region without switching between tabs.
+The interface is **region-centric**: clicking a significant SNP in any Manhattan plot selects a genomic region and reveals a consolidated detail panel with GO enrichment plots, gene annotations, enrichment tables, regionplot, and haplotype analysis — all computed on-demand, directly below the Manhattan. Results persist to disk across sessions.
 
 ```bash
 docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
-  Rscript -e "shiny::runApp('/pipeline/scripts/app.R', host='0.0.0.0', port=3838)"
+  R -e "adaptogene.app::run_app(options = list(host = '0.0.0.0', port = 3838))"
 ```
 
 Open http://localhost:3838 in your browser.
@@ -485,6 +476,7 @@ If you use ADAPTOGENE in published work, please cite:
   - **sNMF**: Frichot et al. 2014, *Molecular Biology and Evolution*
   - **EMMAX**: Kang et al. 2010, *Nature Genetics*
   - **LFMM**: Frichot et al. 2013, *Molecular Biology and Evolution*
+  - **GAPIT3**: Wang & Zhang 2021, *Genomics, Proteomics & Bioinformatics*
   - **Gradient Forest**: Ellis et al. 2012, *Ecology*
   - **WorldClim**: Fick & Hijmans 2017, *International Journal of Climatology*
   - **clusterProfiler**: Yu et al. 2012, *OMICS*
@@ -494,4 +486,3 @@ If you use ADAPTOGENE in published work, please cite:
 ## License
 
 This pipeline is open-source software. See LICENSE file for details.
-

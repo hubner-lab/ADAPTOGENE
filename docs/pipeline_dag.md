@@ -11,66 +11,51 @@ flowchart TB
         GFF["GFF3 Annotation"]
     end
 
-    subgraph proc["1 · Processing"]
+    subgraph proc["1 · processing"]
         direction LR
         P["Filter + LD prune + normalize"]
     end
 
-    subgraph struct["2 · Structure"]
+    subgraph prestruct["2 · prestructure"]
         direction LR
         S["sNMF + PCA + cross-entropy"]
     end
 
-    subgraph structK["3 · Structure K"]
+    subgraph struct["3 · structure"]
         direction LR
         SK["Impute + climate + piemaps + pop stats"]
     end
 
-    subgraph assoc["4 · Association — GEA"]
+    subgraph gea_mode["4 · gea"]
         direction LR
-        A["EMMAX/LFMM → regions → genes → GO"]
+        A["EMMAX/LFMM/GAPIT → regions → genes"]
     end
 
-    subgraph pheno["5 · Phenotype Association"]
+    subgraph gwas_mode["5 · gwas"]
         direction LR
-        AP["EMMAX per trait → regions → genes → GO"]
+        AP["EMMAX/GAPIT per trait → regions → genes"]
     end
 
-    subgraph overlap_mode["6 · Overlapping"]
+    subgraph geaxgwas_mode["6 · gea_x_gwas"]
         direction LR
-        OV["GEA∩GWAS → new regions → genes → GO"]
+        OV["Miami plot + pairwise overlap tables"]
     end
 
-    subgraph regionplot_mode["7 · Regionplot"]
-        direction LR
-        RP["Regional Manhattan + gene annotations"]
-    end
-
-    subgraph malad["8 · Maladaptation"]
+    subgraph malad["7 · maladaptation"]
         direction LR
         M["Gradient Forest → genetic offset"]
     end
 
-    subgraph hap_scan["9 · Haplotype Scan"]
-        direction LR
-        HS["crosshap epsilon scan → clustree"]
-    end
-
-    subgraph hap_viz["10 · Haplotype"]
-        direction LR
-        HV["crosshap_viz + boxplots + piemaps"]
-    end
-
-    inputs --> proc --> struct
-    struct -. "Select K_BEST" .-> structK
-    structK --> assoc & pheno
-    assoc --> regionplot_mode & malad
-    assoc & pheno --> overlap_mode
-    assoc & pheno & overlap_mode -.-> hap_scan
-    hap_scan -. "Select epsilon" .-> hap_viz
+    inputs --> proc --> prestruct
+    prestruct -. "Set sNMF.k_best" .-> struct
+    struct --> gea_mode & gwas_mode
+    gea_mode --> malad
+    gea_mode & gwas_mode --> geaxgwas_mode
 ```
 
 Each mode is run separately via `--config mode=<MODE>`.
+
+> **Regionplot, GO enrichment, haplotype scanning, and haplotype visualization** are computed on-demand in the Shiny dashboard rather than as pipeline modes.
 
 ---
 
@@ -111,13 +96,13 @@ flowchart TB
 **Key outputs**:
 - `_work/.../filtered.vcf`, `_work/.../ld.../pruned.vcf` — filtered + LD-pruned VCFs
 - `_work/.../ld.../{name}.geno`, `.lfmm`, `.vcfsnp` — LEA format conversions
-- `processing/tables/metadata.tsv` — aligned metadata (sample order matches VCF)
-- `processing/tables/sample_missing_stats.tsv` — per-sample missingness
+- `Processing/tables/metadata.tsv` — aligned metadata (sample order matches VCF)
+- `Processing/tables/sample_missing_stats.tsv` — per-sample missingness
 - `_intermediate/annotation/normalized.gff3` — chr-stripped GFF
 
 ---
 
-### Structure Mode — Population structure inference
+### PreStructure Mode — Population structure inference
 
 ```mermaid
 flowchart TB
@@ -126,7 +111,7 @@ flowchart TB
     LFMM[/".lfmm (LD-pruned)"/]:::data
     META[/"Aligned Metadata"/]:::data
 
-    snmf["snmf\nsNMF ancestry K_START..K_END"]
+    snmf["snmf\nsNMF ancestry k_start..k_end"]
     pca["pca_plot\nPCA + Tracy-Widom test"]
     cross_ent["cross_entropy_plot\nK selection guide"]
     clusters["extract_clusters ×K\nQ-matrix per K"]
@@ -145,16 +130,16 @@ flowchart TB
 ```
 
 **Key outputs**:
-- `structure/plots/pca.png/svg`, `tracy_widom.png/svg` — PCA scatter + eigenvalue test
-- `structure/plots/cross_entropy_K{start}-{end}.png/svg` — K selection guide
-- `structure/plots/structure_K{k}.png/svg` — ancestry barplots (per K)
-- `structure/plots/pca_structure_K{k}.png/svg` — PCA with ancestry pies
-- `structure/plots/pop_diff_K{k}.png/svg` — population differentiation
-- `structure/tables/clusters_K{k}.tsv` — Q-matrices per K
+- `PreStructure/plots/pca.png/svg`, `tracy_widom.png/svg` — PCA scatter + eigenvalue test
+- `PreStructure/plots/cross_entropy_K{start}-{end}.png/svg` — K selection guide
+- `PreStructure/plots/K{k}/structure_K{k}.png/svg` — ancestry barplots (per K)
+- `PreStructure/plots/K{k}/pca_structure_K{k}.png/svg` — PCA with ancestry pies
+- `PreStructure/plots/K{k}/pop_diff_K{k}.png/svg` — population differentiation
+- `PreStructure/tables/K{k}/clusters_K{k}.tsv` — Q-matrices per K
 
 ---
 
-### Structure K Mode — Imputation, climate, population statistics
+### Structure Mode — Imputation, climate, population statistics
 
 ```mermaid
 flowchart TB
@@ -166,11 +151,12 @@ flowchart TB
     VCF_LD[/"LD-pruned VCF"/]:::data
     VCF_FILT[/"Filtered VCF"/]:::data
     META[/"Aligned Metadata"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
 
     impute_ld["impute_ld\nImpute LD-pruned (sNMF Q)"]
     lfmm2vcf["lfmm2vcf_ld\nImputed LFMM → VCF"]
     dl_climate["download_climate_present\nWorldClim bioclim rasters"]
+    check_variance["check_climate_variance\nDetect invariant predictors"]
     density["density_plot\nClimate density curves"]
     corr_heat["correlation_heatmap\nClimate × trait correlations"]
     piemap_s["piemap_simple ×bio\nPieMaps (uniform pie size)"]
@@ -181,6 +167,7 @@ flowchart TB
     mantel["mantel_test\nIBD/IBE Mantel test"]:::optional
     amova_rule["amova\nAMOVA analysis"]:::optional
     piemap_t["piemap_plot ×bio\nPieMaps (trait-scaled)"]:::optional
+    ld_decay["ld_decay_*\nLD decay analysis"]:::optional
     summary["write_summary"]
 
     SNMF --> impute_ld
@@ -188,34 +175,34 @@ flowchart TB
     impute_ld --> lfmm2vcf
     VCF_LD --> lfmm2vcf
     META --> dl_climate
-    dl_climate --> density & corr_heat & piemap_s & piemap_t & mantel & summary
+    dl_climate --> check_variance & density & corr_heat & piemap_s & piemap_t & mantel & summary
     META --> corr_heat & tajima & pi_div & ibd_rule
     CLUST --> piemap_s & piemap_t & ibd_rule & mantel
-    VCF_FILT --> tajima & pi_div
+    VCF_FILT --> tajima & pi_div & ld_decay
     tajima & pi_div --> piemap_t
     lfmm2vcf --> amova_rule
-    META --> amova_rule
+    META --> amova_rule & ld_decay
 ```
 
-**Purple nodes** = optional, require `pop.calc_stats: TRUE`
+**Purple nodes** = optional, require `Population.calc_stats: true`; LD decay always runs.
 
 **Key outputs**:
-- `climate/rasters/present/climate_present_rasterstack.grd` — WorldClim bioclim rasters
+- `climate/rasters/present/` — WorldClim bioclim rasters (.tif)
 - `climate/tables/present/climate_present_{all,site,site_scaled}.tsv`
 - `climate/plots/density_plot_present.png/svg`, `correlation_heatmap.png/svg`
-- `structure_k/plots/piemap/piemap_{bio}.png/svg/qs` + `zoom/` variants
-- `structure_k/plots/piemap/{tajima_d,pi_diversity}/piemap_{bio}_{metric}.png/svg/qs` (optional)
-- `structure_k/tables/pop_stats/tajima_d_by_pop.tsv`, `pi_diversity_by_pop.tsv`, `ibd_raw.tsv`, `ibd_pairs.tsv`, `amova.tsv`
-- `structure_k/plots/pop_stats/mantel_test.png/svg`, `amova.png/svg`
+- `Structure/plots/piemap/piemap_{bio}.png/svg` + `zoom/` variants
+- `Structure/plots/piemap/{tajima_d,pi_diversity}/piemap_{bio}_{metric}.png/svg` (optional)
+- `Structure/tables/pop_stats/tajima_d_by_pop.tsv`, `pi_diversity_by_pop.tsv`, `ibd_raw.tsv`, `ibd_pairs.tsv`, `amova.tsv`
+- `Structure/plots/pop_stats/mantel_test.png/svg`, `amova.png/svg`
+- `Structure/plots/ld_decay/ld_decay_genome_wide.png/svg`, `ld_decay_per_chr.png/svg`, `ld_decay_per_pop.png/svg`
 
 ---
 
-### Association Mode (GEA) — Climate association analysis
+### GEA Mode — Climate association analysis
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
 
     VCF_FILT[/"Filtered VCF"/]:::data
     CLIMATE[/"Climate (scaled)"/]:::data
@@ -228,58 +215,60 @@ flowchart TB
     snmf_full["snmf_full\nsNMF on full dataset"]
     impute_full["impute_full\nImpute full dataset"]
     lfmm2vcf_full["lfmm2vcf_full\nImputed → VCF"]
-    emmax["emmax_analysis\nEMMAX: kinship + PCA covariates"]
-    lfmm_rule["lfmm_analysis\nLFMM: latent factor model"]
-    sig_snps["find_sig_snps ×method\nPer-method significant SNPs"]
-    combine["combine_selected_snps\nMerge methods (Sum/Overlap)"]
-    regions["create_regions\nCluster SNPs → per-trait + combined"]
-    genes["find_genes_around_regions\nGenes in per-trait regions"]
-    genes_c["find_genes_combined_regions\nGenes in combined regions"]
-    enrichment["run_enrichment\nGO enrichment per region"]:::enrich
-    enrich_plots["plot_enrichment\nDotplot / emapplot / cnetplot"]:::enrich
-    manh_simple["manhattan_plot ×method×trait\nPer-trait Manhattan"]
-    manh_regions["manhattan_plot_regions ×method×trait\nManhattan + regions highlighted"]
-    manh_combined["manhattan_combined\nAll traits + methods combined"]
+    tped_gea["tped_gea\nVCF → TPED/TFAM"]
+    kinship_gea["kinship_gea\nBN kinship matrix"]
+    emmax["emmax_gea\nEMMAX: kinship + PCA covariates"]
+    lfmm_rule["lfmm_gea\nLFMM: latent factor model"]
+    gapit["gapit_gea ×model\nGAPIT3 (GLM/MLM/BLINK/FarmCPU/...)"]
+    sig_snps["assoc_find_sig_snps ×method\nPer-method significant SNPs"]
+    combine["assoc_combine_selected_snps\nMerge methods (All/MethodOverlap)"]
+    regions["assoc_create_regions\nCluster SNPs → per-trait + combined"]
+    genes["assoc_find_genes_per_region\nGenes in per-trait regions"]
+    genes_c["assoc_find_genes_combined\nGenes in combined regions"]
+    manh_plot["assoc_manhattan_plot ×method×trait\nPer-trait Manhattan + QQ"]
+    manh_combined["assoc_manhattan_combined\nAll traits + methods combined"]
     summary["write_summary"]
 
     VCF_FILT --> vcf2lfmm_full --> snmf_full --> impute_full
     vcf2lfmm_full -- ".lfmm" --> impute_full
-    VCF_FILT --> lfmm2vcf_full
+    VCF_FILT --> lfmm2vcf_full & tped_gea
     impute_full --> lfmm2vcf_full
+    tped_gea --> kinship_gea
     VCF_FILT --> emmax
-    CLIMATE --> emmax & lfmm_rule
-    PCA --> emmax
-    META --> emmax
+    CLIMATE --> emmax & lfmm_rule & gapit
+    PCA --> emmax & gapit
+    META --> emmax & gapit
+    kinship_gea --> emmax & gapit
     LFMM_IMP --> lfmm_rule
     impute_full --> lfmm_rule
     vcf2lfmm_full -- ".vcfsnp" --> lfmm_rule & genes & genes_c
-    emmax & lfmm_rule --> sig_snps --> combine --> regions
-    regions --> genes & genes_c & manh_regions & manh_combined
-    GFF --> genes & genes_c & enrichment
-    genes --> enrichment --> enrich_plots
-    emmax & lfmm_rule --> manh_simple
+    emmax & lfmm_rule & gapit --> sig_snps --> combine --> regions
+    regions --> genes & genes_c & manh_combined
+    GFF --> genes & genes_c
+    emmax & lfmm_rule & gapit --> manh_plot
     combine & regions & genes --> summary
 ```
 
+> **GO enrichment and regionplot** are computed on-demand in the Shiny dashboard (GEA tab → region detail). Results persist to `GEA/plots/enrichment/` and `GEA/tables/enrichment/`.
+
 **Key outputs**:
-- `association/tables/{METHOD}/{method}_pvalues_K{k}.tsv` — per-method p-values
-- `association/tables/{METHOD}/{method}_pvalues_K{k}_sig_snps_{adjust}.tsv` — significant SNPs
-- `association/tables/selected_snps.tsv` — merged across methods
-- `association/tables/regions_per_trait.tsv`, `regions_combined.tsv` — clustered regions
-- `association/tables/genes_per_region.tsv`, `genes_per_region_collapsed.tsv`, `genes_combined.tsv`
-- `association/plots/manhattan/{METHOD}/manhattan_{trait}_K{k}_{adjust}.png/svg` (plain + regions)
-- `association/plots/manhattan_combined_K{k}.png/svg`
-- `association/plots/enrichment/{trait}/region_{id}_dotplot.png/svg` (+ emapplot, cnetplot)
-- `association/tables/enrichment/{trait}/region_{id}_enrichment.tsv`
+- `GEA/GAPIT_native_output/{model}/` — raw GAPIT output files
+- `GEA/tables/methods/{method}/{method}_pvalues_K{k}.tsv` — per-method p-values
+- `GEA/tables/methods/{method}/{method}_sig_snps_{adjust}.tsv` — significant SNPs per method
+- `GEA/tables/selected_snps.tsv` — merged across methods
+- `GEA/tables/regions_per_trait.tsv`, `regions_combined.tsv` — clustered regions
+- `GEA/tables/genes_per_region.tsv`, `genes_per_region_collapsed.tsv`, `genes_combined.tsv`
+- `GEA/plots/manhattan/{method}/manhattan_{trait}_K{k}_{adjust}.png/svg`
+- `GEA/plots/manhattan/{method}/qq_{trait}_K{k}_{adjust}.png/svg`
+- `GEA/plots/manhattan/combined/manhattan_combined_K{k}.png/svg`
 
 ---
 
-### Phenotype Association Mode — GWAS on phenotypic traits
+### GWAS Mode — Association on phenotypic traits
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
     classDef drop fill:#FFEBEE,stroke:#C62828,color:#333,stroke-dasharray:3 3
 
     META[/"Aligned Metadata"/]:::data
@@ -288,52 +277,50 @@ flowchart TB
     GFF[/"Normalized GFF"/]:::data
     VCFSNP[/".vcfsnp (full)"/]:::data
     CLIMATE[/"Climate raster"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
 
     prep["prepare_phenotypes\nExtract traits, handle missing (MEAN/MEDIAN/DROP)"]
 
     subgraph pathA["Path A: MEAN/MEDIAN"]
-        tped_a["tped_pheno\nVCF → TPED/TFAM"]
-        kin_a["kinship_pheno\nCompute kinship"]
-        emmax_a["emmax_pheno\nEMMAX all traits at once"]
+        tped_a["tped_gwas\nVCF → TPED/TFAM"]
+        kin_a["kinship_gwas\nCompute kinship"]
+        emmax_a["emmax_gwas\nEMMAX all traits at once"]
+        gapit_a["gapit_gwas ×model\nGAPIT3 all traits"]
     end
 
     subgraph pathB["Path B: DROP"]
-        subset["subset_vcf_pheno ×trait\nPer-trait VCF subset"]:::drop
-        tped_b["tped_pheno_trait ×trait\nPer-trait TPED"]:::drop
-        kin_b["kinship_pheno_trait ×trait\nPer-trait kinship"]:::drop
-        emmax_b["emmax_pheno_trait ×trait\nEMMAX per trait"]:::drop
-        combine_pv["combine_pheno_pvalues\nMerge per-trait p-values"]:::drop
+        subset["subset_vcf_gwas ×trait\nPer-trait VCF subset"]:::drop
+        tped_b["tped_gwas_trait ×trait\nPer-trait TPED"]:::drop
+        kin_b["kinship_gwas_trait ×trait\nPer-trait kinship"]:::drop
+        emmax_b["emmax_gwas_trait ×trait\nEMMAX per trait"]:::drop
+        gapit_b["gapit_gwas_trait ×model×trait\nGAPIT3 per trait"]:::drop
+        combine_pv["combine_gapit_gwas_pvalues\nMerge per-trait p-values"]:::drop
     end
 
-    sig["find_sig_snps_pheno\nSignificant phenotype SNPs"]
-    combine_sel["combine_selected_snps_pheno\nMerge methods"]
-    reg["create_regions_pheno\nCluster phenotype SNPs"]
-    genes_p["find_genes_pheno\nGenes in per-trait regions"]
-    genes_pc["find_genes_combined_pheno\nGenes in combined regions"]
-    enrichment_p["run_enrichment_pheno"]:::enrich
-    enrich_plots_p["plot_enrichment_pheno"]:::enrich
-    manh_p["manhattan_pheno ×trait"]
-    manh_pr["manhattan_pheno_regions ×trait"]
-    manh_pc["manhattan_combined_pheno\nAll traits combined"]
-    piemap_p["piemap_pheno ×trait\nTrait PieMaps"]
+    sig["assoc_find_sig_snps ×method\nSignificant phenotype SNPs"]
+    combine_sel["assoc_combine_selected_snps\nMerge methods"]
+    reg["assoc_create_regions\nCluster phenotype SNPs"]
+    genes_p["assoc_find_genes_per_region\nGenes in per-trait regions"]
+    genes_pc["assoc_find_genes_combined\nGenes in combined regions"]
+    manh_p["assoc_manhattan_plot ×method×trait\nPer-trait Manhattan + QQ"]
+    manh_pc["assoc_manhattan_combined\nAll traits combined"]
+    piemap_p["piemap_gwas ×trait\nTrait PieMaps"]
     summary["write_summary"]
 
     META --> prep
     VCF_FILT --> tped_a --> kin_a --> emmax_a
-    PCA --> emmax_a & emmax_b
-    prep --> emmax_a
+    PCA --> emmax_a & emmax_b & gapit_a & gapit_b
+    prep --> emmax_a & gapit_a
 
     VCF_FILT & prep --> subset --> tped_b --> kin_b --> emmax_b
-    prep --> emmax_b
-    emmax_b --> combine_pv
+    prep --> emmax_b & gapit_b
+    emmax_b & gapit_b --> combine_pv
 
-    emmax_a & combine_pv --> sig --> combine_sel --> reg
-    reg --> genes_p & genes_pc & manh_pr & manh_pc
-    GFF --> genes_p & genes_pc & enrichment_p
+    emmax_a & gapit_a & combine_pv --> sig --> combine_sel --> reg
+    reg --> genes_p & genes_pc & manh_pc
+    GFF --> genes_p & genes_pc
     VCFSNP --> genes_p & genes_pc
-    genes_p --> enrichment_p --> enrich_plots_p
-    emmax_a & combine_pv --> manh_p
+    emmax_a & gapit_a & combine_pv --> manh_p
     CLIMATE --> piemap_p
     CLUST --> piemap_p
     prep --> piemap_p
@@ -342,71 +329,47 @@ flowchart TB
 
 **Red nodes** = DROP path only (per-trait subsetting). Either Path A or Path B runs, not both.
 
-**Key outputs**: Same structure as association/ but under `phenotype_association/`. Additionally:
-- `phenotype_association/tables/phenotype_missing_summary.tsv`
-- `phenotype_association/plots/piemap/phenomap_{trait}.png/svg/qs` + `zoom/`
+> **GO enrichment** is computed on-demand in the Shiny dashboard (GWAS tab → region detail). Results persist to `GWAS/plots/enrichment/` and `GWAS/tables/enrichment/`.
+
+**Key outputs** (same structure as GEA but under `GWAS/`):
+- `GWAS/tables/methods/{method}/` — per-method p-values and significant SNPs
+- `GWAS/tables/selected_snps.tsv`, `regions_per_trait.tsv`, `regions_combined.tsv`
+- `GWAS/tables/genes_per_region.tsv`, `genes_combined.tsv`
+- `GWAS/plots/manhattan/{method}/manhattan_{trait}_K{k}_{adjust}.png/svg`
+- `GWAS/plots/manhattan/combined/manhattan_combined_K{k}.png/svg`
+- `GWAS/plots/piemap/phenomap_{trait}.png/svg` + `zoom/`
 
 ---
 
-### Overlapping Mode — GEA + GWAS combined
+### GEAxGWAS Mode — GEA + GWAS overlap analysis
 
 ```mermaid
 flowchart TB
     classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-    classDef enrich fill:#E8F5E9,stroke:#2E7D32,color:#333,stroke-dasharray:3 3
 
     GEA_SNPS[/"GEA Selected_SNPs"/]:::data
     GWAS_SNPS[/"GWAS Selected_SNPs"/]:::data
     GEA_REG[/"GEA Regions_combined"/]:::data
     GWAS_REG[/"GWAS Regions_combined"/]:::data
-    GFF[/"Normalized GFF"/]:::data
-    VCFSNP[/".vcfsnp (full)"/]:::data
 
-    combine["combine_overlap_snps\nMerge GEA+GWAS SNPs, compute overlaps\n→ new combined regions"]
-    genes_o["find_genes_overlap\nGenes in per-trait regions"]
-    genes_oc["find_genes_combined_overlap\nGenes in combined regions"]
-    enrich_o["run_enrichment_overlap"]:::enrich
-    enrich_plots_o["plot_enrichment_overlap"]:::enrich
+    miami["miami_plot\nGEA above / GWAS below\nscattermore background + coords JSON"]
+    pairwise["compute_pairwise_overlaps\nAll-vs-all trait SNP overlap"]
     summary["write_summary"]
 
-    GEA_SNPS & GWAS_SNPS --> combine
-    GEA_REG & GWAS_REG --> combine
-    combine --> genes_o & genes_oc
-    GFF --> genes_o & genes_oc & enrich_o
-    VCFSNP --> genes_o & genes_oc
-    genes_o --> enrich_o --> enrich_plots_o
-    combine & genes_o & enrich_o --> summary
+    GEA_SNPS & GWAS_SNPS --> miami
+    GEA_REG & GWAS_REG --> miami
+    GEA_SNPS & GWAS_SNPS --> pairwise
+    miami & pairwise --> summary
 ```
 
-**Key outputs**:
-- `overlapping/tables/selected_snps_all.tsv` — merged GEA+GWAS SNPs
-- `overlapping/tables/regions_per_trait_all.tsv`, `regions_combined.tsv`
-- `overlapping/tables/overlap_summary.tsv` — overlap statistics
-- `overlapping/tables/genes_per_region.tsv`, `genes_per_region_collapsed.tsv`, `genes_combined.tsv`
-- `overlapping/plots/enrichment/{trait}/region_{id}_dotplot.png/svg`
-
----
-
-### Regionplot Mode — Regional Manhattan with gene annotations
-
-```mermaid
-flowchart TB
-    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-
-    GFF[/"Normalized GFF"/]:::data
-    REGIONS[/"Regions_per_trait"/]:::data
-    PVALS[/"Association p-values\n(all methods)"/]:::data
-
-    gff2topr["gff2topr\nGFF → topr annotation format"]
-    regplot["regionplot\nRegional Manhattan + gene overlays"]
-
-    GFF --> gff2topr --> regplot
-    REGIONS --> regplot
-    PVALS --> regplot
-```
+> **Region overlap detection, gene annotation, and GO enrichment** for overlapping regions are computed on-demand in the Shiny dashboard (GEAxGWAS tab). The Shiny app dynamically computes regions from the merged GEA+GWAS SNP set with user-configurable overlap bounds (Union / Intersection / GEA-only / GWAS-only).
 
 **Key outputs**:
-- `regionplot/plots/regionplot_{region}_{trait}.png` + `_main.svg`, `_overview.svg`, `_genes.svg`
+- `GEAxGWAS/plots/miami_combined_K{k}.png/svg` — static Miami background
+- `GEAxGWAS/plots/miami_combined_K{k}_background.png` — scattermore non-sig layer
+- `GEAxGWAS/plots/miami_combined_K{k}_coords.json` — sig SNP coordinates for plotly overlay
+- `GEAxGWAS/tables/pairwise_collapsed_snps.tsv` — per-trait SNP sets
+- `GEAxGWAS/tables/pairwise_overlap_table.tsv` — pairwise overlap scores
 
 ---
 
@@ -422,12 +385,13 @@ flowchart TB
     LFMM_FULL[/".lfmm (full)"/]:::data
     VCFSNP[/".vcfsnp (full)"/]:::data
     SIG_SNPS[/"Selected_SNPs"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
     TAJIMA[/"Tajima D"/]:::data
     PI[/"Pi Diversity"/]:::data
 
     dl_future["download_climate_future_model ×model\nCMIP6 future climate per model"]
     merge["merge_climate_future\nEnsemble average across models"]
+    combine_gf["combine_gf_snps\nFilter + combine adaptive SNPs\n(Maladaptation combine strategy)"]
     gf_adapt["gradient_forest_adaptive\nAdaptive GF model (sig SNPs)"]
     gf_random["gradient_forest_random\nNeutral GF model (random SNPs)"]:::optional
     offset["gradient_forest_offset\nGenetic offset present → future"]
@@ -438,9 +402,10 @@ flowchart TB
     summary["write_summary"]
 
     META --> dl_future --> merge
+    SIG_SNPS --> combine_gf
+    combine_gf --> gf_adapt & gf_random
     CLIMATE --> merge & gf_adapt & gf_random & offset
     LFMM_FULL & VCFSNP --> gf_adapt & gf_random
-    SIG_SNPS --> gf_adapt & gf_random
     META --> gf_adapt & gf_random
     gf_adapt --> offset & cumimp & importance
     gf_random --> cumimp & importance
@@ -452,77 +417,13 @@ flowchart TB
     gf_adapt & offset --> summary
 ```
 
-**Purple nodes** = optional (random model requires `gradient_forest.random_model: TRUE`; `tajima_d`/`pi_diversity` piemaps require `pop.calc_stats: TRUE`)
+**Purple nodes** = optional (random model requires `Maladaptation.methods.gradient_forest.random_model: true`; `tajima_d`/`pi_diversity` piemaps require `Population.calc_stats: true`)
 
-**Key outputs** (under `Maladaptation/{plots,tables}/{method}/{run_label}_{spatial_tag}/`):
+**Key outputs** (under `Maladaptation/{plots,tables}/gradient_forest/{run_label}_{spatial_tag}/`):
 - `climate/tables/future/climate_future_year{Y}_ssp{S}_{site,all}.tsv`
-- `climate/rasters/future/` — CMIP6 future rasters
+- `climate/rasters/future/` — CMIP6 future rasters (.tif)
 - `climate/plots/density_plot_future_ssp{S}_{Y}.png/svg`
 - `Maladaptation/plots/gradient_forest/{suffix}/cumulative_importance.png/svg`
 - `Maladaptation/plots/gradient_forest/{suffix}/overall_importance.png/svg`
 - `Maladaptation/plots/gradient_forest/{suffix}/genetic_offset_piemap[_{tajima_d,pi_diversity}].png/svg`
 - `Maladaptation/tables/gradient_forest/{suffix}/genetic_offset_{map,site}.tsv`
-
----
-
-### Haplotype Scan Mode — crosshap epsilon scanning
-
-```mermaid
-flowchart TB
-    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-
-    REGIONS[/"Combined Regions\n(assoc/pheno/overlap)"/]:::data
-    META[/"Aligned Metadata"/]:::data
-    VCF_FILT[/"Filtered VCF"/]:::data
-    VCF_IMP[/"Imputed VCF (full)"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
-
-    select["haplotype_select_regions\nTop N regions + suggested MGmin"]
-    scan["haplotype_scan\nbcftools region extract\nplink LD matrix\ncrosshap run_haplotyping\nclustreeviz"]
-    summary["write_summary"]
-
-    REGIONS --> select
-    META --> select & scan
-    select --> scan
-    VCF_FILT --> scan
-    VCF_IMP --> scan
-    CLUST -.-> scan
-    scan --> summary
-```
-
-**Key outputs**:
-- `haplotype_scan/{tag}/tables/selected_regions.tsv` — top regions for scanning
-- `haplotype_scan/{tag}/tables/scan_status.tsv` — per-region scan status
-- `haplotype_scan/{tag}/plots/clustree/region_{id}_clustree.png/svg`
-- `_intermediate/haplotype/{tag}/region_{id}_hapobject.qs` — crosshap HapObjects
-
----
-
-### Haplotype Mode — Visualization at selected epsilon
-
-```mermaid
-flowchart TB
-    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
-
-    SCAN[/"HapObjects (from scan)"/]:::data
-    REGIONS[/"Selected Regions"/]:::data
-    META[/"Aligned Metadata"/]:::data
-    RASTER[/"Climate Raster"/]:::data
-    CLUST[/"Clusters (K_BEST)"/]:::data
-
-    viz["haplotype_viz\ncrosshap_viz at selected epsilon\nphenotype boxplots (ggdist + ggpubr)\nhaplotype piemaps (plot_piemap.R)\nfrequency tables"]
-    summary["write_summary"]
-
-    SCAN --> viz
-    REGIONS --> viz
-    META --> viz
-    RASTER --> viz
-    CLUST --> viz
-    viz --> summary
-```
-
-**Key outputs**:
-- `haplotype/{tag}/plots/region_{id}_crosshap_viz.png/svg`
-- `haplotype/{tag}/plots/region_{id}_boxplot_{trait}.png/svg`
-- `haplotype/{tag}/plots/region_{id}_piemap_{trait}.png/svg/qs` + `zoom/`
-- `haplotype/{tag}/tables/region_{id}_assignments.tsv`, `_frequencies.tsv`
