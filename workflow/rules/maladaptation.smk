@@ -211,7 +211,7 @@ def _piemap_trait_path(wc):
 
 def _piemap_output_prefix(wc):
     """Return OUTPUT_PREFIX arg for plot_piemap.R."""
-    return 'genetic_offset_piemap' if wc.size_trait == 'notrait' else f'genetic_offset_piemap_{wc.size_trait}'
+    return f'genetic_offset_piemap_{wc.size_trait}'
 
 rule plot_gf_offset_piemap:
     """Plot genetic offset piemap, optionally scaled by a population statistic."""

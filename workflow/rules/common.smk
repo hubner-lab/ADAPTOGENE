@@ -612,8 +612,7 @@ def mala_importance(method, run_label, spatial_tag):
 
 def mala_offset_piemap(method, run_label, spatial_tag, size_trait):
     """size_trait: 'notrait' | 'tajima_d' | 'pi_diversity'"""
-    stem = 'genetic_offset_piemap' if size_trait == 'notrait' else f'genetic_offset_piemap_{size_trait}'
-    return f"{mala_plot_dir(method, run_label, spatial_tag)}{stem}.png"
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}genetic_offset_piemap_{size_trait}.png"
 
 # Maladaptation paths
 def add_maladaptation_paths():

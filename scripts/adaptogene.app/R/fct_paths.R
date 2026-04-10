@@ -268,12 +268,9 @@ gf_importance_path <- function(project, suffix, type = "overall", method = "grad
 #' GF genetic offset piemap path
 #' @noRd
 gf_offset_piemap_path <- function(project, suffix, variant = "base", method = "gradient_forest") {
-    # "base" maps to no suffix (genetic_offset_piemap.png); other variants appended
-    fname <- if (is.null(variant) || variant == "base" || !nzchar(variant)) {
-        "genetic_offset_piemap.png"
-    } else {
-        paste0("genetic_offset_piemap_", variant, ".png")
-    }
+    # "base" maps to "notrait" suffix; other variants used as-is
+    piemap_variant <- if (is.null(variant) || variant == "base" || !nzchar(variant)) "notrait" else variant
+    fname <- paste0("genetic_offset_piemap_", piemap_variant, ".png")
     mod_path(project, MOD_MALAD, "plots", method, suffix, fname)
 }
 
