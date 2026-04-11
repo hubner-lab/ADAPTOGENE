@@ -409,7 +409,76 @@ O = {
     'qc_plot_depth':       f"{MOD_PROCESSING}plots/depth_distribution.png",
 }
 
-# K_BEST dependent paths (added dynamically when K_BEST is set)
+# K_BEST dependent paths — pre-populated with a sentinel so .smk files can be parsed
+# unconditionally even when K_BEST is None (e.g. processing mode with no k_best set).
+# Snakemake rejects empty strings but accepts any non-empty path at parse time.
+# add_kbest_paths() / add_association_paths() / add_maladaptation_paths() overwrite
+# these with real values when K_BEST is set; rules using them only enter the DAG
+# when K_BEST is available, so the sentinel is never actually used as a file path.
+def _ph(key):
+    """Return a unique non-empty placeholder path for a K_BEST-dependent dict key.
+    Snakemake rejects empty strings but accepts any non-empty path at parse time.
+    These rules only enter the DAG when K_BEST is set, so the placeholder is never
+    used as an actual file path."""
+    return f"__placeholder_{key}__"
+# --- from add_kbest_paths() ---
+W['lfmm_imp']             = _ph('lfmm_imp')
+W['vcf_imp']              = _ph('vcf_imp')
+W['climate_raster']       = _ph('climate_raster')
+W['ld_decay_work']        = _ph('ld_decay_work')
+W['ld_decay_sample_lists']= _ph('ld_decay_sample_lists')
+W['ld_decay_chr_vcfs']    = _ph('ld_decay_chr_vcfs')
+W['ld_decay_stat_gw']     = _ph('ld_decay_stat_gw')
+W['ld_decay_stat_chr']    = _ph('ld_decay_stat_chr')
+W['ld_decay_prep_done']   = _ph('ld_decay_prep_done')
+W['ld_decay_gw_done']     = _ph('ld_decay_gw_done')
+W['ld_decay_chr_done']    = _ph('ld_decay_chr_done')
+O['climate_site']         = _ph('climate_site')
+O['climate_site_scaled']  = _ph('climate_site_scaled')
+O['climate_all']          = _ph('climate_all')
+O['climate_invariant']    = _ph('climate_invariant')
+O['tajima']               = _ph('tajima')
+O['pi_div']               = _ph('pi_div')
+O['ibd_raw']              = _ph('ibd_raw')
+O['ibd_pairs']            = _ph('ibd_pairs')
+O['amova']                = _ph('amova')
+O['corr_heatmap']         = _ph('corr_heatmap')
+O['mantel']               = _ph('mantel')
+O['amova_plot']           = _ph('amova_plot')
+O['ld_decay_table']       = _ph('ld_decay_table')
+O['ld_decay_plot_gw']     = _ph('ld_decay_plot_gw')
+O['ld_decay_plot_gw_svg'] = _ph('ld_decay_plot_gw_svg')
+O['ld_decay_plot_chr']    = _ph('ld_decay_plot_chr')
+O['ld_decay_plot_chr_svg']= _ph('ld_decay_plot_chr_svg')
+# --- from add_association_paths() ---
+W['geno_full']            = _ph('geno_full')
+W['lfmm_full']            = _ph('lfmm_full')
+W['vcfsnp_full']          = _ph('vcfsnp_full')
+W['removed_full']         = _ph('removed_full')
+W['snmf_full']            = _ph('snmf_full')
+W['lfmm_imp_full']        = _ph('lfmm_imp_full')
+W['vcf_imp_full']         = _ph('vcf_imp_full')
+W['emmax_work']           = _ph('emmax_work')
+W['assoc_tped']           = _ph('assoc_tped')
+W['assoc_tfam']           = _ph('assoc_tfam')
+W['assoc_kinship']        = _ph('assoc_kinship')
+W['gapit_gd']             = _ph('gapit_gd')
+W['gapit_gm']             = _ph('gapit_gm')
+W['gapit_work']           = _ph('gapit_work')
+O['selected_snps']        = _ph('selected_snps')
+O['regions_per_trait']    = _ph('regions_per_trait')
+O['regions_combined']     = _ph('regions_combined')
+O['genes_per_region']     = _ph('genes_per_region')
+O['genes_per_region_collapsed'] = _ph('genes_per_region_collapsed')
+O['genes_combined_regions']     = _ph('genes_combined_regions')
+O['manhattan_combined']   = _ph('manhattan_combined')
+O['qq_combined']          = _ph('qq_combined')
+# --- from add_maladaptation_paths() ---
+W['climate_future_raster']= _ph('climate_future_raster')
+O['climate_future_all']   = _ph('climate_future_all')
+O['climate_future_site']  = _ph('climate_future_site')
+O['density_future']       = _ph('density_future')
+
 def add_kbest_paths():
     """Add K_BEST dependent paths to W and O dictionaries."""
     if K_BEST is None:

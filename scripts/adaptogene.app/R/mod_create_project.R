@@ -315,11 +315,11 @@ mod_create_project_server <- function(id, pipeline_path_rv,
                 # 2. Read, patch, write
                 cfg <- yaml::read_yaml(dest)
                 cfg$project_name    <- name
-                cfg$input$dir       <- dir_val
-                cfg$input$vcf       <- vcf_val
-                cfg$input$metadata  <- metadata_val
+                cfg$Input$dir       <- dir_val
+                cfg$Input$vcf       <- vcf_val
+                cfg$Input$metadata  <- metadata_val
                 if (nzchar(gff_val)) {
-                    cfg$input$gff <- gff_val
+                    cfg$Input$gff <- gff_val
                 }
                 yaml::write_yaml(cfg, dest)
 

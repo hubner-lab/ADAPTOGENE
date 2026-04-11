@@ -48,6 +48,7 @@ mod_structure_ui <- function(id) {
                 "LD Decay",
                 value = "ld_decay",
                 icon  = bsicons::bs_icon("bar-chart-line"),
+                shiny::uiOutput(ns("ld_decay_skipped_alert")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
                     mod_image_card_ui(ns("ld_decay")),
@@ -196,6 +197,37 @@ mod_structure_server <- function(id, project_data) {
                 title   = shiny::reactive("AMOVA"),
                 dl_name = shiny::reactive("amova")
             )
+            # LD decay skipped-groups alert
+            output$ld_decay_skipped_alert <- shiny::renderUI({
+                log_path <- file.path(get_pipeline_path(), paste0(pd$name, "_logs"),
+                                      "structure", "ld_decay_prepare.log")
+                if (!file.exists(log_path)) return(NULL)
+                lines    <- readLines(log_path, warn = FALSE)
+                skipped  <- grep("^WARNING: Skipping group", lines, value = TRUE)
+                if (length(skipped) == 0) return(NULL)
+                # Parse "WARNING: Skipping group 'X' (N samples < min_samples=M)"
+                groups <- gsub("WARNING: Skipping group '([^']+)'.*", "\\1", skipped)
+                reasons <- gsub("WARNING: Skipping group '[^']+' \\((.+)\\)", "\\1", skipped)
+                items <- mapply(function(g, r) {
+                    htmltools::tags$li(htmltools::tags$strong(g), paste0(" — ", r))
+                }, groups, reasons, SIMPLIFY = FALSE)
+                htmltools::div(
+                    class = "alert alert-warning d-flex gap-2 align-items-start mb-3",
+                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        htmltools::tags$strong(
+                            length(skipped),
+                            if (length(skipped) == 1) "group was" else "groups were",
+                            "excluded from per-group LD decay"
+                        ),
+                        " — below the ",
+                        htmltools::tags$code("LDdecay.min_samples"),
+                        " threshold. Adjust the config to include them.",
+                        htmltools::tags$ul(class = "mb-0 mt-1", items)
+                    )
+                )
+            })
+
             mod_image_card_server("ld_decay",
                 path    = shiny::reactive(ld_decay_path(pd$name, per_chr = FALSE)),
                 title   = shiny::reactive("LD Decay (Genome-wide)"),
