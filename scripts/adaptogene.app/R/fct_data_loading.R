@@ -393,6 +393,32 @@ load_all_method_sigsnps <- function(project, module = MOD_GEA, k = NA) {
     result
 }
 
+#' Load phenotype missing summary (GWAS mode)
+#' @noRd
+load_pheno_missing_summary <- function(project) {
+    p <- pheno_missing_summary_path(project)
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(trait = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Load trait names from any pvalue TSV (column names after chr/pos/SNPID)
+#' Used to detect traits that have pvalue output but zero significant SNPs.
+#' Returns character(0) when no pvalue files exist.
+#' @noRd
+load_all_trait_names <- function(project, module = MOD_GEA) {
+    f <- find_pvalue_tsv(project, module)
+    if (!nzchar(f) || !file.exists(f)) return(character(0))
+    tryCatch({
+        hdr <- data.table::fread(f, nrows = 0L)
+        fixed <- c("chr", "pos", "SNPID")
+        setdiff(names(hdr), fixed)
+    }, error = function(e) character(0))
+}
+
 #' Load all per-method sig SNPs for the Overlapping tab
 #'
 #' Combines per-method sig SNPs from both MOD_GEA and MOD_GWAS.

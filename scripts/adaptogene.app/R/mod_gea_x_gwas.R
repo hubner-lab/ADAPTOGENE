@@ -45,18 +45,34 @@ mod_gea_x_gwas_ui <- function(id) {
         bslib::card(
             class = "mt-2 mb-3",
             bslib::card_body(
-                class = "py-2 px-3 d-flex align-items-center gap-4",
-                htmltools::span("Overlap region bounds:", class = "fw-semibold me-1"),
-                shiny::radioButtons(
-                    ns("overlap_bounds"), label = NULL,
-                    choices = c(
-                        "Union (GEA \u222a GWAS)"         = "union",
-                        "Intersection (GEA \u2229 GWAS)"  = "intersection",
-                        "GEA region only"                  = "gea_only",
-                        "GWAS region only"                 = "gwas_only"
+                class = "py-2 px-3",
+                htmltools::div(
+                    class = "d-flex align-items-center gap-4",
+                    htmltools::span("Overlap region bounds:", class = "fw-semibold me-1"),
+                    bslib::tooltip(
+                        bsicons::bs_icon("info-circle", class = "text-muted", size = "0.95em"),
+                        htmltools::tags$div(
+                            htmltools::tags$strong("Union"), ": merged extent of GEA \u222a GWAS region \u2014 covers the full area of either source.",
+                            htmltools::tags$br(),
+                            htmltools::tags$strong("Intersection"), ": only the overlapping portion between GEA and GWAS regions.",
+                            htmltools::tags$br(),
+                            htmltools::tags$strong("GEA only"), ": GEA region boundaries, ignoring GWAS extent.",
+                            htmltools::tags$br(),
+                            htmltools::tags$strong("GWAS only"), ": GWAS region boundaries, ignoring GEA extent."
+                        ),
+                        placement = "right"
                     ),
-                    selected = "union",
-                    inline   = TRUE
+                    shiny::radioButtons(
+                        ns("overlap_bounds"), label = NULL,
+                        choices = c(
+                            "Union (GEA \u222a GWAS)"         = "union",
+                            "Intersection (GEA \u2229 GWAS)"  = "intersection",
+                            "GEA region only"                  = "gea_only",
+                            "GWAS region only"                 = "gwas_only"
+                        ),
+                        selected = "union",
+                        inline   = TRUE
+                    )
                 )
             )
         ),

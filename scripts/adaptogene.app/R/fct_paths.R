@@ -243,6 +243,29 @@ climate_invariant_path <- function(project) {
     mod_path(project, MOD_CLIMATE, "tables", "present", "climate_invariant_predictors.tsv")
 }
 
+#' Phenotype missing summary path (GWAS mode)
+#' @noRd
+pheno_missing_summary_path <- function(project) {
+    mod_path(project, MOD_GWAS, "tables", "phenotype_missing_summary.tsv")
+}
+
+#' LEA .removed file path — glob from _work/ (LD-pruned variant)
+#' Returns empty string if not found.
+#' @noRd
+removed_snps_path <- function(project) {
+    base  <- project_base(project)
+    files <- Sys.glob(file.path(base, "_work", "maf*", paste0(project, ".removed")))
+    if (length(files) == 0) "" else files[1]
+}
+
+#' Glob first pvalue TSV for a module/method (any K, any adjust)
+#' Used to extract trait column names.
+#' @noRd
+find_pvalue_tsv <- function(project, module = MOD_GEA) {
+    files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
+    if (length(files) == 0) "" else files[1]
+}
+
 #' LD decay plot path
 #' @noRd
 ld_decay_path <- function(project, per_chr = FALSE) {

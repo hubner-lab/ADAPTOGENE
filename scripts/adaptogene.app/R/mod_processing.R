@@ -8,39 +8,11 @@ mod_processing_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
 
-        # ── Summary cards ──────────────────────────────────────────────────────
-        bslib::layout_column_wrap(
-            width = 1 / 4,
-            fill  = FALSE,
-            # Samples: raw → filtered
-            bslib::value_box(
-                title    = "Samples",
-                value    = shiny::uiOutput(ns("samples_display")),
-                theme    = "primary",
-                showcase = bsicons::bs_icon("people-fill")
-            ),
-            # SNPs: raw → filtered
-            bslib::value_box(
-                title    = "SNPs",
-                value    = shiny::uiOutput(ns("snps_display")),
-                theme    = "info",
-                showcase = bsicons::bs_icon("database-fill")
-            ),
-            # SNPs LD-pruned
-            bslib::value_box(
-                title    = "SNPs (LD-pruned)",
-                value    = shiny::textOutput(ns("snps_ld")),
-                theme    = "success",
-                showcase = bsicons::bs_icon("scissors")
-            ),
-            # Ti/Tv Ratio
-            bslib::value_box(
-                title    = "Ti/Tv Ratio",
-                value    = shiny::textOutput(ns("titv")),
-                theme    = "warning",
-                showcase = bsicons::bs_icon("arrow-left-right")
-            )
-        ),
+        # ── Summary cards (dynamic themes based on data quality) ──────────────
+        shiny::uiOutput(ns("summary_boxes")),
+
+        # ── LEA conversion alert (shown only if SNPs were dropped) ─────────────
+        shiny::uiOutput(ns("lea_losses_alert")),
 
         shiny::br(),
 
@@ -130,23 +102,147 @@ mod_processing_server <- function(id, project_data) {
             })
         }
 
-        # ── Value boxes ────────────────────────────────────────────────────────
-        arrow_display <- function(raw_id, filtered_id) {
-            shiny::renderUI({
-                raw      <- summary_val(raw_id)()
-                filtered <- summary_val(filtered_id)()
+        # ── Value boxes (dynamic themes + conditional het/depth boxes) ─────────
+        output$summary_boxes <- shiny::renderUI({
+            pd  <- project_data()
+            # Convert to data.frame to avoid data.table column-name shadowing:
+            # inside data.table's [, bare names like `metric` resolve to the column
+            # named `metric` in the table, not the function parameter.
+            s <- as.data.frame(summary_data())
+
+            sv <- function(metric, default = NA) {
+                row <- s[s$step == "processing" & s$metric == metric, ]
+                if (nrow(row) == 0) default else suppressWarnings(as.numeric(row$value[1]))
+            }
+            sv_str <- function(metric, default = "\u2014") {
+                row <- s[s$step == "processing" & s$metric == metric, ]
+                if (nrow(row) == 0) default else as.character(row$value[1])
+            }
+
+            # Arrow display helper
+            arrow_val <- function(raw, filtered) {
                 htmltools::div(
                     style = "display:flex; align-items:baseline; gap:0.4rem;",
                     htmltools::span(style = "opacity:0.7;", raw),
                     htmltools::span(style = "opacity:0.6; font-size:0.9em;", "\u2192"),
                     htmltools::strong(filtered)
                 )
-            })
-        }
-        output$samples_display <- arrow_display("samples_total", "samples_after_filtering")
-        output$snps_display    <- arrow_display("snps_raw", "snps_after_filtering")
-        output$snps_ld          <- shiny::renderText(summary_val("snps_after_ld_pruning")())
-        output$titv             <- shiny::renderText(summary_val("titv_ratio")())
+            }
+
+            # Samples — warning if >10% removed
+            n_samp_raw <- sv("samples_total")
+            n_samp_flt <- sv("samples_after_filtering")
+            samp_theme <- if (!is.na(n_samp_raw) && !is.na(n_samp_flt) && n_samp_raw > 0) {
+                if ((n_samp_raw - n_samp_flt) / n_samp_raw > 0.1) "warning" else "success"
+            } else "primary"
+            samp_box <- bslib::value_box(
+                title    = "Samples",
+                value    = arrow_val(sv_str("samples_total"), sv_str("samples_after_filtering")),
+                theme    = samp_theme,
+                showcase = bsicons::bs_icon("people-fill")
+            )
+
+            # SNPs — warning if >50% removed
+            n_snp_raw <- sv("snps_raw")
+            n_snp_flt <- sv("snps_after_filtering")
+            snp_theme <- if (!is.na(n_snp_raw) && !is.na(n_snp_flt) && n_snp_raw > 0) {
+                if ((n_snp_raw - n_snp_flt) / n_snp_raw > 0.5) "warning" else "success"
+            } else "info"
+            snp_box <- bslib::value_box(
+                title    = "SNPs",
+                value    = arrow_val(sv_str("snps_raw"), sv_str("snps_after_filtering")),
+                theme    = snp_theme,
+                showcase = bsicons::bs_icon("database-fill")
+            )
+
+            # SNPs LD-pruned — always info
+            ld_box <- bslib::value_box(
+                title    = "SNPs (LD-pruned)",
+                value    = sv_str("snps_after_ld_pruning"),
+                theme    = "info",
+                showcase = bsicons::bs_icon("scissors")
+            )
+
+            # Ti/Tv — color-coded by quality
+            titv_val <- sv("titv_ratio")
+            titv_theme <- if (is.na(titv_val)) "secondary"
+                          else if (titv_val >= 2.0) "success"
+                          else if (titv_val >= 1.5) "warning"
+                          else "danger"
+            titv_box <- bslib::value_box(
+                title    = "Ti/Tv Ratio",
+                value    = sv_str("titv_ratio"),
+                theme    = titv_theme,
+                showcase = bsicons::bs_icon("arrow-left-right")
+            )
+
+            # Heterozygosity outliers — conditional on config
+            het_sd <- config_get(pd$config, "Filter", "het_outlier_sd", default = NULL)
+            het_box <- if (!is.null(het_sd) && !is.na(het_sd)) {
+                n_het <- sv("samples_het_outliers_removed", default = 0)
+                het_theme <- if (is.na(n_het) || n_het == 0) "success" else "warning"
+                n_het_str <- if (is.na(n_het)) "\u2014" else as.character(as.integer(n_het))
+                bslib::value_box(
+                    title    = "Het Outliers",
+                    value    = paste0(n_het_str, " removed"),
+                    theme    = het_theme,
+                    showcase = bsicons::bs_icon("activity")
+                )
+            } else NULL
+
+            # Depth filter — conditional on config
+            min_dp <- config_get(pd$config, "Filter", "min_depth", default = NULL)
+            max_dp <- config_get(pd$config, "Filter", "max_depth", default = NULL)
+            depth_box <- if (!is.null(min_dp) || !is.null(max_dp)) {
+                dp_parts <- c(
+                    if (!is.null(min_dp)) paste0("min=", min_dp),
+                    if (!is.null(max_dp)) paste0("max=", max_dp)
+                )
+                bslib::value_box(
+                    title    = "Depth Filter",
+                    value    = paste(dp_parts, collapse = ", "),
+                    theme    = "info",
+                    showcase = bsicons::bs_icon("layers")
+                )
+            } else NULL
+
+            extra_boxes <- Filter(Negate(is.null), list(het_box, depth_box))
+            n_extra <- length(extra_boxes)
+            width <- if (n_extra == 0) 1/4 else if (n_extra == 1) 1/5 else 1/6
+
+            bslib::layout_column_wrap(
+                width = width,
+                fill  = FALSE,
+                samp_box, snp_box, ld_box, titv_box,
+                !!!extra_boxes
+            )
+        })
+
+        # ── LEA conversion losses alert ────────────────────────────────────────
+        output$lea_losses_alert <- shiny::renderUI({
+            pd <- project_data()
+            p  <- removed_snps_path(pd$name)
+            if (!nzchar(p) || !file.exists(p)) return(NULL)
+            lines <- tryCatch(readLines(p, warn = FALSE), error = function(e) character(0))
+            n <- length(lines)
+            if (n == 0) return(NULL)
+            htmltools::div(
+                class = "alert alert-info d-flex gap-2 align-items-start mt-2 mb-0",
+                bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+                htmltools::div(
+                    htmltools::tags$strong(n, if (n == 1) "SNP" else "SNPs",
+                                           "removed during LEA format conversion"),
+                    " (multi-allelic or invariant after VCF\u2192LFMM conversion). ",
+                    "These are excluded from PCA, sNMF, and association analyses."
+                )
+            )
+        })
+
+        # Keep legacy outputs in case anything still references them (safe no-ops)
+        output$samples_display <- shiny::renderUI(NULL)
+        output$snps_display    <- shiny::renderUI(NULL)
+        output$snps_ld         <- shiny::renderText("\u2014")
+        output$titv            <- shiny::renderText("\u2014")
 
         # ── Image cards ────────────────────────────────────────────────────────
         shiny::observe({

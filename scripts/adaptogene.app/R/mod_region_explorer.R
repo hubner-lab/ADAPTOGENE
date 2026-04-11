@@ -510,7 +510,9 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
         output$detail_info_bar <- shiny::renderUI({
             row <- current_region_row()
             if (is.null(row)) return(NULL)
-            region_info_bar(row$region_id[1], n_snps = row$snp_count[1])
+            genes <- region_genes()
+            n_g <- if (nrow(genes) > 0) nrow(genes) else NULL
+            region_info_bar(row$region_id[1], n_snps = row$snp_count[1], n_genes = n_g)
         })
 
         # ── Genes table ────────────────────────────────────────────────────────
@@ -598,10 +600,51 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 ))
             }
 
-            shiny::actionButton(ns("run_enrichment"),
-                "Run Enrichment",
-                class = "btn-sm btn-outline-primary",
-                icon  = shiny::icon("play"))
+            # H3: GO annotation coverage status
+            genes_df <- region_genes()
+            pd_enr   <- project_data()
+            go_field <- config_get(pd_enr$config, "GFF", "go_field", default = NULL)
+            go_status <- if (nrow(genes_df) == 0) {
+                NULL
+            } else if (is.null(go_field) || !go_field %in% names(genes_df)) {
+                htmltools::div(
+                    class = "alert alert-warning small d-flex gap-2 align-items-start mb-2 py-2",
+                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        "No GO annotation column found. Check ",
+                        htmltools::tags$code("GFF.go_field"), " in config."
+                    )
+                )
+            } else {
+                n_total <- nrow(genes_df)
+                n_go    <- sum(!is.na(genes_df[[go_field]]) & nzchar(genes_df[[go_field]]))
+                alert_cls <- if (n_go == 0) "alert-warning" else "alert-info"
+                icon_name <- if (n_go == 0) "exclamation-triangle-fill" else "info-circle-fill"
+                htmltools::div(
+                    class = paste("alert small d-flex gap-2 align-items-start mb-2 py-2", alert_cls),
+                    bsicons::bs_icon(icon_name, class = "flex-shrink-0 mt-1"),
+                    if (n_go == 0) {
+                        htmltools::div(
+                            "No GO annotations found in ", n_total, " region gene",
+                            if (n_total != 1) "s", ". ",
+                            "Check ", htmltools::tags$code("GFF.go_field"), " config."
+                        )
+                    } else {
+                        htmltools::div(
+                            htmltools::tags$strong(n_go, "of", n_total),
+                            " region gene", if (n_total != 1) "s", " have GO annotations."
+                        )
+                    }
+                )
+            }
+
+            htmltools::tagList(
+                go_status,
+                shiny::actionButton(ns("run_enrichment"),
+                    "Run Enrichment",
+                    class = "btn-sm btn-outline-primary",
+                    icon  = shiny::icon("play"))
+            )
         })
 
         # Image card servers (re-initialized when new enrichment result cached)
@@ -766,7 +809,33 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 if (isTRUE(changed))
                     htmltools::span(class = "badge bg-warning text-dark small ms-1", "modified")
             }
+            # H4: SNP sufficiency warning
+            n_region_snps <- nrow(region_snps())
+            min_snp_thr   <- as.integer(use_minsnp)
+            snp_warning <- if (n_region_snps < min_snp_thr) {
+                htmltools::div(
+                    class = "alert alert-warning small d-flex gap-2 align-items-start mb-2 py-2",
+                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        "Region has ", htmltools::tags$strong(n_region_snps), " SNPs",
+                        " (minimum: ", min_snp_thr, "). ",
+                        "Haplotype scan may fail. Lower ",
+                        htmltools::tags$code("Min SNPs in region"), " or choose a different region."
+                    )
+                )
+            } else if (n_region_snps < 2L * min_snp_thr) {
+                htmltools::div(
+                    class = "alert alert-info small d-flex gap-2 align-items-start mb-2 py-2",
+                    bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        "Region has ", htmltools::tags$strong(n_region_snps), " SNPs",
+                        " (minimum: ", min_snp_thr, "). Results may be limited."
+                    )
+                )
+            } else NULL
+
             scan_inputs <- htmltools::tagList(
+                snp_warning,
                 bslib::layout_column_wrap(
                     width = 1/2,
                     htmltools::div(

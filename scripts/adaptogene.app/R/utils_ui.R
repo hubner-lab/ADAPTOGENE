@@ -17,10 +17,11 @@ plot_placeholder <- function(message = "Plot not available", suggestion = NULL) 
 #' @param n_snps number of SNPs in region
 #' @param n_exon exonic SNP count
 #' @param n_promoter promoter SNP count
+#' @param n_genes number of genes overlapping region
 #' @param source optional source label (for overlap tab)
 #' @noRd
 region_info_bar <- function(region_id, n_snps = NULL, n_exon = NULL,
-                              n_promoter = NULL, source = NULL) {
+                              n_promoter = NULL, n_genes = NULL, source = NULL) {
     disp <- format_region_id(region_id)
     parts <- character(0)
     if (!is.null(n_snps))    parts <- c(parts, paste0(n_snps, " sig. SNPs"))
@@ -28,6 +29,7 @@ region_info_bar <- function(region_id, n_snps = NULL, n_exon = NULL,
         parts <- c(parts, paste0(n_exon, " exonic"))
     if (!is.null(n_promoter) && n_promoter > 0)
         parts <- c(parts, paste0(n_promoter, " promoter"))
+    if (!is.null(n_genes))   parts <- c(parts, paste0(n_genes, " gene", if (n_genes != 1) "s"))
     if (!is.null(source))    parts <- c(parts, paste0("source: ", source))
 
     htmltools::div(
@@ -49,6 +51,31 @@ mode_status_row <- function(name, ok) {
         class = "mode-status",
         htmltools::span(class = paste("status-icon", icon_cls), icon),
         htmltools::span(name)
+    )
+}
+
+#' Small badge showing a config parameter value
+#' @param label short label (e.g. "K", "combine")
+#' @param value the value to display
+#' @param class Bootstrap badge background class (default "bg-secondary")
+#' @noRd
+config_badge <- function(label, value, class = "bg-secondary") {
+    htmltools::tags$span(
+        class = paste("badge me-1", class),
+        style = "font-size:0.75rem; font-weight:500;",
+        paste0(label, ": ", value)
+    )
+}
+
+#' Container bar for config parameter badges
+#' @param ... config_badge() calls
+#' @noRd
+config_badges_bar <- function(...) {
+    htmltools::div(
+        class = "d-flex flex-wrap align-items-center gap-1 mb-2",
+        style = "opacity:0.85;",
+        bsicons::bs_icon("gear-fill", size = "0.8em", class = "text-muted me-1"),
+        ...
     )
 }
 

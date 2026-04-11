@@ -8,11 +8,17 @@
 mod_gea_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
+        # Config parameter badges
+        shiny::uiOutput(ns("config_badges")),
+
         # Combined Manhattan — filter bar injected inside the card
         mod_manhattan_overlay_ui(
             ns("combined_manhattan"),
             filter_ui = shiny::uiOutput(ns("filter_bar"))
         ),
+
+        # Warning: traits with no significant SNPs
+        shiny::uiOutput(ns("no_sig_snps_warning")),
 
         # Per-method accordion (collapsed by default)
         bslib::accordion(
@@ -152,6 +158,49 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             } else {
                 as.integer(v)
             }
+        })
+
+        # ── I4: Config parameter badges ────────────────────────────────────────
+        output$config_badges <- shiny::renderUI({
+            pd <- project_data()
+            k  <- pd$k_best
+            if (is.na(k) && length(methods()) == 0) return(NULL)
+            cfg  <- pd$config
+            cmb  <- config_get(cfg, "GEA", "combine_method", default = "All")
+            rdist <- config_get(cfg, "GEA", "region_distance", default = 1000000L)
+            rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
+                         paste0(format(as.integer(rdist), big.mark = ","), " bp")
+            config_badges_bar(
+                if (!is.na(k)) config_badge("K", k, "bg-primary"),
+                config_badge("combine", cmb),
+                config_badge("region dist.", rdist_str)
+            )
+        })
+
+        # ── D5: Traits with zero significant SNPs warning ──────────────────────
+        output$no_sig_snps_warning <- shiny::renderUI({
+            pd          <- project_data()
+            all_traits  <- load_all_trait_names(pd$name, module)
+            sig_traits  <- traits()
+            missing     <- setdiff(all_traits, sig_traits)
+            if (length(missing) == 0) return(NULL)
+            items <- lapply(missing, function(tr)
+                htmltools::tags$li(htmltools::tags$code(tr)))
+            htmltools::div(
+                class = "alert alert-warning d-flex gap-2 align-items-start mb-2",
+                bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                htmltools::div(
+                    htmltools::tags$strong(
+                        length(missing),
+                        if (length(missing) == 1) "trait" else "traits",
+                        "yielded no significant SNPs across all methods"
+                    ),
+                    " \u2014 not shown in filter bar. ",
+                    "Try relaxing thresholds in ",
+                    htmltools::tags$code("GEA.configs"), ".",
+                    htmltools::tags$ul(class = "mb-0 mt-1", items)
+                )
+            )
         })
 
         # ── Filter bar: Trait x Method matrix + Strategy + Gap + Distance ─────

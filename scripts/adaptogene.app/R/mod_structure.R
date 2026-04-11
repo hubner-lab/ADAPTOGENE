@@ -36,6 +36,7 @@ mod_structure_ui <- function(id) {
                 "Climate Plots",
                 value = "climate",
                 icon  = bsicons::bs_icon("thermometer-half"),
+                shiny::uiOutput(ns("climate_invariant_warning")),
                 mod_image_card_ui(ns("climate_heatmap")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
@@ -60,6 +61,7 @@ mod_structure_ui <- function(id) {
                 "Population Statistics",
                 value = "pop_stats",
                 icon  = bsicons::bs_icon("graph-up"),
+                shiny::uiOutput(ns("pop_stats_info")),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
                     mod_image_card_ui(ns("mantel")),
@@ -197,6 +199,71 @@ mod_structure_server <- function(id, project_data) {
                 title   = shiny::reactive("AMOVA"),
                 dl_name = shiny::reactive("amova")
             )
+            # I3: Climate invariant predictors warning
+            output$climate_invariant_warning <- shiny::renderUI({
+                p <- climate_invariant_path(pd$name)
+                if (!file.exists(p)) return(NULL)
+                dt <- tryCatch(
+                    data.table::fread(p, sep = "\t", header = TRUE),
+                    error = function(e) data.table::data.table()
+                )
+                if (nrow(dt) == 0 || !"predictor" %in% names(dt)) return(NULL)
+                preds <- dt$predictor
+                items <- lapply(preds, function(pr) {
+                    reason <- if ("reason" %in% names(dt)) {
+                        r <- dt[dt$predictor == pr, ]$reason
+                        if (length(r) > 0) paste0(" \u2014 ", r[1]) else ""
+                    } else ""
+                    htmltools::tags$li(htmltools::tags$code(pr), reason)
+                })
+                htmltools::div(
+                    class = "alert alert-warning d-flex gap-2 align-items-start mb-3",
+                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        htmltools::tags$strong(length(preds),
+                            if (length(preds) == 1) "climate predictor" else "climate predictors",
+                            "excluded due to zero variance at sample sites"),
+                        " \u2014 not used in GEA or Gradient Forest analyses. ",
+                        "Consider removing from ", htmltools::tags$code("Climate.predictors"), ".",
+                        htmltools::tags$ul(class = "mb-0 mt-1", items)
+                    )
+                )
+            })
+
+            # C3: Population statistics sample counts
+            output$pop_stats_info <- shiny::renderUI({
+                k   <- pd$k_best
+                if (is.na(k)) return(NULL)
+                # Read clusters table to count samples per population
+                clust_path <- mod_path(pd$name, MOD_PRESTRUCT, "tables",
+                                       paste0("K", k), paste0("clusters_K", k, ".tsv"))
+                if (!file.exists(clust_path)) return(NULL)
+                dt <- tryCatch(
+                    data.table::fread(clust_path, sep = "\t", header = TRUE),
+                    error = function(e) data.table::data.table()
+                )
+                if (nrow(dt) == 0) return(NULL)
+                # Find the cluster assignment column
+                clust_col <- intersect(c(paste0("cluster_K", k), "cluster", "population"), names(dt))
+                if (length(clust_col) == 0) return(NULL)
+                clust_col <- clust_col[1]
+                counts <- table(dt[[clust_col]])
+                n_pops <- length(counts)
+                min_n  <- min(counts)
+                max_n  <- max(counts)
+                rng    <- if (min_n == max_n) as.character(min_n)
+                          else paste0(min_n, "\u2013", max_n)
+                htmltools::div(
+                    class = "alert alert-info d-flex gap-2 align-items-start mb-3",
+                    bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        htmltools::tags$strong(n_pops, "populations"),
+                        " at K=", k, " \u2014 ",
+                        rng, " samples per population."
+                    )
+                )
+            })
+
             # LD decay skipped-groups alert
             output$ld_decay_skipped_alert <- shiny::renderUI({
                 log_path <- file.path(get_pipeline_path(), paste0(pd$name, "_logs"),

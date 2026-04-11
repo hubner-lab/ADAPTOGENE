@@ -8,11 +8,13 @@
 mod_maladaptation_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # GF Run selector + SNP count info
+        # GF Run selector + SNP count info + GF params badge
         htmltools::div(
             class = "control-bar",
             shiny::uiOutput(ns("suffix_selector")),
-            shiny::uiOutput(ns("snp_count_badge"))
+            shiny::uiOutput(ns("snp_count_badge")),
+            shiny::uiOutput(ns("gf_params_badge")),
+            shiny::uiOutput(ns("climate_scenario_badge"))
         ),
 
         # Importance plots
@@ -62,6 +64,7 @@ mod_maladaptation_ui <- function(id) {
                 value = "site_table",
                 icon  = bsicons::bs_icon("table"),
                 bslib::card_body(
+                    shiny::uiOutput(ns("offset_summary")),
                     shiny::downloadButton(ns("dl_site"), "Download CSV",
                                           class = "btn-sm btn-outline-secondary mb-2"),
                     DT::DTOutput(ns("site_table"))
@@ -98,7 +101,7 @@ mod_maladaptation_server <- function(id, project_data) {
             } else s
         })
 
-        # ── SNP count badge ────────────────────────────────────────────────────
+        # ── G1: SNP count badge with denominator ──────────────────────────────
         output$snp_count_badge <- shiny::renderUI({
             suf <- selected_suffix()
             pd  <- project_data()
@@ -109,10 +112,90 @@ mod_maladaptation_server <- function(id, project_data) {
                 nrow(data.table::fread(snps_path, select = 1L))
             }, error = function(e) NULL)
             if (is.null(n)) return(NULL)
+            # Get total filtered SNP count for context
+            summ <- load_pipeline_summary(pd$name)
+            n_total_row <- summ[summ$step == "processing" & summ$metric == "snps_after_filtering", ]
+            n_total <- if (nrow(n_total_row) > 0) suppressWarnings(as.integer(n_total_row$value[1])) else NA_integer_
+            label <- if (!is.na(n_total) && n_total > 0) {
+                pct <- round(100 * n / n_total, 1)
+                paste0("\u25c6 ", n, " / ", format(n_total, big.mark = ","), " adaptive SNPs (", pct, "%)")
+            } else {
+                paste0("\u25c6 ", n, " adaptive SNPs")
+            }
             htmltools::tags$span(
                 class = "badge bg-secondary ms-2 align-self-center",
                 style = "font-size:0.85rem; vertical-align:middle;",
-                paste0("\u25c6 ", n, " adaptive SNPs")
+                label
+            )
+        })
+
+        # ── G2: GF run parameters badge ───────────────────────────────────────
+        output$gf_params_badge <- shiny::renderUI({
+            suf <- selected_suffix()
+            pd  <- project_data()
+            if (is.null(suf) || is.null(pd)) return(NULL)
+            cfg     <- pd$config
+            ntree   <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                  "ntree", default = 500L)
+            cor_thr <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                  "cor_threshold", default = 0.5)
+            spatial <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                  "spatial_correction", default = "with")
+            rand    <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                  "random_model", default = TRUE)
+            htmltools::div(
+                class = "ms-2 align-self-center",
+                config_badges_bar(
+                    config_badge("ntree", ntree),
+                    config_badge("cor.thr", cor_thr),
+                    config_badge("spatial", spatial),
+                    if (isTRUE(rand)) config_badge("random model", "yes") else NULL
+                )
+            )
+        })
+
+        # ── G4: Future climate scenario badge ─────────────────────────────────
+        output$climate_scenario_badge <- shiny::renderUI({
+            suf <- selected_suffix()
+            pd  <- project_data()
+            if (is.null(suf) || is.null(pd)) return(NULL)
+            cfg    <- pd$config
+            ssp    <- config_get(cfg, "Future", "ssp",    default = NULL)
+            year   <- config_get(cfg, "Future", "year",   default = NULL)
+            models <- config_get(cfg, "Future", "models", default = NULL)
+            if (is.null(ssp) && is.null(year)) return(NULL)
+            n_models <- if (is.null(models)) 0L else length(models)
+            label_parts <- c(
+                if (!is.null(ssp))  paste0("SSP", ssp),
+                if (!is.null(year)) as.character(year),
+                if (n_models > 0)   paste0(n_models, " GCMs")
+            )
+            htmltools::div(
+                class = "ms-1 align-self-center",
+                htmltools::tags$span(
+                    class = "badge bg-info text-dark align-self-center",
+                    style = "font-size:0.75rem;",
+                    paste0("\u2601 Future: ", paste(label_parts, collapse = " "))
+                )
+            )
+        })
+
+        # ── G3: Offset range summary ──────────────────────────────────────────
+        output$offset_summary <- shiny::renderUI({
+            dt <- site_data()
+            if (is.null(dt) || nrow(dt) == 0 || !"genetic_offset" %in% names(dt))
+                return(NULL)
+            offs <- dt$genetic_offset
+            offs <- offs[!is.na(offs)]
+            if (length(offs) == 0) return(NULL)
+            htmltools::div(
+                class = "alert alert-info d-flex gap-2 align-items-start mb-2 py-2",
+                bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+                htmltools::div(
+                    htmltools::tags$strong("Genetic offset range: "),
+                    sprintf("%.4f", min(offs)), " \u2013 ", sprintf("%.4f", max(offs)),
+                    " (mean: ", sprintf("%.4f", mean(offs)), ", n=", length(offs), " sites)"
+                )
             )
         })
 

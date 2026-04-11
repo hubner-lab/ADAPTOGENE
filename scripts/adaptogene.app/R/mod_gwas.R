@@ -8,6 +8,12 @@
 mod_gwas_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
+        # Config parameter badges
+        shiny::uiOutput(ns("config_badges")),
+
+        # Phenotype missing data alert
+        shiny::uiOutput(ns("pheno_missing_alert")),
+
         # Trait selector inline above phenomap
         htmltools::div(
             class = "control-bar",
@@ -36,6 +42,9 @@ mod_gwas_ui <- function(id) {
                 )
             )
         ),
+
+        # Warning: traits with no significant SNPs
+        shiny::uiOutput(ns("no_sig_snps_warning")),
 
         # Combined Manhattan — filter bar injected inside the card
         mod_manhattan_overlay_ui(
@@ -182,6 +191,102 @@ mod_gwas_server <- function(id, project_data) {
             } else {
                 as.integer(v)
             }
+        })
+
+        # ── I4: Config parameter badges ────────────────────────────────────────
+        output$config_badges <- shiny::renderUI({
+            pd <- project_data()
+            k  <- pd$k_best
+            if (is.na(k) && length(methods()) == 0) return(NULL)
+            cfg     <- pd$config
+            cmb     <- config_get(cfg, "GWAS", "combine_method", default = "All")
+            missing_strat <- config_get(cfg, "GWAS", "missing_strategy", default = "MEAN")
+            rdist   <- config_get(cfg, "GWAS", "region_distance", default = 1000000L)
+            rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
+                         paste0(format(as.integer(rdist), big.mark = ","), " bp")
+            config_badges_bar(
+                if (!is.na(k)) config_badge("K", k, "bg-primary"),
+                config_badge("combine", cmb),
+                config_badge("region dist.", rdist_str),
+                config_badge("missing", missing_strat)
+            )
+        })
+
+        # ── E1/E2: Phenotype missing data alert ────────────────────────────────
+        output$pheno_missing_alert <- shiny::renderUI({
+            pd <- project_data()
+            dt <- load_pheno_missing_summary(pd$name)
+            if (nrow(dt) == 0) return(NULL)
+            req_cols <- c("trait", "n_total", "n_available", "strategy")
+            if (!all(req_cols %in% names(dt))) return(NULL)
+
+            # Determine alert severity: warning if any trait <50% data or uses DROP
+            has_low   <- any(dt$n_available / dt$n_total < 0.5, na.rm = TRUE)
+            has_drop  <- "missing_strategy" %in% names(dt) &&
+                         any(toupper(dt$missing_strategy) == "DROP", na.rm = TRUE)
+            if (!has_low && !"missing_strategy" %in% names(dt)) {
+                has_drop <- any(toupper(dt$strategy) == "DROP", na.rm = TRUE)
+                has_low  <- any(dt$n_available / dt$n_total < 0.5, na.rm = TRUE)
+            }
+            alert_class <- if (has_low || has_drop) "alert-warning" else "alert-info"
+            icon_name   <- if (has_low || has_drop) "exclamation-triangle-fill" else "info-circle-fill"
+
+            strat_col <- if ("missing_strategy" %in% names(dt)) "missing_strategy" else "strategy"
+
+            rows <- lapply(seq_len(nrow(dt)), function(i) {
+                row      <- dt[i, ]
+                pct      <- round(100 * row$n_available / row$n_total)
+                strat    <- toupper(as.character(row[[strat_col]]))
+                row_class <- if (pct < 50) "text-warning fw-semibold" else ""
+                htmltools::tags$li(
+                    class = row_class,
+                    htmltools::tags$code(row$trait),
+                    paste0(" \u2014 ", row$n_available, "/", row$n_total,
+                           " samples (", pct, "%), strategy: ", strat)
+                )
+            })
+
+            htmltools::div(
+                class = paste("alert d-flex gap-2 align-items-start mb-2", alert_class),
+                bsicons::bs_icon(icon_name, class = "flex-shrink-0 mt-1"),
+                htmltools::div(
+                    htmltools::tags$strong("Phenotype data availability"),
+                    " \u2014 samples with non-missing values per trait:",
+                    htmltools::tags$ul(class = "mb-0 mt-1", rows)
+                )
+            )
+        })
+
+        # ── D5: Traits with zero significant SNPs warning ──────────────────────
+        output$no_sig_snps_warning <- shiny::renderUI({
+            pd         <- project_data()
+            dt_missing <- load_pheno_missing_summary(pd$name)
+            # Full trait list: from pheno_missing_summary (most complete) or pvalue TSV headers
+            all_traits <- if (nrow(dt_missing) > 0 && "trait" %in% names(dt_missing)) {
+                dt_missing$trait
+            } else {
+                load_all_trait_names(pd$name, module)
+            }
+            sig_traits <- traits()
+            missing    <- setdiff(all_traits, sig_traits)
+            if (length(missing) == 0) return(NULL)
+            items <- lapply(missing, function(tr)
+                htmltools::tags$li(htmltools::tags$code(tr)))
+            htmltools::div(
+                class = "alert alert-warning d-flex gap-2 align-items-start mb-2",
+                bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
+                htmltools::div(
+                    htmltools::tags$strong(
+                        length(missing),
+                        if (length(missing) == 1) "trait" else "traits",
+                        "yielded no significant SNPs across all methods"
+                    ),
+                    " \u2014 not shown in filter bar. ",
+                    "Try relaxing thresholds in ",
+                    htmltools::tags$code("GWAS.configs"), ".",
+                    htmltools::tags$ul(class = "mb-0 mt-1", items)
+                )
+            )
         })
 
         # ── Filter bar UI ──────────────────────────────────────────────────────
