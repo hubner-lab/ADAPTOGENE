@@ -210,40 +210,21 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             row
         })
 
+        # Derive trait automatically from region (first trait); no user selector needed
+        # since GO enrichment is per-region (same gene set regardless of trait).
         current_trait <- shiny::reactive({
-            tr <- input$detail_trait
-            if (is.null(tr) || tr == "") return(NULL)
-            tr
-        })
-
-        # ── Update trait selector when region changes (smart default: lowest p) ─
-        shiny::observe({
             row <- current_region_row()
-            if (is.null(row)) return()
+            if (is.null(row) || nrow(row) == 0) return(NULL)
             traits <- trimws(strsplit(as.character(row$traits[1]), ",")[[1]])
             traits <- traits[nzchar(traits)]
-            if (length(traits) == 0) return()
-
-            # Pick default: trait with lowest min p-value among sig SNPs in region
-            snps <- region_snps()
-            default_trait <- if (!is.null(snps) && nrow(snps) > 0 && "trait" %in% names(snps)) {
-                per_trait <- snps[, .(min_p = min(pvalue, na.rm = TRUE)), by = "trait"]
-                per_trait <- per_trait[trait %in% traits]
-                if (nrow(per_trait) > 0) per_trait[which.min(min_p), trait] else traits[1]
-            } else {
-                traits[1]
-            }
-
-            shiny::updateSelectInput(session, "detail_trait",
-                choices  = traits,
-                selected = default_trait)
+            if (length(traits) == 0) return(NULL)
+            traits[1]
         })
 
         enrich_key <- shiny::reactive({
             rid <- selected_region_id()
-            tr  <- current_trait()
-            if (is.null(rid) || is.null(tr)) return(NULL)
-            paste0(rid, "___", tr)
+            if (is.null(rid)) return(NULL)
+            rid
         })
 
         # combo_hash: deterministic 8-char hash of sorted trait/method pairs in region.
@@ -456,12 +437,6 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             if (is.null(rid)) return(NULL)
             htmltools::tagList(
                 shiny::uiOutput(ns("detail_info_bar")),
-                htmltools::div(
-                    class = "d-flex align-items-center gap-2 px-1 py-2",
-                    htmltools::strong("Trait:", class = "text-nowrap small"),
-                    shiny::selectInput(ns("detail_trait"), label = NULL,
-                        choices = NULL, width = "220px")
-                ),
                 bslib::accordion(
                     id       = ns("detail_sections"),
                     open     = c("genes", "enrichment", "regionplot", "haplotype"),
@@ -600,7 +575,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 ))
             }
 
-            # H3: GO annotation coverage status
+            # Show warnings that block enrichment (config error or no annotations)
             genes_df <- region_genes()
             pd_enr   <- project_data()
             go_field <- config_get(pd_enr$config, "GFF", "go_field", default = NULL)
@@ -618,24 +593,19 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             } else {
                 n_total <- nrow(genes_df)
                 n_go    <- sum(!is.na(genes_df[[go_field]]) & nzchar(genes_df[[go_field]]))
-                alert_cls <- if (n_go == 0) "alert-warning" else "alert-info"
-                icon_name <- if (n_go == 0) "exclamation-triangle-fill" else "info-circle-fill"
-                htmltools::div(
-                    class = paste("alert small d-flex gap-2 align-items-start mb-2 py-2", alert_cls),
-                    bsicons::bs_icon(icon_name, class = "flex-shrink-0 mt-1"),
-                    if (n_go == 0) {
+                if (n_go == 0) {
+                    htmltools::div(
+                        class = "alert alert-warning small d-flex gap-2 align-items-start mb-2 py-2",
+                        bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
                         htmltools::div(
                             "No GO annotations found in ", n_total, " region gene",
                             if (n_total != 1) "s", ". ",
                             "Check ", htmltools::tags$code("GFF.go_field"), " config."
                         )
-                    } else {
-                        htmltools::div(
-                            htmltools::tags$strong(n_go, "of", n_total),
-                            " region gene", if (n_total != 1) "s", " have GO annotations."
-                        )
-                    }
-                )
+                    )
+                } else {
+                    NULL  # annotations present — no need to say anything before running
+                }
             }
 
             htmltools::tagList(
