@@ -620,12 +620,28 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
 
 # ── Haplotype inline helpers ──────────────────────────────────────────────────
 
+#' Count SNPs in a VCF within a chr:start-end region (via awk).
+#' Returns NA_integer_ if VCF missing or awk fails.
+#' @noRd
+count_vcf_region_snps <- function(vcf_path, chr, start, end) {
+    if (is.null(vcf_path) || !nzchar(vcf_path) || !file_ok(vcf_path))
+        return(NA_integer_)
+    cmd <- sprintf(
+        "awk -v c=%s -v s=%d -v e=%d 'BEGIN{n=0} !/^#/ && $1==c && $2>=s && $2<=e {n++} END{print n}' %s",
+        shQuote(as.character(chr)),
+        as.integer(start), as.integer(end),
+        shQuote(vcf_path)
+    )
+    out <- suppressWarnings(as.integer(system(cmd, intern = TRUE, ignore.stderr = TRUE)))
+    if (length(out) == 0 || is.na(out)) NA_integer_ else out
+}
+
 #' Module → haplotype tag source suffix mapping
 #' @noRd
 .module_to_hap_source <- function(module) {
     switch(module,
-        gwas       = "gwas",
-        gea_x_gwas = "gea",  # GEAxGWAS regions use GEA haplotype source
+        GWAS     = "gwas",
+        GEAxGWAS = "gea",  # GEAxGWAS regions use GEA haplotype source
         NULL
     )
 }
@@ -723,11 +739,11 @@ check_hap_viz_results <- function(project, tag, region_id) {
 launch_hap_scan_subprocess <- function(region_row, project_data, tag, params) {
     pd <- project_data
 
-    filtered_vcf <- hap_filtered_vcf_path(pd$name)
+    filtered_vcf <- hap_filtered_vcf_path(pd$name, pd$config)
     if (!file_ok(filtered_vcf))
         return(list(error = paste0("Filtered VCF not found. Run mode=processing first.")))
 
-    ld_vcf <- hap_imputed_vcf_path(pd$name, pd$k_best)
+    ld_vcf <- hap_imputed_vcf_path(pd$name, pd$k_best, pd$config)
     if (!file_ok(ld_vcf)) ld_vcf <- filtered_vcf  # fallback: use filtered VCF for LD
 
     metadata <- hap_metadata_path(pd$name)

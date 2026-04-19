@@ -427,20 +427,34 @@ hap_viz_tables_dir <- function(project, tag) {
     mod_path(project, MOD_INTER, "haplotype", tag, "tables")
 }
 
+#' Derive VCF basename from config (mirrors pipeline's VCF_BASE).
+#' Falls back to `project` if config is missing an Input.vcf entry.
+#' @noRd
+.vcf_base <- function(project, config = NULL) {
+    vcf <- if (!is.null(config)) config_get(config, "Input", "vcf", default = NULL) else NULL
+    if (is.null(vcf) || !nzchar(vcf)) return(project)
+    name <- basename(vcf)
+    name <- sub("\\.vcf\\.gz$", "", name)
+    name <- sub("\\.vcf$",     "", name)
+    name
+}
+
 #' Filtered VCF path (glob from _work, returns first match)
 #' @noRd
-hap_filtered_vcf_path <- function(project) {
+hap_filtered_vcf_path <- function(project, config = NULL) {
     base <- project_base(project)
-    vcfs <- Sys.glob(file.path(base, "_work", "maf*", paste0(project, ".vcf")))
+    vb <- .vcf_base(project, config)
+    vcfs <- Sys.glob(file.path(base, "_work", "maf*", paste0(vb, ".vcf")))
     if (length(vcfs) == 0) "" else vcfs[1]
 }
 
 #' Imputed VCF path for LD computation (glob from _work, returns first match)
 #' @noRd
-hap_imputed_vcf_path <- function(project, k_best) {
+hap_imputed_vcf_path <- function(project, k_best, config = NULL) {
     base <- project_base(project)
+    vb <- .vcf_base(project, config)
     vcfs <- Sys.glob(file.path(base, "_work", "maf*",
-                               paste0(project, "_K", k_best, "imp.vcf")))
+                               paste0(vb, "_K", k_best, "imp.vcf")))
     if (length(vcfs) == 0) "" else vcfs[1]
 }
 

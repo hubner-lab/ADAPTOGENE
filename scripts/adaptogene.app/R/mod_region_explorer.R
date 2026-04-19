@@ -155,6 +155,17 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                  as.integer(pos) <= row$end[1]]
         })
 
+        # Total SNP count in region (all SNPs in filtered VCF, not just sig).
+        # Haplotype analysis operates on every variant in the region — this is
+        # the relevant number for the min-SNPs check, not the sig-SNP count.
+        region_total_snps <- shiny::reactive({
+            row <- current_region_row()
+            if (is.null(row)) return(NA_integer_)
+            pd  <- project_data()
+            vcf <- hap_filtered_vcf_path(pd$name, pd$config)
+            count_vcf_region_snps(vcf, row$chr[1], row$start[1], row$end[1])
+        })
+
         # ── Enrichment state ───────────────────────────────────────────────────
         enrichment_cache <- shiny::reactiveValues()
         regionplot_cache <- shiny::reactiveValues()
@@ -779,15 +790,25 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 if (isTRUE(changed))
                     htmltools::span(class = "badge bg-warning text-dark small ms-1", "modified")
             }
-            # H4: SNP sufficiency warning
-            n_region_snps <- nrow(region_snps())
+            # H4: SNP sufficiency warning — counts ALL SNPs in the region
+            # from the filtered VCF (haplotype uses all variants, not just sig).
+            n_region_snps <- region_total_snps()
             min_snp_thr   <- as.integer(use_minsnp)
-            snp_warning <- if (n_region_snps < min_snp_thr) {
+            snp_warning <- if (is.na(n_region_snps)) {
+                htmltools::div(
+                    class = "alert alert-info small d-flex gap-2 align-items-start mb-2 py-2",
+                    bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+                    htmltools::div(
+                        "Total SNP count in region unavailable ",
+                        "(filtered VCF not found — run mode=processing)."
+                    )
+                )
+            } else if (n_region_snps < min_snp_thr) {
                 htmltools::div(
                     class = "alert alert-warning small d-flex gap-2 align-items-start mb-2 py-2",
                     bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
                     htmltools::div(
-                        "Region has ", htmltools::tags$strong(n_region_snps), " SNPs",
+                        "Region has ", htmltools::tags$strong(n_region_snps), " total SNPs",
                         " (minimum: ", min_snp_thr, "). ",
                         "Haplotype scan may fail. Lower ",
                         htmltools::tags$code("Min SNPs in region"), " or choose a different region."
@@ -798,7 +819,7 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                     class = "alert alert-info small d-flex gap-2 align-items-start mb-2 py-2",
                     bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
                     htmltools::div(
-                        "Region has ", htmltools::tags$strong(n_region_snps), " SNPs",
+                        "Region has ", htmltools::tags$strong(n_region_snps), " total SNPs",
                         " (minimum: ", min_snp_thr, "). Results may be limited."
                     )
                 )
