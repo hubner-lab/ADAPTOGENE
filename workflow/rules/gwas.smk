@@ -200,7 +200,7 @@ if GWAS_CONFIGS and PHENO_MISSING == 'DROP':
             params: files_str = lambda wc, input: ' '.join(input)
             log: f"{LOGDIR}gwas/combine_gwas_pvalues_{_method.lower()}.log"
             shell:
-                "Rscript /pipeline/scripts/combine_gwas_pvalues.R "
+                "Rscript /pipeline/scripts/combine_pheno_pvalues.R "
                 '"{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1'
 
     if GWAS_GAPIT_CONFIGS:
@@ -246,7 +246,7 @@ if GWAS_CONFIGS and PHENO_MISSING == 'DROP':
             log: f"{LOGDIR}gwas/combine_gwas_pvalues_{{method}}.log"
             shell:
                 """
-                Rscript /pipeline/scripts/combine_gwas_pvalues.R \
+                Rscript /pipeline/scripts/combine_pheno_pvalues.R \
                     "{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1
                 """
 

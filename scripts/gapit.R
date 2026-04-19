@@ -60,7 +60,7 @@ sample_names <- myGD$Taxa
 # --- Subset if DROP mode ---
 if (!is.null(SAMPLES_SUBSET)) {
     message("INFO: DROP mode — subsetting to sample list: ", SAMPLES_SUBSET)
-    keep_samples <- fread(SAMPLES_SUBSET, header = FALSE, colClasses = "character")$V1
+    keep_samples <- fread(SAMPLES_SUBSET, header = FALSE, col.names = c("FID", "IID"), colClasses = "character")$IID
 
     # Subset GD
     keep_idx <- which(sample_names %in% keep_samples)
