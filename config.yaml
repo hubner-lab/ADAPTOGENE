@@ -99,6 +99,18 @@ GEA:
   combine_gap: 100000            # Max distance (bp) for cross-method overlap annotation in find_sig_snps
   region_distance: 1000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   promoter_length: 10000         # Promoter region length for SNP annotation
+  block_mode: snp                # snp | block — use LD block boundaries instead of per-SNP regions
+  block:
+    blocks_max_kb: 200           # Max LD block size (plink --blocks-max-kb)
+    wza:
+      maf_filter: 0.05           # Min MAF for SNP inclusion in WZA
+      min_snps_per_block: 3      # Min SNPs per block to compute WZA
+    adjust: bonf_0.05            # Significance threshold for block-level testing (adjust_threshold)
+    within_block:
+      method: within_order       # How to select SNPs within significant blocks
+      multiplier: 10             # p < lead_p * multiplier (within_order)
+      threshold: 0.05            # p-value cutoff (threshold method)
+      top_n: 5                   # Top N SNPs per block (top_n method)
 
 #-----------------------------------------------------------------------------
 # GFF: Gene annotation parsing
@@ -150,6 +162,9 @@ Maladaptation:
 #   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
 #   # Override any GEA.* param only if different:
 #   # region_distance: 2000000
+#   # block_mode: snp             # snp | block (inherits GEA.block settings by default)
+#   # block:
+#   #   blocks_max_kb: 200
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)

@@ -226,7 +226,9 @@ rule compute_sample_het:
 rule compute_snp_freq_filtered:
     """Compute allele frequencies on the filtered VCF (post MAF+missingness filter)."""
     input:  vcf = W['vcf_filt']
-    output: O['qc_maf_filtered']
+    output:
+        frq = O['qc_maf_filtered'],
+        pos = O['qc_maf_pos']
     params: prefix = f"{INTER}qc/maf_filtered_tmp"
     log:    f"{LOGDIR}processing/compute_snp_freq_filtered.log"
     threads: CPU
@@ -234,10 +236,14 @@ rule compute_snp_freq_filtered:
         """
         plink --vcf {input.vcf} --const-fid --allow-extra-chr \
             --set-missing-var-ids @:# \
-            --freq --out {params.prefix} > {log} 2>&1
+            --freq --make-bed --out {params.prefix} > {log} 2>&1
         awk 'NR==1 {{print "CHR\tSNP\tA1\tA2\tMAF\tNCHROBS"; next}} {{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6}}' \
-            {params.prefix}.frq > {output}
-        rm -f {params.prefix}.nosex {params.prefix}.log {params.prefix}.hh {params.prefix}.frq
+            {params.prefix}.frq > {output.frq}
+        paste <(awk '{{print $1"\t"$4}}' {params.prefix}.bim) \
+              <(awk 'NR>1 {{print $5}}' {params.prefix}.frq) | \
+            awk 'BEGIN{{print "CHR\tPOS\tMAF"}} {{print}}' > {output.pos}
+        rm -f {params.prefix}.nosex {params.prefix}.log {params.prefix}.hh \
+              {params.prefix}.frq {params.prefix}.bim {params.prefix}.bed {params.prefix}.fam
         """
 
 rule compute_snp_density_filtered:

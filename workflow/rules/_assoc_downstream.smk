@@ -33,7 +33,7 @@ if ASSOC_SOURCES:
         output:
             f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
         wildcard_constraints:
-            source = SOURCE_REGEX,
+            source = _SNP_SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
             adjust = r"\w+_[\d.]+"
         params:
@@ -58,7 +58,7 @@ if ASSOC_SOURCES:
         output:
             f"{OUTDIR}{{source}}/tables/selected_snps.tsv"
         wildcard_constraints:
-            source = SOURCE_REGEX
+            source = _SNP_SOURCE_REGEX
         params:
             sigsnps_str = lambda wc, input: " ".join(input.sigsnps),
             method      = lambda wc: _src(wc.source, "combine_method"),
@@ -82,7 +82,7 @@ if ASSOC_SOURCES:
             per_trait = f"{OUTDIR}{{source}}/tables/regions_per_trait.tsv",
             combined  = f"{OUTDIR}{{source}}/tables/regions_combined.tsv"
         wildcard_constraints:
-            source = SOURCE_REGEX
+            source = _SNP_SOURCE_REGEX
         params:
             region_dist   = lambda wc: _src(wc.source, "region_distance"),
             ld_decay_path = lambda wc: (

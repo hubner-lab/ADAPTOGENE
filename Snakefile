@@ -14,6 +14,8 @@ if GWAS_CONFIGS:
     include: "workflow/rules/gwas.smk"
 if ASSOC_SOURCES:
     include: "workflow/rules/_assoc_downstream.smk"
+if _BLOCK_SOURCES:
+    include: "workflow/rules/ld_blocks.smk"
 if GWAS_CONFIGS and GEA_CONFIGS:
     include: "workflow/rules/gea_x_gwas.smk"
 include: "workflow/rules/maladaptation.smk"

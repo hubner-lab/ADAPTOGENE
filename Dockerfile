@@ -46,6 +46,9 @@ ENV PIPX_HOME=/usr/local/pipx
 ENV PIPX_BIN_DIR=/usr/local/bin
 RUN pipx install snakemake && pipx inject snakemake pulp==2.7
 
+# Python packages for WZA block-level p-value aggregation
+RUN pip3 install --break-system-packages numpy==1.26.4 pandas==2.2.2 scipy==1.13.1
+
 # Set working directory
 WORKDIR /pipeline
 

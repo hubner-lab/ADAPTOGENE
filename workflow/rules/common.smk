@@ -274,6 +274,29 @@ PHENO_REGION_DISTANCE      = _gwas_rdp['region_distance']
 PHENO_REGION_DISTANCE_AUTO = _gwas_rdp['region_distance_auto']
 PHENO_PROMOTER_LENGTH      = _gwas_rdp['promoter_length']
 
+# BLOCK MODE parameters (LD block partitioning + WZA p-value aggregation)
+GEA_BLOCK_MODE = _assoc.get('block_mode', 'snp')
+check_in_list(GEA_BLOCK_MODE, ['snp', 'block'], 'GEA.block_mode')
+GWAS_BLOCK_MODE = _pheno.get('block_mode', 'snp') if config.get('GWAS') else 'snp'
+if config.get('GWAS'):
+    check_in_list(GWAS_BLOCK_MODE, ['snp', 'block'], 'GWAS.block_mode')
+_ANY_BLOCK_MODE = GEA_BLOCK_MODE == 'block' or GWAS_BLOCK_MODE == 'block'
+
+# Shared block parameters — prefer GEA.block when GEA is in block mode, else GWAS.block
+_block_cfg = _assoc.get('block', {}) if GEA_BLOCK_MODE == 'block' else _pheno.get('block', {})
+BLOCK_BLOCKS_MAX_KB     = int(_block_cfg.get('blocks_max_kb', 200))
+_block_wza              = _block_cfg.get('wza', {})
+BLOCK_WZA_MAF_FILTER    = float(_block_wza.get('maf_filter', 0.05))
+BLOCK_WZA_MIN_SNPS      = int(_block_wza.get('min_snps_per_block', 3))
+_block_within           = _block_cfg.get('within_block', {})
+BLOCK_WITHIN_METHOD     = _block_within.get('method', 'within_order')
+check_in_list(BLOCK_WITHIN_METHOD,
+    ['threshold', 'top_n', 'lead', 'within_order', 'all'], 'block.within_block.method')
+BLOCK_WITHIN_MULTIPLIER = float(_block_within.get('multiplier', 10.0))
+BLOCK_WITHIN_THRESHOLD  = float(_block_within.get('threshold', 0.05))
+BLOCK_WITHIN_TOP_N      = int(_block_within.get('top_n', 5))
+BLOCK_ADJUST_STR        = str(_block_cfg.get('adjust', 'bonf_0.05'))
+
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('GEAxGWAS', {})
 _overlap_rdist_raw = _overlap.get('region_distance', None)
@@ -394,6 +417,7 @@ O = {
     'qc_sample_het':       f"{MOD_PROCESSING}tables/sample_heterozygosity.tsv",
     'qc_maf_raw':          f"{INTER}qc/maf_raw.frq",
     'qc_maf_filtered':     f"{INTER}qc/maf_filtered.frq",
+    'qc_maf_pos':          f"{INTER}qc/maf_pos.tsv",
     'qc_snp_miss_raw':     f"{INTER}qc/snp_missingness_raw.lmiss",
     'qc_snp_density_raw':  f"{INTER}qc/snp_density_raw.snpden",
     'qc_snp_density_filt': f"{INTER}qc/snp_density_filtered.snpden",
@@ -451,6 +475,7 @@ O['ld_decay_plot_gw_svg'] = _ph('ld_decay_plot_gw_svg')
 O['ld_decay_plot_chr']    = _ph('ld_decay_plot_chr')
 O['ld_decay_plot_chr_svg']= _ph('ld_decay_plot_chr_svg')
 # --- from add_association_paths() ---
+W['blocks_det']           = _ph('blocks_det')
 W['geno_full']            = _ph('geno_full')
 W['lfmm_full']            = _ph('lfmm_full')
 W['vcfsnp_full']          = _ph('vcfsnp_full')
@@ -554,6 +579,11 @@ def add_association_paths():
         W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
         W['gapit_work'] = f"{INTER}gapit/gea/"
     # lfmm uses W['lfmm_imp'] / W['lfmm_imp_full'] from add_kbest_paths()
+
+    # LD blocks paths (shared across GEA/GWAS when any source uses block_mode=block)
+    if _ANY_BLOCK_MODE:
+        W['blocks_det'] = f"{INTER}ld_blocks/blocks.det"
+        os.makedirs(f"{INTER}ld_blocks/", exist_ok=True)
 
     # Combined outputs - association
     O['selected_snps'] = f"{MOD_GEA}tables/selected_snps.tsv"
@@ -764,6 +794,7 @@ if K_BEST is not None and GEA_CONFIGS:
         "combine_gap":     SIGSNPS_GAP,
         "pvalues_fn":      assoc_pvalues,
         "sigsnps_fn":      assoc_sigsnps,
+        "block_mode":      GEA_BLOCK_MODE,
     }
 
 if K_BEST is not None and GWAS_CONFIGS:
@@ -782,6 +813,7 @@ if K_BEST is not None and GWAS_CONFIGS:
         "combine_gap":     PHENO_COMBINE_GAP,
         "pvalues_fn":      pheno_pvalues,
         "sigsnps_fn":      pheno_sigsnps,
+        "block_mode":      GWAS_BLOCK_MODE,
     }
 
 def _src(source, key):
@@ -794,10 +826,23 @@ SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "gea"
 # {source} in the output path disambiguates which branch a match belongs to.
 TRAIT_REGEX_ANY = r"(bio_\d+|[a-zA-Z]\w*)"
 
+# Source classification by block_mode — used in both _assoc_downstream.smk and ld_blocks.smk
+_BLOCK_SOURCES = sorted([s for s, cfg in ASSOC_SOURCES.items() if cfg.get("block_mode", "snp") == "block"])
+_SNP_SOURCES   = sorted([s for s, cfg in ASSOC_SOURCES.items() if cfg.get("block_mode", "snp") == "snp"])
+if _BLOCK_SOURCES:
+    _BLOCK_SOURCE_REGEX      = "|".join(_BLOCK_SOURCES)
+    _ALL_BLOCK_METHODS_REGEX = "|".join(sorted({
+        m for s in _BLOCK_SOURCES for m in ASSOC_SOURCES[s]["configs"].keys()
+    }))
+    _SNP_SOURCE_REGEX = "|".join(_SNP_SOURCES) if _SNP_SOURCES else "NOSOURCE_snp"
+else:
+    _SNP_SOURCE_REGEX = SOURCE_REGEX  # all sources are snp-mode, no partitioning needed
+
 def assoc_out(source, key):
     """Return the per-source output path for a logical downstream key."""
     _templates = {
         "selected_snps":              "tables/selected_snps.tsv",
+        "selected_blocks":            "tables/selected_blocks.tsv",
         "regions_per_trait":          "tables/regions_per_trait.tsv",
         "regions_combined":           "tables/regions_combined.tsv",
         "genes_per_region":           "tables/genes_per_region.tsv",
@@ -811,6 +856,14 @@ def assoc_out(source, key):
         "manhattan_combined_coords":  f"plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
     }
     return f"{ASSOC_SOURCES[source]['mod']}{_templates[key]}"
+
+def assoc_block_pvalues(source, method):
+    """Per-method WZA block-level p-value table."""
+    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_block_pvalues_K{K_BEST}.tsv"
+
+def assoc_sig_blocks(source, method, adjust):
+    """Significant blocks for a (source, method, adjust) combination."""
+    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_block_pvalues_K{K_BEST}_sig_blocks_{adjust}.tsv"
 
 #=============================================================================
 # RULE FACTORIES — per-engine helpers for dynamic rule declaration
@@ -997,19 +1050,29 @@ def _targets_for_assoc_source(source):
     """Build the shared downstream target list for a GEA or GWAS source."""
     src = ASSOC_SOURCES[source]
     traits = get_predictors_list() if source == "GEA" else PHENO_TRAITS
+    block_mode = src.get("block_mode", "snp")
     targets = []
     for method, adjust in src["configs"].items():
         targets.append(src["pvalues_fn"](method))
-        targets.append(src["sigsnps_fn"](method, adjust))
+        if block_mode == "snp":
+            # Standard: per-SNP sig SNPs file
+            targets.append(src["sigsnps_fn"](method, adjust))
+        else:
+            # Block mode: WZA block p-values + sig blocks per method
+            targets.append(assoc_block_pvalues(source, method))
+            targets.append(assoc_sig_blocks(source, method, adjust))
         for trait in traits:
             targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png")
             targets.append(f"{src['mod']}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png")
+    # Shared downstream: same output paths regardless of mode
     for key in (
         "selected_snps", "regions_per_trait", "regions_combined",
         "genes_per_region", "genes_per_region_collapsed", "genes_combined",
         "manhattan_combined_png", "qq_combined_png",
     ):
         targets.append(assoc_out(source, key))
+    if block_mode == "block":
+        targets.append(assoc_out(source, "selected_blocks"))
     return targets
 
 
