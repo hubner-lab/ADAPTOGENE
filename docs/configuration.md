@@ -208,6 +208,15 @@ GEA:
 | `GEA.top_regions` | Maximum number of top regions to report per trait | `10` |
 | `GEA.promoter_length` | Promoter length (bp) upstream of gene start for SNP counting | `3000` |
 | `GEA.scattermore_threshold` | SNP count above which scattermore is used for Manhattan background rendering | `30000` |
+| `GEA.block_mode` | `"snp"` (default) or `"block"` — enables LD block partitioning + WZA aggregation | `"snp"` |
+| `GEA.block.blocks_max_kb` | Max LD block size for plink `--blocks` (kb) | `200` |
+| `GEA.block.wza.maf_filter` | Min MAF for SNPs included in WZA calculation | `0.05` |
+| `GEA.block.wza.min_snps_per_block` | Min SNPs per block to run WZA (blocks with fewer are skipped) | `3` |
+| `GEA.block.adjust` | Block-level p-value correction (`bonf_0.05`, `qvalue_0.05`, etc.) | `"bonf_0.05"` |
+| `GEA.block.within_block.method` | SNP selection rule within significant blocks (`within_order`, `threshold`, `top_n`, `lead`, `all`) | `"within_order"` |
+| `GEA.block.within_block.multiplier` | For `within_order`: select SNPs where `p < min_p_in_block × multiplier` | `10` |
+| `GEA.block.within_block.threshold` | For `threshold`: absolute p-value cutoff | `0.05` |
+| `GEA.block.within_block.top_n` | For `top_n`: number of best SNPs per block | `5` |
 
 **configs format**: Each entry specifies:
 - `method`: `EMMAX`, `LFMM`, or any GAPIT3 model (`GLM`, `MLM`, `CMLM`, `ECMLM`, `SUPER`, `MLMM`, `FarmCPU`, `BLINK`)
@@ -330,6 +339,8 @@ GWAS:
 | `GWAS.region_distance` | Distance (bp) for SNP clustering (defaults to `GEA.region_distance`) | inherited |
 | `GWAS.combine_gap` | Gap for merging SNP sets (defaults to `GEA.combine_gap`) | inherited |
 | `GWAS.promoter_length` | Promoter length (defaults to `GEA.promoter_length`) | inherited |
+| `GWAS.block_mode` | `"snp"` or `"block"` — same as `GEA.block_mode` but for GWAS | `"snp"` |
+| `GWAS.block.*` | Same sub-parameters as `GEA.block.*` | same defaults |
 
 **Missing value strategies**:
 - **DROP** — Per-trait sample subsetting. Samples missing a trait value are excluded from that trait's analysis. Separate VCF, TPED, and kinship are computed per trait.

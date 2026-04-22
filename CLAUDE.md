@@ -1,0 +1,480 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Development Workflow (MANDATORY)
+
+**Every new feature or change MUST follow this process. No exceptions.**
+
+### 1. Discuss Before Implementing
+
+Before writing any code, **always** start with a discussion:
+- Clarify requirements with the user via questions and options
+- Identify which existing outputs, scripts, and rules can be reused
+- Agree on the approach before touching any files
+- Use plan mode for anything non-trivial
+
+### 2. Snakemake First, Scripts Second
+
+Implementation order is strict:
+
+1. **Design the Snakemake rules first** — Define inputs, outputs, and the DAG structure. This is where most effort goes: avoiding redundancy, reusing existing rules/scripts with different inputs, and keeping the workflow clean.
+2. **Reuse existing scripts wherever possible** — Many scripts are generic (e.g., `plot_piemap.R` works for ancestry, traits, Tajima's D, genetic offset — just different inputs). Before writing a new script, check if an existing one can handle the job with different arguments.
+3. **Add placeholder comments for new scripts** — If a new script is genuinely needed, add the rule with a comment describing what the script should do, its expected inputs/outputs, and argument order. This serves as a specification.
+4. **Write scripts last** — Only after the Snakemake structure is finalized and approved, implement the actual R/Python scripts.
+
+### 3. Avoid Redundancy Aggressively
+
+- If two rules differ only in their inputs, use **one generic rule** (or a shared script with different arguments) rather than duplicating logic.
+- Check the existing Snakefile for patterns that already solve the problem (e.g., piemap plotting, Manhattan plots, gene finding, enrichment — these are already parameterized).
+- When adding a new mode or analysis, map its steps onto existing scripts before proposing new ones.
+
+## Project Overview
+
+ADAPTOGENE is a Dockerized, Snakemake-based bioinformatics pipeline for population genomics performing VCF preprocessing, population structure analysis (PCA, sNMF), GWAS/GEA (EMMAX, LFMM), and maladaptation assessment (Gradient Forest).
+
+## Pipeline Philosophy
+
+**Core Principle: Reduce Data Uncertainty**
+
+Biological data is messy. Different tools and file formats introduce inconsistencies (chr1 vs 1 vs 1H, silent format changes, mismatched identifiers).
+
+**ADAPTOGENE's approach**:
+1. **Normalize early, normalize consistently** - Standardize at the earliest step
+2. **Enforce consistency across all outputs** - All outputs maintain same standards
+3. **Fail loudly, not silently** - Error early rather than propagate bad data
+4. **Document all transformations** - Log normalization steps
+
+**Example**: LEA's `vcf2lfmm()` strips "chr" prefix, so we normalize BOTH VCF and GFF early (in processing mode) ensuring all downstream outputs have consistent chromosome names.
+
+**Code Structure Rules**:
+1. **Compute once, reuse downstream** — Each stage produces finished outputs. Downstream scripts use them as-is, never re-derive or re-extend.
+2. **No pass-through parameters** — Don't pass values a script doesn't use. If a parameter only matters at creation time, only the creation script should receive it.
+3. **No dead code paths** — Don't add conditional logic for cases that never occur (e.g., `if distance > 0` when always called with `0`). Remove it instead.
+4. **Single source of truth** — Region boundaries live in the regions table. Gene distances live in the genes table. Don't recompute from raw parameters downstream.
+5. **One responsibility per script** — Read upstream outputs, do one thing, write downstream outputs. Don't mix concerns.
+6. **Design for WGS density** — The pipeline processes whole-genome sequencing data with hundreds of thousands to millions of SNPs. Never use raw data points (geom_point, scatter) in plots where the number of observations scales with SNP count or pairwise comparisons. Use binned summaries, smoothed curves (geom_smooth/loess), or density representations instead. Individual points become unreadable noise at WGS scale.
+
+## Build and Run Commands
+
+### Build Docker Image
+```bash
+docker build -t adaptogene .
+```
+Rebuild required after any Dockerfile or R package version change.
+
+### Run Pipeline (SIMDATA — fast iteration)
+```bash
+docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
+  snakemake -c4 -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
+```
+
+### Run Pipeline (TEST — final validation)
+```bash
+docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
+  snakemake -c4 -s Snakefile --config mode=<MODE> --configfile config.yaml --scheduler greedy
+```
+
+### Interactive Docker Entry
+```bash
+docker run -w /pipeline --user $(id -u):$(id -g) -it -v $PWD:/pipeline adaptogene bash
+```
+
+### Dry Run (check what would execute)
+```bash
+docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
+  snakemake -n -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
+```
+
+**Pipeline modes**: `processing`, `prestructure`, `structure`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+
+*`haplotype_scan` / `haplotype` modes removed in Phase 3 — haplotype analysis now runs interactively in the Shiny app (Region Explorer → Run Haplotype Scan / Run Haplotype Viz).*
+
+**CRITICAL: Never run multiple modes in parallel for the same project.** All modes share the same `{PROJECT}_results/` working directory and Snakemake lock. Running two modes concurrently (e.g., `association` and `association_phenotypes` for SIMDATA) causes lock conflicts and potential file corruption. Always run modes sequentially. Parallel runs are only safe across **different projects** (e.g., SIMDATA and TEST simultaneously).
+
+**Snakemake debug flags**: `-n` (dry run), `-R <rule>` (rerun rule + downstream), `--forcerun <rule>` (rerun only rule), `-F` (force all), `-p` (print shell commands)
+
+## Architecture
+
+### Key Files
+- `Snakefile` - Thin orchestrator (~24 lines): includes + `rule all`
+- `workflow/rules/common.smk` - Config parsing, path dicts, helpers, `get_targets()`
+- `workflow/rules/{module}.smk` - Per-module rules: `processing`, `structure`, `structure_k`, `association`, `phenotype_assoc`, `overlapping`, `maladaptation`, `summary`
+- `workflow/rules/regionplot.smk` - Only `gff2topr` rule remains (used by Shiny on-demand regionplots); `mode=regionplot` is deprecated
+- `Snakefile_old` - Original workflow (**do NOT modify**)
+- `config.yaml` / `config_SIMDATA.yaml` - Pipeline configuration (nested YAML)
+- `scripts/*.R` - R scripts (executed at `/pipeline/scripts/` inside Docker)
+- `scripts/emmax-intel64`, `scripts/emmax-kin-intel64` - Pre-built EMMAX binaries (checked in, not built from source)
+- `scripts/app.R` - Shiny interactive results viewer (~2,500 lines) -- **NOT YET UPDATED** for new paths
+- `Dockerfile` - Container with pinned package versions (rocker/shiny:4.5, Bioconductor 3.22)
+
+### Configuration Groups (Nested YAML)
+
+Config uses nested YAML groups. Old flat `UPPER_SNAKE_CASE` keys are auto-migrated via `_migrate_config()` with deprecation warnings.
+
+1. **input** - `dir`, `vcf`, `metadata`, `gff` + top-level `project_name`, `cpu`
+2. **filter** - `maf`, `snp_miss`, `sample_miss`
+3. **ld** - `window`, `step`, `r2`
+4. **snmf** - `k_start`, `k_end`, `k_best`, `ploidy`, `repeats`
+5. **map** - `climate_extent` (was MAP_CROP), `gap`, `resolution`, `zoom_extent` (was MAP_REGIONMAP_EXTENT)
+6. **climate** - `predictors` (was CLIMATE_VARS)
+7. **pop** - `calc_stats`, `window_size`, `custom_trait_file`
+8. **piemap** - `alpha`, `show_labels`, `label_size`, `pie_scale`, `use_points`
+9. **association** - `configs` (list of method/adjust/threshold), `combine_method`, `combine_gap`, `sig_snp_distance`, `region_distance`, `top_regions`, `promoter_length`, `go_field`, `scattermore_threshold`
+10. **gff** - `feature`, `gene_name`, `biotype`
+11. **enrichment** - `top_terms`, `plot_width`, `plot_height`, `cnet_label`, `top_plot_regions`
+12. **future** - `ssp`, `year`, `models`
+14. **gradient_forest** - `ntree`, `cor_threshold`, `spatial_correction` (was GF_PCNM), `run_label` (was `suffix`), `random_model`
+15. **phenotype_association** - `configs`, `missing_strategy`; inherits from `association.*` by default, override only if different
+16. **overlap** - `region_distance` (Shiny filter bar default, falls back to `max(association, phenotype_association)`); `pairwise.window_size`, `pairwise.min_snps` for pairwise trait overlap table. Overlap regions/genes/enrichment are computed interactively in Shiny — not pipeline-side.
+17. **haplotype** - `scan.regions_source`, `scan.regions_file`, `scan.top_regions`, `scan.min_snps`, `scan.min_group_size` (was MGMIN), `scan.min_haplotype_size` (was MINHAP), `scan.epsilon_range`, `scan.metadata_type`, `epsilon_selected`
+
+### Output Organization
+
+Organized by **module** (matching pipeline modes). Each module owns its plots and tables.
+
+```
+{PROJECT}_results/
+├── Processing/tables/                     # metadata.tsv, sample_missing_stats.tsv
+├── PreStructure/
+│   ├── plots/                             # pca.png, tracy_widom.png, cross_entropy_K{start}-{end}.png
+│   │   └── K{k}/                          # structure_K{k}.png, pca_structure_K{k}.png, pop_diff_K{k}.png
+│   └── tables/
+│       └── K{k}/                          # clusters_K{k}.tsv (Q-matrices)
+├── climate/
+│   ├── plots/                             # density_plot_present, correlation_heatmap, density_plot_future_*
+│   ├── tables/present/                    # climate_present_all.tsv, _site.tsv, _site_scaled.tsv
+│   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
+│   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
+├── Structure/
+│   ├── plots/piemap/                      # piemap_{bio}.png/svg/qs + zoom/
+│   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
+│   ├── plots/pop_stats/                   # mantel_test, amova (optional)
+│   └── tables/pop_stats/                  # tajima_d_by_pop, pi_diversity_by_pop, ibd_*, amova
+├── GEA/
+│   ├── GAPIT_native_output/{model}/       # raw GAPIT output files
+│   ├── plots/manhattan/
+│   │   ├── {method}/                      # manhattan_{trait}_K{k}_{adjust}.png/svg, qq_{trait}_K{k}_{adjust}.png/svg
+│   │   └── combined/                      # manhattan_combined_K{k}.png/svg, qq_combined_K{k}.png/svg
+│   ├── plots/enrichment/{trait}/          # region_{id}_dotplot/emapplot/cnetplot
+│   └── tables/
+│       ├── methods/{method}/              # {method}_pvalues_K{k}.tsv, _sig_snps_{adjust}.tsv
+│       ├── selected_snps.tsv, regions_per_trait.tsv, regions_combined.tsv
+│       ├── genes_per_region.tsv, genes_per_region_collapsed.tsv, genes_combined.tsv
+│       └── enrichment/{trait}/            # GO enrichment TSVs per region
+├── GWAS/                                  # same structure as GEA/ + phenomap piemaps
+├── GEAxGWAS/
+│   ├── plots/miami_combined_K{k}.{png,svg,_background.png,_coords.json}
+│   └── tables/pairwise_{overlap_table,collapsed_snps}.tsv
+│   # NOTE: overlap regions/genes/enrichment are fully interactive in Shiny (not pipeline-computed)
+├── Maladaptation/
+│   ├── plots/{method}/{SUFFIX}/           # cumulative_importance, overall_importance, genetic_offset_piemap[_{tajima_d,pi_diversity}]
+│   │   └── zoom/{coords}/                # zoomed piemaps
+│   └── tables/{method}/{SUFFIX}/          # genetic_offset_map, genetic_offset_site
+├── haplotype_scan/{tag}/                  # clustree plots, selected_regions.tsv, scan_status.tsv
+├── haplotype/{tag}/                       # crosshap_viz, boxplots, haplotype piemaps, assignment/frequency tables
+├── pipeline_summary.tsv                   # all modes append here
+├── _work/maf{}_miss{}_smiss{}/ld{}_win{}_step{}/  # parameterized intermediates
+└── _intermediate/                         # internal: samples/, annotation/, enrichment/, {method}/{SUFFIX}/, haplotype/, qs_cache/, flags/
+
+{PROJECT}_logs/{module}/                   # per-module log directories
+```
+
+### Workflow Dependencies
+
+**Pipeline flow**: Processing → Structure → Structure K → Association/Phenotype → Overlapping → Maladaptation
+
+Each mode is run separately via `--config mode=<MODE>`.
+
+## Test Datasets (CRITICAL)
+
+**Always use SIMDATA for iterative testing. Only use TEST for final validation.**
+
+**IMPORTANT: Only SIMDATA_results/ exists on disk right now.** Arabidopsis_results/ and TEST_results/ have been deleted. Always test with SIMDATA, always switch the Shiny app to the SIMDATA project when verifying changes.
+
+| | **SIMDATA** | **TEST** |
+|---|---|---|
+| **Config** | `config_SIMDATA.yaml` | `config.yaml` |
+| **Size** | 10 samples, ~400 SNPs, 3 chr | Larger real-like dataset |
+| **Speed** | Seconds to ~1 min | Minutes to hours |
+| **Purpose** | Quick iterative testing | Final validation |
+| **Features** | 3 pops, missing data test, climate-associated SNPs, GO terms | Real genomic data |
+
+**Testing workflow**:
+1. Make code changes to `Snakefile` or `scripts/*.R`
+2. Test with SIMDATA first
+3. Only if SIMDATA passes, validate with TEST
+
+### Testing Guidelines
+
+**CRITICAL - Preserve output directories**:
+- **DO NOT** remove `TEST_results/`, `TEST_logs/`, `SIMDATA_results/`, `SIMDATA_logs/` between runs
+- Snakemake skips rules with valid outputs (saves time)
+- `download_climate_present` is very slow - preserve it!
+
+**Force re-runs** (when needed):
+- `snakemake -R <rule>` - Re-run rule + downstream
+- `snakemake --forcerun <rule>` - Re-run only this rule
+- `snakemake -F` - Force all rules
+
+Prefer Snakemake flags over manually removing files.
+
+## Important Rules
+
+1. **Do NOT read/view image files** (PNG, SVG, JPG) - User checks plots themselves
+2. **Do NOT modify `Snakefile_old`** - Reference only
+3. **Chromosome normalization** - Pipeline strips "chr" prefix early (chr1→1, chr2H→2H). Both VCF and GFF normalized in processing mode. All outputs use normalized names.
+
+## Common Development Tasks
+
+### Adding a New Plot
+1. Create `scripts/plot_<name>.R`
+2. Add rule to appropriate `workflow/rules/{module}.smk`
+3. Define output path in `O` dictionary (in `common.smk`)
+4. Add to mode's target list in `get_targets()`
+5. Test with SIMDATA, then TEST
+
+### Adding a GEA/GWAS Association Method
+1. Create `scripts/<method>.R`
+2. Add entry to `workflow/methods/gea.py` (`GEA_METHODS` dict) with `engine`, `script`, and capability flags
+3. Add config parameters if needed (in `common.smk` config parsing)
+4. Test with SIMDATA
+
+### Adding a Maladaptation Method
+1. Add entry to `workflow/methods/maladaptation.py` (`MALADAPTATION_METHODS` dict) — fields: `engine`, `model_script`, `offset_script`, `cumimp_script`, `importance_script`, `supports_spatial`, `supports_random_model`
+2. Add a new rule block in `workflow/rules/maladaptation.smk` using the `mala_*` template functions (e.g., `mala_model(method, ...)`, `mala_offset_piemap(method, ...)`) — output paths automatically land under `Maladaptation/{plots,tables}/{method}/{run_label}_{spatial_tag}/`
+3. Add config block under `Maladaptation.methods.<method_name>:` in the relevant config YAML files
+4. Test with SIMDATA
+
+### Debugging Failed Rule
+1. Check `{PROJECT}_logs/{module}/<rule_name>.log`
+2. Verify input files exist and aren't empty
+3. Re-run with `-p` flag for verbose output
+4. Test R scripts interactively inside Docker
+
+## Technical Details
+
+### File Format Conversions
+- **VCF → GENO/LFMM**: `vcf2lfmm.R` (LEA strips "chr" prefix - why we normalize early)
+- **LFMM → VCF**: `lfmm2vcf.R`
+- **VCF → TPED/TFAM**: `tped_assoc` rule (plink, separate from emmax.R)
+- **VCF → GD/GM**: `vcf_to_gapit_numeric.R` (numeric 0/1/2 for GAPIT)
+- **GFF3 → topr**: `gff2topr.py`
+
+### Key R Packages
+- **LEA** - sNMF, PCA, imputation
+- **vcfR** - VCF manipulation
+- **terra** (1.8-5) - Raster operations (replaced `raster` package — 64-bit, no overflow at 30s resolution)
+- **gradientForest** - Landscape genomics
+- **qvalue** - FDR correction
+- **topr** (≥2.0.0) - Regional Manhattan plots
+- **geodata** - WorldClim download
+- **scattermore** - Fast Manhattan rendering (>30k SNPs)
+- **enrichplot** - GO enrichment visualizations
+- **ggraph** - Network plot support
+- **GAPIT3** (tag GAPIT3.5) - GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK
+
+### Association Workflow
+1. **EMMAX** - Mixed model with BN kinship (PCA covariates, full dataset)
+2. **LFMM** - Latent factor model (trains on LD-pruned, tests on full)
+3. **GAPIT3** - 8 additional models (GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK) via pre-computed GD/GM numeric format
+4. **Combine** - Merge methods via `association.combine_method` (Sum/Overlap/single)
+5. **Region clustering** - Per-trait and combined climate regions
+6. **Gene annotation** - Genes within extended regions
+7. **GO enrichment** - Per-region analysis with dotplot/emapplot/cnetplot
+
+GAPIT models are auto-detected from config method names and routed through `gapit.R` with shared BN kinship + LEA PCA covariates. EMMAX/LFMM continue through their existing scripts. All methods produce standardized pvalue TSVs consumed by the same downstream rules.
+
+### Block Mode (`block_mode: snp | block`)
+
+Per-source flag (`GEA.block_mode`, `GWAS.block_mode`). Default `snp` = existing behaviour.
+
+When `block_mode: block`:
+1. `compute_ld_blocks` — plink `--blocks` on filtered VCF → `blocks.det`
+2. `assoc_run_wza` — Python WZA (Stouffer weighted-Z, MAF weights) → per-block p-values
+3. `assoc_find_sig_blocks` — block-level Bonferroni/FDR correction (N_blocks tests)
+4. `assoc_combine_selected_blocks` — All/Overlap/MethodOverlap on block_ids
+5. `assoc_select_within_block_snps` — `p < min_p_in_block × multiplier` per block
+6. `assoc_create_regions_from_blocks` — blocks → `regions_per_trait.tsv` / `regions_combined.tsv` (same schema as snp mode)
+
+All downstream rules (gene finding, GO, regionplot, Manhattan, GF) are unchanged — output schema is identical. Snakemake wildcard partitioning (`_SNP_SOURCE_REGEX` / `_BLOCK_SOURCE_REGEX`) prevents rule ambiguity. `_BLOCK_SOURCE_REGEX` must be defined in `common.smk`, not `ld_blocks.smk`, because `_assoc_downstream.smk` is included first.
+
+### Phenotype Association Workflow (`association_phenotypes` mode)
+1. **prepare_phenotypes** - Extract traits from metadata columns 5+, handle missing values (MEAN/MEDIAN/DROP)
+2. **Per-trait VCF subsetting** (DROP mode) - Subset VCF to samples with non-missing trait values
+3. **TPED/Kinship** - Separate Snakemake rules (not inside R script) for TPED conversion and BN kinship computation
+4. **EMMAX** - `emmax_phenotypes.R` receives pre-computed TPED, kinship, whole-dataset PCA projections
+5. **GAPIT3** - Same 8 models as GEA; Path A: single call with all traits; Path B: per-trait calls with sample subset
+6. **Combine** (DROP mode) - `combine_pheno_pvalues.R` merges per-trait results (per method)
+7. **Downstream** - Reuses existing scripts: find_sig_snps, create_regions, find_genes, enrichment, manhattan
+- Two paths: Path A (MEAN/MEDIAN, single sample set) vs Path B (DROP, per-trait `{pheno_trait}` wildcard rules)
+- PCA: uses whole-dataset PCA projections (subsetted to trait samples in `emmax_phenotypes.R`)
+- Config: `phenotype_association.*` inherits from `association.*` by default, override only if different
+- GAPIT DROP mode uses full-dataset GD + kinship; `gapit.R` subsets internally via `SAMPLES_SUBSET` arg
+
+### association.configs Format
+`association.configs` in config YAML is a list of `{method, adjust, threshold}` entries. Parsed into a dict mapping method name to `"adjust_threshold"` string. Controls which association methods run, their p-value adjustment, and significance thresholds.
+
+### Imputation Strategy
+- Uses sNMF Q-matrix (ancestry-informed)
+- Happens twice: LD-pruned (for PCA/structure/climate) and full (for association)
+
+### Path Management
+- `W` - Working files (`_work/`, `_intermediate/`)
+- `O` - Organized outputs (module-based: `GEA/plots/`, `PreStructure/tables/`, etc.)
+- Module path constants: `MOD_PROCESSING`, `MOD_PRESTRUCT`, `MOD_CLIMATE`, `MOD_STRUCT`, `MOD_GEA`, `MOD_GWAS`, `MOD_GEAXGWAS`, `MOD_MALAD`
+- Paths expand dynamically based on config parameters
+
+## Snakefile Internals
+
+### workdir
+The main Snakefile includes `workflow/rules/common.smk` which sets `workdir: OUTDIR`, so all rule paths are relative to `{PROJECT}_results/`. The `W` and `O` dictionaries use absolute paths, so this mostly affects `shell:` directives that use relative paths.
+
+### Path Dictionaries
+- `W` dict: Working/intermediate file paths. Populated at parse time + dynamically by `add_kbest_paths()`, `add_association_paths()`, `add_maladaptation_paths()`.
+- `O` dict: Organized output paths (plots/, tables/).
+- Template functions (e.g., `clusters_table(k)`, `manhattan_plot(method, trait, adjust)`): For outputs parameterized by K, trait, or method.
+
+To add a new output: add to the appropriate dict/function, add to `get_targets()` for the relevant mode, then create the rule.
+
+### R Script Conventions
+- Args parsed via `commandArgs(trailingOnly=TRUE)` positionally (args[1], args[2], etc.)
+- Logging via `message()` (stderr, captured by Snakemake log)
+- Libraries loaded at top; never installed in scripts
+- `tryCatch()` for optional operations (enrichment plots that may fail with small data)
+- All scripts executed as `Rscript /pipeline/scripts/<name>.R` inside Docker
+- **CRITICAL: Always use `colClasses` when reading files with sample/site IDs via `fread()`**. Numeric sample IDs (e.g., `88`, `108`) cause `fread()` to infer integer type, breaking `%in%` and `left_join` against character VCF headers. Use `fread(..., colClasses = c("site" = "character", "sample" = "character"))` for metadata/sample files, or `fread(..., colClasses = "character")` for headerless sample lists.
+
+### Known Quirks
+- LEA's `vcf2lfmm()` silently strips "chr" prefix — this is why we normalize both VCF and GFF early
+- LEA's `pca()` strips file extension and creates `{basename}.pca/` directory
+- sNMF creates `.snmfProject` directory — must use `mode="new"` or `mode="continue"`
+- `qvalue` can fail with small datasets — scripts fall back to `p.adjust`
+- `emapplot` requires `pairwise_termsim()` called first (adds similarity matrix to enrichResult)
+- `emapplot` and `cnetplot` need ≥2 enriched terms; `dotplot` works with 1+
+- `download_climate_present` (WorldClim) is very slow — always preserve its output
+- Dead `assoc_genes()`/`assoc_genes_collapsed()` template functions referencing undefined `GENE_DISTANCE` were removed — gene finding uses `find_genes_around_regions.R` directly
+- `scattermore` is used via `association.scattermore_threshold` (default 30,000) to downsample non-sig SNPs in Manhattan plots
+- `ld_prune` sed pattern uses `0_0_` while `filter_vcf` and `subset_vcf_pheno` use `0_` — inconsistent but confirmed working; likely because LD pruning goes through an extra plink step that doubles the prefix. Investigate only if errors arise.
+
+## Shiny App — golem Package (`scripts/adaptogene.app/`)
+
+Interactive results viewer built as a **golem R package** using bslib (Bootstrap 5). The legacy `scripts/app.R` is preserved as reference but is not in active use.
+
+### Dev Mode (no Docker rebuild)
+
+```bash
+docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
+  Rscript /pipeline/scripts/adaptogene.app/dev.R
+```
+
+`dev.R` sources all `R/*.R` files from the mounted volume at startup. Docker rebuild only needed when adding new R package dependencies to DESCRIPTION.
+
+**Always restart the container after any R file change.** Shiny autoreload does not work reliably when files are modified from outside the container (inotify events from the host volume mount are not forwarded). Use `docker stop $(docker ps -q --filter ancestor=adaptogene:latest) && docker run ...` — the restart takes ~10s and is the only reliable way to pick up changes.
+
+**Input persistence in `renderUI` (UI rule):** When user-editable inputs live inside `renderUI`, they reset to their default value on every re-render. **Never silently discard a user's chosen parameter value.** For any input the user can modify that lives inside a `renderUI`:
+- Store the user's value in a `reactiveVal` (captured with `observeEvent(..., ignoreInit = TRUE)`)
+- Use the stored value as the input's `value` in the `renderUI` (fallback to config default when NULL)
+- Show a visual "modified" indicator (amber `badge bg-warning` badge) when the value differs from **saved params** (`region_params.json`), NOT the config default. The badge means "current value doesn't match what produced the visible output". No badge when no computation has been done yet for the region.
+- This rule applies to any parameter where users pick a specific value to run a computation (epsilon, distance thresholds, etc.)
+
+**Exploratory parameter persistence (UX rule):** Exploratory parameters (region_distance, hap scan/viz params) are stored per-region in `{PROJECT}_results/_intermediate/region_params.json`, separate from the pipeline config YAML. When a computation (haplotype scan/viz) completes successfully, save the params used. When a region is selected, load saved params as input defaults. Config defaults shown only for new regions with no prior computations. Use `read_region_params()`, `save_region_params()`, `get_region_param()`, `set_region_param()`, `get_global_param()`, `set_global_param()` from `fct_region_params.R`. Global params (like `region_distance`) are keyed by module name. Complex parameter groups should have a "Reset to defaults" button (`btn-link text-muted`) that restores config YAML defaults.
+
+**Playwright project switching:** The selectize.js project dropdown cannot be set with `Shiny.setInputValue()` or `playwright-cli select` — it ignores programmatic value changes. To switch projects in playwright-cli: click the dropdown container (`e14`), wait for the snapshot to reveal the option refs, then click the option ref directly (e.g. `playwright-cli click e274`).
+
+### Visual Testing
+
+**Do NOT use `playwright-cli` for this project.** The Shiny app is too complex for automated UI testing — state management, reactive dependencies, and selectize.js dropdowns make playwright-cli more friction than value here.
+
+**Instead:** the user tests manually in the browser and sends screenshots when something needs review. Wait for the user to report what they see before making UI fixes.
+
+### Architecture
+
+**Framework**: golem + bslib (Bootstrap 5). All plots served as static PNG/SVG images — no `.qs` dependencies.
+
+**Manhattan performance**: Static background PNG (non-sig SNPs via scattermore, generated by pipeline) + lightweight plotly overlay (sig SNPs only, ~100-500 points). Pipeline outputs `_background.png` + `_coords.json` alongside normal plots.
+
+**Module files** (`R/`):
+- `app_ui.R`, `app_server.R`, `run_app.R` — top-level app entry point
+- `app_theme.R` — bslib Bootstrap 5 theme ("Precision Genomics": primary #1B7A6E, navbar #1A2332)
+- `app_config.R` — `get_pipeline_path()` (option → golem-config.yml → env var → /pipeline)
+- `fct_paths.R` — all output path functions, MOD_* constants
+- `fct_discovery.R` — runtime discovery: `find_projects()`, `find_k_values()`, `find_assoc_methods()`, etc.
+- `fct_config.R` — YAML config reader, `config_get()`, `%||%`
+- `fct_data_loading.R` — TSV loaders, `load_cached()` with 200MB cachem cache
+- `fct_manhattan.R` — `build_manhattan_plotly()`, coord alignment, `add_cum_pos()`
+- `fct_labels.R` — `build_region_labels()`, `format_region_id()`, `format_hap_tag()`
+- `utils_ui.R` — `plot_placeholder()`, `region_info_bar()`, `mode_status_row()`
+- `utils_helpers.R` — `file_ok()`, `resolve_adjust()`, `make_project_data()`, `safe_datatable()`
+- `mod_image_card.R` — reusable static image card (full-screen + SVG/PNG download)
+- `mod_manhattan_overlay.R` — plotly overlay on background PNG; returns `selected_region` reactive
+- `mod_region_detail.R` — GO enrichment, genes, GO table, regionplot, haplotype (used by 3 tabs)
+- `mod_piemap_viewer.R` — piemap display with bio/metric/zoom path resolution
+- `mod_home.R`, `mod_structure.R`, `mod_structure_k.R`, `mod_maladaptation.R` — simple tabs
+- `mod_association.R`, `mod_phenotype.R`, `mod_overlapping.R`, `mod_haplotype.R` — complex tabs
+
+**Region-centric design**: Clicking a sig SNP in any Manhattan → selects region → `mod_region_detail` renders below (enrichment plots, genes table, GO table, regionplot, haplotype viz). Same pattern in Association, Phenotype Association, and Overlapping tabs.
+
+**Haplotype tag resolution**: Tags are `{meta_type}_{source}` (e.g., `site_association`). Each association tab finds its matching haplotype tag by splitting on `_` and matching source part.
+
+**Plotly source scoping**: Each `mod_manhattan_overlay` instance uses `ns("overlay")` as the plotly event source to prevent click events from cross-firing between Combined and Per-Method Manhattans.
+
+### Piemap Sizing
+
+Pipeline outputs piemaps at diverse aspect ratios — from small regional maps (e.g., Israel) to global projections (e.g., Arabidopsis 1001 genomes). The app handles this via CSS:
+- `max-height: 70vh` prevents tall maps from pushing content off-screen
+- `object-fit: contain` preserves aspect ratio in full-screen mode
+- `width: auto; max-width: 100%` — natural size up to card width, no stretching
+- No fixed pixel dimensions — the pipeline determines the map extent via `map.climate_extent`
+
+When adding new map-type images, wrap the card in `htmltools::div(class = "piemap-container", ...)`.
+
+### Conditional Content Display
+
+When pipeline modules produce optional outputs (pop_stats piemaps, zoom maps, haplotype viz), the app hides controls/sections that have no data rather than showing empty placeholders:
+- Build selector `choices` dynamically by checking `file_ok()` on each variant path
+- If only one variant exists, hide the selector entirely (`return(NULL)`)
+- Prefer "no selector" over "selector with one disabled option"
+- Use `plot_placeholder(message, suggestion)` — the `suggestion` param adds a smaller line explaining which pipeline mode to run
+
+**CRITICAL — selectInput inside cards**: Never wrap `selectInput` inside `bslib::card()` without `overflow: visible` on the card. Bootstrap 5 cards have `overflow: hidden` by default (for border-radius clipping), which hides selectize.js dropdown menus. The `.control-bar` CSS class in `custom.scss` handles this automatically — always use that class for inline control bars.
+
+### Running the App
+```bash
+docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
+  R -e "adaptogene.app::run_app(options = list(host = '0.0.0.0', port = 3838))"
+```
+
+### Key Config Files
+- `scripts/adaptogene.app/inst/golem-config.yml` — sets `pipeline_path: /pipeline`
+- `scripts/adaptogene.app/DESCRIPTION` — package metadata + Imports
+
+### Legacy App
+- `scripts/app.R` — shinydashboard monolith (3,466 lines). Preserved for reference. Uses OLD flat path structure and `.qs` files — do NOT use for new development.
+
+## TODO
+
+### Unit Testing (High Priority)
+No function-level tests exist. Need `testthat` (R) and `pytest` (Python) infrastructure. Priority targets: region creation, gene-region overlap, chromosome normalization, trait extraction, format conversions.
+
+### Exon/Promoter SNP Validation
+Validate exon/promoter SNP counting in `find_genes_around_regions.R` (uses GenomicRanges::findOverlapPairs).
+
+## Active Obsidian Project
+- Project: ADAPTOGENE
+- File: ~/Orthidian/projects/ADAPTOGENE.md
+
+## Permission Guidelines
+
+### Allowed (no approval needed)
+- `docker build` or `docker run` commands
+- Reading any project files
+- Writing/editing: `Snakefile`, `scripts/*.R`, `scripts/*.py`, `scripts/adaptogene.app/R/*.R`, `config*.yaml`, `CLAUDE.md`, `Dockerfile`
+- Writing/editing test data: `data/SIMDATA*`
+- Removing individual output files (prefer `-R`/`--forcerun`)
+
+### Requires permission
+- Removing entire `*_results/` or `*_logs/` directories
+- Git operations (user handles manually)
+- Modifying `Snakefile_old`
+- Installing new R packages or changing Dockerfile versions
