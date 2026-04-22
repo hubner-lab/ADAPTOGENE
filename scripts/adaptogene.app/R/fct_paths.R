@@ -264,12 +264,13 @@ removed_snps_path <- function(project) {
     if (length(files) == 0) "" else files[1]
 }
 
-#' Glob first pvalue TSV for a module/method (any K, any adjust)
-#' Used to extract trait column names.
+#' Glob first per-SNP pvalue TSV for a module/method (any K, any adjust).
+#' Used to extract trait column names. Excludes snp-mode `_sig_snps_` and
+#' block-mode `_block_pvalues_` outputs (substring also matches `_sig_blocks_`).
 #' @noRd
 find_pvalue_tsv <- function(project, module = MOD_GEA) {
     files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
-    files <- grep("_sig_snps_", files, value = TRUE, invert = TRUE)
+    files <- grep("_sig_snps_|_block_pvalues_", files, value = TRUE, invert = TRUE)
     if (length(files) == 0) "" else files[1]
 }
 
