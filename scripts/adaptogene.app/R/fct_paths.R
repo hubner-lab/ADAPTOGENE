@@ -133,6 +133,12 @@ regions_combined_path <- function(project, module = MOD_GEA) {
     mod_path(project, module, "tables", "regions_combined.tsv")
 }
 
+#' Selected blocks table (block mode: pre-combined blocks before region schema conversion)
+#' @noRd
+selected_blocks_path <- function(project, module = MOD_GEA) {
+    mod_path(project, module, "tables", "selected_blocks.tsv")
+}
+
 #' Genes per region table
 #' @noRd
 genes_per_region_path <- function(project, module = MOD_GEA) {

@@ -126,6 +126,16 @@ mod_gwas_server <- function(id, project_data) {
             counts
         })
 
+        # Block mode detection (snp = distance clustering; block = fixed LD blocks)
+        block_mode <- shiny::reactive({
+            config_get(project_data()$config, "GWAS", "block_mode", default = "snp")
+        })
+
+        block_override_regions <- shiny::reactive({
+            if (block_mode() != "block") return(NULL)
+            load_regions_combined(project_data()$name, module)
+        })
+
         # Strategy always defaults to "All"
         default_strategy <- shiny::reactive("All")
 
@@ -204,10 +214,12 @@ mod_gwas_server <- function(id, project_data) {
             rdist   <- config_get(cfg, "GWAS", "region_distance", default = 1000000L)
             rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
                          paste0(format(as.integer(rdist), big.mark = ","), " bp")
+            bm <- config_get(cfg, "GWAS", "block_mode", default = "snp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                config_badge("region dist.", rdist_str),
+                if (bm == "block") config_badge("mode", "LD blocks", "bg-info text-dark")
+                else               config_badge("region dist.", rdist_str),
                 config_badge("missing", missing_strat)
             )
         })
@@ -299,7 +311,8 @@ mod_gwas_server <- function(id, project_data) {
                 combo_counts           = combo_counts(),
                 default_strategy_value = default_strategy(),
                 region_distance_value  = region_distance(),
-                combine_gap_value      = combine_gap()
+                combine_gap_value      = combine_gap(),
+                block_mode             = block_mode()
             )
         })
 
@@ -355,7 +368,9 @@ mod_gwas_server <- function(id, project_data) {
             project_data        = project_data,
             module              = module,
             interactive_sigsnps = interactive_sigsnps,
-            region_distance     = region_distance
+            region_distance     = region_distance,
+            override_regions    = block_override_regions,
+            block_mode          = block_mode
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────

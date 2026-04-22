@@ -96,6 +96,18 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             counts
         })
 
+        # Block mode detection (snp = distance clustering; block = fixed LD blocks)
+        block_mode <- shiny::reactive({
+            config_get(project_data()$config, "GEA", "block_mode", default = "snp")
+        })
+
+        # In block mode, regions come from regions_combined.tsv (fixed block boundaries).
+        # Passed as override_regions to mod_region_explorer_server — bypasses clustering.
+        block_override_regions <- shiny::reactive({
+            if (block_mode() != "block") return(NULL)
+            load_regions_combined(project_data()$name, module)
+        })
+
         # Strategy always defaults to "All" (pipeline pre-computes All; user explores interactively)
         default_strategy <- shiny::reactive("All")
 
@@ -170,10 +182,12 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             rdist <- config_get(cfg, "GEA", "region_distance", default = 1000000L)
             rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
                          paste0(format(as.integer(rdist), big.mark = ","), " bp")
+            bm <- config_get(cfg, "GEA", "block_mode", default = "snp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                config_badge("region dist.", rdist_str)
+                if (bm == "block") config_badge("mode", "LD blocks", "bg-info text-dark")
+                else               config_badge("region dist.", rdist_str)
             )
         })
 
@@ -213,7 +227,8 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                 combo_counts          = combo_counts(),
                 default_strategy_value = default_strategy(),
                 region_distance_value  = region_distance(),
-                combine_gap_value      = combine_gap()
+                combine_gap_value      = combine_gap(),
+                block_mode             = block_mode()
             )
         })
 
@@ -236,7 +251,9 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             project_data        = project_data,
             module              = module,
             interactive_sigsnps = interactive_sigsnps,
-            region_distance     = region_distance
+            region_distance     = region_distance,
+            override_regions    = block_override_regions,
+            block_mode          = block_mode
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────

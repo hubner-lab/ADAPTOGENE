@@ -16,7 +16,7 @@ mod_region_explorer_ui <- function(id) {
         bslib::card(
             bslib::card_header(
                 class = "d-flex justify-content-between align-items-center",
-                htmltools::span("Regions"),
+                shiny::uiOutput(ns("explorer_title"), inline = TRUE),
                 shiny::uiOutput(ns("region_count_badge"), inline = TRUE)
             ),
             bslib::card_body(
@@ -36,12 +36,14 @@ mod_region_explorer_ui <- function(id) {
 #' @param project_data reactive project data bundle
 #' @param module character: MOD_GEA or MOD_GWAS
 #' @param interactive_sigsnps reactive data.table of current filtered sig SNPs
+#' @param block_mode reactive character: "snp" or "block"
 #' @return list with computed_regions (reactive) and selected_region_id (reactiveVal)
 #' @noRd
 mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                                         interactive_sigsnps = shiny::reactive(NULL),
                                         region_distance     = shiny::reactive(2000000L),
-                                        override_regions    = shiny::reactive(NULL)) {
+                                        override_regions    = shiny::reactive(NULL),
+                                        block_mode          = shiny::reactive("snp")) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -72,11 +74,23 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             load_gff_genes(pd$name, pd$config)
         })
 
+        # ── Explorer title (dynamic: "Regions" vs "LD Blocks") ────────────────
+        output$explorer_title <- shiny::renderUI({
+            if (block_mode() == "block") {
+                htmltools::tagList(
+                    bsicons::bs_icon("boxes"), " LD Block Explorer"
+                )
+            } else {
+                "Regions"
+            }
+        })
+
         # ── Region count badge ─────────────────────────────────────────────────
         output$region_count_badge <- shiny::renderUI({
-            n   <- nrow(computed_regions())
-            cls <- if (n == 0) "bg-secondary" else "bg-primary"
-            htmltools::span(class = paste("badge rounded-pill", cls), n, "regions")
+            n     <- nrow(computed_regions())
+            cls   <- if (n == 0) "bg-secondary" else "bg-primary"
+            label <- if (block_mode() == "block") "LD blocks" else "regions"
+            htmltools::span(class = paste("badge rounded-pill", cls), n, label)
         })
 
         # ── Region list table ──────────────────────────────────────────────────
