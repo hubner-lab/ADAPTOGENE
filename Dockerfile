@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     libproj-dev \
     libudunits2-dev \
     libglpk40 \
+    libuv1 \
     bcftools \
     unzip \
     && apt-get clean \
@@ -141,7 +142,8 @@ RUN Rscript -e " \
     remotes::install_version('rlang',     version = '1.1.4'); \
     remotes::install_version('thematic',  version = '0.1.5'); \
     remotes::install_version('processx',  version = '3.8.4'); \
-    remotes::install_version('shinyjs',   version = '2.1.0'); \
+    remotes::install_version('shinyjs',     version = '2.1.0'); \
+    remotes::install_version('shinyFiles',  version = '0.9.3'); \
 "
 
 # Install golem Shiny app as R package

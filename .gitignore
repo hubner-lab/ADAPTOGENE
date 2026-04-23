@@ -21,3 +21,4 @@ app_cache/
 *.hl
 .R_libs_dev/
 workflow/methods/__pycache__/
+.understand-anything/
