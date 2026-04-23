@@ -284,18 +284,25 @@ _ANY_BLOCK_MODE = GEA_BLOCK_MODE == 'block' or GWAS_BLOCK_MODE == 'block'
 
 # Shared block parameters — prefer GEA.block when GEA is in block mode, else GWAS.block
 _block_cfg = _assoc.get('block', {}) if GEA_BLOCK_MODE == 'block' else _pheno.get('block', {})
-BLOCK_BLOCKS_MAX_KB     = int(_block_cfg.get('blocks_max_kb', 200))
+# Window definition (replaces plink --blocks): read half-decay from ld_decay_half_distances.tsv
+BLOCK_WINDOW_SOURCE     = _block_cfg.get('window_source', 'ld_decay')
+check_in_list(BLOCK_WINDOW_SOURCE, ['ld_decay', 'fixed'], 'block.window_source')
+BLOCK_LD_DECAY_GROUP    = _block_cfg.get('ld_decay_group', 'All')
+BLOCK_LD_DECAY_SCOPE    = _block_cfg.get('ld_decay_scope', 'genome_wide')
+check_in_list(BLOCK_LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome'], 'block.ld_decay_scope')
+BLOCK_FALLBACK_WINDOW_KB = float(_block_cfg.get('fallback_window_kb', 10))
+BLOCK_MIN_WINDOW_KB     = float(_block_cfg.get('min_window_kb', 1))
 _block_wza              = _block_cfg.get('wza', {})
 BLOCK_WZA_MAF_FILTER    = float(_block_wza.get('maf_filter', 0.05))
-BLOCK_WZA_MIN_SNPS      = int(_block_wza.get('min_snps_per_block', 3))
+BLOCK_WZA_MIN_SNPS      = int(_block_wza.get('min_snps_per_block', 5))
 _block_within           = _block_cfg.get('within_block', {})
-BLOCK_WITHIN_METHOD     = _block_within.get('method', 'within_order')
+BLOCK_WITHIN_METHOD     = _block_within.get('method', 'lead')
 check_in_list(BLOCK_WITHIN_METHOD,
     ['threshold', 'top_n', 'lead', 'within_order', 'all'], 'block.within_block.method')
 BLOCK_WITHIN_MULTIPLIER = float(_block_within.get('multiplier', 10.0))
 BLOCK_WITHIN_THRESHOLD  = float(_block_within.get('threshold', 0.05))
 BLOCK_WITHIN_TOP_N      = int(_block_within.get('top_n', 5))
-BLOCK_ADJUST_STR        = str(_block_cfg.get('adjust', 'bonf_0.05'))
+BLOCK_ADJUST_STR        = str(_block_cfg.get('adjust', 'fdr_0.05'))
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('GEAxGWAS', {})

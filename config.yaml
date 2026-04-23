@@ -99,16 +99,20 @@ GEA:
   combine_gap: 100000            # Max distance (bp) for cross-method overlap annotation in find_sig_snps
   region_distance: 1000000       # Distance in bp, or "auto" to use LD decay r2<0.2 distance
   promoter_length: 10000         # Promoter region length for SNP annotation
-  block_mode: snp                # snp | block — use LD block boundaries instead of per-SNP regions
+  block_mode: snp                # snp | block — use LD-decay-scale windows (Wu et al. 2026)
   block:
-    blocks_max_kb: 200           # Max LD block size (plink --blocks-max-kb)
+    window_source: ld_decay      # 'ld_decay' (reads Structure/tables/ld_decay_half_distances.tsv) or 'fixed'
+    ld_decay_group: All          # group row to use from ld_decay_half_distances.tsv
+    ld_decay_scope: genome_wide  # 'genome_wide' (single window size) or 'per_chromosome'
+    fallback_window_kb: 10       # window size in kb when ld_decay_tsv is unavailable or window_source=fixed
+    min_window_kb: 1             # minimum window size floor in kb
     wza:
       maf_filter: 0.05           # Min MAF for SNP inclusion in WZA
-      min_snps_per_block: 3      # Min SNPs per block to compute WZA
-    adjust: bonf_0.05            # Significance threshold for block-level testing (adjust_threshold)
+      min_snps_per_block: 5      # Min SNPs per window for reliable WZA (Booker et al. 2024)
+    adjust: fdr_0.05             # FDR correction at block level (Wu et al. 2026)
     within_block:
-      method: within_order       # How to select SNPs within significant blocks
-      multiplier: 10             # p < lead_p * multiplier (within_order)
+      method: lead               # lead = only lead SNP per block (Wu et al. 2026 fig. 4)
+      multiplier: 10             # p < lead_p * multiplier (within_order method)
       threshold: 0.05            # p-value cutoff (threshold method)
       top_n: 5                   # Top N SNPs per block (top_n method)
 
@@ -164,7 +168,7 @@ Maladaptation:
 #   # region_distance: 2000000
 #   # block_mode: snp             # snp | block (inherits GEA.block settings by default)
 #   # block:
-#   #   blocks_max_kb: 200
+#   #   window_source: ld_decay    # override GEA block window source if needed
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)

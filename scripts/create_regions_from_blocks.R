@@ -78,9 +78,10 @@ if (nrow(blocks_long) == 0) {
 
         snp_dt <- snps_in_block(blk$chr, blk$start, blk$end)
         # SNPs in selected_snps must carry this trait in at least one method column
-        snp_has_trait <- rowSums(sapply(method_cols, function(m) {
-            grepl(paste0("(^|,)", trait, "($|,)"), snp_dt[[m]], fixed = FALSE)
-        })) > 0
+        snp_has_trait <- if (nrow(snp_dt) == 0) logical(0) else
+            Reduce("|", lapply(method_cols, function(m) {
+                grepl(paste0("(^|,)", trait, "($|,)"), snp_dt[[m]], fixed = FALSE)
+            }))
         trait_snps <- snp_dt[snp_has_trait]
 
         # Other traits in this block (cross-trait evidence)
@@ -139,9 +140,10 @@ combined_rows <- lapply(seq_len(nrow(blocks)), function(i) {
 
     # Per-trait SNP counts
     for (t in all_trait_names) {
-        snp_has_trait <- rowSums(sapply(method_cols, function(m) {
-            grepl(paste0("(^|,)", t, "($|,)"), snp_dt[[m]], fixed = FALSE)
-        })) > 0
+        snp_has_trait <- if (nrow(snp_dt) == 0) logical(0) else
+            Reduce("|", lapply(method_cols, function(m) {
+                grepl(paste0("(^|,)", t, "($|,)"), snp_dt[[m]], fixed = FALSE)
+            }))
         row[[paste0(t, "_snps")]] <- sum(snp_has_trait)
     }
 

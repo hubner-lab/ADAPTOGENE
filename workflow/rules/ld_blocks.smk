@@ -1,41 +1,47 @@
-# ld_blocks.smk — LD block computation and WZA block-level association rules.
+# ld_blocks.smk — LD-decay window computation and WZA block-level association rules.
 #
 # Activated only when GEA.block_mode=block or GWAS.block_mode=block.
 # All rules are guarded by _BLOCK_SOURCE_REGEX derived from active block-mode sources.
 #
 # Block workflow per source×method:
-#   vcf_filt → plink --blocks → blocks.det
+#   vcf_filt + ld_decay_half_distances.tsv → make_ld_windows.py → blocks.det
 #   blocks.det + {method}_pvalues_K{k}.tsv + maf_filtered.frq → wza_run.py → {method}_block_pvalues_K{k}.tsv
 #   → find_sig_blocks.R  → {method}_block_pvalues_K{k}_sig_blocks_{adjust}.tsv
 #   → combine_selected_blocks.R → selected_blocks.tsv
 #   → select_within_block_snps.R → selected_snps.tsv  (same path as snp-mode; replaces that rule)
 #   → create_regions.R (blocks branch) → regions_per_trait.tsv, regions_combined.tsv
+#
+# Window sizes are derived from the genome-wide LD half-decay distance produced by the
+# structure-mode ld_decay_analyze rule (Wu et al. 2026 approach). Each chromosome is
+# tiled into non-overlapping windows of that size → every SNP belongs to exactly one window.
 
 # _BLOCK_SOURCES, _BLOCK_SOURCE_REGEX, _ALL_BLOCK_METHODS_REGEX defined in common.smk
 
 if _BLOCK_SOURCES:
 
-    # ─── STEP 0: Compute LD blocks (once per project) ───────────────────────
+    # ─── STEP 0: Create genome-wide LD-decay windows (once per project) ─────
 
-    rule compute_ld_blocks:
-        """Compute genome-wide LD blocks using plink Gabriel 2002 algorithm."""
+    rule compute_ld_windows:
+        """Tile genome into fixed-size windows at the LD half-decay scale (Wu et al. 2026)."""
         input:
-            vcf = W['vcf_filt']
+            vcf      = W['vcf_filt'],
+            ld_table = O['ld_decay_table']
         output:
             det = W['blocks_det']
         params:
-            prefix  = f"{INTER}ld_blocks/plink",
-            max_kb  = BLOCK_BLOCKS_MAX_KB
-        log: f"{LOGDIR}processing/compute_ld_blocks.log"
+            window_source = BLOCK_WINDOW_SOURCE,
+            group         = BLOCK_LD_DECAY_GROUP,
+            scope         = BLOCK_LD_DECAY_SCOPE,
+            fallback_kb   = BLOCK_FALLBACK_WINDOW_KB,
+            min_window_kb = BLOCK_MIN_WINDOW_KB
+        log: f"{LOGDIR}processing/compute_ld_windows.log"
         shell:
             """
-            plink --vcf {input.vcf} \
-                  --blocks no-pheno-req \
-                  --blocks-max-kb {params.max_kb} \
-                  --set-missing-var-ids @:# \
-                  --allow-extra-chr \
-                  --out {params.prefix} > {log} 2>&1
-            cp {params.prefix}.blocks.det {output.det}
+            python3 /pipeline/scripts/make_ld_windows.py \
+                {input.vcf} {input.ld_table} \
+                {params.window_source} {params.group} {params.scope} \
+                {params.fallback_kb} {params.min_window_kb} \
+                {output.det} > {log} 2>&1
             """
 
     # ─── STEP 1: WZA — aggregate per-SNP p-values to per-block ─────────────
