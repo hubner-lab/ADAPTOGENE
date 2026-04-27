@@ -96,18 +96,6 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             counts
         })
 
-        # Block mode detection (snp = distance clustering; block = fixed LD blocks)
-        block_mode <- shiny::reactive({
-            config_get(project_data()$config, "GEA", "block_mode", default = "snp")
-        })
-
-        # In block mode, regions come from regions_combined.tsv (fixed block boundaries).
-        # Passed as override_regions to mod_region_explorer_server — bypasses clustering.
-        block_override_regions <- shiny::reactive({
-            if (block_mode() != "block") return(NULL)
-            load_regions_combined(project_data()$name, module)
-        })
-
         # Strategy always defaults to "All" (pipeline pre-computes All; user explores interactively)
         default_strategy <- shiny::reactive("All")
 
@@ -119,7 +107,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             rp      <- read_region_params(pd$name)
             saved_d <- get_global_param(rp, MOD_GEA, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else as.integer(config_get(pd$config, "GEA", "region_distance", default = 1000000L))
+                 else resolve_ui_region_distance(pd$config, "GEA", pd$name)
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -136,8 +124,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             v <- input$region_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "GEA", "region_distance",
-                                      default = 1000000L))
+                resolve_ui_region_distance(pd$config, "GEA", pd$name)
             } else {
                 as.integer(v)
             }
@@ -179,15 +166,13 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             if (is.na(k) && length(methods()) == 0) return(NULL)
             cfg  <- pd$config
             cmb  <- config_get(cfg, "GEA", "combine_method", default = "All")
-            rdist <- config_get(cfg, "GEA", "region_distance", default = 1000000L)
-            rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
-                         paste0(format(as.integer(rdist), big.mark = ","), " bp")
-            bm <- config_get(cfg, "GEA", "block_mode", default = "snp")
+            rdist <- config_get(cfg, "GEA", "region_distance", default = "auto_per_chromosome")
+            rdist_str <- if (grepl("^auto", rdist)) paste0(rdist, " (LD-derived)")
+                         else paste0(format(as.integer(rdist), big.mark = ","), " bp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                if (bm == "block") config_badge("mode", "LD blocks", "bg-info text-dark")
-                else               config_badge("region dist.", rdist_str)
+                config_badge("region dist.", rdist_str)
             )
         })
 
@@ -227,8 +212,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                 combo_counts          = combo_counts(),
                 default_strategy_value = default_strategy(),
                 region_distance_value  = region_distance(),
-                combine_gap_value      = combine_gap(),
-                block_mode             = block_mode()
+                combine_gap_value      = combine_gap()
             )
         })
 
@@ -251,9 +235,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             project_data        = project_data,
             module              = module,
             interactive_sigsnps = interactive_sigsnps,
-            region_distance     = region_distance,
-            override_regions    = block_override_regions,
-            block_mode          = block_mode
+            region_distance     = region_distance
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────

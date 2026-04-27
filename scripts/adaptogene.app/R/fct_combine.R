@@ -201,16 +201,13 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 #' @param input_prefix Character scalar: prefix for all Shiny input IDs inside this bar.
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
-#' @param block_mode Character: "snp" or "block". In block mode the Distance input is
-#'   replaced by a badge (blocks are fixed by plink, not by distance clustering).
 #' @return tagList
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
                                 region_distance_value,
                                 combine_gap_value = 100000L,
-                                input_prefix = "",
-                                block_mode = "snp") {
+                                input_prefix = "") {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
     if (length(traits) == 0) return(NULL)
@@ -352,27 +349,15 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     width = "130px"
                 )
             ),
-            # Distance (snp mode) or LD block badge (block mode)
-            if (block_mode == "block") {
-                htmltools::div(
-                    class = "d-flex flex-column",
-                    htmltools::span("Mode", class = "filter-label mb-1"),
-                    htmltools::span(
-                        class = "badge bg-info text-dark",
-                        bsicons::bs_icon("boxes"), " LD blocks"
-                    )
+            htmltools::div(
+                class = "d-flex flex-column",
+                htmltools::span("Distance (bp)", class = "filter-label mb-1"),
+                shiny::numericInput(
+                    pid("region_distance"), label = NULL,
+                    value = region_distance_value, min = 1000L, step = 100000L,
+                    width = "130px"
                 )
-            } else {
-                htmltools::div(
-                    class = "d-flex flex-column",
-                    htmltools::span("Distance (bp)", class = "filter-label mb-1"),
-                    shiny::numericInput(
-                        pid("region_distance"), label = NULL,
-                        value = region_distance_value, min = 1000L, step = 100000L,
-                        width = "130px"
-                    )
-                )
-            }
+            )
         ),
         htmltools::tags$script(htmltools::HTML(js_code))
     )

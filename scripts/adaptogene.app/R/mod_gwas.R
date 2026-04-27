@@ -126,16 +126,6 @@ mod_gwas_server <- function(id, project_data) {
             counts
         })
 
-        # Block mode detection (snp = distance clustering; block = fixed LD blocks)
-        block_mode <- shiny::reactive({
-            config_get(project_data()$config, "GWAS", "block_mode", default = "snp")
-        })
-
-        block_override_regions <- shiny::reactive({
-            if (block_mode() != "block") return(NULL)
-            load_regions_combined(project_data()$name, module)
-        })
-
         # Strategy always defaults to "All"
         default_strategy <- shiny::reactive("All")
 
@@ -147,8 +137,7 @@ mod_gwas_server <- function(id, project_data) {
             rp      <- read_region_params(pd$name)
             saved_d <- get_global_param(rp, MOD_GWAS, "region_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else as.integer(config_get(pd$config, "GWAS", "region_distance",
-                                            default = 1000000L))
+                 else resolve_ui_region_distance(pd$config, "GWAS", pd$name)
             shiny::updateNumericInput(session, "region_distance", value = d)
         })
 
@@ -165,8 +154,7 @@ mod_gwas_server <- function(id, project_data) {
             v <- input$region_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                as.integer(config_get(pd$config, "GWAS", "region_distance",
-                                      default = 1000000L))
+                resolve_ui_region_distance(pd$config, "GWAS", pd$name)
             } else {
                 as.integer(v)
             }
@@ -211,15 +199,13 @@ mod_gwas_server <- function(id, project_data) {
             cfg     <- pd$config
             cmb     <- config_get(cfg, "GWAS", "combine_method", default = "All")
             missing_strat <- config_get(cfg, "GWAS", "missing_strategy", default = "MEAN")
-            rdist   <- config_get(cfg, "GWAS", "region_distance", default = 1000000L)
-            rdist_str <- if (rdist == "auto") "auto (LD-derived)" else
-                         paste0(format(as.integer(rdist), big.mark = ","), " bp")
-            bm <- config_get(cfg, "GWAS", "block_mode", default = "snp")
+            rdist   <- config_get(cfg, "GWAS", "region_distance", default = "auto_per_chromosome")
+            rdist_str <- if (grepl("^auto", rdist)) paste0(rdist, " (LD-derived)")
+                         else paste0(format(as.integer(rdist), big.mark = ","), " bp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                if (bm == "block") config_badge("mode", "LD blocks", "bg-info text-dark")
-                else               config_badge("region dist.", rdist_str),
+                config_badge("region dist.", rdist_str),
                 config_badge("missing", missing_strat)
             )
         })
@@ -311,8 +297,7 @@ mod_gwas_server <- function(id, project_data) {
                 combo_counts           = combo_counts(),
                 default_strategy_value = default_strategy(),
                 region_distance_value  = region_distance(),
-                combine_gap_value      = combine_gap(),
-                block_mode             = block_mode()
+                combine_gap_value      = combine_gap()
             )
         })
 
@@ -368,9 +353,7 @@ mod_gwas_server <- function(id, project_data) {
             project_data        = project_data,
             module              = module,
             interactive_sigsnps = interactive_sigsnps,
-            region_distance     = region_distance,
-            override_regions    = block_override_regions,
-            block_mode          = block_mode
+            region_distance     = region_distance
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────

@@ -86,3 +86,30 @@ dt_format_pvals <- function(tbl, cols = c("pvalue", "p_adjust")) {
     if (length(cols_present) == 0) return(tbl)
     DT::formatSignif(tbl, columns = cols_present, digits = 3)
 }
+
+#' Resolve region_distance config value to a numeric bp for the Shiny filter bar.
+#'
+#' The pipeline config accepts "auto_per_chromosome", "auto_genome_wide", or an integer.
+#' The filter bar numericInput always needs an integer. When auto_* is set, we read
+#' the genome-wide r2_02_bp from the LD decay TSV (group "All"). Falls back to 1,000,000.
+#' @noRd
+resolve_ui_region_distance <- function(config, module, project_name,
+                                       fallback = 1000000L) {
+    raw <- config_get(config, module, "region_distance", default = "auto_per_chromosome")
+    val <- suppressWarnings(as.integer(raw))
+    if (!is.na(val) && val >= 1000L) return(val)
+    # auto mode: read LD decay TSV
+    tsv <- ld_decay_table_path(project_name)
+    if (file_ok(tsv)) {
+        dt <- tryCatch(
+            data.table::fread(tsv, sep = "\t", header = TRUE),
+            error = function(e) NULL
+        )
+        if (!is.null(dt) && "r2_02_bp" %in% names(dt) && "scope" %in% names(dt)) {
+            gw <- dt[dt$scope == "genome_wide" & dt$group == "All", "r2_02_bp"]
+            if (length(gw) > 0 && !is.na(gw[[1]]) && gw[[1]] > 0)
+                return(as.integer(gw[[1]]))
+        }
+    }
+    fallback
+}
