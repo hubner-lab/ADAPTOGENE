@@ -285,20 +285,6 @@ Prefer Snakemake flags over manually removing files.
 
 GAPIT models are auto-detected from config method names and routed through `gapit.R` with shared BN kinship + LEA PCA covariates. EMMAX/LFMM continue through their existing scripts. All methods produce standardized pvalue TSVs consumed by the same downstream rules.
 
-### Block Mode (`block_mode: snp | block`)
-
-Per-source flag (`GEA.block_mode`, `GWAS.block_mode`). Default `snp` = existing behaviour.
-
-When `block_mode: block`:
-1. `compute_ld_blocks` — plink `--blocks` on filtered VCF → `blocks.det`
-2. `assoc_run_wza` — Python WZA (Stouffer weighted-Z, MAF weights) → per-block p-values
-3. `assoc_find_sig_blocks` — block-level Bonferroni/FDR correction (N_blocks tests)
-4. `assoc_combine_selected_blocks` — All/Overlap/MethodOverlap on block_ids
-5. `assoc_select_within_block_snps` — `p < min_p_in_block × multiplier` per block
-6. `assoc_create_regions_from_blocks` — blocks → `regions_per_trait.tsv` / `regions_combined.tsv` (same schema as snp mode)
-
-All downstream rules (gene finding, GO, regionplot, Manhattan, GF) are unchanged — output schema is identical. Snakemake wildcard partitioning (`_SNP_SOURCE_REGEX` / `_BLOCK_SOURCE_REGEX`) prevents rule ambiguity. `_BLOCK_SOURCE_REGEX` must be defined in `common.smk`, not `ld_blocks.smk`, because `_assoc_downstream.smk` is included first.
-
 ### Phenotype Association Workflow (`association_phenotypes` mode)
 1. **prepare_phenotypes** - Extract traits from metadata columns 5+, handle missing values (MEAN/MEDIAN/DROP)
 2. **Per-trait VCF subsetting** (DROP mode) - Subset VCF to samples with non-missing trait values
