@@ -83,16 +83,22 @@ elif MODE == 'gea':
             regions_per_trait = O['regions_per_trait'],
             regions_combined = O['regions_combined'],
             genes = O['genes_per_region'],
+            ld_decay = ld_decay_input(REGION_DISTANCE_MODE)
         output: W['summary_done']
         params:
-            summary_tsv = O['summary']
+            summary_tsv      = O['summary'],
+            region_dist_spec = REGION_DISTANCE,
+            r2_threshold     = REGION_R2_THRESHOLD,
+            ld_decay_group   = REGION_LD_DECAY_GROUP,
+            ld_decay_path    = O.get('ld_decay_table', 'NULL') if REGION_DISTANCE_MODE != 'fixed' else 'NULL'
         log: f"{LOGDIR}gea/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 gea {params.summary_tsv} \
                 {input.selected_snps} {input.regions_per_trait} {input.regions_combined} \
-                {input.genes} > {log} 2>&1
+                {input.genes} {params.region_dist_spec} {params.r2_threshold} \
+                {params.ld_decay_group} {params.ld_decay_path} > {log} 2>&1
             touch {output}
             """
 
@@ -122,16 +128,22 @@ elif MODE == 'gwas':
             regions_per_trait = O['pheno_regions_per_trait'],
             regions_combined = O['pheno_regions_combined'],
             genes = O['pheno_genes_per_region'],
+            ld_decay = ld_decay_input(PHENO_REGION_DISTANCE_MODE)
         output: W['summary_done']
         params:
-            summary_tsv = O['summary']
+            summary_tsv      = O['summary'],
+            region_dist_spec = PHENO_REGION_DISTANCE,
+            r2_threshold     = PHENO_REGION_R2_THRESHOLD,
+            ld_decay_group   = PHENO_REGION_LD_DECAY_GROUP,
+            ld_decay_path    = O.get('ld_decay_table', 'NULL') if PHENO_REGION_DISTANCE_MODE != 'fixed' else 'NULL'
         log: f"{LOGDIR}gwas/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 gwas {params.summary_tsv} \
                 {input.missing_summary} {input.selected_snps} {input.regions_per_trait} \
-                {input.regions_combined} {input.genes} > {log} 2>&1
+                {input.regions_combined} {input.genes} {params.region_dist_spec} \
+                {params.r2_threshold} {params.ld_decay_group} {params.ld_decay_path} > {log} 2>&1
             touch {output}
             """
 

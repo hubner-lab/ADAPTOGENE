@@ -75,7 +75,8 @@ fit_ld_curve <- function(binned, n_samples) {
     # Fit Hill-Weir curve, fallback to LOESS
     if (is.null(binned) || nrow(binned) < 5) {
         return(list(method = "insufficient_data", fit_fn = NULL,
-                    r2_intercept = NA, half_decay_bp = NA, r2_02_bp = NA))
+                    r2_intercept = NA, half_decay_bp = NA, r2_02_bp = NA,
+                    C_hat = NA, max_dist_bp = NA))
     }
 
     r2_intercept <- binned[which.min(bin), mean_r2]
@@ -107,7 +108,7 @@ fit_ld_curve <- function(binned, n_samples) {
 
         list(method = "hill_weir", fit_fn = fit_fn,
              r2_intercept = r2_intercept, half_decay_bp = half_decay_bp,
-             r2_02_bp = r2_02_bp)
+             r2_02_bp = r2_02_bp, C_hat = C_hat, max_dist_bp = max_dist_bp)
     }, error = function(e) {
         message(paste0("INFO: Hill-Weir fit failed, using LOESS: ", e$message))
         NULL
@@ -135,11 +136,12 @@ fit_ld_curve <- function(binned, n_samples) {
 
         list(method = "loess", fit_fn = fit_fn,
              r2_intercept = r2_intercept, half_decay_bp = half_decay_bp,
-             r2_02_bp = r2_02_bp)
+             r2_02_bp = r2_02_bp, C_hat = NA, max_dist_bp = max_dist_bp)
     }, error = function(e) {
         message(paste0("WARNING: LOESS fallback also failed: ", e$message))
         list(method = "failed", fit_fn = NULL,
-             r2_intercept = r2_intercept, half_decay_bp = NA, r2_02_bp = NA)
+             r2_intercept = r2_intercept, half_decay_bp = NA, r2_02_bp = NA,
+             C_hat = NA, max_dist_bp = max_dist_bp)
     })
 }
 
@@ -188,7 +190,9 @@ if (SCOPE %in% c("genome_wide", "both")) {
             n_samples = n_samp,
             n_pairs = sum(binned$n_pairs),
             r2_intercept = round(fit$r2_intercept, 4),
-            method = fit$method
+            method = fit$method,
+            C_hat = fit$C_hat,
+            max_dist_bp = fit$max_dist_bp
         )
         message(paste0("INFO: ", grp, " genome-wide: half-decay=",
                         round(fit$half_decay_bp / 1000, 1), "kb, method=", fit$method))
@@ -226,7 +230,9 @@ if (SCOPE %in% c("per_chromosome", "both") && length(chr_list) > 0) {
                 n_samples = n_samp,
                 n_pairs = sum(binned$n_pairs),
                 r2_intercept = round(fit$r2_intercept, 4),
-                method = fit$method
+                method = fit$method,
+                C_hat = fit$C_hat,
+                max_dist_bp = fit$max_dist_bp
             )
         }
     }

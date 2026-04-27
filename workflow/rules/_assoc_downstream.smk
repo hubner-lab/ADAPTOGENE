@@ -33,7 +33,7 @@ if ASSOC_SOURCES:
         output:
             f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}_sig_snps_{{adjust}}.tsv"
         wildcard_constraints:
-            source = _SNP_SOURCE_REGEX,
+            source = SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
             adjust = r"\w+_[\d.]+"
         params:
@@ -58,7 +58,7 @@ if ASSOC_SOURCES:
         output:
             f"{OUTDIR}{{source}}/tables/selected_snps.tsv"
         wildcard_constraints:
-            source = _SNP_SOURCE_REGEX
+            source = SOURCE_REGEX
         params:
             sigsnps_str = lambda wc, input: " ".join(input.sigsnps),
             method      = lambda wc: _src(wc.source, "combine_method"),
@@ -77,18 +77,20 @@ if ASSOC_SOURCES:
         """Merge nearby significant SNPs into per-trait and combined regions."""
         input:
             selected_snps = f"{OUTDIR}{{source}}/tables/selected_snps.tsv",
-            ld_decay      = lambda wc: ld_decay_input(_src(wc.source, "region_auto"))
+            ld_decay      = lambda wc: ld_decay_input(_src(wc.source, "region_distance_mode"))
         output:
             per_trait = f"{OUTDIR}{{source}}/tables/regions_per_trait.tsv",
             combined  = f"{OUTDIR}{{source}}/tables/regions_combined.tsv"
         wildcard_constraints:
-            source = _SNP_SOURCE_REGEX
+            source = SOURCE_REGEX
         params:
-            region_dist   = lambda wc: _src(wc.source, "region_distance"),
-            ld_decay_path = lambda wc: (
+            region_dist    = lambda wc: _src(wc.source, "region_distance"),
+            ld_decay_path  = lambda wc: (
                 O.get("ld_decay_table", "NULL")
-                if _src(wc.source, "region_auto") else "NULL"
-            )
+                if _src(wc.source, "region_distance_mode") != "fixed" else "NULL"
+            ),
+            r2_threshold   = lambda wc: _src(wc.source, "region_r2_threshold"),
+            ld_decay_group = lambda wc: _src(wc.source, "region_ld_decay_group")
         log:
             f"{LOGDIR}{{source}}/create_regions.log"
         shell:
@@ -96,7 +98,8 @@ if ASSOC_SOURCES:
             Rscript /pipeline/scripts/create_regions.R \
                 {input.selected_snps} {params.region_dist} \
                 {output.per_trait} {output.combined} \
-                {params.ld_decay_path} > {log} 2>&1
+                {params.ld_decay_path} {params.r2_threshold} \
+                {params.ld_decay_group} > {log} 2>&1
             """
 
     rule assoc_find_genes_per_region:

@@ -162,24 +162,39 @@ _assoc = config.get('GEA', {})
 _gff = config.get('GFF', {})
 SIGSNPS_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 
+_VALID_REGION_MODES = ('auto_per_chromosome', 'auto_genome_wide', 'auto')
+
 def resolve_region_params(group_dict, defaults=None):
-    """Parse region_distance, combine_gap, promoter_length from a config group dict."""
+    """Parse region_distance, combine_gap, promoter_length, r2_threshold, ld_decay_group."""
     defaults = defaults or {}
-    raw_rdist = group_dict.get('region_distance', defaults.get('region_distance', 1000000))
-    auto = (str(raw_rdist).lower() == 'auto')
+    raw_rdist = group_dict.get('region_distance', defaults.get('region_distance', 'auto_per_chromosome'))
+    raw_str   = str(raw_rdist).lower().strip()
+    if raw_str in _VALID_REGION_MODES:
+        rdist_mode = 'auto_genome_wide' if raw_str == 'auto' else raw_str
+        rdist_val  = raw_str  # pass string spec to R script
+        if raw_str == 'auto':
+            import warnings
+            warnings.warn("region_distance: 'auto' is deprecated; use 'auto_genome_wide' or 'auto_per_chromosome'")
+    else:
+        rdist_mode = 'fixed'
+        rdist_val  = int(raw_rdist)
     return {
-        'region_distance':      'auto' if auto else int(raw_rdist),
-        'region_distance_auto': auto,
+        'region_distance':      rdist_val,
+        'region_distance_mode': rdist_mode,
+        'region_r2_threshold':  float(group_dict.get('region_r2_threshold', defaults.get('region_r2_threshold', 0.2))),
+        'region_ld_decay_group': str(group_dict.get('region_ld_decay_group', defaults.get('region_ld_decay_group', 'All'))),
         'combine_gap':          int(group_dict.get('combine_gap',      defaults.get('combine_gap', 100000))),
         'promoter_length':      int(group_dict.get('promoter_length',  defaults.get('promoter_length', 10000))),
     }
 
 _gea_rdp = resolve_region_params(_assoc)
-PROMOTER_LENGTH    = _gea_rdp['promoter_length']
-SIGSNPS_GAP        = _gea_rdp['combine_gap']
-SNP_DISTANCE       = SIGSNPS_GAP
-REGION_DISTANCE    = _gea_rdp['region_distance']
-REGION_DISTANCE_AUTO = _gea_rdp['region_distance_auto']
+PROMOTER_LENGTH      = _gea_rdp['promoter_length']
+SIGSNPS_GAP          = _gea_rdp['combine_gap']
+SNP_DISTANCE         = SIGSNPS_GAP
+REGION_DISTANCE      = _gea_rdp['region_distance']
+REGION_DISTANCE_MODE = _gea_rdp['region_distance_mode']
+REGION_R2_THRESHOLD  = _gea_rdp['region_r2_threshold']
+REGION_LD_DECAY_GROUP = _gea_rdp['region_ld_decay_group']
 GO_FIELD           = _gff.get('go_field', 'NULL')
 
 # ENRICHMENT parameters
@@ -268,56 +283,37 @@ if GWAS_CONFIGS:
 # Inherit from GEA.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 _gwas_rdp = resolve_region_params(_pheno, defaults=_gea_rdp)
-PHENO_COMBINE_GAP          = _gwas_rdp['combine_gap']
-PHENO_SNP_DISTANCE         = PHENO_COMBINE_GAP
-PHENO_REGION_DISTANCE      = _gwas_rdp['region_distance']
-PHENO_REGION_DISTANCE_AUTO = _gwas_rdp['region_distance_auto']
-PHENO_PROMOTER_LENGTH      = _gwas_rdp['promoter_length']
-
-# BLOCK MODE parameters (LD block partitioning + WZA p-value aggregation)
-GEA_BLOCK_MODE = _assoc.get('block_mode', 'snp')
-check_in_list(GEA_BLOCK_MODE, ['snp', 'block'], 'GEA.block_mode')
-GWAS_BLOCK_MODE = _pheno.get('block_mode', 'snp') if config.get('GWAS') else 'snp'
-if config.get('GWAS'):
-    check_in_list(GWAS_BLOCK_MODE, ['snp', 'block'], 'GWAS.block_mode')
-_ANY_BLOCK_MODE = GEA_BLOCK_MODE == 'block' or GWAS_BLOCK_MODE == 'block'
-
-# Shared block parameters — prefer GEA.block when GEA is in block mode, else GWAS.block
-_block_cfg = _assoc.get('block', {}) if GEA_BLOCK_MODE == 'block' else _pheno.get('block', {})
-# Window definition (replaces plink --blocks): read half-decay from ld_decay_half_distances.tsv
-BLOCK_WINDOW_SOURCE     = _block_cfg.get('window_source', 'ld_decay')
-check_in_list(BLOCK_WINDOW_SOURCE, ['ld_decay', 'fixed'], 'block.window_source')
-BLOCK_LD_DECAY_GROUP    = _block_cfg.get('ld_decay_group', 'All')
-BLOCK_LD_DECAY_SCOPE    = _block_cfg.get('ld_decay_scope', 'genome_wide')
-check_in_list(BLOCK_LD_DECAY_SCOPE, ['genome_wide', 'per_chromosome'], 'block.ld_decay_scope')
-BLOCK_FALLBACK_WINDOW_KB = float(_block_cfg.get('fallback_window_kb', 10))
-BLOCK_MIN_WINDOW_KB     = float(_block_cfg.get('min_window_kb', 1))
-_block_wza              = _block_cfg.get('wza', {})
-BLOCK_WZA_MAF_FILTER    = float(_block_wza.get('maf_filter', 0.05))
-BLOCK_WZA_MIN_SNPS      = int(_block_wza.get('min_snps_per_block', 5))
-_block_within           = _block_cfg.get('within_block', {})
-BLOCK_WITHIN_METHOD     = _block_within.get('method', 'lead')
-check_in_list(BLOCK_WITHIN_METHOD,
-    ['threshold', 'top_n', 'lead', 'within_order', 'all'], 'block.within_block.method')
-BLOCK_WITHIN_MULTIPLIER = float(_block_within.get('multiplier', 10.0))
-BLOCK_WITHIN_THRESHOLD  = float(_block_within.get('threshold', 0.05))
-BLOCK_WITHIN_TOP_N      = int(_block_within.get('top_n', 5))
-BLOCK_ADJUST_STR        = str(_block_cfg.get('adjust', 'fdr_0.05'))
+PHENO_COMBINE_GAP           = _gwas_rdp['combine_gap']
+PHENO_SNP_DISTANCE          = PHENO_COMBINE_GAP
+PHENO_REGION_DISTANCE       = _gwas_rdp['region_distance']
+PHENO_REGION_DISTANCE_MODE  = _gwas_rdp['region_distance_mode']
+PHENO_REGION_R2_THRESHOLD   = _gwas_rdp['region_r2_threshold']
+PHENO_REGION_LD_DECAY_GROUP = _gwas_rdp['region_ld_decay_group']
+PHENO_PROMOTER_LENGTH       = _gwas_rdp['promoter_length']
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('GEAxGWAS', {})
 _overlap_rdist_raw = _overlap.get('region_distance', None)
+_gea_is_auto  = REGION_DISTANCE_MODE != 'fixed'
+_gwas_is_auto = PHENO_REGION_DISTANCE_MODE != 'fixed'
 if _overlap_rdist_raw is None:
-    # Default: inherit auto if either source is auto, otherwise use max of both
-    if REGION_DISTANCE_AUTO or PHENO_REGION_DISTANCE_AUTO:
-        OVERLAP_REGION_DISTANCE_AUTO = True
-        OVERLAP_REGION_DISTANCE = 'auto'
+    # Default: inherit auto if either source is auto, otherwise use max of both fixed values
+    if _gea_is_auto or _gwas_is_auto:
+        OVERLAP_REGION_DISTANCE_MODE = REGION_DISTANCE_MODE  # prefer GEA mode
+        OVERLAP_REGION_DISTANCE = REGION_DISTANCE
     else:
-        OVERLAP_REGION_DISTANCE_AUTO = False
-        OVERLAP_REGION_DISTANCE = max(REGION_DISTANCE, PHENO_REGION_DISTANCE)
+        OVERLAP_REGION_DISTANCE_MODE = 'fixed'
+        OVERLAP_REGION_DISTANCE = max(int(REGION_DISTANCE), int(PHENO_REGION_DISTANCE))
 else:
-    OVERLAP_REGION_DISTANCE_AUTO = (str(_overlap_rdist_raw).lower() == 'auto')
-    OVERLAP_REGION_DISTANCE = 'auto' if OVERLAP_REGION_DISTANCE_AUTO else int(_overlap_rdist_raw)
+    _raw_str = str(_overlap_rdist_raw).lower().strip()
+    if _raw_str in _VALID_REGION_MODES:
+        OVERLAP_REGION_DISTANCE_MODE = 'auto_genome_wide' if _raw_str == 'auto' else _raw_str
+        OVERLAP_REGION_DISTANCE = _overlap_rdist_raw
+    else:
+        OVERLAP_REGION_DISTANCE_MODE = 'fixed'
+        OVERLAP_REGION_DISTANCE = int(_overlap_rdist_raw)
+OVERLAP_REGION_R2_THRESHOLD   = float(_overlap.get('region_r2_threshold', REGION_R2_THRESHOLD))
+OVERLAP_REGION_LD_DECAY_GROUP = str(_overlap.get('region_ld_decay_group', REGION_LD_DECAY_GROUP))
 # PAIRWISE OVERLAP parameters (trait-vs-trait comparison across all sources)
 _pairwise = _overlap.get('pairwise', {})
 PAIRWISE_WINDOW_SIZE = int(_pairwise.get('window_size', 500000))
@@ -587,11 +583,6 @@ def add_association_paths():
         W['gapit_work'] = f"{INTER}gapit/gea/"
     # lfmm uses W['lfmm_imp'] / W['lfmm_imp_full'] from add_kbest_paths()
 
-    # LD blocks paths (shared across GEA/GWAS when any source uses block_mode=block)
-    if _ANY_BLOCK_MODE:
-        W['blocks_det'] = f"{INTER}ld_blocks/blocks.det"
-        os.makedirs(f"{INTER}ld_blocks/", exist_ok=True)
-
     # Combined outputs - association
     O['selected_snps'] = f"{MOD_GEA}tables/selected_snps.tsv"
     O['regions_per_trait'] = f"{MOD_GEA}tables/regions_per_trait.tsv"
@@ -793,15 +784,16 @@ if K_BEST is not None and GEA_CONFIGS:
         "method_regex":    GEA_METHOD_REGEX,
         "trait_regex":     r"bio_\d+",
         "predictors":      PREDICTORS_SELECTED,
-        "snp_distance":    SNP_DISTANCE,
-        "region_distance": REGION_DISTANCE,
-        "region_auto":     REGION_DISTANCE_AUTO,
-        "promoter_length": PROMOTER_LENGTH,
+        "snp_distance":         SNP_DISTANCE,
+        "region_distance":      REGION_DISTANCE,
+        "region_distance_mode": REGION_DISTANCE_MODE,
+        "region_r2_threshold":  REGION_R2_THRESHOLD,
+        "region_ld_decay_group": REGION_LD_DECAY_GROUP,
+        "promoter_length":      PROMOTER_LENGTH,
         "combine_method":  SIGSNPS_METHOD,
         "combine_gap":     SIGSNPS_GAP,
         "pvalues_fn":      assoc_pvalues,
         "sigsnps_fn":      assoc_sigsnps,
-        "block_mode":      GEA_BLOCK_MODE,
     }
 
 if K_BEST is not None and GWAS_CONFIGS:
@@ -812,15 +804,16 @@ if K_BEST is not None and GWAS_CONFIGS:
         "method_regex":    GWAS_METHOD_REGEX,
         "trait_regex":     r"[a-zA-Z]\w*",
         "predictors":      PHENO_PREDICTORS,
-        "snp_distance":    PHENO_SNP_DISTANCE,
-        "region_distance": PHENO_REGION_DISTANCE,
-        "region_auto":     PHENO_REGION_DISTANCE_AUTO,
-        "promoter_length": PHENO_PROMOTER_LENGTH,
+        "snp_distance":          PHENO_SNP_DISTANCE,
+        "region_distance":       PHENO_REGION_DISTANCE,
+        "region_distance_mode":  PHENO_REGION_DISTANCE_MODE,
+        "region_r2_threshold":   PHENO_REGION_R2_THRESHOLD,
+        "region_ld_decay_group": PHENO_REGION_LD_DECAY_GROUP,
+        "promoter_length":       PHENO_PROMOTER_LENGTH,
         "combine_method":  PHENO_COMBINE_METHOD,
         "combine_gap":     PHENO_COMBINE_GAP,
         "pvalues_fn":      pheno_pvalues,
         "sigsnps_fn":      pheno_sigsnps,
-        "block_mode":      GWAS_BLOCK_MODE,
     }
 
 def _src(source, key):
@@ -833,23 +826,11 @@ SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "gea"
 # {source} in the output path disambiguates which branch a match belongs to.
 TRAIT_REGEX_ANY = r"(bio_\d+|[a-zA-Z]\w*)"
 
-# Source classification by block_mode — used in both _assoc_downstream.smk and ld_blocks.smk
-_BLOCK_SOURCES = sorted([s for s, cfg in ASSOC_SOURCES.items() if cfg.get("block_mode", "snp") == "block"])
-_SNP_SOURCES   = sorted([s for s, cfg in ASSOC_SOURCES.items() if cfg.get("block_mode", "snp") == "snp"])
-if _BLOCK_SOURCES:
-    _BLOCK_SOURCE_REGEX      = "|".join(_BLOCK_SOURCES)
-    _ALL_BLOCK_METHODS_REGEX = "|".join(sorted({
-        m for s in _BLOCK_SOURCES for m in ASSOC_SOURCES[s]["configs"].keys()
-    }))
-    _SNP_SOURCE_REGEX = "|".join(_SNP_SOURCES) if _SNP_SOURCES else "NOSOURCE_snp"
-else:
-    _SNP_SOURCE_REGEX = SOURCE_REGEX  # all sources are snp-mode, no partitioning needed
 
 def assoc_out(source, key):
     """Return the per-source output path for a logical downstream key."""
     _templates = {
         "selected_snps":              "tables/selected_snps.tsv",
-        "selected_blocks":            "tables/selected_blocks.tsv",
         "regions_per_trait":          "tables/regions_per_trait.tsv",
         "regions_combined":           "tables/regions_combined.tsv",
         "genes_per_region":           "tables/genes_per_region.tsv",
@@ -864,13 +845,6 @@ def assoc_out(source, key):
     }
     return f"{ASSOC_SOURCES[source]['mod']}{_templates[key]}"
 
-def assoc_block_pvalues(source, method):
-    """Per-method WZA block-level p-value table."""
-    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_block_pvalues_K{K_BEST}.tsv"
-
-def assoc_sig_blocks(source, method, adjust):
-    """Significant blocks for a (source, method, adjust) combination."""
-    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_block_pvalues_K{K_BEST}_sig_blocks_{adjust}.tsv"
 
 #=============================================================================
 # RULE FACTORIES — per-engine helpers for dynamic rule declaration
@@ -1057,29 +1031,19 @@ def _targets_for_assoc_source(source):
     """Build the shared downstream target list for a GEA or GWAS source."""
     src = ASSOC_SOURCES[source]
     traits = get_predictors_list() if source == "GEA" else PHENO_TRAITS
-    block_mode = src.get("block_mode", "snp")
     targets = []
     for method, adjust in src["configs"].items():
         targets.append(src["pvalues_fn"](method))
-        if block_mode == "snp":
-            # Standard: per-SNP sig SNPs file
-            targets.append(src["sigsnps_fn"](method, adjust))
-        else:
-            # Block mode: WZA block p-values + sig blocks per method
-            targets.append(assoc_block_pvalues(source, method))
-            targets.append(assoc_sig_blocks(source, method, adjust))
+        targets.append(src["sigsnps_fn"](method, adjust))
         for trait in traits:
             targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png")
             targets.append(f"{src['mod']}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png")
-    # Shared downstream: same output paths regardless of mode
     for key in (
         "selected_snps", "regions_per_trait", "regions_combined",
         "genes_per_region", "genes_per_region_collapsed", "genes_combined",
         "manhattan_combined_png", "qq_combined_png",
     ):
         targets.append(assoc_out(source, key))
-    if block_mode == "block":
-        targets.append(assoc_out(source, "selected_blocks"))
     return targets
 
 
@@ -1253,10 +1217,11 @@ def get_targets(mode):
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-# Helper: provide LD decay table as input when region_distance is "auto"
-def ld_decay_input(auto_flag):
-    """Return LD decay table path as input dependency when auto mode is enabled."""
-    return O.get('ld_decay_table', []) if auto_flag else []
+# Helper: provide LD decay table as input when region_distance is auto
+def ld_decay_input(mode):
+    """Return LD decay table path as input dependency when mode is auto_* or auto."""
+    needs_table = isinstance(mode, str) and mode.lower() in _VALID_REGION_MODES
+    return O.get('ld_decay_table', []) if needs_table else []
 
 #=============================================================================
 # MAIN RULE
