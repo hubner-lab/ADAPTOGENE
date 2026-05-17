@@ -131,6 +131,19 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
                         if (is.null(raw) || nchar(raw) == 0) return()
                         tryCatch({
                             new_val <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+                            # Dedup by method (pipeline enforces one entry per method)
+                            if (length(new_val) > 0) {
+                                methods <- vapply(new_val, function(x) x$method %||% "", character(1))
+                                dup_idx <- duplicated(methods)
+                                if (any(dup_idx)) {
+                                    shiny::showNotification(
+                                        sprintf("Duplicate method(s) removed: %s",
+                                                paste(unique(methods[dup_idx]), collapse = ", ")),
+                                        type = "warning", duration = 4
+                                    )
+                                    new_val <- new_val[!dup_idx]
+                                }
+                            }
                             cur_val <- config_get_by_path(config_state$working, key_path)
                             if (identical(new_val, cur_val)) return()
                             config_state$working <- config_set_by_path(
@@ -558,9 +571,10 @@ render_method_editor <- function(input_id, local_id, configs_list) {
     return div;
   }
 
-  document.addEventListener("click", function(e) {
-    var editor = document.getElementById(editorId);
-    if (!editor) return;
+  var editor = document.getElementById(editorId);
+  if (!editor) return;
+
+  editor.addEventListener("click", function(e) {
     var role = e.target.closest("[data-role]");
     if (!role) return;
     if (role.getAttribute("data-role") === "remove") {
@@ -573,9 +587,7 @@ render_method_editor <- function(input_id, local_id, configs_list) {
     }
   });
 
-  document.addEventListener("change", function(e) {
-    var editor = document.getElementById(editorId);
-    if (!editor || !editor.contains(e.target)) return;
+  editor.addEventListener("change", function(e) {
     if (e.target.getAttribute("data-role") && e.target.getAttribute("data-role") !== "add" && e.target.getAttribute("data-role") !== "remove") {
       pushToShiny(editor);
     }

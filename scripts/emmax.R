@@ -108,12 +108,6 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, TPED_PREFIX, KINSHIP_FILE) {
 # Select only specified predictors
 trait <- trait %>% dplyr::select(!!PREDICTORS_SELECTED)
 
-# Add phenotype traits if present in metadata
-samples <- fread(SAMPLES_FILE, colClasses = c("site" = "character", "sample" = "character"))
-if (ncol(samples) > 4) {
-    trait <- cbind(trait, samples %>% dplyr::select(-site, -sample, -latitude, -longitude))
-}
-
 # Run EMMAX for each trait
 pval_dt <- lapply(1:ncol(trait), function(i) {
     FUN_emmax(VCF, trait[, ..i], covariates, INTER_DIR, TPED_PREFIX, KINSHIP_FILE)
