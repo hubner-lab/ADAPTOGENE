@@ -17,18 +17,24 @@ source("/pipeline/scripts/R/utils/manhattan_utils.R")
 
 args = commandArgs(trailingOnly=TRUE)
 ################################
-ASSOC_TABLE = args[1]   # SNPID chr pos TRAITS...
-ADJUST = args[2]        # e.g., "bonf_0.05" or "qval_0.05"
-Kbest = args[3] %>% as.numeric
-METHOD = args[4]        # EMMAX or LFMM (current plot method)
-TRAIT = args[5]         # single trait name, e.g., "bio_1"
-PLOT_DIR = args[6]      # output directory
-ALL_PREDICTORS = args[7]  # Comma-separated list of all trait names (for consistent Okabe-Ito colors)
+ASSOC_TABLE    = args[1]   # SNPID chr pos TRAITS...
+ADJUST         = args[2]   # e.g., "bonf_0.05" or "qval_0.05"
+Kbest          = args[3] %>% as.numeric
+METHOD         = args[4]   # EMMAX or LFMM (current plot method)
+TRAIT          = args[5]   # single trait name, e.g., "bio_1"
+PLOT_DIR       = args[6]   # output directory
+ALL_PREDICTORS = args[7]   # Comma-separated list of all trait names
+REGIME         = if (length(args) >= 8) tolower(args[8]) else "snp"  # "snp" or "wza"
 ################################
 
-message(paste0('INFO: Manhattan plot for ', METHOD, ' - ', TRAIT))
+# WZA mode uses same output format but with "wza_" filename prefix
+is_wza    <- REGIME == "wza"
+name_pfx  <- if (is_wza) "wza_" else ""
+
+message(paste0('INFO: Manhattan plot for ', METHOD, ' - ', TRAIT, ' [regime=', REGIME, ']'))
 message(paste0('INFO: K = ', Kbest))
 message(paste0('INFO: Adjustment: ', ADJUST))
+if (is_wza) message('INFO: WZA regime — Bonferroni denominator = number of windows')
 
 ################################ Compute trait color
 
@@ -61,6 +67,13 @@ original_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numer
 
 message(paste0('INFO: Adjustment method: ', adjustment))
 message(paste0('INFO: Threshold: ', original_threshold))
+
+# WZA: filter to rows that have the trait column filled (windows with ≥1 SNP)
+if (is_wza && "n_snps" %in% colnames(snps_assoc)) {
+    snps_assoc <- snps_assoc[!is.na(snps_assoc[[TRAIT]]), ]
+    n_snps <- nrow(snps_assoc)
+    message(paste0('INFO: After NA filter: ', n_snps, ' windows'))
+}
 
 # Calculate threshold based on adjustment method
 pval_threshold <- compute_pval_threshold(snps_assoc[[TRAIT]], adjustment, original_threshold)
@@ -131,7 +144,7 @@ p_simple <- p_simple +
     theme_manhattan()
 
 # Save simple plot in PNG and SVG formats
-simple_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST)
+simple_base <- paste0("manhattan_", name_pfx, TRAIT, "_K", Kbest, "_", ADJUST)
 
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_simple,
        width = 10, height = 4, dpi = 300)
@@ -185,7 +198,7 @@ p_qq <- ggplot() +
         plot.margin   = margin(4, 8, 4, 4)
     )
 
-qq_base <- paste0("qq_", TRAIT, "_K", Kbest, "_", ADJUST)
+qq_base <- paste0("qq_", name_pfx, TRAIT, "_K", Kbest, "_", ADJUST)
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
        width = 6, height = 6, dpi = 300)
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
@@ -221,7 +234,7 @@ p_bg <- ggplot() +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA))
 
-bg_base <- paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_background")
+bg_base <- paste0("manhattan_", name_pfx, TRAIT, "_K", Kbest, "_", ADJUST, "_background")
 ggsave(file.path(PLOT_DIR, paste0(bg_base, ".png")), p_bg,
        width = 10, height = 4, dpi = 300)
 message(paste0('INFO: Saved background Manhattan: ', bg_base, '.png'))
@@ -238,7 +251,7 @@ coords_list <- list(
     plot_height_px = 1200L
 )
 coords_file <- file.path(PLOT_DIR,
-    paste0("manhattan_", TRAIT, "_K", Kbest, "_", ADJUST, "_coords.json"))
+    paste0("manhattan_", name_pfx, TRAIT, "_K", Kbest, "_", ADJUST, "_coords.json"))
 jsonlite::write_json(coords_list, coords_file, auto_unbox = TRUE, digits = 6)
 message(paste0('INFO: Saved coords JSON: ', basename(coords_file)))
 

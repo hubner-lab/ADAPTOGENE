@@ -37,14 +37,14 @@ if ASSOC_SOURCES:
             method = _ALL_ASSOC_METHODS_REGEX,
             adjust = r"\w+_[\d.]+"
         params:
-            snp_dist = lambda wc: _src(wc.source, "snp_distance")
+            clumping_dist = lambda wc: _src(wc.source, "clumping_distance")
         log:
             f"{LOGDIR}{{source}}/find_sig_snps_{{method}}_{{adjust}}.log"
         threads: CPU
         shell:
             """
             Rscript /pipeline/scripts/find_sig_snps.R \
-                {input.assoc} {wildcards.adjust} {params.snp_dist} \
+                {input.assoc} {wildcards.adjust} {params.clumping_dist} \
                 {wildcards.method} {threads} {output} > {log} 2>&1
             """
 
@@ -60,16 +60,16 @@ if ASSOC_SOURCES:
         wildcard_constraints:
             source = SOURCE_REGEX
         params:
-            sigsnps_str = lambda wc, input: " ".join(input.sigsnps),
-            method      = lambda wc: _src(wc.source, "combine_method"),
-            gap         = lambda wc: _src(wc.source, "combine_gap"),
-            predictors  = lambda wc: _src(wc.source, "predictors")
+            sigsnps_str   = lambda wc, input: " ".join(input.sigsnps),
+            method        = lambda wc: _src(wc.source, "combine_method"),
+            clumping_dist = lambda wc: _src(wc.source, "clumping_distance"),
+            predictors    = lambda wc: _src(wc.source, "predictors")
         log:
             f"{LOGDIR}{{source}}/combine_selected_snps.log"
         shell:
             """
             Rscript /pipeline/scripts/combine_selected_snps.R \
-                "{params.sigsnps_str}" {params.method} {params.gap} \
+                "{params.sigsnps_str}" {params.method} {params.clumping_dist} \
                 {params.predictors} {output} > {log} 2>&1
             """
 
@@ -77,29 +77,143 @@ if ASSOC_SOURCES:
         """Merge nearby significant SNPs into per-trait and combined regions."""
         input:
             selected_snps = f"{OUTDIR}{{source}}/tables/selected_snps.tsv",
-            ld_decay      = lambda wc: ld_decay_input(_src(wc.source, "region_distance_mode"))
+            ld_decay      = lambda wc: ld_decay_input(_src(wc.source, "clumping_distance_mode"))
         output:
             per_trait = f"{OUTDIR}{{source}}/tables/regions_per_trait.tsv",
             combined  = f"{OUTDIR}{{source}}/tables/regions_combined.tsv"
         wildcard_constraints:
             source = SOURCE_REGEX
         params:
-            region_dist    = lambda wc: _src(wc.source, "region_distance"),
+            clumping_dist  = lambda wc: _src(wc.source, "clumping_distance"),
             ld_decay_path  = lambda wc: (
                 O.get("ld_decay_table", "NULL")
-                if _src(wc.source, "region_distance_mode") != "fixed" else "NULL"
+                if _src(wc.source, "clumping_distance_mode") != "fixed" else "NULL"
             ),
-            r2_threshold   = lambda wc: _src(wc.source, "region_r2_threshold"),
-            ld_decay_group = lambda wc: _src(wc.source, "region_ld_decay_group")
+            r2_threshold   = lambda wc: _src(wc.source, "clumping_r2_threshold"),
+            ld_decay_group = lambda wc: _src(wc.source, "ld_decay_group")
         log:
             f"{LOGDIR}{{source}}/create_regions.log"
         shell:
             """
             Rscript /pipeline/scripts/create_regions.R \
-                {input.selected_snps} {params.region_dist} \
+                {input.selected_snps} {params.clumping_dist} \
                 {output.per_trait} {output.combined} \
                 {params.ld_decay_path} {params.r2_threshold} \
                 {params.ld_decay_group} > {log} 2>&1
+            """
+
+    rule assoc_wza:
+        """Compute WZA p-values per window for a (source, method)."""
+        input:
+            pvalues  = f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}.tsv",
+            maf      = O["qc_maf_pos"],
+            ld_decay = lambda wc: wza_ld_decay_input(_src(wc.source, "wza"))
+        output:
+            f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_wza_K{K_BEST}.tsv"
+        wildcard_constraints:
+            source = SOURCE_REGEX,
+            method = _ALL_ASSOC_METHODS_REGEX
+        params:
+            window_size      = lambda wc: _src(wc.source, "wza")["window_size"],
+            fallback_bp      = lambda wc: _src(wc.source, "wza")["fallback_window_bp"],
+            ld_decay_path    = lambda wc: (
+                O.get("ld_decay_table", "NULL")
+                if _src(wc.source, "wza")["window_size_mode"] != "fixed" else "NULL"
+            ),
+            ld_decay_group   = lambda wc: _src(wc.source, "ld_decay_group")
+        log:
+            f"{LOGDIR}{{source}}/wza_{{method}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/compute_wza.R \
+                {input.pvalues} {input.maf} {params.ld_decay_path} \
+                {params.window_size} {params.fallback_bp} {params.ld_decay_group} \
+                {output} > {log} 2>&1
+            """
+
+    rule assoc_wza_sig_windows:
+        """Find significant WZA windows for a (source, method, adjust) combination."""
+        input:
+            wza = f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_wza_K{K_BEST}.tsv"
+        output:
+            f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_wza_K{K_BEST}_sig_windows_{{adjust}}.tsv"
+        wildcard_constraints:
+            source = SOURCE_REGEX,
+            method = _ALL_ASSOC_METHODS_REGEX,
+            adjust = r"\w+_[\d.]+"
+        params:
+            clumping_dist = lambda wc: _src(wc.source, "clumping_distance")
+        log:
+            f"{LOGDIR}{{source}}/wza_sig_windows_{{method}}_{{adjust}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/find_sig_snps.R \
+                {input.wza} {wildcards.adjust} {params.clumping_dist} \
+                {wildcards.method} 1 {output} --wza > {log} 2>&1
+            """
+
+    rule assoc_wza_manhattan:
+        """WZA Manhattan + QQ plots for a (source, method, trait, adjust)."""
+        input:
+            wza = f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_wza_K{K_BEST}.tsv"
+        output:
+            png         = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/manhattan_wza_{{trait}}_K{K_BEST}_{{adjust}}.png",
+            svg         = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/manhattan_wza_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+            qq_png      = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/qq_wza_{{trait}}_K{K_BEST}_{{adjust}}.png",
+            qq_svg      = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/qq_wza_{{trait}}_K{K_BEST}_{{adjust}}.svg",
+            background  = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/manhattan_wza_{{trait}}_K{K_BEST}_{{adjust}}_background.png",
+            coords_json = f"{OUTDIR}{{source}}/plots/manhattan/{{method}}/manhattan_wza_{{trait}}_K{K_BEST}_{{adjust}}_coords.json"
+        wildcard_constraints:
+            source = SOURCE_REGEX,
+            method = _ALL_ASSOC_METHODS_REGEX,
+            trait  = TRAIT_REGEX_ANY,
+            adjust = r"\w+_[\d.]+"
+        params:
+            k          = K_BEST,
+            plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/{wc.method}/",
+            predictors = lambda wc: _src(wc.source, "predictors")
+        log:
+            f"{LOGDIR}{{source}}/wza_manhattan_{{method}}_{{trait}}_{{adjust}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/plot_manhattan.R \
+                {input.wza} {wildcards.adjust} {params.k} {wildcards.method} \
+                {wildcards.trait} {params.plot_dir} {params.predictors} wza > {log} 2>&1
+            """
+
+    rule assoc_wza_manhattan_combined:
+        """Combined WZA Manhattan for all traits/methods of a source."""
+        input:
+            wza_tables = lambda wc: [
+                f"{OUTDIR}{wc.source}/tables/methods/{m}/{m}_wza_K{K_BEST}.tsv"
+                for m in _src(wc.source, "configs")
+            ]
+        output:
+            simple_png  = f"{OUTDIR}{{source}}/plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}.png",
+            simple_svg  = f"{OUTDIR}{{source}}/plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}.svg",
+            qq_png      = f"{OUTDIR}{{source}}/plots/manhattan/combined/qq_wza_combined_K{K_BEST}.png",
+            qq_svg      = f"{OUTDIR}{{source}}/plots/manhattan/combined/qq_wza_combined_K{K_BEST}.svg",
+            background  = f"{OUTDIR}{{source}}/plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}_background.png",
+            coords_json = f"{OUTDIR}{{source}}/plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}_coords.json"
+        wildcard_constraints:
+            source = SOURCE_REGEX
+        params:
+            assoc_str  = lambda wc: ",".join([
+                f"{m}:{a}:{OUTDIR}{wc.source}/tables/methods/{m}/{m}_wza_K{K_BEST}.tsv"
+                for m, a in _src(wc.source, "configs").items()
+            ]),
+            predictors = lambda wc: _src(wc.source, "predictors"),
+            k          = K_BEST,
+            plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/combined/"
+        log:
+            f"{LOGDIR}{{source}}/wza_manhattan_combined.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/plot_manhattan_combined.R \
+                "{params.assoc_str}" {params.predictors} {params.k} \
+                {params.plot_dir} wza > {log} 2>&1
+            touch {output.simple_png} {output.simple_svg} {output.qq_png} {output.qq_svg} \
+                  {output.background} {output.coords_json}
             """
 
     rule assoc_find_genes_per_region:

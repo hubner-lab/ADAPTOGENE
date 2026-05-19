@@ -96,11 +96,15 @@ GEA:
     - method: "LFMM"            # LFMM: latent factor mixed model
       adjust: "bonf"
       threshold: '0.05'
-  combine_gap: 100000            # Max distance (bp) for cross-method overlap annotation in find_sig_snps
-  region_distance: auto_per_chromosome  # auto_per_chromosome | auto_genome_wide | <integer bp>
-  region_r2_threshold: 0.2      # r² decay threshold for "auto" distances (lower = larger regions)
-  region_ld_decay_group: All    # Which LD decay group row to use (from ld_decay_half_distances.tsv)
-  promoter_length: 10000         # Promoter region length for SNP annotation
+  snp_clumping_distance: auto_per_chromosome  # SNP merge + region-bound padding distance.
+                                              # auto_per_chromosome | auto_genome_wide | <integer bp>
+                                              # Default = LD-decay r²=0.2 per chr (100 kb if unavailable).
+  clumping_r2_threshold: 0.2    # r² decay threshold for "auto" distances (lower = larger regions)
+  ld_decay_group: All           # Which LD decay group row to use (from ld_decay_half_distances.tsv)
+  promoter_length: 10000        # Promoter region length for SNP annotation
+  wza:
+    window_size: auto_genome_wide  # WZA block size: auto_genome_wide | auto_per_chromosome | <int bp>
+    fallback_window_bp: 10000      # Fixed window size when LD decay table unavailable
 
 #-----------------------------------------------------------------------------
 # GFF: Gene annotation parsing
@@ -151,16 +155,16 @@ Maladaptation:
 #       threshold: '0.05'
 #   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
 #   # Override any GEA.* param only if different:
-#   # region_distance: auto_per_chromosome
-#   # region_r2_threshold: 0.2
-#   # region_ld_decay_group: All
+#   # snp_clumping_distance: auto_per_chromosome
+#   # clumping_r2_threshold: 0.2
+#   # ld_decay_group: All
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
 #-----------------------------------------------------------------------------
 # Defaults to max of GEA and GWAS values if not set
 # GEAxGWAS:
-#   region_distance: 2000000
+#   snp_clumping_distance: 2000000
 GEAxGWAS:
   pairwise:
     window_size: 500000

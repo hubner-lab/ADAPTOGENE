@@ -21,8 +21,11 @@ PLOT_DIR = args[6]
 CUSTOM_REGION = args[7]        # "NULL" or chr:start-end
 CUSTOM_TRAITS = args[8]        # "NULL" or comma-separated trait names
 CUSTOM_METHODS = args[9]       # "NULL" or comma-separated method names (subset of available)
+REGIME = if (length(args) >= 10) tolower(args[10]) else "snp"  # "snp" or "wza"
 ####################################
 
+is_wza <- REGIME == "wza"
+if (is_wza) message('INFO: WZA regime — loading window-level p-values')
 message('INFO: Regional Manhattan plot generation')
 
 ######################## Functions
@@ -230,11 +233,13 @@ method_data <- lapply(assoc_specs, function(spec) {
 message(paste0('INFO: Methods: ', paste(sapply(method_data, `[[`, 'method'), collapse = ', ')))
 
 # Load all association tables
+wza_meta_cols <- c('n_snps', 'mean_maf')
 assoc_list <- lapply(method_data, function(md) {
   message(paste0('INFO: Loading ', md$method, ' from ', md$file))
   assoc <- fread(md$file)
   assoc$chr <- as.character(assoc$chr)
-  trait_cols <- setdiff(colnames(assoc), c('SNPID', 'chr', 'pos'))
+  exclude <- if (is_wza) c('SNPID', 'chr', 'pos', wza_meta_cols) else c('SNPID', 'chr', 'pos')
+  trait_cols <- setdiff(colnames(assoc), exclude)
 
   threshold <- calc_threshold(
     data.frame(pvalue = assoc[[trait_cols[1]]]),

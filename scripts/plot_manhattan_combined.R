@@ -27,10 +27,14 @@ ASSOC_FILES_STR = args[1]   # Comma-separated "METHOD:ADJUST:FILEPATH"
 PREDICTORS = args[2]        # Comma-separated trait names
 Kbest = args[3] %>% as.numeric
 PLOT_DIR = args[4]          # Output directory
+REGIME    = if (length(args) >= 5) tolower(args[5]) else "snp"  # "snp" or "wza"
 ################################
 
+is_wza   <- REGIME == "wza"
+name_pfx <- if (is_wza) "wza_" else ""
+
 message('INFO: Combined Manhattan plot for all traits and methods')
-message(paste0('INFO: K = ', Kbest))
+message(paste0('INFO: K = ', Kbest, ' [regime=', REGIME, ']'))
 
 # Parse ASSOC_FILES_STR into named list
 assoc_info <- parse_assoc_files_str(ASSOC_FILES_STR)
@@ -151,7 +155,7 @@ p_simple <- p_simple +
     )
 
 # Save simple plot
-simple_base <- paste0("manhattan_combined_K", Kbest)
+simple_base <- paste0("manhattan_", name_pfx, "combined_K", Kbest)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_simple,
        width = 14, height = 5, dpi = 300)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_simple,
@@ -190,7 +194,7 @@ p_bg_comb <- p_bg_comb +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA))
 
-bg_comb_base <- paste0("manhattan_combined_K", Kbest, "_background")
+bg_comb_base <- paste0("manhattan_", name_pfx, "combined_K", Kbest, "_background")
 ggsave(file.path(PLOT_DIR, paste0(bg_comb_base, ".png")), p_bg_comb,
        width = 14, height = 5, dpi = 300)
 message(paste0('INFO: Saved combined background Manhattan: ', bg_comb_base, '.png'))
@@ -205,7 +209,7 @@ coords_list_comb <- list(
     plot_width_px  = 4200L,
     plot_height_px = 1500L
 )
-coords_file_comb <- file.path(PLOT_DIR, paste0("manhattan_combined_K", Kbest, "_coords.json"))
+coords_file_comb <- file.path(PLOT_DIR, paste0("manhattan_", name_pfx, "combined_K", Kbest, "_coords.json"))
 jsonlite::write_json(coords_list_comb, coords_file_comb, auto_unbox = TRUE, digits = 6)
 message(paste0('INFO: Saved combined coords JSON: ', basename(coords_file_comb)))
 
@@ -268,7 +272,7 @@ p_qq <- ggplot() +
         shape = guide_legend(order = 2)
     )
 
-qq_base <- paste0("qq_combined_K", Kbest)
+qq_base <- paste0("qq_", name_pfx, "combined_K", Kbest)
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".png")), p_qq,
        width = 7, height = 7, dpi = 300)
 ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,

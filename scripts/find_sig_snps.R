@@ -14,27 +14,33 @@ source("/pipeline/scripts/R/utils/io_selected_snps.R")
 
 args = commandArgs(trailingOnly=TRUE)
 ################
-ASSOC_TABLE = args[1]  # p-values table
-ADJUST = args[2]       # e.g., "bonf_0.05"
-DISTANCE = args[3] %>% as.numeric  # Distance for overlap detection
-METHOD = args[4]       # EMMAX or LFMM
-CPU = args[5] %>% as.numeric
-OUTPUT = args[6]       # Output file path
+ASSOC_TABLE       = args[1]  # p-values table
+ADJUST            = args[2]  # e.g., "bonf_0.05"
+CLUMPING_DISTANCE = args[3] %>% as.numeric  # SNP clumping distance for overlap annotation
+METHOD            = args[4]  # EMMAX or LFMM
+CPU               = args[5] %>% as.numeric
+OUTPUT            = args[6]  # Output file path
+IS_WZA            = length(args) >= 7 && args[7] == "--wza"
 ################
 
 message(paste0('INFO: Finding significant SNPs for ', METHOD))
 message(paste0('INFO: Adjustment: ', ADJUST))
-message(paste0('INFO: Distance: ', DISTANCE))
+message(paste0('INFO: SNP clumping distance: ', CLUMPING_DISTANCE))
+if (IS_WZA) message('INFO: WZA mode — excluding n_snps/mean_maf from trait columns')
 
 ######################## Functions
 
-FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
+FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU,
+                             exclude_cols = character(0)) {
 
     snps_assoc <- fread(ASSOC_PVAL)
     snps_assoc$chr <- as.character(snps_assoc$chr)
     message(snps_assoc %>% str)
 
-    traits <- snps_assoc %>% dplyr::select(-SNPID, -chr, -pos) %>% colnames
+    traits <- setdiff(
+        snps_assoc %>% dplyr::select(-SNPID, -chr, -pos) %>% colnames,
+        exclude_cols
+    )
     message(paste0('INFO: Traits: ', paste(traits, collapse = ', ')))
 
     # Calculate thresholds based on adjustment method
@@ -107,7 +113,7 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
             return(data.frame(
                 overlap_traits = NA,
                 overlap_snps = NA,
-                overlap_distance = DISTANCE
+                overlap_distance = CLUMPING_DISTANCE
             ))
         }
 
@@ -117,7 +123,7 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
             GRanges()
 
         overlaps <- findOverlaps(current_snp_gr, other_traits_gr,
-                                 maxgap = DISTANCE, ignore.strand = TRUE) %>%
+                                 maxgap = CLUMPING_DISTANCE, ignore.strand = TRUE) %>%
             as.data.frame
 
         traits <- other_traits_dt[overlaps$subjectHits, ]$trait %>%
@@ -130,7 +136,7 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
         return(data.frame(
             overlap_traits = ifelse(traits == "", NA, traits),
             overlap_snps = ifelse(snpids == ':', NA, snpids),
-            overlap_distance = DISTANCE
+            overlap_distance = CLUMPING_DISTANCE
         ))
 
     }, mc.cores = CPU) %>% do.call(rbind, .)
@@ -149,7 +155,9 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU) {
 adjustment     <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
 pval_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
 
-snps_sig <- FUN_find_sigSNPs(ASSOC_TABLE, adjustment, pval_threshold, CPU)
+wza_meta_cols <- if (IS_WZA) c("n_snps", "mean_maf") else character(0)
+snps_sig <- FUN_find_sigSNPs(ASSOC_TABLE, adjustment, pval_threshold, CPU,
+                              exclude_cols = wza_meta_cols)
 
 # Save results
 snps_sig %>%

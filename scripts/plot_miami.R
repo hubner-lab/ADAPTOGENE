@@ -19,16 +19,20 @@ source("/pipeline/scripts/R/utils/io_pvalues.R")
 
 args = commandArgs(trailingOnly=TRUE)
 ################################
-GEA_FILES_STR = args[1]       # Comma-sep "METHOD:ADJUST:FILEPATH"
-GWAS_FILES_STR = args[2]      # Comma-sep "METHOD:ADJUST:FILEPATH"
-PREDICTORS_GEA = args[3]      # Comma-sep trait names (bio_1,bio_12)
-PREDICTORS_GWAS = args[4]     # Comma-sep trait names (height,flowering_time)
-Kbest = args[5] %>% as.numeric
-PLOT_DIR = args[6]
+GEA_FILES_STR  = args[1]       # Comma-sep "METHOD:ADJUST:FILEPATH"
+GWAS_FILES_STR = args[2]       # Comma-sep "METHOD:ADJUST:FILEPATH"
+PREDICTORS_GEA = args[3]       # Comma-sep trait names (bio_1,bio_12)
+PREDICTORS_GWAS = args[4]      # Comma-sep trait names (height,flowering_time)
+Kbest          = args[5] %>% as.numeric
+PLOT_DIR       = args[6]
+REGIME         = if (length(args) >= 7) tolower(args[7]) else "snp"  # "snp" or "wza"
 ################################
 
+is_wza   <- REGIME == "wza"
+name_pfx <- if (is_wza) "wza_" else ""
+
 message('INFO: Static Miami plot (GEA top, GWAS bottom)')
-message(paste0('INFO: K = ', Kbest))
+message(paste0('INFO: K = ', Kbest, ' [regime=', REGIME, ']'))
 
 ################################ Parse input files
 
@@ -203,7 +207,7 @@ p_miami <- p_miami +
     )
 
 # Save simple Miami
-simple_base <- paste0("miami_combined_K", Kbest)
+simple_base <- paste0("miami_", name_pfx, "combined_K", Kbest)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_miami,
        width = 14, height = 8, dpi = 300)
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".svg")), p_miami,
@@ -259,7 +263,7 @@ p_bg_miami <- p_bg_miami +
     theme_void() +
     theme(plot.background = element_rect(fill = "white", color = NA))
 
-bg_miami_base <- paste0("miami_combined_K", Kbest, "_background")
+bg_miami_base <- paste0("miami_", name_pfx, "combined_K", Kbest, "_background")
 ggsave(file.path(PLOT_DIR, paste0(bg_miami_base, ".png")), p_bg_miami,
        width = 14, height = 8, dpi = 300)
 message(paste0('INFO: Saved Miami background: ', bg_miami_base, '.png'))
@@ -278,7 +282,7 @@ coords_miami <- list(
     plot_width_px    = 4200L,
     plot_height_px   = 2400L
 )
-coords_miami_file <- file.path(PLOT_DIR, paste0("miami_combined_K", Kbest, "_coords.json"))
+coords_miami_file <- file.path(PLOT_DIR, paste0("miami_", name_pfx, "combined_K", Kbest, "_coords.json"))
 jsonlite::write_json(coords_miami, coords_miami_file, auto_unbox = TRUE, digits = 6)
 message(paste0('INFO: Saved Miami coords JSON: ', basename(coords_miami_file)))
 

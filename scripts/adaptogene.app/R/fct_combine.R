@@ -392,14 +392,18 @@ compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
         sub("::.*", "", all_valid_pairs) %in% known_traits
     ]
 
-    # Parse selected pairs from JSON; fall back to all valid
-    if (is.null(tm_selection_json) || !nzchar(tm_selection_json)) {
-        selected_pairs <- all_valid_pairs
+    # Parse selected pairs from JSON; fall back to all valid.
+    # An empty JSON array ("[]") from JS means the matrix rendered with no
+    # tm-active cells (un-initialized state), not a deliberate user deselect.
+    # Treat length-0 parsed result the same as NULL / "" to show all by default.
+    selected_pairs <- if (is.null(tm_selection_json) || !nzchar(tm_selection_json)) {
+        all_valid_pairs
     } else {
-        selected_pairs <- tryCatch(
+        parsed <- tryCatch(
             jsonlite::fromJSON(tm_selection_json),
-            error = function(e) all_valid_pairs
+            error = function(e) NULL
         )
+        if (is.null(parsed) || length(parsed) == 0) all_valid_pairs else parsed
     }
 
     # Filter each method to selected traits for that method

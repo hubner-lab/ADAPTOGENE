@@ -164,37 +164,75 @@ SIGSNPS_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gr
 
 _VALID_REGION_MODES = ('auto_per_chromosome', 'auto_genome_wide', 'auto')
 
+def _migrate_assoc_config(group_dict):
+    """Upgrade legacy region param keys to current names with deprecation warnings."""
+    import warnings
+    d = dict(group_dict)
+    if 'region_distance' in d and 'snp_clumping_distance' not in d:
+        warnings.warn(
+            "config key 'region_distance' is deprecated — rename to 'snp_clumping_distance'",
+            DeprecationWarning, stacklevel=2
+        )
+        d['snp_clumping_distance'] = d.pop('region_distance')
+    if 'combine_gap' in d and 'snp_clumping_distance' not in d:
+        warnings.warn(
+            "config key 'combine_gap' is deprecated — absorbed into 'snp_clumping_distance'",
+            DeprecationWarning, stacklevel=2
+        )
+        d.setdefault('snp_clumping_distance', d.pop('combine_gap'))
+    elif 'combine_gap' in d:
+        d.pop('combine_gap')  # silently drop; already superseded
+    if 'region_r2_threshold' in d and 'clumping_r2_threshold' not in d:
+        warnings.warn(
+            "config key 'region_r2_threshold' is deprecated — rename to 'clumping_r2_threshold'",
+            DeprecationWarning, stacklevel=2
+        )
+        d['clumping_r2_threshold'] = d.pop('region_r2_threshold')
+    if 'region_ld_decay_group' in d and 'ld_decay_group' not in d:
+        warnings.warn(
+            "config key 'region_ld_decay_group' is deprecated — rename to 'ld_decay_group'",
+            DeprecationWarning, stacklevel=2
+        )
+        d['ld_decay_group'] = d.pop('region_ld_decay_group')
+    return d
+
 def resolve_region_params(group_dict, defaults=None):
-    """Parse region_distance, combine_gap, promoter_length, r2_threshold, ld_decay_group."""
+    """Parse snp_clumping_distance, clumping_r2_threshold, ld_decay_group, promoter_length."""
     defaults = defaults or {}
-    raw_rdist = group_dict.get('region_distance', defaults.get('region_distance', 'auto_per_chromosome'))
+    group_dict = _migrate_assoc_config(group_dict)
+    defaults   = _migrate_assoc_config(defaults)
+    raw_rdist = group_dict.get('snp_clumping_distance', defaults.get('snp_clumping_distance', 'auto_per_chromosome'))
     raw_str   = str(raw_rdist).lower().strip()
     if raw_str in _VALID_REGION_MODES:
         rdist_mode = 'auto_genome_wide' if raw_str == 'auto' else raw_str
         rdist_val  = raw_str  # pass string spec to R script
         if raw_str == 'auto':
             import warnings
-            warnings.warn("region_distance: 'auto' is deprecated; use 'auto_genome_wide' or 'auto_per_chromosome'")
+            warnings.warn("snp_clumping_distance: 'auto' is deprecated; use 'auto_genome_wide' or 'auto_per_chromosome'")
     else:
         rdist_mode = 'fixed'
         rdist_val  = int(raw_rdist)
     return {
-        'region_distance':      rdist_val,
-        'region_distance_mode': rdist_mode,
-        'region_r2_threshold':  float(group_dict.get('region_r2_threshold', defaults.get('region_r2_threshold', 0.2))),
-        'region_ld_decay_group': str(group_dict.get('region_ld_decay_group', defaults.get('region_ld_decay_group', 'All'))),
-        'combine_gap':          int(group_dict.get('combine_gap',      defaults.get('combine_gap', 100000))),
-        'promoter_length':      int(group_dict.get('promoter_length',  defaults.get('promoter_length', 10000))),
+        'clumping_distance':      rdist_val,
+        'clumping_distance_mode': rdist_mode,
+        'clumping_r2_threshold':  float(group_dict.get('clumping_r2_threshold', defaults.get('clumping_r2_threshold', 0.2))),
+        'ld_decay_group':         str(group_dict.get('ld_decay_group', defaults.get('ld_decay_group', 'All'))),
+        'promoter_length':        int(group_dict.get('promoter_length',  defaults.get('promoter_length', 10000))),
     }
 
 _gea_rdp = resolve_region_params(_assoc)
-PROMOTER_LENGTH      = _gea_rdp['promoter_length']
-SIGSNPS_GAP          = _gea_rdp['combine_gap']
-SNP_DISTANCE         = SIGSNPS_GAP
-REGION_DISTANCE      = _gea_rdp['region_distance']
-REGION_DISTANCE_MODE = _gea_rdp['region_distance_mode']
-REGION_R2_THRESHOLD  = _gea_rdp['region_r2_threshold']
-REGION_LD_DECAY_GROUP = _gea_rdp['region_ld_decay_group']
+PROMOTER_LENGTH       = _gea_rdp['promoter_length']
+CLUMPING_DISTANCE     = _gea_rdp['clumping_distance']
+CLUMPING_DISTANCE_MODE = _gea_rdp['clumping_distance_mode']
+CLUMPING_R2_THRESHOLD = _gea_rdp['clumping_r2_threshold']
+CLUMPING_LD_DECAY_GROUP = _gea_rdp['ld_decay_group']
+# Legacy aliases — keep so existing references in summary.smk etc. don't break
+SIGSNPS_GAP          = CLUMPING_DISTANCE
+SNP_DISTANCE         = CLUMPING_DISTANCE
+REGION_DISTANCE      = CLUMPING_DISTANCE
+REGION_DISTANCE_MODE = CLUMPING_DISTANCE_MODE
+REGION_R2_THRESHOLD  = CLUMPING_R2_THRESHOLD
+REGION_LD_DECAY_GROUP = CLUMPING_LD_DECAY_GROUP
 GO_FIELD           = _gff.get('go_field', 'NULL')
 
 # ENRICHMENT parameters
@@ -283,37 +321,49 @@ if GWAS_CONFIGS:
 # Inherit from GEA.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
 _gwas_rdp = resolve_region_params(_pheno, defaults=_gea_rdp)
-PHENO_COMBINE_GAP           = _gwas_rdp['combine_gap']
-PHENO_SNP_DISTANCE          = PHENO_COMBINE_GAP
-PHENO_REGION_DISTANCE       = _gwas_rdp['region_distance']
-PHENO_REGION_DISTANCE_MODE  = _gwas_rdp['region_distance_mode']
-PHENO_REGION_R2_THRESHOLD   = _gwas_rdp['region_r2_threshold']
-PHENO_REGION_LD_DECAY_GROUP = _gwas_rdp['region_ld_decay_group']
-PHENO_PROMOTER_LENGTH       = _gwas_rdp['promoter_length']
+PHENO_CLUMPING_DISTANCE      = _gwas_rdp['clumping_distance']
+PHENO_CLUMPING_DISTANCE_MODE = _gwas_rdp['clumping_distance_mode']
+PHENO_CLUMPING_R2_THRESHOLD  = _gwas_rdp['clumping_r2_threshold']
+PHENO_CLUMPING_LD_DECAY_GROUP = _gwas_rdp['ld_decay_group']
+PHENO_PROMOTER_LENGTH        = _gwas_rdp['promoter_length']
+# Legacy aliases
+PHENO_COMBINE_GAP           = PHENO_CLUMPING_DISTANCE
+PHENO_SNP_DISTANCE          = PHENO_CLUMPING_DISTANCE
+PHENO_REGION_DISTANCE       = PHENO_CLUMPING_DISTANCE
+PHENO_REGION_DISTANCE_MODE  = PHENO_CLUMPING_DISTANCE_MODE
+PHENO_REGION_R2_THRESHOLD   = PHENO_CLUMPING_R2_THRESHOLD
+PHENO_REGION_LD_DECAY_GROUP = PHENO_CLUMPING_LD_DECAY_GROUP
 
 # OVERLAP parameters (GEA + GWAS combined analysis)
 _overlap = config.get('GEAxGWAS', {})
-_overlap_rdist_raw = _overlap.get('region_distance', None)
-_gea_is_auto  = REGION_DISTANCE_MODE != 'fixed'
-_gwas_is_auto = PHENO_REGION_DISTANCE_MODE != 'fixed'
+# support both new name and legacy 'region_distance'
+_overlap_raw = _migrate_assoc_config(_overlap)
+_overlap_rdist_raw = _overlap_raw.get('snp_clumping_distance', None)
+_gea_is_auto  = CLUMPING_DISTANCE_MODE != 'fixed'
+_gwas_is_auto = PHENO_CLUMPING_DISTANCE_MODE != 'fixed'
 if _overlap_rdist_raw is None:
     # Default: inherit auto if either source is auto, otherwise use max of both fixed values
     if _gea_is_auto or _gwas_is_auto:
-        OVERLAP_REGION_DISTANCE_MODE = REGION_DISTANCE_MODE  # prefer GEA mode
-        OVERLAP_REGION_DISTANCE = REGION_DISTANCE
+        OVERLAP_CLUMPING_DISTANCE_MODE = CLUMPING_DISTANCE_MODE  # prefer GEA mode
+        OVERLAP_CLUMPING_DISTANCE = CLUMPING_DISTANCE
     else:
-        OVERLAP_REGION_DISTANCE_MODE = 'fixed'
-        OVERLAP_REGION_DISTANCE = max(int(REGION_DISTANCE), int(PHENO_REGION_DISTANCE))
+        OVERLAP_CLUMPING_DISTANCE_MODE = 'fixed'
+        OVERLAP_CLUMPING_DISTANCE = max(int(CLUMPING_DISTANCE), int(PHENO_CLUMPING_DISTANCE))
 else:
     _raw_str = str(_overlap_rdist_raw).lower().strip()
     if _raw_str in _VALID_REGION_MODES:
-        OVERLAP_REGION_DISTANCE_MODE = 'auto_genome_wide' if _raw_str == 'auto' else _raw_str
-        OVERLAP_REGION_DISTANCE = _overlap_rdist_raw
+        OVERLAP_CLUMPING_DISTANCE_MODE = 'auto_genome_wide' if _raw_str == 'auto' else _raw_str
+        OVERLAP_CLUMPING_DISTANCE = _overlap_rdist_raw
     else:
-        OVERLAP_REGION_DISTANCE_MODE = 'fixed'
-        OVERLAP_REGION_DISTANCE = int(_overlap_rdist_raw)
-OVERLAP_REGION_R2_THRESHOLD   = float(_overlap.get('region_r2_threshold', REGION_R2_THRESHOLD))
-OVERLAP_REGION_LD_DECAY_GROUP = str(_overlap.get('region_ld_decay_group', REGION_LD_DECAY_GROUP))
+        OVERLAP_CLUMPING_DISTANCE_MODE = 'fixed'
+        OVERLAP_CLUMPING_DISTANCE = int(_overlap_rdist_raw)
+OVERLAP_CLUMPING_R2_THRESHOLD   = float(_overlap_raw.get('clumping_r2_threshold', CLUMPING_R2_THRESHOLD))
+OVERLAP_CLUMPING_LD_DECAY_GROUP = str(_overlap_raw.get('ld_decay_group', CLUMPING_LD_DECAY_GROUP))
+# Legacy aliases
+OVERLAP_REGION_DISTANCE      = OVERLAP_CLUMPING_DISTANCE
+OVERLAP_REGION_DISTANCE_MODE = OVERLAP_CLUMPING_DISTANCE_MODE
+OVERLAP_REGION_R2_THRESHOLD  = OVERLAP_CLUMPING_R2_THRESHOLD
+OVERLAP_REGION_LD_DECAY_GROUP = OVERLAP_CLUMPING_LD_DECAY_GROUP
 # PAIRWISE OVERLAP parameters (trait-vs-trait comparison across all sources)
 _pairwise = _overlap.get('pairwise', {})
 PAIRWISE_WINDOW_SIZE = int(_pairwise.get('window_size', 500000))
@@ -776,6 +826,28 @@ def pheno_trait_pvalues(method, trait): return f"{MOD_GWAS}tables/methods/{metho
 # Keys match output directory names. "gea" and "gwas" will be set in Sub-step C.
 ASSOC_SOURCES = {}
 
+# WZA config parsing
+def _parse_wza_config(group_dict, defaults=None):
+    """Parse WZA sub-config (window_size, fallback_window_bp)."""
+    defaults = defaults or {}
+    wza = group_dict.get('wza', {})
+    wza_def = defaults.get('wza', {})
+    raw_ws = wza.get('window_size', wza_def.get('window_size', 'auto_genome_wide'))
+    raw_str = str(raw_ws).lower().strip()
+    if raw_str in _VALID_REGION_MODES or raw_str == 'auto_genome_wide':
+        ws_mode = 'auto_genome_wide' if raw_str in ('auto', 'auto_genome_wide') else raw_str
+        ws_val  = raw_str
+    else:
+        ws_mode = 'fixed'
+        ws_val  = int(raw_ws)
+    return {
+        'window_size':       ws_val,
+        'window_size_mode':  ws_mode,
+        'fallback_window_bp': int(wza.get('fallback_window_bp', wza_def.get('fallback_window_bp', 10000))),
+    }
+
+_gea_wza = _parse_wza_config(_assoc)
+
 if K_BEST is not None and GEA_CONFIGS:
     ASSOC_SOURCES["GEA"] = {
         "mod":             MOD_GEA,
@@ -784,17 +856,18 @@ if K_BEST is not None and GEA_CONFIGS:
         "method_regex":    GEA_METHOD_REGEX,
         "trait_regex":     r"bio_\d+",
         "predictors":      PREDICTORS_SELECTED,
-        "snp_distance":         SNP_DISTANCE,
-        "region_distance":      REGION_DISTANCE,
-        "region_distance_mode": REGION_DISTANCE_MODE,
-        "region_r2_threshold":  REGION_R2_THRESHOLD,
-        "region_ld_decay_group": REGION_LD_DECAY_GROUP,
-        "promoter_length":      PROMOTER_LENGTH,
+        "clumping_distance":      CLUMPING_DISTANCE,
+        "clumping_distance_mode": CLUMPING_DISTANCE_MODE,
+        "clumping_r2_threshold":  CLUMPING_R2_THRESHOLD,
+        "ld_decay_group":         CLUMPING_LD_DECAY_GROUP,
+        "promoter_length":        PROMOTER_LENGTH,
         "combine_method":  SIGSNPS_METHOD,
-        "combine_gap":     SIGSNPS_GAP,
+        "wza":             _gea_wza,
         "pvalues_fn":      assoc_pvalues,
         "sigsnps_fn":      assoc_sigsnps,
     }
+
+_gwas_wza = _parse_wza_config(_pheno, defaults=_assoc)
 
 if K_BEST is not None and GWAS_CONFIGS:
     ASSOC_SOURCES["GWAS"] = {
@@ -804,14 +877,13 @@ if K_BEST is not None and GWAS_CONFIGS:
         "method_regex":    GWAS_METHOD_REGEX,
         "trait_regex":     r"[a-zA-Z]\w*",
         "predictors":      PHENO_PREDICTORS,
-        "snp_distance":          PHENO_SNP_DISTANCE,
-        "region_distance":       PHENO_REGION_DISTANCE,
-        "region_distance_mode":  PHENO_REGION_DISTANCE_MODE,
-        "region_r2_threshold":   PHENO_REGION_R2_THRESHOLD,
-        "region_ld_decay_group": PHENO_REGION_LD_DECAY_GROUP,
-        "promoter_length":       PHENO_PROMOTER_LENGTH,
+        "clumping_distance":      PHENO_CLUMPING_DISTANCE,
+        "clumping_distance_mode": PHENO_CLUMPING_DISTANCE_MODE,
+        "clumping_r2_threshold":  PHENO_CLUMPING_R2_THRESHOLD,
+        "ld_decay_group":         PHENO_CLUMPING_LD_DECAY_GROUP,
+        "promoter_length":        PHENO_PROMOTER_LENGTH,
         "combine_method":  PHENO_COMBINE_METHOD,
-        "combine_gap":     PHENO_COMBINE_GAP,
+        "wza":             _gwas_wza,
         "pvalues_fn":      pheno_pvalues,
         "sigsnps_fn":      pheno_sigsnps,
     }
@@ -824,7 +896,7 @@ def _src(source, key):
 SOURCE_REGEX = "|".join(ASSOC_SOURCES.keys()) if ASSOC_SOURCES else "gea"
 # Trait wildcard: union of GEA (bio_\d+) and GWAS (identifier) patterns.
 # {source} in the output path disambiguates which branch a match belongs to.
-TRAIT_REGEX_ANY = r"(bio_\d+|[a-zA-Z]\w*)"
+TRAIT_REGEX_ANY = r"(?!wza_)(bio_\d+|[a-zA-Z]\w*)"
 
 
 def assoc_out(source, key):
@@ -842,8 +914,28 @@ def assoc_out(source, key):
         "qq_combined_svg":            f"plots/manhattan/combined/qq_combined_K{K_BEST}.svg",
         "manhattan_combined_bg":      f"plots/manhattan/combined/manhattan_combined_K{K_BEST}_background.png",
         "manhattan_combined_coords":  f"plots/manhattan/combined/manhattan_combined_K{K_BEST}_coords.json",
+        # WZA combined outputs
+        "wza_combined_png":           f"plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}.png",
+        "wza_combined_svg":           f"plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}.svg",
+        "wza_qq_combined_png":        f"plots/manhattan/combined/qq_wza_combined_K{K_BEST}.png",
+        "wza_qq_combined_svg":        f"plots/manhattan/combined/qq_wza_combined_K{K_BEST}.svg",
+        "wza_combined_bg":            f"plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}_background.png",
+        "wza_combined_coords":        f"plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}_coords.json",
     }
     return f"{ASSOC_SOURCES[source]['mod']}{_templates[key]}"
+
+
+def wza_pvalues(source, method):
+    """WZA p-values TSV path for a (source, method)."""
+    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_wza_K{K_BEST}.tsv"
+
+def wza_sig_windows(source, method, adjust):
+    """WZA significant windows TSV path."""
+    return f"{ASSOC_SOURCES[source]['mod']}tables/methods/{method}/{method}_wza_K{K_BEST}_sig_windows_{adjust}.tsv"
+
+def wza_manhattan(source, method, trait, adjust):
+    """WZA per-method Manhattan background PNG path."""
+    return f"{ASSOC_SOURCES[source]['mod']}plots/manhattan/{method}/manhattan_wza_{trait}_K{K_BEST}_{adjust}_background.png"
 
 
 #=============================================================================
@@ -1033,15 +1125,23 @@ def _targets_for_assoc_source(source):
     traits = get_predictors_list() if source == "GEA" else PHENO_TRAITS
     targets = []
     for method, adjust in src["configs"].items():
+        # Per-SNP outputs
         targets.append(src["pvalues_fn"](method))
         targets.append(src["sigsnps_fn"](method, adjust))
         for trait in traits:
             targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png")
             targets.append(f"{src['mod']}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png")
+        # WZA outputs
+        targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}.tsv")
+        targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}_sig_windows_{adjust}.tsv")
+        for trait in traits:
+            targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_wza_{trait}_K{K_BEST}_{adjust}.png")
+            targets.append(f"{src['mod']}plots/manhattan/{method}/qq_wza_{trait}_K{K_BEST}_{adjust}.png")
     for key in (
         "selected_snps", "regions_per_trait", "regions_combined",
         "genes_per_region", "genes_per_region_collapsed", "genes_combined",
         "manhattan_combined_png", "qq_combined_png",
+        "wza_combined_png", "wza_qq_combined_png",
     ):
         targets.append(assoc_out(source, key))
     return targets
@@ -1217,11 +1317,17 @@ def get_targets(mode):
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-# Helper: provide LD decay table as input when region_distance is auto
+# Helper: provide LD decay table as input when distance mode is auto_*
 def ld_decay_input(mode):
     """Return LD decay table path as input dependency when mode is auto_* or auto."""
     needs_table = isinstance(mode, str) and mode.lower() in _VALID_REGION_MODES
     return O.get('ld_decay_table', []) if needs_table else []
+
+def wza_ld_decay_input(wza_cfg):
+    """Return LD decay table as input for WZA when window_size is auto_*."""
+    needs = isinstance(wza_cfg.get('window_size', ''), str) and \
+            wza_cfg.get('window_size_mode', 'fixed') != 'fixed'
+    return O.get('ld_decay_table', []) if needs else []
 
 #=============================================================================
 # MAIN RULE

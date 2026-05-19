@@ -23,13 +23,13 @@ library(GenomicRanges)
 args = commandArgs(trailingOnly=TRUE)
 options(scipen = 99999)
 ################
-SELECTED_SNPS        = args[1]
-REGION_DISTANCE_SPEC = args[2]   # "auto_per_chromosome" | "auto_genome_wide" | integer
-OUTPUT_PER_TRAIT     = args[3]
-OUTPUT_COMBINED      = args[4]
-LD_DECAY_PATH        = if (length(args) >= 5) args[5] else "NULL"
-R2_THRESHOLD         = if (length(args) >= 6) as.numeric(args[6]) else 0.2
-LD_DECAY_GROUP       = if (length(args) >= 7) args[7] else "All"
+SELECTED_SNPS           = args[1]
+CLUMPING_DISTANCE_SPEC  = args[2]   # "auto_per_chromosome" | "auto_genome_wide" | integer bp
+OUTPUT_PER_TRAIT        = args[3]
+OUTPUT_COMBINED         = args[4]
+LD_DECAY_PATH           = if (length(args) >= 5) args[5] else "NULL"
+R2_THRESHOLD            = if (length(args) >= 6) as.numeric(args[6]) else 0.2
+LD_DECAY_GROUP          = if (length(args) >= 7) args[7] else "All"
 ################
 
 # Hill-Weir (1988) expected r^2 at distance d given parameter C and sample size n
@@ -102,18 +102,18 @@ resolve_row_distance <- function(row, r2_target) {
 #=============================================================================
 # RESOLVE REGION_DISTANCE
 #=============================================================================
-spec_lower <- tolower(REGION_DISTANCE_SPEC)
+spec_lower <- tolower(CLUMPING_DISTANCE_SPEC)
 auto_mode <- spec_lower %in% c("auto_per_chromosome", "auto_genome_wide", "auto")
 
 if (auto_mode) {
     if (LD_DECAY_PATH == "NULL" || !file.exists(LD_DECAY_PATH)) {
-        stop("region_distance='", REGION_DISTANCE_SPEC, "' but LD decay table not found: ", LD_DECAY_PATH)
+        stop("snp_clumping_distance='", CLUMPING_DISTANCE_SPEC, "' but LD decay table not found: ", LD_DECAY_PATH)
     }
     ld_table <- fread(LD_DECAY_PATH)
 
     if (spec_lower %in% c("auto_genome_wide", "auto")) {
         if (spec_lower == "auto") {
-            message("INFO: 'auto' region_distance treated as 'auto_genome_wide' (deprecated alias)")
+            message("INFO: 'auto' snp_clumping_distance treated as 'auto_genome_wide' (deprecated alias)")
         }
         row <- ld_table[group == LD_DECAY_GROUP & scope == "genome_wide"]
         if (nrow(row) == 0) stop("No genome-wide LD decay row found for group='", LD_DECAY_GROUP, "'")
@@ -162,8 +162,8 @@ if (auto_mode) {
         }
     }
 } else {
-    REGION_DISTANCE <- as.numeric(REGION_DISTANCE_SPEC)
-    message(paste0("INFO: Fixed region_distance: ", REGION_DISTANCE, " bp"))
+    REGION_DISTANCE <- as.numeric(CLUMPING_DISTANCE_SPEC)
+    message(paste0("INFO: Fixed snp_clumping_distance: ", REGION_DISTANCE, " bp"))
 }
 
 message('INFO: Creating regions from selected SNPs using single-linkage clustering')
@@ -214,10 +214,10 @@ create_regions_from_snps <- function(snps_dt, trait_label = NULL) {
             dplyr::select(chr, start, end, SNPID, min_pvalue) %>%
             GRanges()
 
-        # Extend by dist/2 on each side for single-linkage clustering
+        # Extend by dist on each side: two SNPs merge if their gap <= dist
         snps_ext <- snps_gr
-        start(snps_ext) <- pmax(1L, start(snps_ext) - as.integer(dist / 2))
-        end(snps_ext)   <- end(snps_ext) + as.integer(dist / 2)
+        start(snps_ext) <- pmax(1L, start(snps_ext) - as.integer(dist))
+        end(snps_ext)   <- end(snps_ext) + as.integer(dist)
 
         regions_reduced <- reduce(snps_ext)
 
