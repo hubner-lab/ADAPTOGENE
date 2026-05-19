@@ -461,7 +461,8 @@ launch_enrichment_subprocess <- function(genes_dt, region_id, trait, project_dat
 #' @param region_snps data.table with columns trait, method — sig SNPs in the region
 #' @return list(process, log_file, type, tmp_base) or list(error=)
 #' @noRd
-launch_regionplot_subprocess <- function(region_row, region_snps, project_data, module = MOD_GEA) {
+launch_regionplot_subprocess <- function(region_row, region_snps, project_data, module = MOD_GEA,
+                                         regime = "snp") {
     pd <- project_data
 
     gff_topr_p <- .ensure_gff_topr(pd)
@@ -513,7 +514,8 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
         file.path(pipeline_path, "scripts", "plot_regionplot.R"),
         "NULL", gff_topr_p, assoc_tables, "0",
         genes_highlight, paste0(out_dir, "/"),
-        custom_region, custom_traits, "NULL"
+        custom_region, custom_traits, "NULL",
+        regime
     ), shQuote), collapse = " ")
 
     cmd <- paste0("Rscript ", rplot_args, " >> ", shQuote(log_file), " 2>&1")

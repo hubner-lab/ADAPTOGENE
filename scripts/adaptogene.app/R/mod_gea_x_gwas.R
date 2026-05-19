@@ -165,17 +165,14 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         })
 
         # ── Initialize per-side filter params from config/region_params ─────────
-        # Each init_param: observe project_data, read saved param, fall back to config default
-        .init_filter_param <- function(input_id, rp_key, config_default_fn) {
+        .init_dist_param <- function(input_id, rp_key, config_default_fn) {
             shiny::observe({
                 pd  <- project_data()
                 rp  <- read_region_params(pd$name)
                 val <- get_global_param(rp, module, rp_key)
-                if (!is.null(val)) {
-                    shiny::updateNumericInput(session, input_id, value = as.integer(val))
-                } else {
-                    shiny::updateNumericInput(session, input_id, value = config_default_fn(pd$config))
-                }
+                d <- if (!is.null(val)) as.integer(val)
+                     else config_default_fn(pd$config, pd$name)
+                shiny::updateNumericInput(session, input_id, value = d)
             })
             shiny::observeEvent(input[[input_id]], {
                 v  <- input[[input_id]]
@@ -187,32 +184,61 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             }, ignoreInit = TRUE)
         }
 
-        .init_filter_param("gea_region_distance", "gea_region_distance", function(cfg)
-            config_get(cfg, "GEA", "region_distance", default = 1000000L))
-        .init_filter_param("gea_combine_gap", "gea_combine_gap", function(cfg)
-            config_get(cfg, "GEA", "combine_gap", default = 100000L))
-        .init_filter_param("gwas_region_distance", "gwas_region_distance", function(cfg)
-            config_get(cfg, "GWAS", "region_distance",
-                       default = config_get(cfg, "GEA", "region_distance", default = 1000000L)))
-        .init_filter_param("gwas_combine_gap", "gwas_combine_gap", function(cfg)
-            config_get(cfg, "GWAS", "combine_gap",
-                       default = config_get(cfg, "GEA", "combine_gap", default = 100000L)))
+        .init_dist_param("gea_snp_clumping_distance", "gea_snp_clumping_distance",
+            function(cfg, proj) resolve_ui_snp_clumping_distance(cfg, "GEA", proj))
+        .init_dist_param("gwas_snp_clumping_distance", "gwas_snp_clumping_distance",
+            function(cfg, proj) resolve_ui_snp_clumping_distance(cfg, "GWAS", proj))
 
-        gea_region_distance <- shiny::reactive({
-            v <- input$gea_region_distance
+        gea_snp_clumping_distance <- shiny::reactive({
+            v <- input$gea_snp_clumping_distance
             if (is.null(v) || is.na(v) || v < 1000L) 1000000L else as.integer(v)
         })
-        gea_combine_gap <- shiny::reactive({
-            v <- input$gea_combine_gap
-            if (is.null(v) || is.na(v) || v < 0L) 100000L else as.integer(v)
-        })
-        gwas_region_distance <- shiny::reactive({
-            v <- input$gwas_region_distance
+        gwas_snp_clumping_distance <- shiny::reactive({
+            v <- input$gwas_snp_clumping_distance
             if (is.null(v) || is.na(v) || v < 1000L) 1000000L else as.integer(v)
         })
-        gwas_combine_gap <- shiny::reactive({
-            v <- input$gwas_combine_gap
-            if (is.null(v) || is.na(v) || v < 0L) 100000L else as.integer(v)
+
+        # ── Regime (independent per side) ─────────────────────────────────────
+        .init_regime_param <- function(input_id, rp_key) {
+            shiny::observe({
+                pd    <- project_data()
+                rp    <- read_region_params(pd$name)
+                saved <- get_global_param(rp, module, rp_key)
+                if (!is.null(saved))
+                    bslib::update_switch(input_id, value = isTRUE(saved), session = session)
+            })
+            shiny::observeEvent(input[[input_id]], {
+                pd <- project_data()
+                if (is.null(pd)) return()
+                rp <- read_region_params(pd$name)
+                rp <- set_global_param(rp, module, rp_key, isTRUE(input[[input_id]]))
+                save_region_params(pd$name, rp)
+            }, ignoreInit = TRUE)
+        }
+
+        .init_regime_param("gea_regime", "gea_regime")
+        .init_regime_param("gwas_regime", "gwas_regime")
+
+        gea_regime_wza  <- shiny::reactive(isTRUE(input$gea_regime))
+        gwas_regime_wza <- shiny::reactive(isTRUE(input$gwas_regime))
+
+        # ── WZA sig windows per side ───────────────────────────────────────────
+        gea_method_wza_sigsnps <- shiny::reactive({
+            if (!gea_regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_sigwindows(pd$name, MOD_GEA, k = pd$k_best)
+        })
+        gwas_method_wza_sigsnps <- shiny::reactive({
+            if (!gwas_regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_sigwindows(pd$name, MOD_GWAS, k = pd$k_best)
+        })
+
+        gea_effective_sigsnps  <- shiny::reactive({
+            if (gea_regime_wza()) gea_method_wza_sigsnps() else gea_method_sigsnps()
+        })
+        gwas_effective_sigsnps <- shiny::reactive({
+            if (gwas_regime_wza()) gwas_method_wza_sigsnps() else gwas_method_sigsnps()
         })
 
         # ── Overlap bounds (persisted) ─────────────────────────────────────────
@@ -237,57 +263,57 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         # ── GEA filter bar UI ──────────────────────────────────────────────────
         output$gea_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
-                ns                     = ns,
-                traits                 = gea_traits(),
-                methods                = gea_methods(),
-                trait_colors           = gea_trait_colors(),
-                combo_counts           = gea_combo_counts(),
-                default_strategy_value = "All",
-                region_distance_value  = gea_region_distance(),
-                combine_gap_value      = gea_combine_gap(),
-                input_prefix           = "gea_"
+                ns                          = ns,
+                traits                      = gea_traits(),
+                methods                     = gea_methods(),
+                trait_colors                = gea_trait_colors(),
+                combo_counts                = gea_combo_counts(),
+                default_strategy_value      = "Union",
+                snp_clumping_distance_value = gea_snp_clumping_distance(),
+                input_prefix                = "gea_",
+                regime_value                = gea_regime_wza()
             )
         })
 
         # ── GWAS filter bar UI ─────────────────────────────────────────────────
         output$gwas_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
-                ns                     = ns,
-                traits                 = gwas_traits(),
-                methods                = gwas_methods(),
-                trait_colors           = gwas_trait_colors(),
-                combo_counts           = gwas_combo_counts(),
-                default_strategy_value = "All",
-                region_distance_value  = gwas_region_distance(),
-                combine_gap_value      = gwas_combine_gap(),
-                input_prefix           = "gwas_"
+                ns                          = ns,
+                traits                      = gwas_traits(),
+                methods                     = gwas_methods(),
+                trait_colors                = gwas_trait_colors(),
+                combo_counts                = gwas_combo_counts(),
+                default_strategy_value      = "Union",
+                snp_clumping_distance_value = gwas_snp_clumping_distance(),
+                input_prefix                = "gwas_",
+                regime_value                = gwas_regime_wza()
             )
         })
 
         # ── Interactive sig SNPs (independent per side) ────────────────────────
         gea_interactive_sigsnps <- shiny::reactive({
             compute_interactive_sigsnps(
-                all_method_sigsnps = gea_method_sigsnps(),
-                tm_selection_json  = input$gea_tm_selection,
-                combo_counts       = gea_combo_counts(),
-                known_traits       = gea_traits(),
-                strategy           = input$gea_combine_strategy %||% "All",
-                gap                = gea_combine_gap(),
-                project_name       = project_data()$name,
-                module             = MOD_GEA
+                all_method_sigsnps  = gea_effective_sigsnps(),
+                tm_selection_json   = input$gea_tm_selection,
+                combo_counts        = gea_combo_counts(),
+                known_traits        = gea_traits(),
+                strategy            = input$gea_combine_strategy %||% "Union",
+                clumping_distance   = gea_snp_clumping_distance(),
+                project_name        = project_data()$name,
+                module              = MOD_GEA
             )
         })
 
         gwas_interactive_sigsnps <- shiny::reactive({
             compute_interactive_sigsnps(
-                all_method_sigsnps = gwas_method_sigsnps(),
-                tm_selection_json  = input$gwas_tm_selection,
-                combo_counts       = gwas_combo_counts(),
-                known_traits       = gwas_traits(),
-                strategy           = input$gwas_combine_strategy %||% "All",
-                gap                = gwas_combine_gap(),
-                project_name       = project_data()$name,
-                module             = MOD_GWAS
+                all_method_sigsnps  = gwas_effective_sigsnps(),
+                tm_selection_json   = input$gwas_tm_selection,
+                combo_counts        = gwas_combo_counts(),
+                known_traits        = gwas_traits(),
+                strategy            = input$gwas_combine_strategy %||% "Union",
+                clumping_distance   = gwas_snp_clumping_distance(),
+                project_name        = project_data()$name,
+                module              = MOD_GWAS
             )
         })
 
@@ -295,13 +321,13 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         gea_regions <- shiny::reactive({
             snps <- gea_interactive_sigsnps()
             if (is.null(snps) || nrow(snps) == 0) return(.empty_regions())
-            compute_all_regions(snps, gea_region_distance())
+            compute_all_regions(snps, gea_snp_clumping_distance())
         })
 
         gwas_regions <- shiny::reactive({
             snps <- gwas_interactive_sigsnps()
             if (is.null(snps) || nrow(snps) == 0) return(.empty_regions())
-            compute_all_regions(snps, gwas_region_distance())
+            compute_all_regions(snps, gwas_snp_clumping_distance())
         })
 
         # ── Overlap detection ──────────────────────────────────────────────────
@@ -357,7 +383,8 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             module              = module,
             interactive_sigsnps = unified_sigsnps,
             region_distance     = shiny::reactive(1000000L),  # not used when override_regions supplied
-            override_regions    = overlap_regions
+            override_regions    = overlap_regions,
+            regime              = shiny::reactive(gea_regime_wza() && gwas_regime_wza())
         )
 
         # ── Miami plot ─────────────────────────────────────────────────────────
@@ -367,12 +394,30 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         all_trait_colors  <- shiny::reactive(trait_color_map(all_traits()))
         all_method_shapes <- shiny::reactive(method_shape_map(all_methods()))
 
+        miami_wza_bg <- shiny::reactive({
+            if (!(gea_regime_wza() && gwas_regime_wza())) return(NULL)
+            pd <- project_data(); k <- pd$k_best
+            if (is.na(k)) return(NULL)
+            miami_wza_bg_path(pd$name, k)
+        })
+        miami_wza_co <- shiny::reactive({
+            if (!(gea_regime_wza() && gwas_regime_wza())) return(NULL)
+            pd <- project_data(); k <- pd$k_best
+            if (is.na(k)) return(NULL)
+            miami_wza_coords_path(pd$name, k)
+        })
+
         miami_click <- mod_manhattan_overlay_server("miami",
             project_data         = project_data,
             module               = module,
             is_miami             = TRUE,
             combined             = TRUE,
-            title_label          = shiny::reactive("Miami Plot (GEA \u2191 | GWAS \u2193)"),
+            title_label          = shiny::reactive({
+                if (gea_regime_wza() && gwas_regime_wza())
+                    "Miami Plot WZA (GEA \u2191 | GWAS \u2193)"
+                else
+                    "Miami Plot (GEA \u2191 | GWAS \u2193)"
+            }),
             regions              = gea_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
@@ -380,7 +425,9 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             trait_colors         = all_trait_colors,
             method_shapes        = all_method_shapes,
             gwas_regions         = gwas_regions,
-            overlap_regions      = overlap_regions
+            overlap_regions      = overlap_regions,
+            bg_path_override     = miami_wza_bg,
+            coords_path_override = miami_wza_co
         )
 
         # Miami SNP click → select the enclosing overlap region

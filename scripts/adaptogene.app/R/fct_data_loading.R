@@ -393,6 +393,42 @@ load_all_method_sigsnps <- function(project, module = MOD_GEA, k = NA) {
     result
 }
 
+#' Load all per-method WZA sig-windows (WZA regime counterpart of load_all_method_sigsnps)
+#' @noRd
+load_all_method_wza_sigwindows <- function(project, module = MOD_GEA, k = NA) {
+    glob <- mod_path(project, module, "tables", "methods", "*",
+                     "*_wza_K*_sig_windows_*.tsv")
+    files <- Sys.glob(glob)
+    if (length(files) == 0) return(list())
+    if (!is.na(k)) {
+        k_pattern <- paste0("_K", k, "_")
+        files <- files[grepl(k_pattern, basename(files), fixed = TRUE)]
+    }
+    if (length(files) == 0) return(list())
+
+    result <- list()
+    for (f in files) {
+        parts <- strsplit(f, .Platform$file.sep, fixed = TRUE)[[1]]
+        methods_idx <- which(parts == "methods")
+        if (length(methods_idx) == 0) next
+        method_name <- parts[methods_idx + 1L]
+
+        dt <- tryCatch(
+            data.table::fread(f, sep = "\t", header = TRUE,
+                              colClasses = c(chr    = "character",
+                                             SNPID  = "character",
+                                             method = "character",
+                                             trait  = "character")),
+            error = function(e) data.table::data.table()
+        )
+        if (nrow(dt) == 0) next
+        keep <- intersect(c("SNPID", "chr", "pos", "pvalue", "method", "trait"), names(dt))
+        if (length(keep) < 5L) next
+        result[[method_name]] <- dt[, ..keep]
+    }
+    result
+}
+
 #' Load phenotype missing summary (GWAS mode)
 #' @noRd
 load_pheno_missing_summary <- function(project) {

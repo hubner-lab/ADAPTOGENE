@@ -36,10 +36,18 @@ method_shape_map <- function(methods) {
     stats::setNames(shapes, methods_sorted)
 }
 
-#' Normalize legacy strategy names to current names
+#' Normalize legacy and alias strategy names to current canonical names
 #' @noRd
 .normalize_strategy <- function(s) {
-    switch(s, Sum = "All", PairOverlap = "MethodOverlap", s)
+    switch(s,
+        # Legacy pipeline names
+        All          = "Union",
+        Sum          = "Union",
+        Overlap      = "Cross-method",
+        MethodOverlap = "Cross-method per-trait",
+        PairOverlap  = "Cross-method per-trait",
+        s  # pass through "Union", "Cross-method", "Cross-method per-trait" unchanged
+    )
 }
 
 #' Combine per-method sig SNPs using a specified strategy (on-the-fly in Shiny)
@@ -68,11 +76,11 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
         # ── Single-method ───────────────────────────────────────────────────────
         data.table::copy(sigsnps_list[[strategy]])
 
-    } else if (strategy == "All") {
+    } else if (strategy == "Union") {
         # ── Union: all sig SNPs from all methods ────────────────────────────────
         data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
 
-    } else if (strategy == "Overlap") {
+    } else if (strategy == "Cross-method") {
         # ── Cross-method spatial overlap (trait-agnostic) ───────────────────────
         # A SNP passes if any partner exists in another method within gap bp.
         selected_ids <- character(0)
@@ -88,7 +96,7 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
         all_snps <- data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
         all_snps[SNPID %in% selected_ids]
 
-    } else if (strategy == "MethodOverlap") {
+    } else if (strategy == "Cross-method per-trait") {
         # ── Cross-method spatial overlap, same-trait only ───────────────────────
         all_snps <- data.table::rbindlist(sigsnps_list, use.names = TRUE, fill = TRUE)
         all_traits <- unique(all_snps$trait)
@@ -114,7 +122,7 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 
     } else {
         stop(paste0("Unknown combine strategy: '", strategy,
-                    "'. Valid values: All, Overlap, MethodOverlap, or a method name."))
+                    "'. Valid values: Union, Cross-method, Cross-method per-trait, or a method name."))
     }
 
     if (is.null(result) || nrow(result) == 0) return(.empty_sigsnps())
@@ -186,7 +194,7 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 
 # ── Shared UI / server helpers ────────────────────────────────────────────────
 
-#' Build the filter bar UI (trait x method matrix + strategy + distance)
+#' Build the filter bar UI (regime switch + trait x method matrix + strategy + distance)
 #'
 #' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
 #'
@@ -195,19 +203,19 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 #' @param methods      Character vector of method names
 #' @param trait_colors Named character vector: trait -> hex colour
 #' @param combo_counts Named list: "trait::method" -> integer SNP count
-#' @param default_strategy_value Character scalar: "All", "Overlap", or "MethodOverlap"
-#' @param region_distance_value Integer scalar: current region distance (bp)
-#' @param combine_gap_value Integer scalar: current combine gap (bp)
+#' @param default_strategy_value Character scalar: "Union", "Cross-method", or "Cross-method per-trait"
+#' @param snp_clumping_distance_value Integer scalar: current clumping distance (bp)
 #' @param input_prefix Character scalar: prefix for all Shiny input IDs inside this bar.
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
+#' @param regime_value Logical: current WZA regime state (TRUE = WZA, FALSE = per-SNP)
 #' @return tagList
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
-                                region_distance_value,
-                                combine_gap_value = 100000L,
-                                input_prefix = "") {
+                                snp_clumping_distance_value = 100000L,
+                                input_prefix = "",
+                                regime_value = FALSE) {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
     if (length(traits) == 0) return(NULL)
@@ -317,8 +325,33 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 })();
 ', container_id, input_id)
 
+    strategy_choices <- c("Union", "Cross-method", "Cross-method per-trait")
+    strategy_labels  <- setNames(
+        strategy_choices,
+        c(
+            "Union — all sig SNPs from all methods",
+            "Cross-method — SNPs significant in ≥2 methods within clumping distance",
+            "Cross-method per-trait — same as above, same trait only"
+        )
+    )
+
+    default_strat_norm <- .normalize_strategy(default_strategy_value)
+    if (!default_strat_norm %in% strategy_choices) default_strat_norm <- "Union"
+
     htmltools::div(
         class = "manhattan-filter-bar",
+        # Regime switch row
+        htmltools::div(
+            class = "filter-row align-items-center mb-2",
+            bslib::input_switch(
+                pid("regime"), "WZA regime",
+                value = isTRUE(regime_value)
+            ),
+            htmltools::span(
+                class = "text-muted small ms-2",
+                "Toggle to use Weighted-Z Analysis windows instead of per-SNP p-values"
+            )
+        ),
         htmltools::div(
             class = "filter-row align-items-start",
             # Matrix
@@ -334,28 +367,23 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                 htmltools::span("Strategy", class = "filter-label mb-1"),
                 shiny::radioButtons(
                     pid("combine_strategy"), label = NULL,
-                    choices  = c("All", "Overlap", "MethodOverlap"),
-                    selected = default_strategy_value,
+                    choices  = strategy_labels,
+                    selected = default_strat_norm,
                     inline   = FALSE
                 )
             ),
-            # Combine gap
-            htmltools::div(
-                class = "d-flex flex-column me-4",
-                htmltools::span("Combine gap (bp)", class = "filter-label mb-1"),
-                shiny::numericInput(
-                    pid("combine_gap"), label = NULL,
-                    value = combine_gap_value, min = 0L, step = 10000L,
-                    width = "130px"
-                )
-            ),
+            # Single clumping distance input
             htmltools::div(
                 class = "d-flex flex-column",
-                htmltools::span("Distance (bp)", class = "filter-label mb-1"),
+                htmltools::span("Clumping distance (bp)", class = "filter-label mb-1"),
                 shiny::numericInput(
-                    pid("region_distance"), label = NULL,
-                    value = region_distance_value, min = 1000L, step = 100000L,
-                    width = "130px"
+                    pid("snp_clumping_distance"), label = NULL,
+                    value = snp_clumping_distance_value, min = 1000L, step = 100000L,
+                    width = "160px"
+                ),
+                htmltools::span(
+                    class = "text-muted small mt-1",
+                    "Merge distance for regions; also used for Cross-method overlap"
                 )
             )
         ),
@@ -371,15 +399,15 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 #' @param tm_selection_json  JSON string from tm_selection hidden input (list of "trait::method" pairs)
 #' @param combo_counts       Named list: "trait::method" -> integer count (for fallback)
 #' @param known_traits       Character vector of traits to restrict to (avoids cross-tab bleed)
-#' @param strategy           Character: "All", "Overlap", "MethodOverlap", or method name
-#' @param gap                Integer: combine_gap in bp
+#' @param strategy           Character: "Union", "Cross-method", "Cross-method per-trait", or method name
+#' @param clumping_distance  Integer: SNP clumping distance in bp
 #' @param project_name       Character: project name (for assign_region_ids)
 #' @param module             Character: MOD_GEA, MOD_GWAS, or MOD_GEAXGWAS
 #' @return data.table (SNPID/chr/pos/pvalue/method/trait/region_id) or .empty_sigsnps_assoc()
 #' @noRd
 compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
                                         combo_counts, known_traits,
-                                        strategy, gap,
+                                        strategy, clumping_distance,
                                         project_name, module) {
     if (length(all_method_sigsnps) == 0) return(NULL)
     strategy <- .normalize_strategy(strategy)
@@ -421,7 +449,7 @@ compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
     if (length(filtered) == 0) return(.empty_sigsnps_assoc())
 
     combined_dt <- combine_sigsnps(filtered, strategy = strategy,
-                                   gap = as.integer(gap))
+                                   gap = as.integer(clumping_distance))
 
     if (nrow(combined_dt) == 0) return(.empty_sigsnps_assoc())
 

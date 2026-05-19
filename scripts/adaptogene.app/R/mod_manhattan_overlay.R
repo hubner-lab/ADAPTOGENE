@@ -66,6 +66,11 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           sig_snps_override    = shiny::reactive(NULL),
                                           trait_colors         = shiny::reactive(NULL),
                                           method_shapes        = shiny::reactive(NULL),
+                                          # Optional path overrides: when non-NULL reactives are
+                                          # supplied the auto-resolved paths are bypassed (used
+                                          # by the WZA regime switcher in mod_gea / mod_gwas).
+                                          bg_path_override     = shiny::reactive(NULL),
+                                          coords_path_override = shiny::reactive(NULL),
                                           # Overlapping-tab Miami extensions:
                                           # When both provided AND is_miami=TRUE, use
                                           # build_miami_region_shapes() for 4-category coloring.
@@ -89,6 +94,10 @@ mod_manhattan_overlay_server <- function(id, project_data,
 
         # ── Resolve file paths ─────────────────────────────────────────────────
         bg_path <- shiny::reactive({
+            # Caller-supplied override (e.g. WZA regime) takes priority
+            ov <- bg_path_override()
+            if (!is.null(ov)) return(ov)
+
             pd  <- project_data()
             k   <- pd$k_best
             if (is.na(k)) return(NULL)
@@ -108,6 +117,9 @@ mod_manhattan_overlay_server <- function(id, project_data,
         })
 
         coords_path <- shiny::reactive({
+            ov <- coords_path_override()
+            if (!is.null(ov)) return(ov)
+
             pd <- project_data()
             k  <- pd$k_best
             if (is.na(k)) return(NULL)

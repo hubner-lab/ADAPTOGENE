@@ -41,7 +41,8 @@ mod_region_explorer_ui <- function(id) {
 mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                                         interactive_sigsnps = shiny::reactive(NULL),
                                         region_distance     = shiny::reactive(2000000L),
-                                        override_regions    = shiny::reactive(NULL)) {
+                                        override_regions    = shiny::reactive(NULL),
+                                        regime              = shiny::reactive(FALSE)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -241,14 +242,15 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             rid
         })
 
-        # combo_hash: deterministic 8-char hash of sorted trait/method pairs in region.
-        # Different filter state → different hash → different cache key and disk path.
+        # combo_hash: deterministic 8-char hash of sorted trait/method pairs + regime.
+        # Different filter state or regime → different hash → different cache key and disk path.
         combo_hash <- shiny::reactive({
             snps <- region_snps()
             if (is.null(snps) || nrow(snps) == 0) return(NULL)
             arg <- .build_trait_method_arg(snps)
             if (is.null(arg)) return(NULL)
-            substr(digest::digest(arg, algo = "md5"), 1, 8)
+            regime_str <- if (isTRUE(regime())) "wza" else "snp"
+            substr(digest::digest(paste0(arg, "__", regime_str), algo = "md5"), 1, 8)
         })
 
         rplot_key <- shiny::reactive({
@@ -742,7 +744,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             snps <- region_snps()
             if (is.null(snps) || nrow(snps) == 0) return()
 
-            handle <- launch_regionplot_subprocess(row, snps, project_data(), module)
+            handle <- launch_regionplot_subprocess(row, snps, project_data(), module,
+                                                     regime = if (isTRUE(regime())) "wza" else "snp")
             if (!is.null(handle$error)) {
                 regionplot_cache[[key]] <- handle   # store error immediately
             } else {

@@ -51,6 +51,50 @@ combined_manhattan_coords_path <- function(project, module = MOD_GEA, k) {
              paste0("manhattan_combined_K", k, "_coords.json"))
 }
 
+# ─── WZA Manhattan plots ──────────────────────────────────────────────────────
+
+#' WZA per-method Manhattan background PNG path
+#' @noRd
+manhattan_wza_bg_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
+    mod_path(project, module, "plots", "manhattan", method,
+             paste0("manhattan_wza_", trait, "_K", k, "_", adjust, "_background.png"))
+}
+
+#' WZA per-method coordinate mapping JSON path
+#' @noRd
+manhattan_wza_coords_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
+    mod_path(project, module, "plots", "manhattan", method,
+             paste0("manhattan_wza_", trait, "_K", k, "_", adjust, "_coords.json"))
+}
+
+#' WZA combined Manhattan background PNG path
+#' @noRd
+combined_manhattan_wza_bg_path <- function(project, module = MOD_GEA, k) {
+    mod_path(project, module, "plots", "manhattan", "combined",
+             paste0("manhattan_wza_combined_K", k, "_background.png"))
+}
+
+#' WZA combined Manhattan coordinate mapping JSON path
+#' @noRd
+combined_manhattan_wza_coords_path <- function(project, module = MOD_GEA, k) {
+    mod_path(project, module, "plots", "manhattan", "combined",
+             paste0("manhattan_wza_combined_K", k, "_coords.json"))
+}
+
+#' WZA sig-windows table (exact K — for loading in Shiny overlay)
+#' @noRd
+method_wza_sigwindows_path <- function(project, module = MOD_GEA, method, k, adjust) {
+    mod_path(project, module, "tables", "methods", method,
+             paste0(method, "_wza_K", k, "_sig_windows_", adjust, ".tsv"))
+}
+
+#' WZA p-values TSV (windows, all traits)
+#' @noRd
+method_wza_pvalues_path <- function(project, module = MOD_GEA, method, k) {
+    mod_path(project, module, "tables", "methods", method,
+             paste0(method, "_wza_K", k, ".tsv"))
+}
+
 #' QQ plot path (per-method)
 #' @noRd
 qq_plot_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
@@ -79,6 +123,26 @@ miami_bg_path <- function(project, k) {
 miami_coords_path <- function(project, k) {
     mod_path(project, MOD_GEAXGWAS, "plots",
              paste0("miami_combined_K", k, "_coords.json"))
+}
+
+#' WZA Miami background PNG path
+#' @noRd
+miami_wza_bg_path <- function(project, k) {
+    mod_path(project, MOD_GEAXGWAS, "plots",
+             paste0("miami_wza_combined_K", k, "_background.png"))
+}
+
+#' WZA Miami coordinate mapping JSON path
+#' @noRd
+miami_wza_coords_path <- function(project, k) {
+    mod_path(project, MOD_GEAXGWAS, "plots",
+             paste0("miami_wza_combined_K", k, "_coords.json"))
+}
+
+#' WZA pairwise overlap table (pipeline-computed)
+#' @noRd
+pairwise_wza_table_path <- function(project) {
+    mod_path(project, MOD_GEAXGWAS, "tables", "pairwise_overlap_wza.tsv")
 }
 
 # ─── Association tables ───────────────────────────────────────────────────────

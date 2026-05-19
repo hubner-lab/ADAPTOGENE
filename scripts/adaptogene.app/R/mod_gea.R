@@ -101,62 +101,64 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
 
-        # ── Region distance (owned here, passed to explorer) ───────────────────
+        # ── SNP clumping distance (single param for both merging and overlap) ───
         shiny::observe({
             pd      <- project_data()
             rp      <- read_region_params(pd$name)
-            saved_d <- get_global_param(rp, MOD_GEA, "region_distance")
+            saved_d <- get_global_param(rp, MOD_GEA, "snp_clumping_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else resolve_ui_region_distance(pd$config, "GEA", pd$name)
-            shiny::updateNumericInput(session, "region_distance", value = d)
+                 else resolve_ui_snp_clumping_distance(pd$config, "GEA", pd$name)
+            shiny::updateNumericInput(session, "snp_clumping_distance", value = d)
         })
 
-        shiny::observeEvent(input$region_distance, {
-            v  <- input$region_distance
+        shiny::observeEvent(input$snp_clumping_distance, {
+            v  <- input$snp_clumping_distance
             pd <- project_data()
             if (is.null(v) || is.na(v) || v < 1000L || is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_GEA, "region_distance", as.integer(v))
+            rp <- set_global_param(rp, MOD_GEA, "snp_clumping_distance", as.integer(v))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
-        region_distance <- shiny::reactive({
-            v <- input$region_distance
+        snp_clumping_distance <- shiny::reactive({
+            v <- input$snp_clumping_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
                 pd <- project_data()
-                resolve_ui_region_distance(pd$config, "GEA", pd$name)
+                resolve_ui_snp_clumping_distance(pd$config, "GEA", pd$name)
             } else {
                 as.integer(v)
             }
         })
 
-        # ── Combine gap (owned here, passed to interactive SNP compute) ────────
+        # ── Regime (per-SNP vs WZA) ────────────────────────────────────────────
         shiny::observe({
-            pd      <- project_data()
-            rp      <- read_region_params(pd$name)
-            saved_g <- get_global_param(rp, MOD_GEA, "combine_gap")
-            g <- if (!is.null(saved_g)) as.integer(saved_g)
-                 else as.integer(config_get(pd$config, "GEA", "combine_gap", default = 100000L))
-            shiny::updateNumericInput(session, "combine_gap", value = g)
+            pd    <- project_data()
+            rp    <- read_region_params(pd$name)
+            saved <- get_global_param(rp, MOD_GEA, "regime")
+            if (!is.null(saved))
+                bslib::update_switch("regime", value = isTRUE(saved), session = session)
         })
 
-        shiny::observeEvent(input$combine_gap, {
-            v  <- input$combine_gap
+        shiny::observeEvent(input$regime, {
             pd <- project_data()
-            if (is.null(v) || is.na(v) || v < 0L || is.null(pd)) return()
+            if (is.null(pd)) return()
             rp <- read_region_params(pd$name)
-            rp <- set_global_param(rp, MOD_GEA, "combine_gap", as.integer(v))
+            rp <- set_global_param(rp, MOD_GEA, "regime", isTRUE(input$regime))
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
-        combine_gap <- shiny::reactive({
-            v <- input$combine_gap
-            if (is.null(v) || is.na(v) || v < 0L) {
-                pd <- project_data()
-                as.integer(config_get(pd$config, "GEA", "combine_gap", default = 100000L))
-            } else {
-                as.integer(v)
-            }
+        regime_wza <- shiny::reactive(isTRUE(input$regime))
+
+        # ── WZA sig windows (loaded when regime=wza) ──────────────────────────
+        all_method_wza_sigsnps <- shiny::reactive({
+            if (!regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_sigwindows(pd$name, module)
+        })
+
+        # Regime-aware source of sig SNPs (snp or wza)
+        effective_method_sigsnps <- shiny::reactive({
+            if (regime_wza()) all_method_wza_sigsnps() else all_method_sigsnps()
         })
 
         # ── I4: Config parameter badges ────────────────────────────────────────
@@ -165,14 +167,16 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             k  <- pd$k_best
             if (is.na(k) && length(methods()) == 0) return(NULL)
             cfg  <- pd$config
-            cmb  <- config_get(cfg, "GEA", "combine_method", default = "All")
-            rdist <- config_get(cfg, "GEA", "region_distance", default = "auto_per_chromosome")
-            rdist_str <- if (grepl("^auto", rdist)) paste0(rdist, " (LD-derived)")
-                         else paste0(format(as.integer(rdist), big.mark = ","), " bp")
+            cmb  <- config_get(cfg, "GEA", "combine_method", default = "Union")
+            cdist <- config_get(cfg, "GEA", "snp_clumping_distance",
+                                default = "auto_per_chromosome")
+            cdist_str <- if (grepl("^auto", cdist)) paste0(cdist, " (LD-derived)")
+                         else paste0(format(as.integer(cdist), big.mark = ","), " bp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                config_badge("region dist.", rdist_str)
+                config_badge("clumping", cdist_str),
+                if (regime_wza()) config_badge("regime", "WZA", "bg-info")
             )
         })
 
@@ -202,32 +206,46 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             )
         })
 
-        # ── Filter bar: Trait x Method matrix + Strategy + Gap + Distance ─────
+        # ── Filter bar: Regime + Trait x Method matrix + Strategy + Distance ──
         output$filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
-                ns                    = ns,
-                traits                = traits(),
-                methods               = methods(),
-                trait_colors          = trait_colors(),
-                combo_counts          = combo_counts(),
-                default_strategy_value = default_strategy(),
-                region_distance_value  = region_distance(),
-                combine_gap_value      = combine_gap()
+                ns                          = ns,
+                traits                      = traits(),
+                methods                     = methods(),
+                trait_colors                = trait_colors(),
+                combo_counts                = combo_counts(),
+                default_strategy_value      = default_strategy(),
+                snp_clumping_distance_value = snp_clumping_distance(),
+                regime_value                = regime_wza()
             )
         })
 
         # ── Interactive sig SNPs (combined + filtered by matrix selection) ─────
         interactive_sigsnps <- shiny::reactive({
             compute_interactive_sigsnps(
-                all_method_sigsnps = all_method_sigsnps(),
-                tm_selection_json  = input$tm_selection,
-                combo_counts       = combo_counts(),
-                known_traits       = traits(),
-                strategy           = active_strategy(),
-                gap                = combine_gap(),
-                project_name       = project_data()$name,
-                module             = module
+                all_method_sigsnps  = effective_method_sigsnps(),
+                tm_selection_json   = input$tm_selection,
+                combo_counts        = combo_counts(),
+                known_traits        = traits(),
+                strategy            = active_strategy(),
+                clumping_distance   = snp_clumping_distance(),
+                project_name        = project_data()$name,
+                module              = module
             )
+        })
+
+        # ── WZA path overrides for Manhattan ──────────────────────────────────
+        combined_wza_bg <- shiny::reactive({
+            if (!regime_wza()) return(NULL)
+            pd <- project_data(); k <- pd$k_best
+            if (is.na(k)) return(NULL)
+            combined_manhattan_wza_bg_path(pd$name, module, k)
+        })
+        combined_wza_coords <- shiny::reactive({
+            if (!regime_wza()) return(NULL)
+            pd <- project_data(); k <- pd$k_best
+            if (is.na(k)) return(NULL)
+            combined_manhattan_wza_coords_path(pd$name, module, k)
         })
 
         # ── Interactive region explorer ────────────────────────────────────────
@@ -235,7 +253,8 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             project_data        = project_data,
             module              = module,
             interactive_sigsnps = interactive_sigsnps,
-            region_distance     = region_distance
+            region_distance     = snp_clumping_distance,
+            regime              = regime_wza
         )
 
         # ── Combined Manhattan ─────────────────────────────────────────────────
@@ -243,13 +262,17 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             project_data         = project_data,
             module               = module,
             combined             = TRUE,
-            title_label          = shiny::reactive("Combined Manhattan"),
+            title_label          = shiny::reactive({
+                if (regime_wza()) "Combined Manhattan (WZA)" else "Combined Manhattan"
+            }),
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
             sig_snps_override    = interactive_sigsnps,
             trait_colors         = trait_colors,
-            method_shapes        = method_shapes
+            method_shapes        = method_shapes,
+            bg_path_override     = combined_wza_bg,
+            coords_path_override = combined_wza_coords
         )
 
         # Manhattan SNP click → select the enclosing region in the explorer
