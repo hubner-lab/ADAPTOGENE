@@ -1,53 +1,35 @@
 # On-the-fly region computation for interactive Shiny exploration.
-# Ports single-linkage clustering from scripts/create_regions.R using data.table
-# (avoids GenomicRanges dependency in Shiny).
+# Sources the shared lib so Shiny uses the same clustering logic as the pipeline.
+
+source("/pipeline/scripts/R/lib/regions.R")
 
 #' Compute all regions from sig SNPs using single-linkage clustering
 #'
-#' Two SNPs merge into the same region when their genomic gap <= distance.
-#' Equivalent to create_regions.R's extend-by-distance/2 + GenomicRanges::reduce().
+#' Two SNPs merge when gap <= 2*distance, matching the pipeline's GRanges
+#' extend-by-distance + reduce() behavior (lib/regions.R: cluster_snps_to_regions).
 #'
 #' @param sig_snps data.table with columns SNPID, chr, pos, pvalue, method, trait
-#' @param distance integer. Maximum gap between neighboring SNPs to be in the
-#'   same region (i.e. REGION_DISTANCE config value).
+#' @param distance integer. Maximum gap / 2 between neighboring SNPs (REGION_DISTANCE).
 #' @return data.table with region_id, chr, start, end, length, snp_count,
 #'   snp_ids, traits, methods, min_pvalue. Empty data.table if no SNPs.
 #' @noRd
 compute_all_regions <- function(sig_snps, distance = 2000000L) {
     distance <- as.integer(distance)
-
     if (is.null(sig_snps) || nrow(sig_snps) == 0) return(.empty_regions())
 
-    # Unique positions (one row per SNP)
+    # Deduplicate to one row per SNP with min pvalue
     unique_snps <- unique(sig_snps[, .(SNPID, chr = as.character(chr),
                                        pos = as.integer(pos),
                                        min_pvalue = pvalue)])
     unique_snps[, min_pvalue := min(min_pvalue, na.rm = TRUE), by = "SNPID"]
     unique_snps <- unique(unique_snps, by = "SNPID")
 
-    data.table::setorder(unique_snps, chr, pos)
+    # Cluster via lib (gap > 2*distance criterion, pipeline-identical)
+    regions <- cluster_snps_to_regions(unique_snps, distance, trait_label = NULL)
+    if (is.null(regions) || nrow(regions) == 0) return(.empty_regions())
+    regions[, c("trait", "methods") := NULL]  # re-derived below from long-format
 
-    # Single-linkage clustering via gap detection
-    unique_snps[, gap     := c(Inf, diff(pos)), by = "chr"]
-    unique_snps[, cluster := cumsum(gap > distance), by = "chr"]
-
-    # Aggregate: region boundaries = min(pos) - distance to max(pos) + distance
-    regions <- unique_snps[, .(
-        chr       = chr[1],
-        start     = pmax(1L, min(pos) - distance),
-        end       = max(pos) + distance,
-        snp_count = .N,
-        snp_ids   = paste(SNPID, collapse = ","),
-        min_pvalue = min(min_pvalue, na.rm = TRUE)
-    ), by = c("chr", "cluster")]
-
-    regions[, region_id := paste0(chr, "_", start, "-", end)]
-    regions[, length    := end - start]
-    regions[, cluster   := NULL]
-    data.table::setorder(regions, chr, start)
-
-    # Join back to full sig_snps to collect traits and methods per region
-    # Use foverlaps: match each SNP to its enclosing region
+    # Collect traits and methods per region from long-format sig_snps
     snp_pos <- unique(sig_snps[, .(SNPID, chr = as.character(chr),
                                     pos = as.integer(pos), method, trait)])
     snp_pos[, s := pos][, e := pos]
@@ -59,7 +41,6 @@ compute_all_regions <- function(sig_snps, distance = 2000000L) {
         by.y = c("chr", "start", "end"),
         type = "within", mult = "first", nomatch = NA)
 
-    # Aggregate traits and methods per region
     trait_methods <- ov[!is.na(region_id), .(
         traits  = paste(sort(unique(trait)),  collapse = ","),
         methods = paste(sort(unique(method)), collapse = ",")
@@ -67,7 +48,6 @@ compute_all_regions <- function(sig_snps, distance = 2000000L) {
 
     regions <- trait_methods[regions, on = "region_id"]
 
-    # Select and order columns
     data.table::setcolorder(regions,
         c("region_id", "chr", "start", "end", "length",
           "snp_count", "snp_ids", "traits", "methods", "min_pvalue"))

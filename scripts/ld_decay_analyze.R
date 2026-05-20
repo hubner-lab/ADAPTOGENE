@@ -252,9 +252,25 @@ if (length(results) > 0) {
 fwrite(result_table, OUT_TABLE, sep = "\t")
 message(paste0("INFO: Written results table: ", OUT_TABLE, " (", nrow(result_table), " rows)"))
 
+# Helper: create a blank placeholder PNG+SVG when no data is available
+.write_placeholder_plot <- function(path, msg) {
+    if (is.null(path) || path == "NULL" || path == "") return(invisible(NULL))
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    p <- ggplot() +
+        annotate("text", x = 0.5, y = 0.5, label = msg, size = 5, color = "grey50") +
+        theme_void()
+    suppressMessages(ggsave(path, p, width = 10, height = 7, dpi = 150))
+    svg_path <- sub("\\.png$", ".svg", path)
+    suppressMessages(ggsave(svg_path, p, width = 10, height = 7, device = svglite))
+}
+
 #=============================================================================
 # GENOME-WIDE PLOT
 #=============================================================================
+if (PLOT_GW_PATH != "NULL" && length(gw_binned_all) == 0) {
+    message("WARNING: No genome-wide LD decay data — writing placeholder plot")
+    .write_placeholder_plot(PLOT_GW_PATH, "No LD decay data (insufficient group sizes)")
+}
 if (PLOT_GW_PATH != "NULL" && length(gw_binned_all) > 0) {
     dir.create(dirname(PLOT_GW_PATH), recursive = TRUE, showWarnings = FALSE)
     message("INFO: Generating genome-wide LD decay plot")
@@ -316,6 +332,10 @@ if (PLOT_GW_PATH != "NULL" && length(gw_binned_all) > 0) {
 #=============================================================================
 # PER-CHROMOSOME PLOT
 #=============================================================================
+if (PLOT_CHR_PATH != "NULL" && length(chr_binned_all) == 0) {
+    message("WARNING: No per-chromosome LD decay data — writing placeholder plot")
+    .write_placeholder_plot(PLOT_CHR_PATH, "No LD decay data (insufficient group sizes)")
+}
 if (PLOT_CHR_PATH != "NULL" && length(chr_binned_all) > 0) {
     dir.create(dirname(PLOT_CHR_PATH), recursive = TRUE, showWarnings = FALSE)
     message("INFO: Generating per-chromosome LD decay plot")

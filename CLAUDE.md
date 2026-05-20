@@ -188,9 +188,7 @@ Each mode is run separately via `--config mode=<MODE>`.
 
 ## Test Datasets (CRITICAL)
 
-**Always use SIMDATA for iterative testing. Only use TEST for final validation.**
-
-**IMPORTANT: Only SIMDATA_results/ exists on disk right now.** Arabidopsis_results/ and TEST_results/ have been deleted. Always test with SIMDATA, always switch the Shiny app to the SIMDATA project when verifying changes.
+**Active testing dataset: TEST (config.yaml).** SIMDATA is preserved but not used for this phase. All pipeline validation runs use `config.yaml` / `TEST_results/`.
 
 | | **SIMDATA** | **TEST** |
 |---|---|---|
@@ -202,8 +200,7 @@ Each mode is run separately via `--config mode=<MODE>`.
 
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
-2. Test with SIMDATA first
-3. Only if SIMDATA passes, validate with TEST
+2. Test with TEST (config.yaml)
 
 ### Testing Guidelines
 

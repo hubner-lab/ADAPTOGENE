@@ -40,7 +40,7 @@ sNMF:
   k_start: 3                    # Minimum K (number of ancestral populations) to test
   k_end: 7                      # Maximum K to test
   k_best: 5                     # Selected K for downstream analyses (set after reviewing cross-entropy)
-repeats: 10                   # Number of repetitions per K (higher = more stable)
+  repeats: 10                   # Number of repetitions per K (higher = more stable)
 
 #-----------------------------------------------------------------------------
 # MAP: Geographic extent and resolution for climate data
