@@ -260,4 +260,15 @@ wza_results <- wza_results[, ..col_order]
 setorder(wza_results, chr, pos)
 
 fwrite(wza_results, OUTPUT, sep = "\t")
-message(paste0("INFO: WZA complete — ", nrow(wza_results), " windows → ", OUTPUT))
+
+# Diagnostic summary
+n_windows_total <- nrow(wza_results)
+for (tr in trait_cols) {
+    n_non_na <- sum(!is.na(wza_results[[tr]]))
+    message(paste0("INFO: WZA trait=", tr,
+                   " windows_with_p=", n_non_na,
+                   " windows_na=", n_windows_total - n_non_na))
+}
+message(paste0("INFO: WZA complete — n_windows=", n_windows_total,
+               " n_dropped_low_maf=", n_before - nrow(pval_dt),
+               " output=", OUTPUT))

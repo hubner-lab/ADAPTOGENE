@@ -16,7 +16,11 @@ args = commandArgs(trailingOnly=TRUE)
 ################
 ASSOC_TABLE       = args[1]  # p-values table
 ADJUST            = args[2]  # e.g., "bonf_0.05"
-CLUMPING_DISTANCE = args[3] %>% as.numeric  # SNP clumping distance for overlap annotation
+CLUMPING_DISTANCE = suppressWarnings(as.numeric(args[3]))
+if (is.na(CLUMPING_DISTANCE)) {
+    message(paste0('INFO: snp_clumping_distance="', args[3], '" — using 1e6 bp fallback for overlap annotation'))
+    CLUMPING_DISTANCE = 1e6
+}
 METHOD            = args[4]  # EMMAX or LFMM
 CPU               = args[5] %>% as.numeric
 OUTPUT            = args[6]  # Output file path
@@ -26,11 +30,11 @@ IS_WZA            = length(args) >= 7 && args[7] == "--wza"
 message(paste0('INFO: Finding significant SNPs for ', METHOD))
 message(paste0('INFO: Adjustment: ', ADJUST))
 message(paste0('INFO: SNP clumping distance: ', CLUMPING_DISTANCE))
-if (IS_WZA) message('INFO: WZA mode — excluding n_snps/mean_maf from trait columns')
+if (IS_WZA) message('INFO: WZA mode — threshold denominator = non-NA windows per trait')
 
 ######################## Functions
 
-FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU,
+FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_value, CPU,
                              exclude_cols = character(0)) {
 
     snps_assoc <- fread(ASSOC_PVAL)
@@ -43,32 +47,25 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU,
     )
     message(paste0('INFO: Traits: ', paste(traits, collapse = ', ')))
 
-    # Calculate thresholds based on adjustment method
-    if (adjustment == 'bonf') {
-        pval_threshold <- pval_threshold / nrow(snps_assoc)
-    }
-    if (adjustment == 'qval') {
-        pval_thresholds <- sapply(snps_assoc %>% dplyr::select(-SNPID, -chr, -pos),
-                                  function(x) max_pvalue_fdr(x, pval_threshold)) %>%
-            setNames(traits)
-    }
-    if (adjustment == 'top') {
-        pval_thresholds <- sapply(snps_assoc %>% dplyr::select(-SNPID, -chr, -pos),
-                                  function(x) max_pvalue_top(x, pval_threshold)) %>%
-            setNames(traits)
-    }
-
-    # Find significant SNPs for each trait
+    # Find significant SNPs for each trait (threshold computed per-trait to
+    # correctly handle NA windows in WZA output).
     snps_sig_dt <- lapply(traits, function(trait) {
 
-        if (adjustment %in% c('top', 'qval')) {
-            pval_threshold <- pval_thresholds[trait]
-        }
+        result <- compute_pval_threshold(snps_assoc[[trait]], adjustment, pval_value)
 
-        if (is.na(pval_threshold)) {
-            message(paste0('WARNING: No significant SNPs for trait ', trait))
+        message(paste0('INFO: Trait=', trait,
+                       ' status=',        result$status,
+                       ' threshold=',     result$threshold,
+                       ' n_tested=',      result$n_tested,
+                       ' n_na_dropped=',  result$n_na_dropped))
+
+        if (result$status != "ok") {
+            message(paste0('WARNING: No threshold for trait ', trait,
+                           ' (status=', result$status, '). Writing empty result.'))
             return(NULL)
         }
+
+        pval_threshold <- result$threshold
 
         mask <- snps_assoc[[trait]] < pval_threshold
 
@@ -152,11 +149,11 @@ FUN_find_sigSNPs <- function(ASSOC_PVAL, adjustment, pval_threshold, CPU,
 ######################################### Main
 
 # Parse parameters
-adjustment     <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
-pval_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
+adjustment <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
+pval_value <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
 
 wza_meta_cols <- if (IS_WZA) c("n_snps", "mean_maf") else character(0)
-snps_sig <- FUN_find_sigSNPs(ASSOC_TABLE, adjustment, pval_threshold, CPU,
+snps_sig <- FUN_find_sigSNPs(ASSOC_TABLE, adjustment, pval_value, CPU,
                               exclude_cols = wza_meta_cols)
 
 # Save results

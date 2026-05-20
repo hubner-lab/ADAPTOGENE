@@ -34,7 +34,7 @@ name_pfx  <- if (is_wza) "wza_" else ""
 message(paste0('INFO: Manhattan plot for ', METHOD, ' - ', TRAIT, ' [regime=', REGIME, ']'))
 message(paste0('INFO: K = ', Kbest))
 message(paste0('INFO: Adjustment: ', ADJUST))
-if (is_wza) message('INFO: WZA regime — Bonferroni denominator = number of windows')
+if (is_wza) message('INFO: WZA regime — threshold denominator = non-NA windows per trait')
 
 ################################ Compute trait color
 
@@ -51,10 +51,8 @@ message(paste0('INFO: Trait color: ', sig_color))
 message('INFO: Loading association data')
 snps_assoc <- fread(ASSOC_TABLE, sep = '\t', header = T)
 snps_assoc$chr <- as.character(snps_assoc$chr)
-n_snps <- nrow(snps_assoc)
-message(paste0('INFO: Loaded ', n_snps, ' SNPs'))
-
-message(paste0('INFO: Using scattermore for rendering (', n_snps, ' SNPs)'))
+n_rows <- nrow(snps_assoc)
+message(paste0('INFO: Loaded ', n_rows, ' rows'))
 
 # Check if trait exists
 if (!(TRAIT %in% colnames(snps_assoc))) {
@@ -62,24 +60,24 @@ if (!(TRAIT %in% colnames(snps_assoc))) {
 }
 
 # Parse adjustment parameters
-adjustment <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
+adjustment         <- ADJUST %>% str_split('_') %>% unlist %>% .[1]
 original_threshold <- ADJUST %>% str_split('_') %>% unlist %>% .[2] %>% as.numeric
 
 message(paste0('INFO: Adjustment method: ', adjustment))
 message(paste0('INFO: Threshold: ', original_threshold))
 
-# WZA: filter to rows that have the trait column filled (windows with ≥1 SNP)
-if (is_wza && "n_snps" %in% colnames(snps_assoc)) {
-    snps_assoc <- snps_assoc[!is.na(snps_assoc[[TRAIT]]), ]
-    n_snps <- nrow(snps_assoc)
-    message(paste0('INFO: After NA filter: ', n_snps, ' windows'))
-}
+# Compute threshold — compute_pval_threshold filters NA internally (handles WZA
+# windows with no valid SNPs for the current trait).
+thresh_result  <- compute_pval_threshold(snps_assoc[[TRAIT]], adjustment, original_threshold)
+threshold_ok   <- thresh_result$status == "ok"
+pval_threshold <- thresh_result$threshold   # NA when !threshold_ok
 
-# Calculate threshold based on adjustment method
-pval_threshold <- compute_pval_threshold(snps_assoc[[TRAIT]], adjustment, original_threshold)
+message(paste0('INFO: Threshold status=', thresh_result$status,
+               ' threshold=', pval_threshold,
+               ' n_tested=', thresh_result$n_tested,
+               ' n_na_dropped=', thresh_result$n_na_dropped))
 
-message(paste0('INFO: Final p-value threshold: ', pval_threshold))
-threshold_log10 <- -log10(pval_threshold)
+threshold_log10 <- if (threshold_ok) -log10(pval_threshold) else NA_real_
 
 # Prepare data for Manhattan plot
 message('INFO: Preparing Manhattan data')
@@ -96,30 +94,36 @@ n_chr <- length(unique(plot_df$chr_f))
 chr_colors <- get_chr_colors(n_chr)
 names(chr_colors) <- levels(plot_df$chr_f)
 
-# Calculate y-axis limit (add some padding)
-y_max <- max(plot_df$log10p, na.rm = TRUE) * 1.1
-y_max <- max(y_max, threshold_log10 * 1.2)  # Ensure threshold is visible
+# Mark significant SNPs (none if threshold not available)
+plot_df <- plot_df %>%
+    dplyr::mutate(is_significant = if (threshold_ok) log10p >= threshold_log10 else FALSE)
 
-################################ Plot 1: Simple Manhattan
+n_sig <- sum(plot_df$is_significant, na.rm = TRUE)
+message(paste0('INFO: Found ', n_sig, ' significant SNPs above threshold'))
+
+# y-axis ceiling
+y_max <- max(plot_df$log10p, na.rm = TRUE) * 1.1
+if (threshold_ok) y_max <- max(y_max, threshold_log10 * 1.2)
+
+################################ Plot 1: Simple Manhattan (static export — threshold line baked in)
 
 message('INFO: Generating simple Manhattan plot')
 
-# Mark significant SNPs for current method
-plot_df <- plot_df %>%
-    dplyr::mutate(is_significant = log10p >= threshold_log10)
-
-n_sig <- sum(plot_df$is_significant)
-message(paste0('INFO: Found ', n_sig, ' significant SNPs above threshold'))
+subtitle_text <- if (threshold_ok) {
+    paste0("K = ", Kbest, ", threshold: ", adjustment, " ", original_threshold,
+           " (", n_sig, " significant)")
+} else {
+    paste0("K = ", Kbest, ", threshold: ", adjustment, " ", original_threshold,
+           " [", thresh_result$status, " — no threshold line]")
+}
 
 p_simple <- ggplot() +
-    # Non-significant SNPs (chromosome colors) - scattermore for performance
     add_scatter_layer(data = plot_df %>% filter(!is_significant),
                       chr_colors = chr_colors,
                       alpha = 0.5) +
     scale_color_identity()
 
 p_simple <- p_simple +
-    # Significant SNPs (trait-colored, larger) - always use geom_point for proper styling
     geom_point(data = plot_df %>% filter(is_significant),
                aes(x = pos_cum, y = log10p),
                color = sig_color, alpha = 0.9, size = 2.5) +
@@ -132,18 +136,21 @@ p_simple <- p_simple +
         expand = expansion(mult = c(0.02, 0.05)),
         limits = c(0, y_max)
     ) +
-    geom_hline(yintercept = threshold_log10, linetype = "dashed",
-               color = "red", linewidth = 0.5) +
     labs(
-        title = paste0(METHOD, " - ", TRAIT),
-        subtitle = paste0("K = ", Kbest, ", threshold: ", adjustment, " ", original_threshold,
-                         " (", n_sig, " significant SNPs)"),
-        x = "Chromosome",
-        y = expression(-log[10](p-value))
+        title    = paste0(METHOD, " - ", TRAIT),
+        subtitle = subtitle_text,
+        x        = "Chromosome",
+        y        = expression(-log[10](p-value))
     ) +
     theme_manhattan()
 
-# Save simple plot in PNG and SVG formats
+# Add threshold line to static export only when threshold is valid
+if (threshold_ok) {
+    p_simple <- p_simple +
+        geom_hline(yintercept = threshold_log10, linetype = "dashed",
+                   color = "red", linewidth = 0.5)
+}
+
 simple_base <- paste0("manhattan_", name_pfx, TRAIT, "_K", Kbest, "_", ADJUST)
 
 ggsave(file.path(PLOT_DIR, paste0(simple_base, ".png")), p_simple,
@@ -163,7 +170,6 @@ qq_df <- plot_df %>%
         observed = log10p
     )
 
-# 95% confidence interval band
 n_qq <- nrow(qq_df)
 ci_qq <- data.frame(
     expected = -log10(ppoints(n_qq)),
@@ -176,20 +182,18 @@ p_qq <- ggplot() +
                 aes(x = expected, ymin = ci_lower, ymax = ci_upper),
                 fill = "grey80", alpha = 0.4) +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
-    # Non-significant points (alternating chr colors)
     geom_point(data = qq_df %>% filter(!is_significant),
                aes(x = expected, y = observed, color = chr_f),
                alpha = 0.5, size = 1.5) +
     scale_color_manual(values = chr_colors, guide = "none") +
-    # Significant points (trait color)
     geom_point(data = qq_df %>% filter(is_significant),
                aes(x = expected, y = observed),
                color = sig_color, size = 2.5) +
     labs(
-        title = paste0(METHOD, " - ", TRAIT, " QQ Plot"),
+        title    = paste0(METHOD, " - ", TRAIT, " QQ Plot"),
         subtitle = paste0("K = ", Kbest, ", ", n_sig, " significant SNPs"),
-        x = expression(Expected ~ -log[10](p-value)),
-        y = expression(Observed ~ -log[10](p-value))
+        x        = expression(Expected ~ -log[10](p-value)),
+        y        = expression(Observed ~ -log[10](p-value))
     ) +
     theme_minimal() +
     theme(
@@ -206,29 +210,26 @@ ggsave(file.path(PLOT_DIR, paste0(qq_base, ".svg")), p_qq,
 message(paste0('INFO: Saved QQ plot: ', qq_base, ' (.png, .svg)'))
 
 ################################ Background PNG + Coords JSON (for Shiny plotly overlay)
+#
+# Background PNG intentionally has NO threshold line — Shiny draws it dynamically
+# from bonferroni_y in coords.json so per-method threshold controls work in real-time.
+# The threshold line only appears in the static export (p_simple above).
 
 message('INFO: Generating background Manhattan for Shiny overlay')
 
-# Compute the exact axis ranges the ggplot renders (matching expand parameters)
 x_min_data <- min(plot_df$pos_cum)
 x_max_data <- max(plot_df$pos_cum)
 x_span     <- x_max_data - x_min_data
-bg_x_lo    <- x_min_data - 0.01 * x_span   # expand = c(0.01, 0.01)
+bg_x_lo    <- x_min_data - 0.01 * x_span
 bg_x_hi    <- x_max_data + 0.01 * x_span
+bg_y_lo    <- 0
+bg_y_hi    <- y_max * 1.05
 
-# y: limits = c(0, y_max), expand = mult c(0, 0.05) — use 0 bottom so both simple and
-# regions versions share one coords.json (regions uses mult c(0, 0.05) anyway)
-bg_y_lo <- 0
-bg_y_hi <- y_max * 1.05
-
-# Background-only plot: non-sig SNPs + threshold line, no axes (Shiny draws its own)
 p_bg <- ggplot() +
     add_scatter_layer(data = plot_df %>% dplyr::filter(!is_significant),
                       chr_colors = chr_colors,
                       alpha = 0.5) +
     scale_color_identity() +
-    geom_hline(yintercept = threshold_log10, linetype = "dashed",
-               color = "red", linewidth = 0.5) +
     scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
     scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
     theme_void() +
@@ -239,14 +240,19 @@ ggsave(file.path(PLOT_DIR, paste0(bg_base, ".png")), p_bg,
        width = 10, height = 4, dpi = 300)
 message(paste0('INFO: Saved background Manhattan: ', bg_base, '.png'))
 
-# Coordinate mapping JSON for plotly axis alignment in Shiny
+# Coordinate mapping JSON for plotly axis alignment in Shiny.
+# bonferroni_y is the default threshold from pipeline config for this adjust/threshold
+# combo; Shiny overrides it live when the user changes per-method controls.
 coords_list <- list(
     chr_offsets    = setNames(as.list(chr_info$tot),     as.character(chr_info$chr_f)),
     chr_lengths    = setNames(as.list(chr_info$chr_len), as.character(chr_info$chr_f)),
     gap_fraction   = 0.02,
     x_range        = c(bg_x_lo, bg_x_hi),
     y_range        = c(bg_y_lo, bg_y_hi),
-    bonferroni_y   = threshold_log10,
+    bonferroni_y   = if (threshold_ok) threshold_log10 else jsonlite::unbox(NA),
+    n_tested       = thresh_result$n_tested,
+    n_na_dropped   = thresh_result$n_na_dropped,
+    threshold_status = thresh_result$status,
     plot_width_px  = 3000L,
     plot_height_px = 1200L
 )

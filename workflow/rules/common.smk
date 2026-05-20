@@ -320,7 +320,7 @@ if GWAS_CONFIGS:
 
 # Inherit from GEA.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
-_gwas_rdp = resolve_region_params(_pheno, defaults=_gea_rdp)
+_gwas_rdp = resolve_region_params(_pheno, defaults=_assoc)
 PHENO_CLUMPING_DISTANCE      = _gwas_rdp['clumping_distance']
 PHENO_CLUMPING_DISTANCE_MODE = _gwas_rdp['clumping_distance_mode']
 PHENO_CLUMPING_R2_THRESHOLD  = _gwas_rdp['clumping_r2_threshold']

@@ -57,9 +57,16 @@ assoc_result    <- load_assoc_data(assoc_info, traits)
 plot_data_all   <- assoc_result$data
 method_thresholds <- assoc_result$thresholds
 
-# Calculate minimum threshold (most stringent)
-min_threshold <- min(unlist(method_thresholds))
-message(paste0('INFO: Minimum threshold (most stringent): -log10(p) = ', round(min_threshold, 2)))
+# Filter to methods+traits where threshold computation succeeded (status="ok").
+# Methods returning NA (too_few_tests) are plotted but excluded from the threshold line.
+ok_thresholds <- Filter(function(x) !is.na(x), method_thresholds)
+if (length(ok_thresholds) == 0) {
+    message('WARNING: No methods produced a valid threshold — threshold line omitted')
+    min_threshold <- NA_real_
+} else {
+    min_threshold <- min(unlist(ok_thresholds))
+    message(paste0('INFO: Minimum threshold (most stringent): -log10(p) = ', round(min_threshold, 2)))
+}
 
 # Prepare manhattan data (using first trait for chromosome info)
 reference_data <- plot_data_all %>%
@@ -132,10 +139,8 @@ p_simple <- p_simple +
         expand = expansion(mult = c(0.02, 0.05)),
         limits = c(0, y_max)
     ) +
-    geom_hline(yintercept = min_threshold, linetype = "dashed",
-               color = "red", linewidth = 0.5, alpha = 0.5) +
     labs(
-        title = "Combined Association Analysis (All Traits & Methods)",
+        title    = "Combined Association Analysis (All Traits & Methods)",
         subtitle = paste0("K = ", Kbest, " | ", n_sig_unique, " significant SNPs, ",
                          n_sig_points, " detections across ",
                          length(names(assoc_info)), " methods"),
@@ -153,6 +158,13 @@ p_simple <- p_simple +
         color = guide_legend(order = 1),
         shape = guide_legend(order = 2)
     )
+
+# Add threshold line to static export only (Shiny draws it dynamically from bonferroni_y)
+if (!is.na(min_threshold)) {
+    p_simple <- p_simple +
+        geom_hline(yintercept = min_threshold, linetype = "dashed",
+                   color = "red", linewidth = 0.5, alpha = 0.5)
+}
 
 # Save simple plot
 simple_base <- paste0("manhattan_", name_pfx, "combined_K", Kbest)
@@ -187,8 +199,6 @@ for (t in traits) {
 
 p_bg_comb <- p_bg_comb +
     scale_color_identity() +
-    geom_hline(yintercept = min_threshold, linetype = "dashed",
-               color = "red", linewidth = 0.5, alpha = 0.5) +
     scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
     scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +
     theme_void() +
@@ -205,7 +215,7 @@ coords_list_comb <- list(
     gap_fraction   = 0.02,
     x_range        = c(bg_x_lo, bg_x_hi),
     y_range        = c(bg_y_lo, bg_y_hi),
-    bonferroni_y   = min_threshold,
+    bonferroni_y   = if (!is.na(min_threshold)) min_threshold else jsonlite::unbox(NA),
     plot_width_px  = 4200L,
     plot_height_px = 1500L
 )
