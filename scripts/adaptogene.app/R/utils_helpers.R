@@ -107,10 +107,13 @@ resolve_ui_snp_clumping_distance <- function(config, module, project_name,
             data.table::fread(tsv, sep = "\t", header = TRUE),
             error = function(e) NULL
         )
-        if (!is.null(dt) && "r2_02_bp" %in% names(dt) && "scope" %in% names(dt)) {
-            gw <- dt[dt$scope == "genome_wide" & dt$group == "All", "r2_02_bp"]
-            if (length(gw) > 0 && !is.na(gw[[1]]) && gw[[1]] > 0)
-                return(as.integer(gw[[1]]))
+        required <- c("scope", "group", "r2_02_bp")
+        if (!is.null(dt) && nrow(dt) > 0 && all(required %in% names(dt))) {
+            mask <- dt$scope == "genome_wide" & dt$group == "All"
+            mask[is.na(mask)] <- FALSE
+            gw <- dt$r2_02_bp[mask]
+            if (length(gw) > 0 && !is.na(gw[1]) && gw[1] > 0)
+                return(as.integer(gw[1]))
         }
     }
     fallback

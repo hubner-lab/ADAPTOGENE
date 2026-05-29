@@ -109,19 +109,53 @@ mod_gea_x_gwas_server <- function(id, project_data) {
 
         # ── GEA side data ──────────────────────────────────────────────────────
         gea_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GEA))
-        gea_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_GEA))
 
-        gea_method_sigsnps <- shiny::reactive({
+        gea_method_pvalues <- shiny::reactive({
             pd <- project_data()
-            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_GEA),
-                        function() load_all_method_sigsnps(pd$name, MOD_GEA, k = pd$k_best))
+            load_all_method_pvalues(pd$name, MOD_GEA, pd$k_best)
+        })
+        gea_method_wza_pvalues <- shiny::reactive({
+            if (!gea_regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_pvalues(pd$name, MOD_GEA, pd$k_best)
+        })
+        gea_effective_pvalues <- shiny::reactive({
+            if (gea_regime_wza()) gea_method_wza_pvalues() else gea_method_pvalues()
         })
 
-        gea_trait_colors  <- shiny::reactive(trait_color_map(gea_traits()))
+        gea_all_trait_names <- shiny::reactive({
+            pv <- gea_method_pvalues()
+            if (length(pv) == 0) return(character(0))
+            fixed <- c("SNPID","chr","pos","n_snps","mean_maf")
+            sort(unique(unlist(lapply(pv, function(dt) setdiff(names(dt), fixed)))))
+        })
+
+        gea_effective_sigsnps <- shiny::reactive({
+            pd <- project_data()
+            compute_method_sigsnps_cached(
+                pvalues_list = gea_effective_pvalues(),
+                type         = gea_threshold_type(),
+                value        = gea_threshold_value(),
+                k            = pd$k_best,
+                regime       = if (gea_regime_wza()) "wza" else "snp",
+                project      = pd$name,
+                module       = MOD_GEA
+            )
+        })
+
+        gea_traits <- shiny::reactive({
+            sig <- gea_effective_sigsnps()
+            if (length(sig) == 0) return(character(0))
+            all_dt <- data.table::rbindlist(sig, use.names = TRUE, fill = TRUE)
+            if (nrow(all_dt) == 0) return(character(0))
+            sort(unique(all_dt$trait))
+        })
+
+        gea_trait_colors  <- shiny::reactive(trait_color_map(gea_all_trait_names()))
         gea_method_shapes <- shiny::reactive(method_shape_map(gea_methods()))
 
         gea_combo_counts <- shiny::reactive({
-            snps <- gea_method_sigsnps()
+            snps <- gea_effective_sigsnps()
             counts <- list()
             for (m in names(snps)) {
                 dt <- snps[[m]]
@@ -136,22 +170,53 @@ mod_gea_x_gwas_server <- function(id, project_data) {
 
         # ── GWAS side data ─────────────────────────────────────────────────────
         gwas_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GWAS))
-        gwas_traits  <- shiny::reactive(find_assoc_traits(project_data()$name,  MOD_GWAS))
 
-        gwas_method_sigsnps <- shiny::reactive({
+        gwas_method_pvalues <- shiny::reactive({
             pd <- project_data()
-            load_cached(paste0("all_sigsnps_", pd$name, "_", MOD_GWAS),
-                        function() load_all_method_sigsnps(pd$name, MOD_GWAS, k = pd$k_best))
+            load_all_method_pvalues(pd$name, MOD_GWAS, pd$k_best)
+        })
+        gwas_method_wza_pvalues <- shiny::reactive({
+            if (!gwas_regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_pvalues(pd$name, MOD_GWAS, pd$k_best)
+        })
+        gwas_effective_pvalues <- shiny::reactive({
+            if (gwas_regime_wza()) gwas_method_wza_pvalues() else gwas_method_pvalues()
         })
 
-        gwas_trait_colors  <- shiny::reactive({
-            # GWAS uses the same color map; traits may overlap with GEA
-            trait_color_map(gwas_traits())
+        gwas_all_trait_names <- shiny::reactive({
+            pv <- gwas_method_pvalues()
+            if (length(pv) == 0) return(character(0))
+            fixed <- c("SNPID","chr","pos","n_snps","mean_maf")
+            sort(unique(unlist(lapply(pv, function(dt) setdiff(names(dt), fixed)))))
         })
+
+        gwas_effective_sigsnps <- shiny::reactive({
+            pd <- project_data()
+            compute_method_sigsnps_cached(
+                pvalues_list = gwas_effective_pvalues(),
+                type         = gwas_threshold_type(),
+                value        = gwas_threshold_value(),
+                k            = pd$k_best,
+                regime       = if (gwas_regime_wza()) "wza" else "snp",
+                project      = pd$name,
+                module       = MOD_GWAS
+            )
+        })
+
+        gwas_traits <- shiny::reactive({
+            sig <- gwas_effective_sigsnps()
+            if (length(sig) == 0) return(character(0))
+            all_dt <- data.table::rbindlist(sig, use.names = TRUE, fill = TRUE)
+            if (nrow(all_dt) == 0) return(character(0))
+            sort(unique(all_dt$trait))
+        })
+
+        gwas_trait_colors  <- shiny::reactive(trait_color_map(gwas_all_trait_names()))
         gwas_method_shapes <- shiny::reactive(method_shape_map(gwas_methods()))
 
         gwas_combo_counts <- shiny::reactive({
-            snps <- gwas_method_sigsnps()
+            snps <- gwas_effective_sigsnps()
             counts <- list()
             for (m in names(snps)) {
                 dt <- snps[[m]]
@@ -222,23 +287,72 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         gea_regime_wza  <- shiny::reactive(isTRUE(input$gea_regime))
         gwas_regime_wza <- shiny::reactive(isTRUE(input$gwas_regime))
 
-        # ── WZA sig windows per side ───────────────────────────────────────────
-        gea_method_wza_sigsnps <- shiny::reactive({
-            if (!gea_regime_wza()) return(list())
-            pd <- project_data()
-            load_all_method_wza_sigwindows(pd$name, MOD_GEA, k = pd$k_best)
-        })
-        gwas_method_wza_sigsnps <- shiny::reactive({
-            if (!gwas_regime_wza()) return(list())
-            pd <- project_data()
-            load_all_method_wza_sigwindows(pd$name, MOD_GWAS, k = pd$k_best)
-        })
+        # ── Threshold params per side ──────────────────────────────────────────
+        .init_threshold_param <- function(type_id, value_id, rp_type_key, rp_value_key,
+                                          config_src_module) {
+            shiny::observe({
+                pd  <- project_data(); cfg <- pd$config; rp <- read_region_params(pd$name)
+                saved_t <- get_global_param(rp, module, rp_type_key)
+                saved_v <- get_global_param(rp, module, rp_value_key)
+                if (!is.null(saved_t)) {
+                    shiny::updateSelectInput(session, type_id, selected = saved_t)
+                } else {
+                    def <- default_threshold(cfg, config_src_module)
+                    shiny::updateSelectInput(session, type_id, selected = def$type)
+                }
+                if (!is.null(saved_v)) {
+                    shiny::updateNumericInput(session, value_id, value = as.numeric(saved_v))
+                } else if (is.null(saved_t)) {
+                    def <- default_threshold(cfg, config_src_module)
+                    shiny::updateNumericInput(session, value_id, value = def$value)
+                }
+            })
+            shiny::observeEvent(input[[type_id]], {
+                pd <- project_data(); if (is.null(pd)) return()
+                rp <- read_region_params(pd$name)
+                rp <- set_global_param(rp, module, rp_type_key, input[[type_id]])
+                save_region_params(pd$name, rp)
+            }, ignoreInit = TRUE)
+            shiny::observeEvent(input[[value_id]], {
+                v <- input[[value_id]]; pd <- project_data()
+                if (is.null(pd) || is.null(v) || is.na(v)) return()
+                rp <- read_region_params(pd$name)
+                rp <- set_global_param(rp, module, rp_value_key, as.numeric(v))
+                save_region_params(pd$name, rp)
+            }, ignoreInit = TRUE)
+        }
 
-        gea_effective_sigsnps  <- shiny::reactive({
-            if (gea_regime_wza()) gea_method_wza_sigsnps() else gea_method_sigsnps()
+        .init_threshold_param("gea_threshold_type", "gea_threshold_value",
+            "gea_threshold_type", "gea_threshold_value", MOD_GEA)
+        .init_threshold_param("gwas_threshold_type", "gwas_threshold_value",
+            "gwas_threshold_type", "gwas_threshold_value", MOD_GWAS)
+
+        gea_threshold_type <- shiny::reactive(input$gea_threshold_type  %||% "bonf")
+        gwas_threshold_type <- shiny::reactive(input$gwas_threshold_type %||% "bonf")
+
+        .make_threshold_value <- function(input_id, src_module) {
+            raw <- shiny::reactive({
+                v <- input[[input_id]]
+                if (is.null(v) || is.na(v) || v <= 0)
+                    default_threshold(project_data()$config, src_module)$value
+                else as.numeric(v)
+            })
+            shiny::debounce(raw, 500)
+        }
+        gea_threshold_value  <- .make_threshold_value("gea_threshold_value",  MOD_GEA)
+        gwas_threshold_value <- .make_threshold_value("gwas_threshold_value", MOD_GWAS)
+
+        output$gea_threshold_hint <- shiny::renderUI({
+            t <- gea_threshold_type()
+            hint <- switch(t, bonf="α for Bonferroni", qval="FDR q-value (0–1)",
+                           top="Top N SNPs", custom="Raw p-value (e.g. 1e-5)", "")
+            htmltools::span(class="text-muted small mt-1", hint)
         })
-        gwas_effective_sigsnps <- shiny::reactive({
-            if (gwas_regime_wza()) gwas_method_wza_sigsnps() else gwas_method_sigsnps()
+        output$gwas_threshold_hint <- shiny::renderUI({
+            t <- gwas_threshold_type()
+            hint <- switch(t, bonf="α for Bonferroni", qval="FDR q-value (0–1)",
+                           top="Top N SNPs", custom="Raw p-value (e.g. 1e-5)", "")
+            htmltools::span(class="text-muted small mt-1", hint)
         })
 
         # ── Overlap bounds (persisted) ─────────────────────────────────────────
@@ -271,7 +385,9 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gea_snp_clumping_distance(),
                 input_prefix                = "gea_",
-                regime_value                = gea_regime_wza()
+                regime_value                = gea_regime_wza(),
+                threshold_type_value        = gea_threshold_type(),
+                threshold_value_value       = gea_threshold_value()
             )
         })
 
@@ -286,7 +402,9 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gwas_snp_clumping_distance(),
                 input_prefix                = "gwas_",
-                regime_value                = gwas_regime_wza()
+                regime_value                = gwas_regime_wza(),
+                threshold_type_value        = gwas_threshold_type(),
+                threshold_value_value       = gwas_threshold_value()
             )
         })
 
@@ -296,7 +414,7 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 all_method_sigsnps  = gea_effective_sigsnps(),
                 tm_selection_json   = input$gea_tm_selection,
                 combo_counts        = gea_combo_counts(),
-                known_traits        = gea_traits(),
+                known_traits        = gea_all_trait_names(),
                 strategy            = input$gea_combine_strategy %||% "Union",
                 clumping_distance   = gea_snp_clumping_distance(),
                 project_name        = project_data()$name,
@@ -309,7 +427,7 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 all_method_sigsnps  = gwas_effective_sigsnps(),
                 tm_selection_json   = input$gwas_tm_selection,
                 combo_counts        = gwas_combo_counts(),
-                known_traits        = gwas_traits(),
+                known_traits        = gwas_all_trait_names(),
                 strategy            = input$gwas_combine_strategy %||% "Union",
                 clumping_distance   = gwas_snp_clumping_distance(),
                 project_name        = project_data()$name,
@@ -388,11 +506,33 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         )
 
         # ── Miami plot ─────────────────────────────────────────────────────────
-        # Combine trait/method maps for both sources (unified legend)
-        all_traits  <- shiny::reactive(union(gea_traits(),  gwas_traits()))
+        # Combine trait/method maps for both sources (unified legend, stable colors)
+        all_traits  <- shiny::reactive(sort(union(gea_all_trait_names(), gwas_all_trait_names())))
         all_methods <- shiny::reactive(union(gea_methods(), gwas_methods()))
         all_trait_colors  <- shiny::reactive(trait_color_map(all_traits()))
         all_method_shapes <- shiny::reactive(method_shape_map(all_methods()))
+
+        # Miami threshold y: min threshold across both sides (most stringent for display)
+        miami_threshold_y <- shiny::reactive({
+            .side_min_thr <- function(pv, type, value) {
+                if (length(pv) == 0) return(Inf)
+                thrs <- unlist(lapply(names(pv), function(m) {
+                    dt <- pv[[m]]; if (nrow(dt) == 0) return(numeric(0))
+                    tcols <- setdiff(names(dt), c("SNPID","chr","pos","n_snps","mean_maf"))
+                    sapply(tcols, function(tr) {
+                        r <- tryCatch(compute_pval_threshold(dt[[tr]], type, value),
+                                      error = function(e) list(status="error"))
+                        if (r$status == "ok") r$threshold else NA_real_
+                    })
+                }))
+                thrs <- thrs[!is.na(thrs) & thrs > 0]
+                if (length(thrs) == 0) Inf else min(thrs)
+            }
+            gea_min  <- .side_min_thr(gea_effective_pvalues(),  gea_threshold_type(),  gea_threshold_value())
+            gwas_min <- .side_min_thr(gwas_effective_pvalues(), gwas_threshold_type(), gwas_threshold_value())
+            overall  <- min(gea_min, gwas_min)
+            if (is.infinite(overall)) NULL else -log10(overall)
+        })
 
         miami_wza_bg <- shiny::reactive({
             if (!(gea_regime_wza() && gwas_regime_wza())) return(NULL)
@@ -427,7 +567,8 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             gwas_regions         = gwas_regions,
             overlap_regions      = overlap_regions,
             bg_path_override     = miami_wza_bg,
-            coords_path_override = miami_wza_co
+            coords_path_override = miami_wza_co,
+            threshold_y          = miami_threshold_y
         )
 
         # Miami SNP click → select the enclosing overlap region

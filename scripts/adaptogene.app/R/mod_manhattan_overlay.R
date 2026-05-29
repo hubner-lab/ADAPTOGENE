@@ -66,14 +66,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           sig_snps_override    = shiny::reactive(NULL),
                                           trait_colors         = shiny::reactive(NULL),
                                           method_shapes        = shiny::reactive(NULL),
-                                          # Optional path overrides: when non-NULL reactives are
-                                          # supplied the auto-resolved paths are bypassed (used
-                                          # by the WZA regime switcher in mod_gea / mod_gwas).
+                                          # Optional path overrides (WZA regime, etc.)
                                           bg_path_override     = shiny::reactive(NULL),
                                           coords_path_override = shiny::reactive(NULL),
-                                          # Overlapping-tab Miami extensions:
-                                          # When both provided AND is_miami=TRUE, use
-                                          # build_miami_region_shapes() for 4-category coloring.
+                                          # Live threshold line: -log10(threshold) scalar.
+                                          # When non-NULL, drawn instead of coords$bonferroni_y.
+                                          threshold_y          = shiny::reactive(NULL),
+                                          # Overlapping-tab Miami extensions
                                           gwas_regions      = shiny::reactive(NULL),
                                           overlap_regions   = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
@@ -209,6 +208,8 @@ mod_manhattan_overlay_server <- function(id, project_data,
             use_miami_shapes <- is_miami &&
                 !is.null(gwas_reg) && !is.null(ov_reg)
 
+            thr_y <- threshold_y()
+
             if (use_miami_shapes) {
                 # 4-category Miami shapes (GEA-only gray / GWAS-only gray / overlap orange / selected blue)
                 custom_shapes <- if (show_regions()) {
@@ -226,13 +227,14 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     bg_uri            = bg_uri,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
-                    regions           = NULL,       # shapes handled above
+                    regions           = NULL,
                     current_region_id = NULL,
                     trait_colors      = trait_colors(),
                     method_shapes     = method_shapes(),
                     is_miami          = is_miami,
                     source            = ns("overlay"),
-                    extra_shapes      = custom_shapes
+                    extra_shapes      = custom_shapes,
+                    threshold_y       = thr_y
                 )
             } else {
                 reg_data <- if (show_regions()) regions() else NULL
@@ -245,7 +247,8 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     trait_colors      = trait_colors(),
                     method_shapes     = method_shapes(),
                     is_miami          = is_miami,
-                    source            = ns("overlay")
+                    source            = ns("overlay"),
+                    threshold_y       = thr_y
                 )
             }
         })

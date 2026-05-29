@@ -57,19 +57,46 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         # ── Data loading ───────────────────────────────────────────────────────
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
-        traits  <- shiny::reactive(find_assoc_traits(project_data()$name, module))
 
-        # Load ALL per-method sig SNPs once per project (for interactive combine)
-        all_method_sigsnps <- shiny::reactive({
+        # Full p-value tables (all SNPs, all traits, wide format). Loaded once per
+        # project switch; kept in reactive memo (not cachem — can exceed 200MB at WGS scale).
+        all_method_pvalues <- shiny::reactive({
             pd <- project_data()
-            load_all_method_sigsnps(pd$name, module)
+            load_all_method_pvalues(pd$name, module, pd$k_best)
+        })
+
+        all_method_wza_pvalues <- shiny::reactive({
+            if (!regime_wza()) return(list())
+            pd <- project_data()
+            load_all_method_wza_pvalues(pd$name, module, pd$k_best)
+        })
+
+        effective_method_pvalues <- shiny::reactive({
+            if (regime_wza()) all_method_wza_pvalues() else all_method_pvalues()
+        })
+
+        # All trait names (threshold-independent; for color stability + no_sig warning)
+        all_trait_names_rv <- shiny::reactive({
+            pv <- all_method_pvalues()
+            if (length(pv) == 0) return(character(0))
+            fixed <- c("SNPID", "chr", "pos", "n_snps", "mean_maf")
+            sort(unique(unlist(lapply(pv, function(dt) setdiff(names(dt), fixed)))))
+        })
+
+        # Significant traits at current threshold (derived from effective_method_sigsnps)
+        traits <- shiny::reactive({
+            sig <- effective_method_sigsnps()
+            if (length(sig) == 0) return(character(0))
+            all_dt <- data.table::rbindlist(sig, use.names = TRUE, fill = TRUE)
+            if (nrow(all_dt) == 0) return(character(0))
+            sort(unique(all_dt$trait))
         })
 
         # ── Filter bar ─────────────────────────────────────────────────────────
 
-        # Trait chip colours (Okabe-Ito, sorted order matching fct_manhattan.R)
+        # Trait chip colours (Okabe-Ito, keyed on ALL traits for color stability)
         trait_colors <- shiny::reactive({
-            tr <- traits()
+            tr <- all_trait_names_rv()
             if (length(tr) == 0) return(character(0))
             trait_color_map(tr)
         })
@@ -83,7 +110,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         # ── Trait x Method combo counts (how many sig SNPs per combo) ─────────
         combo_counts <- shiny::reactive({
-            all_snps <- all_method_sigsnps()
+            all_snps <- effective_method_sigsnps()
             counts <- list()
             for (m in names(all_snps)) {
                 dt <- all_snps[[m]]
@@ -149,16 +176,116 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         regime_wza <- shiny::reactive(isTRUE(input$regime))
 
-        # ── WZA sig windows (loaded when regime=wza) ──────────────────────────
-        all_method_wza_sigsnps <- shiny::reactive({
-            if (!regime_wza()) return(list())
-            pd <- project_data()
-            load_all_method_wza_sigwindows(pd$name, module)
+        # ── Threshold type + value (interactive significance level) ───────────
+        shiny::observe({
+            pd      <- project_data()
+            cfg     <- pd$config
+            rp      <- read_region_params(pd$name)
+            saved_t <- get_global_param(rp, module, "threshold_type")
+            saved_v <- get_global_param(rp, module, "threshold_value")
+            if (!is.null(saved_t)) {
+                shiny::updateSelectInput(session,  "threshold_type",  selected = saved_t)
+            } else {
+                def <- default_threshold(cfg, module)
+                shiny::updateSelectInput(session,  "threshold_type",  selected = def$type)
+            }
+            if (!is.null(saved_v)) {
+                shiny::updateNumericInput(session, "threshold_value", value = as.numeric(saved_v))
+            } else if (is.null(saved_t)) {
+                def <- default_threshold(cfg, module)
+                shiny::updateNumericInput(session, "threshold_value", value = def$value)
+            }
         })
 
-        # Regime-aware source of sig SNPs (snp or wza)
+        shiny::observeEvent(input$threshold_type, {
+            pd <- project_data(); if (is.null(pd)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, module, "threshold_type", input$threshold_type)
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
+
+        shiny::observeEvent(input$threshold_value, {
+            v  <- input$threshold_value
+            pd <- project_data(); if (is.null(pd) || is.null(v) || is.na(v)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, module, "threshold_value", as.numeric(v))
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
+
+        threshold_type  <- shiny::reactive(input$threshold_type  %||% "bonf")
+        threshold_value_raw <- shiny::reactive({
+            v <- input$threshold_value
+            if (is.null(v) || is.na(v) || v <= 0) {
+                default_threshold(project_data()$config, module)$value
+            } else {
+                as.numeric(v)
+            }
+        })
+        # Debounce threshold value to avoid firing qval computation on every keystroke
+        threshold_value <- shiny::debounce(threshold_value_raw, 500)
+
+        # Threshold hint text (context-aware help under the value input)
+        output$threshold_hint <- shiny::renderUI({
+            t <- threshold_type()
+            hint <- switch(t,
+                bonf   = "α for Bonferroni correction",
+                qval   = "FDR q-value target (0–1)",
+                top    = "Number of top SNPs per trait",
+                custom = "Raw p-value cutoff (e.g. 1e-5)",
+                ""
+            )
+            htmltools::span(class = "text-muted small mt-1", hint)
+        })
+
+        # ── Interactive sig SNPs: computed from full pvalue tables + threshold ─
         effective_method_sigsnps <- shiny::reactive({
-            if (regime_wza()) all_method_wza_sigsnps() else all_method_sigsnps()
+            pd <- project_data()
+            compute_method_sigsnps_cached(
+                pvalues_list = effective_method_pvalues(),
+                type         = threshold_type(),
+                value        = threshold_value(),
+                k            = pd$k_best,
+                regime       = if (regime_wza()) "wza" else "snp",
+                project      = pd$name,
+                module       = module
+            )
+        })
+
+        # ── Threshold y-value for live threshold line on Manhattan ────────────
+        # combined: min raw p threshold across all methods+traits → highest -log10 line
+        combined_threshold_y <- shiny::reactive({
+            pv <- effective_method_pvalues()
+            if (length(pv) == 0) return(NULL)
+            type  <- threshold_type()
+            value <- threshold_value()
+            all_thrs <- unlist(lapply(names(pv), function(m) {
+                dt <- pv[[m]]
+                if (nrow(dt) == 0) return(numeric(0))
+                tcols <- setdiff(names(dt), c("SNPID", "chr", "pos", "n_snps", "mean_maf"))
+                sapply(tcols, function(tr) {
+                    r <- tryCatch(compute_pval_threshold(dt[[tr]], type, value),
+                                  error = function(e) list(status = "error"))
+                    if (r$status == "ok") r$threshold else NA_real_
+                })
+            }))
+            all_thrs <- all_thrs[!is.na(all_thrs) & all_thrs > 0]
+            if (length(all_thrs) == 0) return(NULL)
+            -log10(min(all_thrs))  # min raw p = most stringent = highest y line
+        })
+
+        # per-method panel: threshold for selected (method, trait)
+        per_method_threshold_y <- shiny::reactive({
+            m <- active_method(); t <- per_method_trait()
+            if (is.null(m) || is.null(t)) return(NULL)
+            pv <- effective_method_pvalues()
+            dt <- pv[[m]]
+            if (is.null(dt) || nrow(dt) == 0 || !(t %in% names(dt))) return(NULL)
+            r <- tryCatch(
+                compute_pval_threshold(dt[[t]], threshold_type(), threshold_value()),
+                error = function(e) list(status = "error")
+            )
+            if (r$status != "ok") return(NULL)
+            -log10(r$threshold)
         })
 
         # ── I4: Config parameter badges ────────────────────────────────────────
@@ -182,8 +309,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         # ── D5: Traits with zero significant SNPs warning ──────────────────────
         output$no_sig_snps_warning <- shiny::renderUI({
-            pd          <- project_data()
-            all_traits  <- load_all_trait_names(pd$name, module)
+            all_traits  <- all_trait_names_rv()
             sig_traits  <- traits()
             missing     <- setdiff(all_traits, sig_traits)
             if (length(missing) == 0) return(NULL)
@@ -206,7 +332,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             )
         })
 
-        # ── Filter bar: Regime + Trait x Method matrix + Strategy + Distance ──
+        # ── Filter bar: Regime + Threshold + Trait x Method matrix + Strategy + Distance ──
         output$filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
@@ -216,17 +342,21 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                 combo_counts                = combo_counts(),
                 default_strategy_value      = default_strategy(),
                 snp_clumping_distance_value = snp_clumping_distance(),
-                regime_value                = regime_wza()
+                regime_value                = regime_wza(),
+                threshold_type_value        = threshold_type(),
+                threshold_value_value       = threshold_value()
             )
         })
 
         # ── Interactive sig SNPs (combined + filtered by matrix selection) ─────
+        # effective_method_sigsnps() is already threshold-filtered by compute_method_sigsnps_cached.
+        # compute_interactive_sigsnps further applies matrix filter, strategy, and clumping.
         interactive_sigsnps <- shiny::reactive({
             compute_interactive_sigsnps(
                 all_method_sigsnps  = effective_method_sigsnps(),
                 tm_selection_json   = input$tm_selection,
                 combo_counts        = combo_counts(),
-                known_traits        = traits(),
+                known_traits        = all_trait_names_rv(),
                 strategy            = active_strategy(),
                 clumping_distance   = snp_clumping_distance(),
                 project_name        = project_data()$name,
@@ -272,7 +402,8 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             trait_colors         = trait_colors,
             method_shapes        = method_shapes,
             bg_path_override     = combined_wza_bg,
-            coords_path_override = combined_wza_coords
+            coords_path_override = combined_wza_coords,
+            threshold_y          = combined_threshold_y
         )
 
         # Manhattan SNP click → select the enclosing region in the explorer
@@ -293,16 +424,17 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             do.call(bslib::navset_card_underline, c(list(id = ns("method_tab")), panels))
         })
 
-        # Per-method trait selector UI
+        # Per-method trait selector UI — uses all trait names so user can view any
+        # trait regardless of current threshold (useful for QC / comparison)
         output$per_method_trait_ui <- shiny::renderUI({
-            tr <- traits()
+            tr <- all_trait_names_rv()
             if (length(tr) == 0) return(NULL)
             shiny::selectInput(ns("per_method_trait"), "Trait",
                                choices = tr, selected = tr[1], width = "200px")
         })
 
         per_method_trait <- shiny::reactive({
-            tr <- traits()
+            tr <- all_trait_names_rv()
             if (length(tr) == 0) return(NULL)
             input$per_method_trait %||% tr[1]
         })
@@ -322,7 +454,8 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                 if (!is.null(m) && !is.null(t)) paste0(m, " — ", t)
                 else "Method Manhattan"
             }),
-            show_regions_control = FALSE
+            show_regions_control = FALSE,
+            threshold_y          = per_method_threshold_y
         )
 
         # QQ plot for current method + trait

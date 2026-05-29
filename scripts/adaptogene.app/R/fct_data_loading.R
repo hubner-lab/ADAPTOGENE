@@ -1,3 +1,10 @@
+# Source shared pipeline utilities for interactive threshold computation.
+# compute_pval_threshold() is used directly; lib/sig_snps.R is not needed
+# here (we implement a simpler single-threaded version inline).
+if (file.exists("/pipeline/scripts/R/utils/pval_threshold.R")) {
+    source("/pipeline/scripts/R/utils/pval_threshold.R")
+}
+
 # ── Processing QC loaders ────────────────────────────────────────────────────
 
 #' Load filtering summary table
@@ -480,6 +487,176 @@ load_all_overlap_method_sigsnps <- function(project, k = NA) {
             result[[m]] <- data.table::rbindlist(parts, use.names = TRUE, fill = TRUE)
     }
     result
+}
+
+#' Load full p-value TSVs for all methods (wide format: one column per trait).
+#'
+#' Returns a named list (method → data.table with SNPID, chr, pos, trait1..N).
+#' Excludes _sig_snps_, _wza_, and _block_ files.
+#' @noRd
+load_all_method_pvalues <- function(project, module = MOD_GEA, k = NA) {
+    glob <- mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv")
+    files <- Sys.glob(glob)
+    # Exclude downstream outputs (sig_snps, wza, block)
+    files <- grep("_sig_snps_|_wza_|_block_", files, value = TRUE, invert = TRUE)
+    if (length(files) == 0) return(list())
+    if (!is.na(k)) {
+        k_pattern <- paste0("_K", k, ".tsv")
+        files <- files[endsWith(basename(files), k_pattern)]
+    }
+    if (length(files) == 0) return(list())
+
+    result <- list()
+    for (f in files) {
+        parts <- strsplit(f, .Platform$file.sep, fixed = TRUE)[[1]]
+        methods_idx <- which(parts == "methods")
+        if (length(methods_idx) == 0) next
+        method_name <- parts[methods_idx + 1L]
+
+        dt <- tryCatch(
+            data.table::fread(f, sep = "\t", header = TRUE,
+                              colClasses = c(chr = "character", SNPID = "character")),
+            error = function(e) data.table::data.table()
+        )
+        if (nrow(dt) == 0) next
+        result[[method_name]] <- dt
+    }
+    result
+}
+
+#' Load full WZA p-value TSVs for all methods (wide format: one column per trait).
+#' @noRd
+load_all_method_wza_pvalues <- function(project, module = MOD_GEA, k = NA) {
+    glob <- mod_path(project, module, "tables", "methods", "*", "*_wza_K*.tsv")
+    files <- Sys.glob(glob)
+    files <- grep("_sig_windows_", files, value = TRUE, invert = TRUE)
+    if (length(files) == 0) return(list())
+    if (!is.na(k)) {
+        k_pattern <- paste0("_K", k, ".tsv")
+        files <- files[endsWith(basename(files), k_pattern)]
+    }
+    if (length(files) == 0) return(list())
+
+    result <- list()
+    for (f in files) {
+        parts <- strsplit(f, .Platform$file.sep, fixed = TRUE)[[1]]
+        methods_idx <- which(parts == "methods")
+        if (length(methods_idx) == 0) next
+        method_name <- parts[methods_idx + 1L]
+
+        dt <- tryCatch(
+            data.table::fread(f, sep = "\t", header = TRUE,
+                              colClasses = c(chr = "character", SNPID = "character")),
+            error = function(e) data.table::data.table()
+        )
+        if (nrow(dt) == 0) next
+        result[[method_name]] <- dt
+    }
+    result
+}
+
+#' Compute significant SNPs interactively using a user-chosen threshold.
+#'
+#' Wraps compute_pval_threshold() (sourced from pipeline utils) per method × trait.
+#' Disk-caches results keyed by (module, k, regime, type, value) so qval (slow) is
+#' paid once per unique combination; bonf/top/custom are sub-second.
+#'
+#' @param pvalues_list Named list of wide data.tables (method → dt) from
+#'   load_all_method_pvalues() or load_all_method_wza_pvalues().
+#' @param type   Character: "bonf" | "qval" | "top" | "custom"
+#' @param value  Numeric threshold value (alpha for bonf/qval, N for top, raw p for custom)
+#' @param k      K-best value (for cache key)
+#' @param regime Character: "snp" or "wza"
+#' @param project Project name (for cache dir)
+#' @param module  Pipeline module (for cache dir)
+#' @return Named list (method → data.table with SNPID/chr/pos/pvalue/method/trait),
+#'   same shape as load_all_method_sigsnps().
+#' @noRd
+compute_method_sigsnps_cached <- function(pvalues_list, type, value,
+                                           k, regime, project, module) {
+    if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
+
+    # Validate that compute_pval_threshold is available (sourced above)
+    if (!exists("compute_pval_threshold", mode = "function")) {
+        warning("compute_pval_threshold not available — returning empty sig set")
+        return(list())
+    }
+
+    # Disk-cache key: (module, k, regime, type, value)
+    cache_key  <- list(module = module, k = k, regime = regime,
+                       type = type, value = as.numeric(value))
+    cache_hash <- digest::digest(cache_key, algo = "md5")
+    cache_dir  <- interactive_sigsnps_dir(project, module)
+    cache_file <- file.path(cache_dir, paste0(cache_hash, ".tsv"))
+
+    if (file.exists(cache_file)) {
+        flat <- tryCatch(
+            data.table::fread(cache_file, sep = "\t", header = TRUE,
+                              colClasses = c(chr    = "character",
+                                             SNPID  = "character",
+                                             method = "character",
+                                             trait  = "character")),
+            error = function(e) NULL
+        )
+        if (!is.null(flat) && nrow(flat) > 0) {
+            return(split(flat, by = "method", keep.by = TRUE))
+        }
+    }
+
+    # Compute: iterate methods and traits
+    all_rows <- list()
+    for (m in names(pvalues_list)) {
+        pv_dt <- pvalues_list[[m]]
+        if (nrow(pv_dt) == 0) next
+
+        fixed_cols <- c("SNPID", "chr", "pos")
+        # WZA tables also have n_snps, mean_maf — skip non-trait cols
+        trait_cols <- setdiff(names(pv_dt), c(fixed_cols, "n_snps", "mean_maf"))
+        if (length(trait_cols) == 0) next
+
+        for (tr in trait_cols) {
+            if (!(tr %in% names(pv_dt))) next
+            pvec <- pv_dt[[tr]]
+
+            thresh_result <- tryCatch(
+                compute_pval_threshold(pvec, type, as.numeric(value)),
+                error = function(e) list(status = "error", threshold = NA_real_)
+            )
+            if (thresh_result$status != "ok" || is.na(thresh_result$threshold)) next
+
+            mask <- pvec < thresh_result$threshold & !is.na(pvec)
+            if (!any(mask)) next
+
+            all_rows[[length(all_rows) + 1L]] <- pv_dt[mask, .(
+                SNPID  = SNPID,
+                chr    = chr,
+                pos    = pos,
+                pvalue = .SD[[tr]],
+                method = m,
+                trait  = tr
+            ), .SDcols = tr]
+        }
+    }
+
+    if (length(all_rows) == 0) {
+        flat <- data.table::data.table(
+            SNPID  = character(),
+            chr    = character(),
+            pos    = integer(),
+            pvalue = numeric(),
+            method = character(),
+            trait  = character()
+        )
+    } else {
+        flat <- data.table::rbindlist(all_rows)
+    }
+
+    # Save to disk cache
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+    data.table::fwrite(flat, cache_file, sep = "\t")
+
+    if (nrow(flat) == 0) return(list())
+    split(flat, by = "method", keep.by = TRUE)
 }
 
 #' Cached data loader using cachem

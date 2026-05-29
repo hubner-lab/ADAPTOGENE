@@ -94,6 +94,20 @@ compute_pval_threshold <- function(pvalues, adjustment, value) {
                     status       = "ok"))
     }
 
+    if (adjustment == 'custom') {
+        custom_threshold <- suppressWarnings(as.numeric(value))
+        if (is.na(custom_threshold) || custom_threshold <= 0) {
+            message(paste0("WARNING: custom threshold value '", value,
+                           "' invalid (must be a positive number). Returning no threshold."))
+            return(list(threshold = NA_real_, n_tested = n_tested,
+                        n_na_dropped = n_na_dropped, status = "too_few_tests"))
+        }
+        return(list(threshold    = custom_threshold,
+                    n_tested     = n_tested,
+                    n_na_dropped = n_na_dropped,
+                    status       = "ok"))
+    }
+
     stop(paste0("Unknown adjustment method: ", adjustment))
 }
 

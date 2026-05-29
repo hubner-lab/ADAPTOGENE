@@ -226,7 +226,7 @@ bg_y_lo    <- 0
 bg_y_hi    <- y_max * 1.05
 
 p_bg <- ggplot() +
-    add_scatter_layer(data = plot_df %>% dplyr::filter(!is_significant),
+    add_scatter_layer(data = plot_df,
                       chr_colors = chr_colors,
                       alpha = 0.5) +
     scale_color_identity() +
@@ -241,8 +241,8 @@ ggsave(file.path(PLOT_DIR, paste0(bg_base, ".png")), p_bg,
 message(paste0('INFO: Saved background Manhattan: ', bg_base, '.png'))
 
 # Coordinate mapping JSON for plotly axis alignment in Shiny.
-# bonferroni_y is the default threshold from pipeline config for this adjust/threshold
-# combo; Shiny overrides it live when the user changes per-method controls.
+# Background shows all SNPs (threshold-independent). bonferroni_y retained as fallback only;
+# Shiny draws the threshold line live from the interactive threshold_y param.
 coords_list <- list(
     chr_offsets    = setNames(as.list(chr_info$tot),     as.character(chr_info$chr_f)),
     chr_lengths    = setNames(as.list(chr_info$chr_len), as.character(chr_info$chr_f)),

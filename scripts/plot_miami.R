@@ -108,13 +108,12 @@ y_limit    <- max(y_max_gea, y_max_gwas)
 
 message('INFO: Generating simple Miami plot')
 
-# Background SNPs (non-sig, first method only per panel)
+# Background SNPs: ALL SNPs (threshold-independent), first method only per panel.
+# Sig markers overlay on top; threshold lines drawn live in Shiny.
 gea_bg <- gea_data %>%
-    dplyr::filter(!is_significant) %>%
     dplyr::filter(method == names(gea_info)[1])
 
 gwas_bg <- gwas_data %>%
-    dplyr::filter(!is_significant) %>%
     dplyr::filter(method == names(gwas_info)[1])
 
 # Sig SNPs
@@ -253,10 +252,7 @@ for (t in gwas_traits) {
 
 p_bg_miami <- p_bg_miami +
     scale_color_identity() +
-    geom_hline(yintercept =  gea_threshold,  linetype = "dashed",
-               color = "red", linewidth = 0.4, alpha = 0.5) +
-    geom_hline(yintercept = -gwas_threshold, linetype = "dashed",
-               color = "red", linewidth = 0.4, alpha = 0.5) +
+    # Zero line baked in (structural); threshold lines drawn live in Shiny from coords JSON.
     geom_hline(yintercept = 0, linewidth = 0.8, color = "black") +
     scale_x_continuous(limits = c(bg_x_lo, bg_x_hi), expand = c(0, 0)) +
     scale_y_continuous(limits = c(bg_y_lo, bg_y_hi), expand = c(0, 0)) +

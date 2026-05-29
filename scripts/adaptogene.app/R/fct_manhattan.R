@@ -220,7 +220,8 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
                                     method_shapes = NULL,
                                     is_miami = FALSE,
                                     source = "manhattan_overlay",
-                                    extra_shapes = NULL) {
+                                    extra_shapes = NULL,
+                                    threshold_y = NULL) {
     if (is.null(coords)) return(plotly::event_register(plotly::plot_ly(source = source), "plotly_click"))
 
     x_range <- coords$x_range
@@ -246,25 +247,58 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
         list()
     }
 
-    # Threshold lines
+    # Threshold lines.
+    # threshold_y (caller-supplied, live from interactive controls) takes priority.
+    # Falls back to coords$bonferroni_y (pipeline default) when threshold_y is NULL.
     threshold_lines <- list()
-    if (!is.null(coords$bonferroni_y)) {
-        threshold_lines <- c(threshold_lines, list(
-            list(type = "line", xref = "paper", yref = "y",
-                 x0 = 0, x1 = 1, y0 = coords$bonferroni_y, y1 = coords$bonferroni_y,
-                 line = list(color = "red", dash = "dash", width = 1))
-        ))
-    }
-    if (is_miami) {
-        if (!is.null(coords$gwas_threshold_y)) {
+    if (!is_miami) {
+        thr_val <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            threshold_y
+        } else if (!is.null(coords$bonferroni_y) && !is.na(coords$bonferroni_y)) {
+            coords$bonferroni_y
+        } else {
+            NULL
+        }
+        if (!is.null(thr_val)) {
             threshold_lines <- c(threshold_lines, list(
                 list(type = "line", xref = "paper", yref = "y",
-                     x0 = 0, x1 = 1,
-                     y0 = coords$gwas_threshold_y, y1 = coords$gwas_threshold_y,
+                     x0 = 0, x1 = 1, y0 = thr_val, y1 = thr_val,
                      line = list(color = "red", dash = "dash", width = 1))
             ))
         }
-        # Zero line for Miami
+    }
+    if (is_miami) {
+        # For Miami, threshold_y is the GEA positive threshold (most stringent across both sides).
+        # Draw at +thr (GEA) and -thr (GWAS). Fall back to coords keys.
+        thr_gea <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            threshold_y
+        } else if (!is.null(coords$gea_threshold_y)) {
+            coords$gea_threshold_y
+        } else {
+            NULL
+        }
+        thr_gwas <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            -threshold_y
+        } else if (!is.null(coords$gwas_threshold_y)) {
+            coords$gwas_threshold_y
+        } else {
+            NULL
+        }
+        if (!is.null(thr_gea)) {
+            threshold_lines <- c(threshold_lines, list(
+                list(type = "line", xref = "paper", yref = "y",
+                     x0 = 0, x1 = 1, y0 = thr_gea, y1 = thr_gea,
+                     line = list(color = "red", dash = "dash", width = 1))
+            ))
+        }
+        if (!is.null(thr_gwas)) {
+            threshold_lines <- c(threshold_lines, list(
+                list(type = "line", xref = "paper", yref = "y",
+                     x0 = 0, x1 = 1, y0 = thr_gwas, y1 = thr_gwas,
+                     line = list(color = "red", dash = "dash", width = 1))
+            ))
+        }
+        # Zero line separating GEA / GWAS panels (structural)
         threshold_lines <- c(threshold_lines, list(
             list(type = "line", xref = "paper", yref = "y",
                  x0 = 0, x1 = 1, y0 = 0, y1 = 0,

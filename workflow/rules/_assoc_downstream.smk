@@ -268,7 +268,10 @@ if ASSOC_SOURCES:
             """
 
     rule assoc_manhattan_plot:
-        """Per-(source, method, trait, adjust) Manhattan + QQ plots."""
+        """Per-(source, method, trait, adjust) Manhattan + QQ plots.
+        Background PNG and coords include {adjust} in filename (Snakemake wildcard
+        consistency), but the background shows ALL SNPs (threshold-independent).
+        Shiny draws the threshold line live via the interactive threshold_y param."""
         input:
             assoc = f"{OUTDIR}{{source}}/tables/methods/{{method}}/{{method}}_pvalues_K{K_BEST}.tsv"
         output:

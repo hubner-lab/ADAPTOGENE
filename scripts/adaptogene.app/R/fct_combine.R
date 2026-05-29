@@ -194,14 +194,32 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 
 # ── Shared UI / server helpers ────────────────────────────────────────────────
 
-#' Build the filter bar UI (regime switch + trait x method matrix + strategy + distance)
+#' Extract default threshold type and value from project config.
+#'
+#' Reads the first entry in GEA.configs or GWAS.configs.
+#' Returns list(type="bonf", value=0.05) as safe fallback.
+#' @noRd
+default_threshold <- function(config, module = MOD_GEA) {
+    config_key <- if (module == MOD_GWAS) "GWAS" else "GEA"
+    configs <- config_get(config, config_key, "configs", default = list())
+    if (length(configs) == 0) return(list(type = "bonf", value = 0.05))
+
+    first <- configs[[1]]
+    type  <- if (is.list(first)) (first$adjust  %||% "bonf") else "bonf"
+    value <- if (is.list(first)) suppressWarnings(as.numeric(first$threshold %||% 0.05))
+             else 0.05
+    if (is.na(value) || value <= 0) value <- 0.05
+    list(type = type, value = value)
+}
+
+#' Build the filter bar UI (regime switch + threshold + trait x method matrix + strategy + distance)
 #'
 #' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
 #'
 #' @param ns           Shiny namespace function from session$ns
-#' @param traits       Character vector of trait names
+#' @param traits       Character vector of trait names (those with sig SNPs at current threshold)
 #' @param methods      Character vector of method names
-#' @param trait_colors Named character vector: trait -> hex colour
+#' @param trait_colors Named character vector: trait -> hex colour (from all_trait_names for stability)
 #' @param combo_counts Named list: "trait::method" -> integer SNP count
 #' @param default_strategy_value Character scalar: "Union", "Cross-method", or "Cross-method per-trait"
 #' @param snp_clumping_distance_value Integer scalar: current clumping distance (bp)
@@ -209,13 +227,17 @@ combine_sigsnps <- function(sigsnps_list, strategy = "All", gap = 200000L) {
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
 #' @param regime_value Logical: current WZA regime state (TRUE = WZA, FALSE = per-SNP)
+#' @param threshold_type_value  Character: current threshold method ("bonf"/"qval"/"top"/"custom")
+#' @param threshold_value_value Numeric: current threshold value
 #' @return tagList
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
                                 snp_clumping_distance_value = 100000L,
                                 input_prefix = "",
-                                regime_value = FALSE) {
+                                regime_value = FALSE,
+                                threshold_type_value  = "bonf",
+                                threshold_value_value = 0.05) {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
     if (length(traits) == 0) return(NULL)
@@ -374,7 +396,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
             ),
             # Single clumping distance input
             htmltools::div(
-                class = "d-flex flex-column",
+                class = "d-flex flex-column me-4",
                 htmltools::span("Clumping distance (bp)", class = "filter-label mb-1"),
                 shiny::numericInput(
                     pid("snp_clumping_distance"), label = NULL,
@@ -385,6 +407,34 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     class = "text-muted small mt-1",
                     "Merge distance for regions; also used for Cross-method overlap"
                 )
+            ),
+            # Significance threshold
+            htmltools::div(
+                class = "d-flex flex-column",
+                htmltools::span("Significance threshold", class = "filter-label mb-1"),
+                htmltools::div(
+                    class = "d-flex gap-2 align-items-start",
+                    shiny::selectInput(
+                        pid("threshold_type"),
+                        label = NULL,
+                        choices = c(
+                            "Bonferroni"  = "bonf",
+                            "FDR (qval)"  = "qval",
+                            "Top N SNPs"  = "top",
+                            "Custom (raw p)" = "custom"
+                        ),
+                        selected = threshold_type_value,
+                        width = "140px"
+                    ),
+                    shiny::numericInput(
+                        pid("threshold_value"),
+                        label = NULL,
+                        value = threshold_value_value,
+                        min = 0, step = NA,
+                        width = "100px"
+                    )
+                ),
+                shiny::uiOutput(pid("threshold_hint"))
             )
         ),
         htmltools::tags$script(htmltools::HTML(js_code))

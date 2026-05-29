@@ -24,6 +24,7 @@ mod_path <- function(project, module, ...) {
 # ─── Manhattan plots ─────────────────────────────────────────────────────────
 
 #' Per-method Manhattan background PNG path
+#' Background shows all SNPs (threshold-independent); threshold line drawn live in Shiny.
 #' @noRd
 manhattan_bg_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {
     mod_path(project, module, "plots", "manhattan", method,
@@ -93,6 +94,12 @@ method_wza_sigwindows_path <- function(project, module = MOD_GEA, method, k, adj
 method_wza_pvalues_path <- function(project, module = MOD_GEA, method, k) {
     mod_path(project, module, "tables", "methods", method,
              paste0(method, "_wza_K", k, ".tsv"))
+}
+
+#' Directory for disk-cached interactive sig SNPs (keyed by MD5 hash of threshold params).
+#' @noRd
+interactive_sigsnps_dir <- function(project, module = MOD_GEA) {
+    mod_path(project, MOD_INTER, "interactive_sigsnps", module)
 }
 
 #' QQ plot path (per-method)
