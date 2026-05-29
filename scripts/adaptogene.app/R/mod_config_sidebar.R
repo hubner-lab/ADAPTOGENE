@@ -451,23 +451,13 @@ render_method_editor <- function(input_id, local_id, configs_list) {
         htmltools::tags$div(
             class = "method-row",
             id    = row_id,
-            `data-idx` = idx,
+            `data-idx`       = idx,
+            `data-adjust`    = m$adjust,
+            `data-threshold` = m$threshold,
             htmltools::tags$select(
                 class    = "form-select form-select-sm method-select",
                 `data-role` = "method",
                 htmltools::HTML(method_opts)
-            ),
-            htmltools::tags$select(
-                class    = "form-select form-select-sm adjust-select",
-                `data-role` = "adjust",
-                htmltools::HTML(adjust_opts)
-            ),
-            htmltools::tags$input(
-                type      = "number",
-                class     = "form-control form-control-sm threshold-input",
-                `data-role` = "threshold",
-                value     = m$threshold,
-                min       = "0", max = "1", step = "0.001"
             ),
             htmltools::tags$button(
                 class    = "method-remove-btn",
@@ -519,8 +509,8 @@ render_method_editor <- function(input_id, local_id, configs_list) {
     editor.querySelectorAll(".method-row").forEach(function(row) {
       rows.push({
         method:    row.querySelector("[data-role=method]").value,
-        adjust:    row.querySelector("[data-role=adjust]").value,
-        threshold: row.querySelector("[data-role=threshold]").value
+        adjust:    row.dataset.adjust    || "bonf",
+        threshold: row.dataset.threshold || "0.05"
       });
     });
     return rows;
@@ -537,32 +527,24 @@ render_method_editor <- function(input_id, local_id, configs_list) {
   }
 
   var METHOD_CHOICES = %s;
-  var ADJUST_CHOICES = %s;
 
   function makeRow(m) {
     var div = document.createElement("div");
     div.className = "method-row";
     div.setAttribute("data-role-container", "row");
-    ["method", "adjust"].forEach(function(role) {
-      var sel = document.createElement("select");
-      sel.className = "form-select form-select-sm " + role + "-select";
-      sel.setAttribute("data-role", role);
-      var choices = role === "method" ? METHOD_CHOICES : ADJUST_CHOICES;
-      var def = role === "method" ? (m ? m.method : "EMMAX") : (m ? m.adjust : "bonf");
-      choices.forEach(function(ch) {
-        var opt = document.createElement("option");
-        opt.value = ch; opt.text = ch;
-        if (ch === def) opt.selected = true;
-        sel.appendChild(opt);
-      });
-      div.appendChild(sel);
+    div.dataset.adjust    = m ? (m.adjust    || "bonf")  : "bonf";
+    div.dataset.threshold = m ? (m.threshold || "0.05") : "0.05";
+    var sel = document.createElement("select");
+    sel.className = "form-select form-select-sm method-select";
+    sel.setAttribute("data-role", "method");
+    var def = m ? m.method : "EMMAX";
+    METHOD_CHOICES.forEach(function(ch) {
+      var opt = document.createElement("option");
+      opt.value = ch; opt.text = ch;
+      if (ch === def) opt.selected = true;
+      sel.appendChild(opt);
     });
-    var num = document.createElement("input");
-    num.type = "number"; num.className = "form-control form-control-sm threshold-input";
-    num.setAttribute("data-role", "threshold");
-    num.value = m ? m.threshold : "0.05";
-    num.min = "0"; num.max = "1"; num.step = "0.001";
-    div.appendChild(num);
+    div.appendChild(sel);
     var btn = document.createElement("button");
     btn.type = "button"; btn.className = "method-remove-btn";
     btn.setAttribute("data-role", "remove");
@@ -611,8 +593,7 @@ render_method_editor <- function(input_id, local_id, configs_list) {
             paste0(input_id, "_editor"),  # %s 1: editorId
             full_json_id,                 # %s 2: jsonInputId (DOM id, namespaced)
             jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 3
-            jsonlite::toJSON(ADJUST_CHOICES, auto_unbox = FALSE),  # %s 4
-            full_json_id                  # %s 5: method_editor_reset id check
+            full_json_id                  # %s 4: method_editor_reset id check
         )))
     )
 }

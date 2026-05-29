@@ -11,10 +11,13 @@ mod_gea_ui <- function(id) {
         # Config parameter badges
         shiny::uiOutput(ns("config_badges")),
 
-        # Combined Manhattan — filter bar injected inside the card
+        # Combined Manhattan — threshold bar (always visible) + filter bar (matrix/strategy)
         mod_manhattan_overlay_ui(
             ns("combined_manhattan"),
-            filter_ui = shiny::uiOutput(ns("filter_bar"))
+            filter_ui = htmltools::tagList(
+                shiny::uiOutput(ns("threshold_bar")),
+                shiny::uiOutput(ns("filter_bar"))
+            )
         ),
 
         # Warning: traits with no significant SNPs
@@ -237,6 +240,31 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
             htmltools::span(class = "text-muted small mt-1", hint)
         })
 
+        # Coerce threshold value when type changes to avoid invalid combos
+        shiny::observeEvent(input$threshold_type, {
+            v <- input$threshold_value
+            if (!threshold_value_valid_for_type(input$threshold_type, v)) {
+                shiny::updateNumericInput(
+                    session, "threshold_value",
+                    value = threshold_value_default_for_type(input$threshold_type)
+                )
+            }
+        }, ignoreInit = TRUE)
+
+        # ── Always-present threshold bar (regime + threshold type/value) ─────
+        output$threshold_bar <- shiny::renderUI({
+            pd <- project_data()
+            shiny::isolate({
+                build_threshold_bar_ui(
+                    ns                    = ns,
+                    regime_value          = isTRUE(input$regime),
+                    threshold_type_value  = input$threshold_type  %||% "bonf",
+                    threshold_value_value = input$threshold_value %||%
+                        default_threshold(pd$config, module)$value
+                )
+            })
+        })
+
         # ── Interactive sig SNPs: computed from full pvalue tables + threshold ─
         effective_method_sigsnps <- shiny::reactive({
             pd <- project_data()
@@ -325,14 +353,13 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                         "yielded no significant SNPs across all methods"
                     ),
                     " \u2014 not shown in filter bar. ",
-                    "Try relaxing thresholds in ",
-                    htmltools::tags$code("GEA.configs"), ".",
+                    "Adjust the Significance threshold above the Manhattan plot.",
                     htmltools::tags$ul(class = "mb-0 mt-1", items)
                 )
             )
         })
 
-        # ── Filter bar: Regime + Threshold + Trait x Method matrix + Strategy + Distance ──
+        # ── Filter bar: Trait x Method matrix + Strategy + Clumping ──────────
         output$filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
@@ -341,10 +368,7 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
                 trait_colors                = trait_colors(),
                 combo_counts                = combo_counts(),
                 default_strategy_value      = default_strategy(),
-                snp_clumping_distance_value = snp_clumping_distance(),
-                regime_value                = regime_wza(),
-                threshold_type_value        = threshold_type(),
-                threshold_value_value       = threshold_value()
+                snp_clumping_distance_value = snp_clumping_distance()
             )
         })
 
@@ -441,13 +465,22 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
 
         active_method <- shiny::reactive(input$method_tab %||% methods()[1])
 
-        # Per-method Manhattan overlay (no region shapes — shows method-specific data only)
+        # Per-method Manhattan overlay — use interactive sig SNPs (avoids pipeline file read)
+        per_method_sigsnps_override <- shiny::reactive({
+            m <- active_method(); t <- per_method_trait()
+            all_ms <- effective_method_sigsnps()
+            if (is.null(m) || is.null(t) || length(all_ms) == 0) return(data.table::data.table())
+            dt <- all_ms[[m]]
+            if (is.null(dt) || nrow(dt) == 0) return(data.table::data.table())
+            dt[trait == t]
+        })
         mod_manhattan_overlay_server("method_manhattan",
             project_data         = project_data,
             module               = module,
             method               = active_method,
             trait                = per_method_trait,
             combined             = FALSE,
+            sig_snps_override    = per_method_sigsnps_override,
             title_label          = shiny::reactive({
                 m <- active_method()
                 t <- per_method_trait()

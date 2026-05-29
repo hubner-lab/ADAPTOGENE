@@ -334,8 +334,16 @@ removed_snps_path <- function(project) {
 #' @noRd
 find_pvalue_tsv <- function(project, module = MOD_GEA) {
     files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
-    files <- grep("_sig_snps_", files, value = TRUE, invert = TRUE)
+    files <- grep("_sig_snps_|_wza_|_block_pvalues_", files, value = TRUE, invert = TRUE)
     if (length(files) == 0) "" else files[1]
+}
+
+#' All per-method pvalue TSV paths for a module (one per method).
+#' Used by regionplot subprocess discovery instead of sig_snps files.
+#' @noRd
+find_method_pvalue_files <- function(project, module = MOD_GEA) {
+    files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
+    grep("_sig_snps_|_wza_|_block_pvalues_", files, value = TRUE, invert = TRUE)
 }
 
 #' LD decay plot path

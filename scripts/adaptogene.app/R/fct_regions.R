@@ -243,13 +243,12 @@ run_regionplot_subprocess <- function(region_row, trait, project_data, module = 
         return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
     }
 
-    # Build ASSOC_TABLES: method:adjust:filepath for each available method sig SNPs file
-    method_files <- find_method_sigsnps_files(pd$name, module)
+    # Build ASSOC_TABLES: method:adjust:filepath using the full pvalue TSVs
+    method_files <- find_method_pvalue_files(pd$name, module)
     if (length(method_files) == 0) {
         return(list(error = "No method result files found. Run the association mode first."))
     }
 
-    # Build method:adjust_str:pvalues_file triples from the paths
     assoc_tables <- .build_assoc_tables_arg(method_files)
     if (is.null(assoc_tables)) {
         return(list(error = "Could not build association table arguments."))
@@ -449,12 +448,12 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
     if (!file_ok(gff_topr_p))
         return(list(error = "Could not find or generate topr gene annotation. Check GFF config."))
 
-    # For MOD_GEAXGWAS, regions combine GEA + GWAS signals; pull method files from both sources.
+    # For MOD_GEAXGWAS, pull method pvalue files from both GEA + GWAS sources.
     method_files <- if (identical(module, MOD_GEAXGWAS)) {
-        c(find_method_sigsnps_files(pd$name, MOD_GEA),
-          find_method_sigsnps_files(pd$name, MOD_GWAS))
+        c(find_method_pvalue_files(pd$name, MOD_GEA),
+          find_method_pvalue_files(pd$name, MOD_GWAS))
     } else {
-        find_method_sigsnps_files(pd$name, module)
+        find_method_pvalue_files(pd$name, module)
     }
     if (length(method_files) == 0)
         return(list(error = "No method result files found. Run the association mode first."))
@@ -462,7 +461,7 @@ launch_regionplot_subprocess <- function(region_row, region_snps, project_data, 
     # to appear twice in the regionplot legend (once per K) with different colors
     k_best <- pd$k_best
     if (!is.na(k_best)) {
-        k_pattern <- paste0("_K", k_best, "_")
+        k_pattern <- paste0("_K", k_best, ".")
         method_files <- method_files[grepl(k_pattern, basename(method_files), fixed = TRUE)]
     }
 
@@ -985,25 +984,17 @@ launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
 
 #' Build colon-separated ASSOC_TABLES arg for plot_regionplot.R
 #' Format: "method:adjust_str:pvalues_K{k}.tsv,..."
+#' Accepts plain pvalue TSVs ({method}_pvalues_K{k}.tsv).
 #' @noRd
 .build_assoc_tables_arg <- function(method_files) {
     if (length(method_files) == 0) return(NULL)
-    # Each file is like .../methods/{method}/{method}_pvalues_K{k}_sig_snps_{adjust}.tsv
-    # We need the pvalues (not sig_snps) file: {method}_pvalues_K{k}.tsv
     entries <- lapply(method_files, function(f) {
-        parts <- strsplit(basename(f), "_")[[1]]
-        # method_pvalues_K{k}_sig_snps_{adjust}.tsv → extract method, k, adjust
-        sig_idx <- which(parts == "sig" & c(FALSE, parts[-length(parts)] == "snps") == FALSE)
-        # Simpler: use regex on filename
         m <- regmatches(basename(f),
-            regexec("^(.+?)_pvalues_(K[0-9.]+)_sig_snps_(.+)\\.tsv$",
-                    basename(f)))[[1]]
-        if (length(m) < 4) return(NULL)
-        method <- m[2]; k_str <- m[3]; adjust <- m[4]
-        pval_file <- file.path(dirname(f),
-                               paste0(method, "_pvalues_", k_str, ".tsv"))
-        if (!file.exists(pval_file)) return(NULL)
-        paste(method, adjust, pval_file, sep = ":")
+            regexec("^(.+?)_pvalues_(K[0-9.]+)\\.tsv$", basename(f)))[[1]]
+        if (length(m) < 3) return(NULL)
+        method <- m[2]
+        # Use a fixed adjust token; the regionplot background is threshold-independent
+        paste(method, "bonf_0.05", f, sep = ":")
     })
     entries <- Filter(Negate(is.null), entries)
     if (length(entries) == 0) return(NULL)

@@ -806,9 +806,7 @@
         flex-shrink: 0;
     }
 
-    .method-select   { width: 90px; }
-    .adjust-select   { width: 72px; }
-    .threshold-input { width: 62px; }
+    .method-select   { flex: 1; min-width: 80px; }
 
     .method-remove-btn {
         margin-left: auto;

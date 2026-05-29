@@ -19,7 +19,11 @@ mod_gea_x_gwas_ui <- function(id) {
                 htmltools::span("(above zero line)",
                     class = "text-muted small")
             ),
-            bslib::card_body(class = "p-2", shiny::uiOutput(ns("gea_filter_bar")))
+            bslib::card_body(
+            class = "p-2",
+            shiny::uiOutput(ns("gea_threshold_bar")),
+            shiny::uiOutput(ns("gea_filter_bar"))
+        )
         ),
 
         # Miami Manhattan — GEA filter above, GWAS filter below
@@ -38,7 +42,11 @@ mod_gea_x_gwas_ui <- function(id) {
                 htmltools::span("(below zero line)",
                     class = "text-muted small")
             ),
-            bslib::card_body(class = "p-2", shiny::uiOutput(ns("gwas_filter_bar")))
+            bslib::card_body(
+            class = "p-2",
+            shiny::uiOutput(ns("gwas_threshold_bar")),
+            shiny::uiOutput(ns("gwas_filter_bar"))
+        )
         ),
 
         # Overlap bounds selector (persisted per project)
@@ -355,6 +363,48 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             htmltools::span(class="text-muted small mt-1", hint)
         })
 
+        # Coerce threshold values when type changes
+        shiny::observeEvent(input$gea_threshold_type, {
+            v <- input$gea_threshold_value
+            if (!threshold_value_valid_for_type(input$gea_threshold_type, v))
+                shiny::updateNumericInput(session, "gea_threshold_value",
+                    value = threshold_value_default_for_type(input$gea_threshold_type))
+        }, ignoreInit = TRUE)
+        shiny::observeEvent(input$gwas_threshold_type, {
+            v <- input$gwas_threshold_value
+            if (!threshold_value_valid_for_type(input$gwas_threshold_type, v))
+                shiny::updateNumericInput(session, "gwas_threshold_value",
+                    value = threshold_value_default_for_type(input$gwas_threshold_type))
+        }, ignoreInit = TRUE)
+
+        # ── Always-present threshold bars ─────────────────────────────────────
+        output$gea_threshold_bar <- shiny::renderUI({
+            pd <- project_data()
+            shiny::isolate({
+                build_threshold_bar_ui(
+                    ns                    = ns,
+                    input_prefix          = "gea_",
+                    regime_value          = isTRUE(input$gea_regime),
+                    threshold_type_value  = input$gea_threshold_type  %||% "bonf",
+                    threshold_value_value = input$gea_threshold_value %||%
+                        default_threshold(pd$config, MOD_GEA)$value
+                )
+            })
+        })
+        output$gwas_threshold_bar <- shiny::renderUI({
+            pd <- project_data()
+            shiny::isolate({
+                build_threshold_bar_ui(
+                    ns                    = ns,
+                    input_prefix          = "gwas_",
+                    regime_value          = isTRUE(input$gwas_regime),
+                    threshold_type_value  = input$gwas_threshold_type  %||% "bonf",
+                    threshold_value_value = input$gwas_threshold_value %||%
+                        default_threshold(pd$config, MOD_GWAS)$value
+                )
+            })
+        })
+
         # ── Overlap bounds (persisted) ─────────────────────────────────────────
         shiny::observe({
             pd  <- project_data()
@@ -374,7 +424,7 @@ mod_gea_x_gwas_server <- function(id, project_data) {
             input$overlap_bounds %||% "union"
         })
 
-        # ── GEA filter bar UI ──────────────────────────────────────────────────
+        # ── GEA filter bar UI (matrix + strategy + clumping) ──────────────────
         output$gea_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
@@ -384,14 +434,11 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 combo_counts                = gea_combo_counts(),
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gea_snp_clumping_distance(),
-                input_prefix                = "gea_",
-                regime_value                = gea_regime_wza(),
-                threshold_type_value        = gea_threshold_type(),
-                threshold_value_value       = gea_threshold_value()
+                input_prefix                = "gea_"
             )
         })
 
-        # ── GWAS filter bar UI ─────────────────────────────────────────────────
+        # ── GWAS filter bar UI (matrix + strategy + clumping) ─────────────────
         output$gwas_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
@@ -401,10 +448,7 @@ mod_gea_x_gwas_server <- function(id, project_data) {
                 combo_counts                = gwas_combo_counts(),
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gwas_snp_clumping_distance(),
-                input_prefix                = "gwas_",
-                regime_value                = gwas_regime_wza(),
-                threshold_type_value        = gwas_threshold_type(),
-                threshold_value_value       = gwas_threshold_value()
+                input_prefix                = "gwas_"
             )
         })
 

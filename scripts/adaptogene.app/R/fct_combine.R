@@ -212,9 +212,103 @@ default_threshold <- function(config, module = MOD_GEA) {
     list(type = type, value = value)
 }
 
-#' Build the filter bar UI (regime switch + threshold + trait x method matrix + strategy + distance)
+#' Sensible default threshold value for a given type.
+#' @noRd
+threshold_value_default_for_type <- function(type) {
+    switch(type,
+        bonf   = 0.05,
+        qval   = 0.05,
+        top    = 100,
+        custom = 1e-5,
+        0.05
+    )
+}
+
+#' Is the threshold value valid for the given type?
+#' @noRd
+threshold_value_valid_for_type <- function(type, value) {
+    if (is.null(value) || is.na(value)) return(FALSE)
+    v <- suppressWarnings(as.numeric(value))
+    if (is.na(v)) return(FALSE)
+    switch(type,
+        bonf   = v > 0 && v <= 1,
+        qval   = v > 0 && v <= 1,
+        top    = v >= 1,
+        custom = v > 0,
+        FALSE
+    )
+}
+
+#' Build the always-present threshold bar (regime switch + threshold type/value + hint).
+#'
+#' Separate from the trait matrix so it is never gated on traits being present.
+#'
+#' @param ns           Shiny namespace function
+#' @param input_prefix Character prefix for input IDs (e.g. "" or "gea_")
+#' @param regime_value Logical: current WZA regime state
+#' @param threshold_type_value  Character: "bonf"/"qval"/"top"/"custom"
+#' @param threshold_value_value Numeric: current threshold value
+#' @return tagList
+#' @noRd
+build_threshold_bar_ui <- function(ns, input_prefix = "",
+                                   regime_value          = FALSE,
+                                   threshold_type_value  = "bonf",
+                                   threshold_value_value = 0.05) {
+    pid <- function(name) ns(paste0(input_prefix, name))
+
+    htmltools::div(
+        class = "threshold-bar mb-2",
+        # Regime switch row
+        htmltools::div(
+            class = "filter-row align-items-center mb-2",
+            bslib::input_switch(
+                pid("regime"), "WZA regime",
+                value = isTRUE(regime_value)
+            ),
+            htmltools::span(
+                class = "text-muted small ms-2",
+                "Toggle to use Weighted-Z Analysis windows instead of per-SNP p-values"
+            )
+        ),
+        # Threshold type + value
+        htmltools::div(
+            class = "d-flex align-items-end gap-2",
+            htmltools::div(
+                class = "d-flex flex-column",
+                htmltools::span("Significance threshold", class = "filter-label mb-1"),
+                shiny::selectInput(
+                    pid("threshold_type"),
+                    label = NULL,
+                    choices = c(
+                        "Bonferroni"     = "bonf",
+                        "FDR (qval)"     = "qval",
+                        "Top N SNPs"     = "top",
+                        "Custom (raw p)" = "custom"
+                    ),
+                    selected = threshold_type_value,
+                    width = "150px"
+                )
+            ),
+            htmltools::div(
+                class = "d-flex flex-column",
+                htmltools::span(" ", class = "filter-label mb-1"),
+                shiny::numericInput(
+                    pid("threshold_value"),
+                    label = NULL,
+                    value = threshold_value_value,
+                    min = 0, step = NA,
+                    width = "110px"
+                )
+            ),
+            shiny::uiOutput(pid("threshold_hint"))
+        )
+    )
+}
+
+#' Build the trait×method matrix + strategy + clumping filter bar.
 #'
 #' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
+#' The threshold/regime controls live in a separate always-present build_threshold_bar_ui().
 #'
 #' @param ns           Shiny namespace function from session$ns
 #' @param traits       Character vector of trait names (those with sig SNPs at current threshold)
@@ -226,21 +320,20 @@ default_threshold <- function(config, module = MOD_GEA) {
 #' @param input_prefix Character scalar: prefix for all Shiny input IDs inside this bar.
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
-#' @param regime_value Logical: current WZA regime state (TRUE = WZA, FALSE = per-SNP)
-#' @param threshold_type_value  Character: current threshold method ("bonf"/"qval"/"top"/"custom")
-#' @param threshold_value_value Numeric: current threshold value
-#' @return tagList
+#' @return tagList (or a muted placeholder div when traits is empty)
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, default_strategy_value,
                                 snp_clumping_distance_value = 100000L,
-                                input_prefix = "",
-                                regime_value = FALSE,
-                                threshold_type_value  = "bonf",
-                                threshold_value_value = 0.05) {
+                                input_prefix = "") {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
-    if (length(traits) == 0) return(NULL)
+    if (length(traits) == 0) {
+        return(htmltools::div(
+            class = "text-muted small fst-italic py-2",
+            "No SNPs significant at current threshold — adjust the threshold above."
+        ))
+    }
 
     # Build table header row: blank + method column headers
     header_cells <- lapply(methods, function(m) {
@@ -362,18 +455,6 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 
     htmltools::div(
         class = "manhattan-filter-bar",
-        # Regime switch row
-        htmltools::div(
-            class = "filter-row align-items-center mb-2",
-            bslib::input_switch(
-                pid("regime"), "WZA regime",
-                value = isTRUE(regime_value)
-            ),
-            htmltools::span(
-                class = "text-muted small ms-2",
-                "Toggle to use Weighted-Z Analysis windows instead of per-SNP p-values"
-            )
-        ),
         htmltools::div(
             class = "filter-row align-items-start",
             # Matrix
@@ -394,7 +475,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     inline   = FALSE
                 )
             ),
-            # Single clumping distance input
+            # Clumping distance
             htmltools::div(
                 class = "d-flex flex-column me-4",
                 htmltools::span("Clumping distance (bp)", class = "filter-label mb-1"),
@@ -407,34 +488,6 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     class = "text-muted small mt-1",
                     "Merge distance for regions; also used for Cross-method overlap"
                 )
-            ),
-            # Significance threshold
-            htmltools::div(
-                class = "d-flex flex-column",
-                htmltools::span("Significance threshold", class = "filter-label mb-1"),
-                htmltools::div(
-                    class = "d-flex gap-2 align-items-start",
-                    shiny::selectInput(
-                        pid("threshold_type"),
-                        label = NULL,
-                        choices = c(
-                            "Bonferroni"  = "bonf",
-                            "FDR (qval)"  = "qval",
-                            "Top N SNPs"  = "top",
-                            "Custom (raw p)" = "custom"
-                        ),
-                        selected = threshold_type_value,
-                        width = "140px"
-                    ),
-                    shiny::numericInput(
-                        pid("threshold_value"),
-                        label = NULL,
-                        value = threshold_value_value,
-                        min = 0, step = NA,
-                        width = "100px"
-                    )
-                ),
-                shiny::uiOutput(pid("threshold_hint"))
             )
         ),
         htmltools::tags$script(htmltools::HTML(js_code))
