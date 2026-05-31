@@ -631,12 +631,14 @@ mod_gea_x_gwas_server <- function(id, project_data) {
 
         # ── Pairwise Trait Overlap (unchanged, pipeline-computed) ──────────────
         miami_coords <- shiny::reactive({
-            pd <- project_data()
-            k  <- pd$k_best
+            pd   <- project_data()
+            k    <- pd$k_best
             if (is.na(k)) return(NULL)
+            cp   <- miami_coords_path(pd$name, k)
+            fp   <- if (file.exists(cp)) as.character(file.info(cp)$mtime) else "missing"
             load_cached(paste0("coords_miami_", pd$name, "_", k), function() {
-                load_coords(miami_coords_path(pd$name, k))
-            })
+                load_coords(cp)
+            }, fingerprint = fp)
         })
 
         mod_pairwise_overlap_server("pairwise",

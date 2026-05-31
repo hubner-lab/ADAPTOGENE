@@ -159,16 +159,21 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 shiny::req(m, k, adj)
                 cache_key <- paste0("method_sigsnps_", pd$name, "_", module,
                                     "_", m, "_", k, "_", adj)
+                # Include file mtime so cache is bypassed when the pipeline regenerates
+                # the sig-SNP file (e.g., after adding/removing bioclimatic factors).
+                sig_path <- method_sigsnps_direct_path(pd$name, module, m, k, adj)
+                fp <- if (file.exists(sig_path)) as.character(file.info(sig_path)$mtime) else "missing"
                 load_cached(cache_key, function() {
                     load_method_sigsnps(pd$name, module, m, k, adj)
-                })
+                }, fingerprint = fp)
             } else {
                 # Combined / Miami: use selected_snps.tsv (min_pvalue is correct here
                 # because the combined background PNG spans all methods' y-range)
                 path <- selected_snps_path(pd$name, module)
+                fp   <- if (file.exists(path)) as.character(file.info(path)$mtime) else "missing"
                 load_cached(paste0("sig_snps_", path), function() {
                     load_selected_snps(pd$name, module, k_best = pd$k_best)
-                })
+                }, fingerprint = fp)
             }
         })
 
