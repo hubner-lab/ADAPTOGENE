@@ -806,6 +806,17 @@ def assoc_sigsnps(method, adjust): return f"{MOD_GEA}tables/methods/{method}/{me
 def manhattan_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def qq_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
+# Per-factor intermediate cache (input-driven: K in name ensures cascade on K change)
+def assoc_pvalues_trait(method, trait):
+    """Per-trait intermediate p-value file under _intermediate/gea_per_trait/.
+    Named with K so that changing K changes this path, invalidating the per-trait cache."""
+    return f"{INTER}gea_per_trait/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+
+def pheno_pvalues_trait(method, trait):
+    """Per-trait intermediate p-value file for GWAS Path A (MEAN/MEDIAN mode).
+    Named with K so that changing K changes this path, invalidating the per-trait cache."""
+    return f"{INTER}gwas_per_trait/{method}/{trait}_pvalues_K{K_BEST}.tsv"
+
 # Templates for phenotype association outputs
 def pheno_pvalues(method): return f"{MOD_GWAS}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
 def pheno_qvalues(method): return f"{MOD_GWAS}tables/methods/{method}/{method}_qvalues_K{K_BEST}.tsv"
@@ -1047,6 +1058,11 @@ if GEA_GAPIT_CONFIGS:
     for model in GEA_GAPIT_CONFIGS:
         dirs_to_create.append(f"{MOD_GEA}GAPIT_native_output/{model}/")
 
+# Per-factor intermediate cache dirs (created for each configured GEA method)
+if GEA_CONFIGS and K_BEST is not None:
+    for _m in GEA_CONFIGS:
+        dirs_to_create.append(f"{INTER}gea_per_trait/{_m}/")
+
 # Add maladaptation directories (require climate)
 if CLIMATE_ENABLED:
     for _m in ACTIVE_MALA_METHODS:
@@ -1068,6 +1084,10 @@ if GWAS_CONFIGS:
     for method in GWAS_CONFIGS:
         dirs_to_create.append(f"{MOD_GWAS}plots/manhattan/{method}/")
         dirs_to_create.append(f"{MOD_GWAS}tables/methods/{method}/")
+    # Per-factor intermediate cache dirs for Path A GWAS (MEAN/MEDIAN)
+    if K_BEST is not None and PHENO_MISSING != 'DROP':
+        for _m in GWAS_CONFIGS:
+            dirs_to_create.append(f"{INTER}gwas_per_trait/{_m}/")
     if PHENO_MISSING == 'DROP':
         for trait in PHENO_TRAITS:
             dirs_to_create.append(f"{WORK_FILT}phenotypes/{trait}/emmax/")

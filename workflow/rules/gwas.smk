@@ -45,53 +45,99 @@ if GWAS_CONFIGS and PHENO_MISSING != 'DROP':
         shell:
             "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
-    # Non-GAPIT phenotype Path A rules — one rule per method, shell inlined per engine
-    for _method in GWAS_OTHER_CONFIGS:
-        _engine  = GWAS_METHODS[_method]["engine"]
-        _inputs  = _pheno_a_inputs(_engine)
-        _params  = _pheno_a_params(_engine, _method)
-        _output  = pheno_pvalues(_method)
-        _logpath = f"{LOGDIR}gwas/gwas_a_{_method.lower()}.log"
+    # ==========================================================================
+    # GWAS Path A — per-factor caching (symmetric with GEA Phase 2)
+    #
+    # Each phenotype trait is computed independently and cached under
+    #   _intermediate/gwas_per_trait/{method}/{trait}_pvalues_K{k}.tsv
+    # The wide table is assembled from the currently-selected traits using
+    # combine_pheno_pvalues.R (which also computes q-values).
+    # ==========================================================================
 
-        if _engine == "emmax":
-            rule:
-                name:   f"gwas_a_{_method.lower()}"
-                input:  **_inputs
-                output: _output
-                params: **_params
-                log:    _logpath
-                shell:
-                    "Rscript /pipeline/scripts/emmax_phenotypes.R "
-                    "{input.vcf} {params.tped_prefix} {input.kinship} {input.pca} "
-                    "{params.k} {input.phenotypes} {params.tables_dir} NULL {output} > {log} 2>&1"
+    # --- EMMAX per-trait (Path A) ---
+    if "EMMAX" in GWAS_OTHER_CONFIGS:
 
-    if GWAS_GAPIT_CONFIGS:
-        rule gapit_gwas:
-            """Run GAPIT for all phenotype traits (MEAN/MEDIAN mode)."""
+        rule gwas_a_emmax_trait:
+            """Run EMMAX for a single phenotype trait in MEAN/MEDIAN mode (per-factor caching)."""
             input:
-                gd = W['gapit_gd'],
-                gm = W['gapit_gm'],
-                pca = W['pca_projections'],
-                kinship = W['pheno_kinship'],
+                vcf        = W['vcf_filt'],
+                tped       = W['pheno_tped'],
+                kinship    = W['pheno_kinship'],
+                pca        = W['pca_projections'],
                 phenotypes = W['pheno_all_phenotypes'],
-                metadata = O['metadata']
-            output: [pheno_pvalues(model) for model in GWAS_GAPIT_CONFIGS]
+            output: f"{INTER}gwas_per_trait/EMMAX/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
+            wildcard_constraints:
+                pheno_trait = r"[a-zA-Z]\w*"
             params:
-                k = K_BEST,
-                models = ','.join(GWAS_GAPIT_CONFIGS.keys()),
-                workdir = W['pheno_gapit_work'],
-                tables_dir = f"{MOD_GWAS}tables/methods/",
-                predictors = PHENO_PREDICTORS,
-                native_outdir = f"{MOD_GWAS}GAPIT_native_output/"
-            log: f"{LOGDIR}gwas/gapit_pheno.log"
+                tped_prefix = f"{WORK_FILT}phenotypes/emmax/{VCF_BASE}",
+                k           = K_BEST,
+                tables_dir  = f"{INTER}gwas_per_trait/",
+            log: f"{LOGDIR}gwas/gwas_a_emmax_{{pheno_trait}}.log"
+            shell:
+                "Rscript /pipeline/scripts/emmax_phenotypes.R "
+                "{input.vcf} {params.tped_prefix} {input.kinship} {input.pca} "
+                "{params.k} {input.phenotypes} {params.tables_dir} NULL "
+                "{output} {wildcards.pheno_trait} > {log} 2>&1"
+
+        rule gwas_a_emmax_assemble:
+            """Assemble per-trait EMMAX pvalue files + compute q-values (Path A)."""
+            input: [pheno_pvalues_trait("EMMAX", t) for t in PHENO_TRAITS]
+            output:
+                pvals = pheno_pvalues("EMMAX"),
+                qvals = pheno_qvalues("EMMAX"),
+            params:
+                files_str = lambda wc, input: " ".join(input)
+            log: f"{LOGDIR}gwas/gwas_a_emmax_assemble.log"
+            shell:
+                'Rscript /pipeline/scripts/combine_pheno_pvalues.R '
+                '"{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1'
+
+    # --- GAPIT per-trait (Path A) ---
+    if GWAS_GAPIT_CONFIGS:
+
+        rule gapit_gwas_trait_a:
+            """Run GAPIT for a single phenotype trait in MEAN/MEDIAN mode (per-factor caching)."""
+            input:
+                gd         = W['gapit_gd'],
+                gm         = W['gapit_gm'],
+                pca        = W['pca_projections'],
+                kinship    = W['pheno_kinship'],
+                phenotypes = W['pheno_all_phenotypes'],
+                metadata   = O['metadata'],
+            output:
+                [f"{INTER}gwas_per_trait/{model}/{{pheno_trait}}_pvalues_K{K_BEST}.tsv"
+                 for model in GWAS_GAPIT_CONFIGS]
+            wildcard_constraints:
+                pheno_trait = r"[a-zA-Z]\w*"
+            params:
+                k             = K_BEST,
+                models        = ','.join(GWAS_GAPIT_CONFIGS.keys()),
+                workdir       = lambda wc: f"{INTER}gapit/gwas_a/{wc.pheno_trait}/",
+                tables_dir    = f"{INTER}gwas_per_trait/",
+                native_outdir = f"{MOD_GWAS}GAPIT_native_output/",
+            log: f"{LOGDIR}gwas/gapit_gwas_a_{{pheno_trait}}.log"
             shell:
                 """
                 Rscript /pipeline/scripts/gapit.R \
                     {input.gd} {input.gm} {input.phenotypes} {input.pca} \
                     {input.kinship} {params.k} {params.models} \
-                    {params.workdir} {params.tables_dir} {params.predictors} \
-                    {input.metadata} {params.native_outdir} NULL > {log} 2>&1
+                    {params.workdir} {params.tables_dir} {wildcards.pheno_trait} \
+                    {input.metadata} {params.native_outdir} NULL {wildcards.pheno_trait} > {log} 2>&1
                 """
+
+        for _gwas_model in GWAS_GAPIT_CONFIGS:
+            _gwas_trait_files = [pheno_pvalues_trait(_gwas_model, t) for t in PHENO_TRAITS]
+            rule:
+                name:   f"gwas_a_{_gwas_model.lower()}_assemble"
+                input:  _gwas_trait_files
+                output:
+                    pvals = pheno_pvalues(_gwas_model),
+                    qvals = pheno_qvalues(_gwas_model),
+                params: files_str = lambda wc, input: " ".join(input)
+                log:    f"{LOGDIR}gwas/gwas_a_{_gwas_model.lower()}_assemble.log"
+                shell:
+                    'Rscript /pipeline/scripts/combine_pheno_pvalues.R '
+                    '"{params.files_str}" {output.pvals} {output.qvals} > {log} 2>&1'
 
 # --- PATH B: DROP mode (per-trait sample sets) ---
 if GWAS_CONFIGS and PHENO_MISSING == 'DROP':

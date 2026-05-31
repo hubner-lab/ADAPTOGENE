@@ -24,6 +24,7 @@ PHENOTYPE_FILE   = args[6]                # TSV: sample, trait1, [trait2, ...]
 TABLES_DIR       = args[7]                # Output directory
 SAMPLES_ORDER    = if (length(args) >= 8) args[8] else NULL  # Optional: full sample order file
 OUTPUT_PVALUES   = if (length(args) >= 9) args[9] else NULL  # Optional: explicit output p-values path
+TRAIT_SUBSET     = if (length(args) >= 10) args[10] else NULL # Optional: run only this trait (per-factor caching)
 ########################
 
 message("INFO: Starting EMMAX phenotype analysis")
@@ -55,6 +56,14 @@ message(paste0("INFO: Covariates matrix: ", nrow(covariates), " rows x ", ncol(c
 message("INFO: Reading phenotype file")
 pheno <- fread(PHENOTYPE_FILE, sep = '\t', header = TRUE, colClasses = c("sample" = "character"))
 trait_cols <- colnames(pheno)[colnames(pheno) != 'sample']
+# Per-factor caching: subset to a single trait when TRAIT_SUBSET is provided
+if (!is.null(TRAIT_SUBSET)) {
+    if (!(TRAIT_SUBSET %in% trait_cols))
+        stop(paste0("TRAIT_SUBSET '", TRAIT_SUBSET, "' not found in phenotype file. Available: ",
+                    paste(trait_cols, collapse = ", ")))
+    trait_cols <- TRAIT_SUBSET
+    message(paste0("INFO: Single-trait mode — processing only: ", TRAIT_SUBSET))
+}
 message(paste0("INFO: Traits: ", paste(trait_cols, collapse = ', ')))
 message(paste0("INFO: Phenotype samples: ", nrow(pheno)))
 

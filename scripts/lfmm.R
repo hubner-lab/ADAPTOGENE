@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
-# LFMM association analysis (refactored)
-# Trains LFMM model on LD-pruned data and tests on full dataset
+# LFMM association analysis — single-trait mode
+# Trains LFMM model on LD-pruned data and tests on full dataset for ONE trait.
+# Called once per trait (per-factor caching).
 
 library(LEA)
 library(dplyr)
@@ -14,28 +15,29 @@ LFMM_LD_IMP = args[1]   # LD-pruned imputed LFMM (for training)
 LFMM_IMP = args[2]       # Full imputed LFMM (for testing)
 CLIMATE = args[3]        # Climate data (scaled)
 Kbest = args[4] %>% as.numeric
-PREDICTORS_SET = args[5] %>% str_split(',') %>% unlist
+TRAIT = args[5]          # Single trait column name (e.g. "bio_1")
 VCFSNP = args[6]         # SNP positions
-TABLES_DIR = args[7]     # Output directory
+OUT_FILE = args[7]       # Exact output path for per-trait pvalue TSV
 #################################
 
-message('INFO: Starting LFMM analysis')
+message('INFO: Starting LFMM analysis (single-trait mode)')
 message(paste0('INFO: K = ', Kbest))
-message(paste0('INFO: Predictors: ', paste(PREDICTORS_SET, collapse = ', ')))
+message(paste0('INFO: Trait: ', TRAIT))
+message(paste0('INFO: Output: ', OUT_FILE))
 
 # Load LD-pruned imputed LFMM (for training)
 message('INFO: Read LFMM_LD (training data)')
 lfmm_ld_imp <- fread(LFMM_LD_IMP, sep = ' ', header = F)
 message(lfmm_ld_imp %>% str)
 
-# Load predictors
-message('INFO: Read predictors')
+# Load the single requested predictor
+message('INFO: Read predictor')
 predictors <- fread(CLIMATE, sep = '\t', header = T) %>%
-    dplyr::select(!!PREDICTORS_SET)
+    dplyr::select(!!TRAIT)
 message(predictors %>% str)
 
-# Scale predictors
-message('INFO: Scale predictors')
+# Scale predictor
+message('INFO: Scale predictor')
 predictors[, names(predictors) := lapply(.SD, scale)]
 message(predictors %>% str)
 
@@ -52,39 +54,27 @@ vcfsnp <- fread(VCFSNP, sep = ' ', header = F) %>%
                   SNPID = paste0(chr, ':', pos)) %>%
     dplyr::select(SNPID, chr, pos)
 
-# Run LFMM2 separately for each predictor
-message('INFO: Run LFMM2 separately for each variable')
-pval_list <- lapply(names(predictors), function(bio) {
-    message(paste0('INFO: Train LFMM model on LD dataset with ', bio, ' predictor'))
+# Run LFMM2 for the single predictor
+message(paste0('INFO: Train LFMM model on LD dataset with ', TRAIT, ' predictor'))
+lfmm.model <- lfmm2(lfmm_ld_imp,
+                    env = predictors[, ..TRAIT],
+                    K = Kbest)
+message(lfmm.model %>% str)
 
-    # Build model on LD data
-    lfmm.model <- lfmm2(lfmm_ld_imp,
-                        env = predictors[, ..bio],
-                        K = Kbest)
-    message(lfmm.model %>% str)
+message('INFO: Extract p-values from the model')
+lfmm.res <- lfmm2.test(lfmm.model,
+                       input = lfmm_imp,
+                       env = predictors[, ..TRAIT])
+message(lfmm.res %>% str)
 
-    # Test on full data
-    message('INFO: Extract p-values from the model')
-    lfmm.res <- lfmm2.test(lfmm.model,
-                           input = lfmm_imp,
-                           env = predictors[, ..bio])
-    message(lfmm.res %>% str)
+# Build per-trait result table
+pval_dt <- data.table(vcfsnp)
+pval_dt[[TRAIT]] <- as.numeric(lfmm.res$pvalues)
 
-    message(paste0('INFO: Finished with ', bio, ' predictor'))
-    return(lfmm.res$pvalues)
-})
-
-# Combine results
-pval_dt <- pval_list %>%
-    do.call(cbind, .) %>%
-    as.data.table %>%
-    setNames(names(predictors)) %>%
-    cbind(vcfsnp, .)
-
-# Save results
+# Save per-trait result to exact output path
 message('INFO: Save p-values')
+dir.create(dirname(OUT_FILE), recursive = TRUE, showWarnings = FALSE)
 pval_dt %>%
-    fwrite(paste0(TABLES_DIR, 'LFMM_pvalues_K', Kbest, '.tsv'),
-           sep = '\t', col.names = T, row.names = F, quote = F)
+    fwrite(OUT_FILE, sep = '\t', col.names = TRUE, row.names = FALSE, quote = FALSE)
 
-message('INFO: LFMM analysis complete')
+message(paste0('INFO: LFMM analysis complete — wrote ', OUT_FILE))

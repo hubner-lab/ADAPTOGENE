@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
-# EMMAX association analysis (refactored)
-# Runs EMMAX for all traits specified in PREDICTORS_SELECTED
+# EMMAX association analysis — single-trait mode
+# Runs EMMAX for ONE bioclimatic trait; called once per trait (per-factor caching).
 # Uses pre-computed TPED/TFAM and kinship from separate Snakemake rules.
 
 library(dplyr)
@@ -8,10 +8,8 @@ library(data.table)
 library(magrittr)
 library(purrr)
 library(stringr)
-library(qvalue)
 
 source("/pipeline/scripts/R/utils/emmax_core.R")
-source("/pipeline/scripts/R/utils/pval_threshold.R")
 
 args = commandArgs(trailingOnly=TRUE)
 ########################
@@ -19,19 +17,20 @@ VCF = args[1]
 Kbest = args[2] %>% as.numeric
 TRAIT_FILE = args[3]  # tsv file with climate/trait values
 COVARIATES_FILE = args[4]  # eigenvec file from PCA
-PREDICTORS_SELECTED = args[5] %>% str_split(',') %>% unlist
+TRAIT = args[5]        # Single trait column name (e.g. "bio_1")
 INTER_DIR = args[6]
 SAMPLES_FILE = args[7]
-TABLES_DIR = args[8]
-TPED_PREFIX = args[9]     # Pre-computed TPED/TFAM prefix
-KINSHIP_FILE = args[10]   # Pre-computed .aBN.kinf
+OUT_FILE = args[8]     # Exact output path for per-trait pvalue TSV
+TPED_PREFIX = args[9]  # Pre-computed TPED/TFAM prefix
+KINSHIP_FILE = args[10] # Pre-computed .aBN.kinf
 ########################
 
-message("INFO: Starting EMMAX analysis")
+message("INFO: Starting EMMAX analysis (single-trait mode)")
 message(paste0("INFO: K = ", Kbest))
-message(paste0("INFO: Predictors: ", paste(PREDICTORS_SELECTED, collapse = ", ")))
+message(paste0("INFO: Trait: ", TRAIT))
 message(paste0("INFO: TPED prefix: ", TPED_PREFIX))
 message(paste0("INFO: Kinship file: ", KINSHIP_FILE))
+message(paste0("INFO: Output: ", OUT_FILE))
 
 # Load trait data
 trait <- fread(TRAIT_FILE, sep = '\t', header = T)
@@ -105,31 +104,16 @@ FUN_emmax <- function(VCF, trait, covariates, OUT, TPED_PREFIX, KINSHIP_FILE) {
 
 ################################ Main
 
-# Select only specified predictors
-trait <- trait %>% dplyr::select(!!PREDICTORS_SELECTED)
+# Select only the single requested trait
+trait <- trait %>% dplyr::select(!!TRAIT)
 
-# Run EMMAX for each trait
-pval_dt <- lapply(1:ncol(trait), function(i) {
-    FUN_emmax(VCF, trait[, ..i], covariates, INTER_DIR, TPED_PREFIX, KINSHIP_FILE)
-}) %>%
-    reduce(function(x, y) {
-        left_join(x, y, by = c("SNPID", "chr", "pos"))
-    })
+# Run EMMAX for the single trait
+pval_dt <- FUN_emmax(VCF, trait, covariates, INTER_DIR, TPED_PREFIX, KINSHIP_FILE)
 
 message(pval_dt %>% str)
 
-# Calculate q-values (with safe fallback to BH if qvalue fails)
-qval_dt <- lapply(pval_dt %>% dplyr::select(-SNPID, -chr, -pos), function(biovec) {
-    compute_qvalues_safe(biovec)
-}) %>%
-    do.call(cbind, .) %>%
-    cbind(pval_dt %>% dplyr::select(SNPID, chr, pos), .)
+# Save per-trait result to exact output path
+dir.create(dirname(OUT_FILE), recursive = TRUE, showWarnings = FALSE)
+pval_dt %>% fwrite(OUT_FILE, sep = '\t')
 
-# Save results
-pval_dt %>%
-    fwrite(paste0(TABLES_DIR, "EMMAX_pvalues_K", Kbest, ".tsv"), sep = '\t')
-
-qval_dt %>%
-    fwrite(paste0(TABLES_DIR, "EMMAX_qvalues_K", Kbest, ".tsv"), sep = '\t')
-
-message("INFO: EMMAX analysis complete")
+message("INFO: EMMAX analysis complete — wrote ", OUT_FILE)

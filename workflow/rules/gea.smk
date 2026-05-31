@@ -76,40 +76,89 @@ rule kinship_gea:
     shell:
         "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
 
-# Non-GAPIT GEA rules — one rule per method, driven by registry.
-# Shell strings are inlined per engine (not from a variable) to avoid Snakemake's
-# deferred shell evaluation capturing the loop variable by reference.
-for _method in GEA_OTHER_CONFIGS:
-    _engine  = GEA_METHODS[_method]["engine"]
-    _inputs  = _gea_inputs(_engine)
-    _params  = _gea_params(_engine, _method)
-    _output  = assoc_pvalues(_method)
-    _logpath = f"{LOGDIR}gea/assoc_{_method.lower()}.log"
+# =============================================================================
+# GEA Association rules — per-factor caching (Phase 2)
+#
+# Each bioclimatic factor is computed independently and persisted as:
+#   _intermediate/gea_per_trait/{method}/{trait}_pvalues_K{k}.tsv
+#
+# The wide table consumed by downstream rules is assembled from the selected
+# factors. Changing the selection only reruns the assembly + any NEW factors;
+# factors already computed are reused. Changing K or filter params changes the
+# imputation input path, cascading invalidation across all factors.
+# =============================================================================
 
-    if _engine == "emmax":
-        rule:
-            name:   f"assoc_{_method.lower()}"
-            input:  **_inputs
-            output: _output
-            params: **_params
-            log:    _logpath
-            shell:
-                "Rscript /pipeline/scripts/emmax.R "
-                "{input.vcf} {params.k} {input.traits} {input.covariates} "
-                "{params.predictors} {params.inter_dir} {input.metadata} "
-                "{params.tables_dir} {params.tped_prefix} {input.kinship} > {log} 2>&1"
-    elif _engine == "lfmm":
-        rule:
-            name:   f"assoc_{_method.lower()}"
-            input:  **_inputs
-            output: _output
-            params: **_params
-            log:    _logpath
-            shell:
-                "Rscript /pipeline/scripts/lfmm.R "
-                "{input.lfmm_ld} {input.lfmm_full} {input.climate} "
-                "{params.k} {params.predictors} {input.vcfsnp} "
-                "{params.tables_dir} > {log} 2>&1"
+# --- EMMAX per-trait ---
+if "EMMAX" in GEA_OTHER_CONFIGS:
+
+    rule assoc_emmax_gea_trait:
+        """Run EMMAX for a single GEA bioclimatic trait (per-factor caching)."""
+        input:
+            vcf        = W['vcf_filt'],
+            tped       = W['assoc_tped'],
+            kinship    = W['assoc_kinship'],
+            traits     = O['climate_site_scaled'],
+            covariates = W['pca_projections'],
+            metadata   = O['metadata'],
+        output: f"{INTER}gea_per_trait/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv"
+        wildcard_constraints:
+            trait = r"bio_\d+"
+        params:
+            k           = K_BEST,
+            inter_dir   = INTER,
+            tped_prefix = f"{WORK_FILT}emmax/{VCF_BASE}",
+        log: f"{LOGDIR}gea/assoc_emmax_{{trait}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/emmax.R \
+                {input.vcf} {params.k} {input.traits} {input.covariates} \
+                {wildcards.trait} {params.inter_dir} {input.metadata} \
+                {output} {params.tped_prefix} {input.kinship} > {log} 2>&1
+            """
+
+    rule assoc_emmax_gea_assemble:
+        """Assemble per-trait EMMAX files into the wide table consumed by downstream."""
+        input: [assoc_pvalues_trait("EMMAX", t) for t in get_predictors_list()]
+        output: assoc_pvalues("EMMAX")
+        params:
+            traits_str = lambda wc, input: " ".join(input)
+        log: f"{LOGDIR}gea/assoc_emmax_assemble.log"
+        shell:
+            "Rscript /pipeline/scripts/assemble_pvalues.R {params.traits_str} {output} > {log} 2>&1"
+
+# --- LFMM per-trait ---
+if "LFMM" in GEA_OTHER_CONFIGS:
+
+    rule assoc_lfmm_gea_trait:
+        """Run LFMM for a single GEA bioclimatic trait (per-factor caching)."""
+        input:
+            lfmm_ld  = W['lfmm_imp'],
+            lfmm_full = W['lfmm_imp_full'],
+            climate  = O['climate_site_scaled'],
+            vcfsnp   = W['vcfsnp_full'],
+        output: f"{INTER}gea_per_trait/LFMM/{{trait}}_pvalues_K{K_BEST}.tsv"
+        wildcard_constraints:
+            trait = r"bio_\d+"
+        params:
+            k = K_BEST,
+        log: f"{LOGDIR}gea/assoc_lfmm_{{trait}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/lfmm.R \
+                {input.lfmm_ld} {input.lfmm_full} {input.climate} \
+                {params.k} {wildcards.trait} {input.vcfsnp} \
+                {output} > {log} 2>&1
+            """
+
+    rule assoc_lfmm_gea_assemble:
+        """Assemble per-trait LFMM files into the wide table consumed by downstream."""
+        input: [assoc_pvalues_trait("LFMM", t) for t in get_predictors_list()]
+        output: assoc_pvalues("LFMM")
+        params:
+            traits_str = lambda wc, input: " ".join(input)
+        log: f"{LOGDIR}gea/assoc_lfmm_assemble.log"
+        shell:
+            "Rscript /pipeline/scripts/assemble_pvalues.R {params.traits_str} {output} > {log} 2>&1"
 
 # VCF to GAPIT numeric (shared by GEA and GWAS GAPIT models)
 if GEA_GAPIT_CONFIGS or GWAS_GAPIT_CONFIGS:
@@ -124,32 +173,49 @@ if GEA_GAPIT_CONFIGS or GWAS_GAPIT_CONFIGS:
         shell:
             "Rscript /pipeline/scripts/vcf_to_gapit_numeric.R {input.vcf} {output.gd} {output.gm} > {log} 2>&1"
 
-# GAPIT GEA analysis — one rule emits all configured GAPIT model outputs
+# --- GAPIT GEA per-trait ---
 if GEA_GAPIT_CONFIGS:
 
-    rule gapit_analysis:
-        """Run GAPIT association analysis for all GAPIT models and traits."""
+    rule gapit_gea_trait:
+        """Run GAPIT for a single GEA bioclimatic trait, all configured models in one call.
+        Output files land under _intermediate/gea_per_trait/{model}/{trait}_pvalues_K{k}.tsv.
+        GAPIT writes {TABLES_DIR}/{model}/{OUTPUT_PREFIX}_pvalues_K{k}.tsv (existing behaviour
+        when OUTPUT_PREFIX is set), so we reuse gapit.R unchanged."""
         input:
-            gd = W['gapit_gd'],
-            gm = W['gapit_gm'],
-            traits = O['climate_site_scaled'],
-            pca = W['pca_projections'],
-            kinship = W['assoc_kinship'],
-            metadata = O['metadata']
-        output: [assoc_pvalues(model) for model in GEA_GAPIT_CONFIGS]
+            gd       = W['gapit_gd'],
+            gm       = W['gapit_gm'],
+            traits   = O['climate_site_scaled'],
+            pca      = W['pca_projections'],
+            kinship  = W['assoc_kinship'],
+            metadata = O['metadata'],
+        output:
+            [f"{INTER}gea_per_trait/{model}/{{trait}}_pvalues_K{K_BEST}.tsv"
+             for model in GEA_GAPIT_CONFIGS]
+        wildcard_constraints:
+            trait = r"bio_\d+"
         params:
-            k = K_BEST,
-            models = ','.join(GEA_GAPIT_CONFIGS.keys()),
-            workdir = W['gapit_work'],
-            tables_dir = f"{MOD_GEA}tables/methods/",
-            predictors = PREDICTORS_SELECTED,
-            native_outdir = f"{MOD_GEA}GAPIT_native_output/"
-        log: f"{LOGDIR}gea/gapit_analysis.log"
+            k             = K_BEST,
+            models        = ','.join(GEA_GAPIT_CONFIGS.keys()),
+            workdir       = lambda wc: f"{INTER}gapit/gea/{wc.trait}/",
+            tables_dir    = f"{INTER}gea_per_trait/",
+            native_outdir = f"{MOD_GEA}GAPIT_native_output/",
+        log: f"{LOGDIR}gea/gapit_gea_{{trait}}.log"
         shell:
             """
             Rscript /pipeline/scripts/gapit.R \
                 {input.gd} {input.gm} {input.traits} {input.pca} \
                 {input.kinship} {params.k} {params.models} \
-                {params.workdir} {params.tables_dir} {params.predictors} \
-                {input.metadata} {params.native_outdir} NULL > {log} 2>&1
+                {params.workdir} {params.tables_dir} {wildcards.trait} \
+                {input.metadata} {params.native_outdir} NULL {wildcards.trait} > {log} 2>&1
             """
+
+    for _gapit_model in GEA_GAPIT_CONFIGS:
+        _gapit_trait_files = [assoc_pvalues_trait(_gapit_model, t) for t in get_predictors_list()]
+        rule:
+            name:   f"assoc_{_gapit_model.lower()}_gea_assemble"
+            input:  _gapit_trait_files
+            output: assoc_pvalues(_gapit_model)
+            params: traits_str = lambda wc, input: " ".join(input)
+            log:    f"{LOGDIR}gea/assoc_{_gapit_model.lower()}_assemble.log"
+            shell:
+                "Rscript /pipeline/scripts/assemble_pvalues.R {params.traits_str} {output} > {log} 2>&1"
