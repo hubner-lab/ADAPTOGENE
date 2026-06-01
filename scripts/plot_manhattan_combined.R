@@ -88,8 +88,9 @@ plot_data_all <- plot_data_all %>%
 trait_colors  <- get_trait_colors(traits)
 method_shapes <- get_method_shapes(names(assoc_info))
 
-# Calculate y-axis limit
+# Calculate y-axis limit — extend to include threshold line when it exceeds data cloud
 y_max <- max(plot_data_all$log10p, na.rm = TRUE) * 1.1
+if (!is.na(min_threshold)) y_max <- max(y_max, min_threshold * 1.1)
 
 message('INFO: Generating combined Manhattan plot (simple version)')
 
