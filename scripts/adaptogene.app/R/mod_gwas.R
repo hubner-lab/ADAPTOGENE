@@ -85,7 +85,7 @@ mod_gwas_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @noRd
-mod_gwas_server <- function(id, project_data) {
+mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -95,12 +95,14 @@ mod_gwas_server <- function(id, project_data) {
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
 
         all_method_pvalues <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_pvalues(pd$name, module, pd$k_best)
         })
 
         all_method_wza_pvalues <- shiny::reactive({
             if (!regime_wza()) return(list())
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_wza_pvalues(pd$name, module, pd$k_best)
         })

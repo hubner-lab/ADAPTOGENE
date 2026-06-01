@@ -114,8 +114,8 @@ app_server <- function(input, output, session) {
     mod_processing_server("processing",        project_data = project_data)
     mod_prestructure_server("prestructure",    project_data = project_data)
     mod_structure_server("structure",          project_data = project_data)
-    mod_gea_server("gea",                      project_data = project_data)
-    mod_gwas_server("gwas",                    project_data = project_data)
-    mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data)
+    mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger)
+    mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger)
+    mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data, run_trigger = project_data_trigger)
     mod_maladaptation_server("maladaptation",  project_data = project_data)
 }

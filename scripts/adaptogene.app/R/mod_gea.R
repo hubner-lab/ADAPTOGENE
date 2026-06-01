@@ -54,7 +54,7 @@ mod_gea_ui <- function(id) {
 #' @param project_data reactive project data bundle
 #' @param module character: MOD_GEA or MOD_GWAS
 #' @noRd
-mod_gea_server <- function(id, project_data, module = MOD_GEA) {
+mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GEA) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -62,14 +62,17 @@ mod_gea_server <- function(id, project_data, module = MOD_GEA) {
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
 
         # Full p-value tables (all SNPs, all traits, wide format). Loaded once per
-        # project switch; kept in reactive memo (not cachem — can exceed 200MB at WGS scale).
+        # project switch and on every successful pipeline run (run_trigger dependency).
+        # Kept in reactive memo (not cachem — can exceed 200MB at WGS scale).
         all_method_pvalues <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_pvalues(pd$name, module, pd$k_best)
         })
 
         all_method_wza_pvalues <- shiny::reactive({
             if (!regime_wza()) return(list())
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_wza_pvalues(pd$name, module, pd$k_best)
         })

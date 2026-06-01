@@ -109,7 +109,7 @@ mod_gea_x_gwas_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @noRd
-mod_gea_x_gwas_server <- function(id, project_data) {
+mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -119,11 +119,13 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         gea_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GEA))
 
         gea_method_pvalues <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_pvalues(pd$name, MOD_GEA, pd$k_best)
         })
         gea_method_wza_pvalues <- shiny::reactive({
             if (!gea_regime_wza()) return(list())
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_wza_pvalues(pd$name, MOD_GEA, pd$k_best)
         })
@@ -180,11 +182,13 @@ mod_gea_x_gwas_server <- function(id, project_data) {
         gwas_methods <- shiny::reactive(find_assoc_methods(project_data()$name, MOD_GWAS))
 
         gwas_method_pvalues <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_pvalues(pd$name, MOD_GWAS, pd$k_best)
         })
         gwas_method_wza_pvalues <- shiny::reactive({
             if (!gwas_regime_wza()) return(list())
+            if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
             load_all_method_wza_pvalues(pd$name, MOD_GWAS, pd$k_best)
         })
