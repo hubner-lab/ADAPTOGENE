@@ -241,6 +241,23 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             counts
         })
 
+        # Per-cell significance thresholds for filter bar cells
+        gea_combo_thresholds <- shiny::reactive({
+            compute_method_thresholds(
+                pvalues_list = gea_effective_pvalues(),
+                type         = gea_threshold_type(),
+                value        = gea_threshold_value()
+            )
+        })
+
+        gwas_combo_thresholds <- shiny::reactive({
+            compute_method_thresholds(
+                pvalues_list = gwas_effective_pvalues(),
+                type         = gwas_threshold_type(),
+                value        = gwas_threshold_value()
+            )
+        })
+
         # ── Initialize per-side filter params from config/region_params ─────────
         .init_dist_param <- function(input_id, rp_key, config_default_fn) {
             shiny::observe({
@@ -432,10 +449,11 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         output$gea_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
-                traits                      = gea_traits(),
+                traits                      = gea_all_trait_names(),   # full list
                 methods                     = gea_methods(),
                 trait_colors                = gea_trait_colors(),
                 combo_counts                = gea_combo_counts(),
+                combo_thresholds            = gea_combo_thresholds(),
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gea_snp_clumping_distance(),
                 input_prefix                = "gea_"
@@ -446,10 +464,11 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         output$gwas_filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
-                traits                      = gwas_traits(),
+                traits                      = gwas_all_trait_names(),   # full list
                 methods                     = gwas_methods(),
                 trait_colors                = gwas_trait_colors(),
                 combo_counts                = gwas_combo_counts(),
+                combo_thresholds            = gwas_combo_thresholds(),
                 default_strategy_value      = "Union",
                 snp_clumping_distance_value = gwas_snp_clumping_distance(),
                 input_prefix                = "gwas_"

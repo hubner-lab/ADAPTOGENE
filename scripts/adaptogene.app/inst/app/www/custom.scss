@@ -252,31 +252,62 @@
     }
 
     .tm-cell {
-        display: inline-block;
-        min-width: 26px;
-        height: 22px;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        min-height: 34px;
         border-radius: 3px;
         border: 1.5px solid rgba(0, 0, 0, 0.15);
         cursor: pointer;
         background: transparent;
         transition: background 0.1s, border-color 0.1s, opacity 0.1s;
-        font-size: 0.65rem;
-        line-height: 22px;
-        padding: 0 0.25rem;
+        padding: 0.15rem 0.3rem;
         color: var(--bs-secondary-color);
         user-select: none;
+        line-height: 1;
+
+        .tm-count {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .tm-thr {
+            display: block;
+            font-size: 0.58rem;
+            font-weight: 400;
+            line-height: 1.2;
+            color: var(--bs-secondary-color);
+            font-family: $font-family-monospace;
+            border-top: 1px dashed rgba(0, 0, 0, 0.25);
+            margin-top: 0.2rem;
+            padding-top: 0.15rem;
+            width: 100%;
+            text-align: center;
+        }
 
         &.tm-active {
             background: rgba(27, 122, 110, 0.22);
             border-color: $primary;
             color: var(--bs-body-color);
-            font-weight: 600;
+
+            .tm-thr {
+                color: darken($primary, 5%);
+                border-top-color: rgba(27, 122, 110, 0.45);
+            }
         }
 
         &.tm-empty {
-            opacity: 0.12;
+            opacity: 1;
             cursor: default;
             pointer-events: none;
+            border-color: rgba(0, 0, 0, 0.10);
+
+            .tm-count { opacity: 0.35; }
+            .tm-thr   { color: var(--bs-body-color); opacity: 0.65; }
         }
     }
 }
@@ -289,10 +320,29 @@
     }
 
     .tm-matrix {
-        .tm-cell { border-color: rgba(255, 255, 255, 0.15); }
+        .tm-cell {
+            border-color: rgba(255, 255, 255, 0.15);
+            .tm-thr {
+                border-top-color: rgba(255, 255, 255, 0.20);
+                color: rgba(255, 255, 255, 0.55);
+            }
+        }
         .tm-cell.tm-active {
             background: rgba(27, 122, 110, 0.35);
             border-color: $primary;
+            .tm-thr {
+                color: lighten($primary, 20%);
+                border-top-color: rgba(27, 122, 110, 0.5);
+            }
+        }
+        .tm-cell.tm-empty {
+            border-color: rgba(255, 255, 255, 0.10);
+            .tm-thr {
+                color: rgba(255, 255, 255, 0.75);   // clearly visible in dark mode
+                border-top-color: rgba(255, 255, 255, 0.20);
+                opacity: 1;
+            }
+            .tm-count { opacity: 0.30; }
         }
         .tm-row-header, .tm-col-header { color: var(--bs-body-color); }
     }

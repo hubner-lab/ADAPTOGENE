@@ -684,6 +684,43 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
     split(flat, by = "method", keep.by = TRUE)
 }
 
+#' Compute significance threshold per trait × method (no IO, no cache)
+#'
+#' Returns a named numeric vector keyed "trait::method" -> threshold p-value.
+#' NA when too few tests or compute_pval_threshold status != "ok".
+#' Works for all modes:
+#'   bonf -> 0.05 / n_tested
+#'   qval -> max p still passing FDR
+#'   top  -> Nth smallest p
+#' For WZA regime, pass the WZA window pvalue list — denominator is n_windows.
+#'
+#' @param pvalues_list Named list: method -> data.table with SNPID/chr/pos + trait cols
+#' @param type         Adjustment type: "bonf", "qval", "top"
+#' @param value        Significance level / FDR / top-N (numeric or character)
+#' @return Named numeric vector "trait::method" -> threshold (NA if unavailable)
+#' @noRd
+compute_method_thresholds <- function(pvalues_list, type, value) {
+    if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
+    fixed_cols <- c("SNPID", "chr", "pos", "n_snps", "mean_maf")
+    out <- list()
+    for (m in names(pvalues_list)) {
+        pv_dt <- pvalues_list[[m]]
+        if (is.null(pv_dt) || nrow(pv_dt) == 0) next
+        trait_cols <- setdiff(names(pv_dt), fixed_cols)
+        if (length(trait_cols) == 0) next
+        for (tr in trait_cols) {
+            pvec <- pv_dt[[tr]]
+            result <- tryCatch(
+                compute_pval_threshold(pvec, type, as.numeric(value)),
+                error = function(e) list(status = "error", threshold = NA_real_)
+            )
+            key <- paste0(tr, "::", m)
+            out[[key]] <- if (identical(result$status, "ok")) result$threshold else NA_real_
+        }
+    }
+    out
+}
+
 #' Cached data loader using cachem
 #' Creates a session-level cache automatically on first call.
 #' @noRd

@@ -310,28 +310,31 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
 #' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
 #' The threshold/regime controls live in a separate always-present build_threshold_bar_ui().
 #'
-#' @param ns           Shiny namespace function from session$ns
-#' @param traits       Character vector of trait names (those with sig SNPs at current threshold)
-#' @param methods      Character vector of method names
-#' @param trait_colors Named character vector: trait -> hex colour (from all_trait_names for stability)
-#' @param combo_counts Named list: "trait::method" -> integer SNP count
-#' @param default_strategy_value Character scalar: "Union", "Cross-method", or "Cross-method per-trait"
+#' @param ns                        Shiny namespace function from session$ns
+#' @param traits                    Character vector of ALL trait names (full list, not just sig ones)
+#' @param methods                   Character vector of method names
+#' @param trait_colors              Named character vector: trait -> hex colour (from all_trait_names for stability)
+#' @param combo_counts              Named list: "trait::method" -> integer SNP/window count
+#' @param combo_thresholds          Named list: "trait::method" -> threshold p-value (from compute_method_thresholds)
+#' @param default_strategy_value    Character scalar: "Union", "Cross-method", or "Cross-method per-trait"
 #' @param snp_clumping_distance_value Integer scalar: current clumping distance (bp)
-#' @param input_prefix Character scalar: prefix for all Shiny input IDs inside this bar.
+#' @param input_prefix              Character scalar: prefix for all Shiny input IDs inside this bar.
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
-#' @return tagList (or a muted placeholder div when traits is empty)
+#' @return tagList (or a muted placeholder div when no data available)
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
-                                combo_counts, default_strategy_value,
+                                combo_counts, combo_thresholds = list(),
+                                default_strategy_value,
                                 snp_clumping_distance_value = 100000L,
                                 input_prefix = "") {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
-    if (length(traits) == 0) {
+    # Guard only for truly empty project (no data at all)
+    if (length(methods) == 0 || length(traits) == 0) {
         return(htmltools::div(
             class = "text-muted small fst-italic py-2",
-            "No SNPs significant at current threshold — adjust the threshold above."
+            "No association results available."
         ))
     }
 
@@ -361,15 +364,19 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
             htmltools::HTML(paste0(dot_html, htmltools::htmlEscape(t)))
         )
         cells <- lapply(methods, function(m) {
-            key <- paste0(t, "::", m)
-            n   <- combo_counts[[key]] %||% 0L
+            key     <- paste0(t, "::", m)
+            n       <- combo_counts[[key]] %||% 0L
+            thr     <- combo_thresholds[[key]]
+            thr_txt <- if (is.null(thr) || is.na(thr)) "n/a" else
+                           formatC(thr, format = "e", digits = 1)
             if (n > 0) {
                 htmltools::tags$td(
                     htmltools::tags$button(
                         class = "tm-cell tm-active",
                         `data-trait` = t,
                         `data-method` = m,
-                        as.character(n)
+                        htmltools::tags$span(class = "tm-count", as.character(n)),
+                        htmltools::tags$span(class = "tm-thr", thr_txt)
                     )
                 )
             } else {
@@ -378,7 +385,8 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                         class = "tm-cell tm-empty",
                         `data-trait` = t,
                         `data-method` = m,
-                        "\u2014"
+                        htmltools::tags$span(class = "tm-count", "\u2014"),
+                        htmltools::tags$span(class = "tm-thr", thr_txt)
                     )
                 )
             }

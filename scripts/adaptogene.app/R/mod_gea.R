@@ -129,6 +129,15 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             counts
         })
 
+        # Per-cell significance threshold: "trait::method" -> cutoff p-value (all cells, NA if unavailable)
+        combo_thresholds <- shiny::reactive({
+            compute_method_thresholds(
+                pvalues_list = effective_method_pvalues(),
+                type         = threshold_type(),
+                value        = threshold_value()
+            )
+        })
+
         # Strategy always defaults to "All" (pipeline pre-computes All; user explores interactively)
         default_strategy <- shiny::reactive("All")
 
@@ -353,10 +362,9 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                     htmltools::tags$strong(
                         length(missing),
                         if (length(missing) == 1) "trait" else "traits",
-                        "yielded no significant SNPs across all methods"
+                        "yielded no significant SNPs/windows at current threshold"
                     ),
-                    " \u2014 not shown in filter bar. ",
-                    "Adjust the Significance threshold above the Manhattan plot.",
+                    ". Adjust the Significance threshold or switch to FDR/top-N mode.",
                     htmltools::tags$ul(class = "mb-0 mt-1", items)
                 )
             )
@@ -366,10 +374,11 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         output$filter_bar <- shiny::renderUI({
             build_filter_bar_ui(
                 ns                          = ns,
-                traits                      = traits(),
+                traits                      = all_trait_names_rv(),   # full list — always show grid
                 methods                     = methods(),
                 trait_colors                = trait_colors(),
                 combo_counts                = combo_counts(),
+                combo_thresholds            = combo_thresholds(),
                 default_strategy_value      = default_strategy(),
                 snp_clumping_distance_value = snp_clumping_distance()
             )
