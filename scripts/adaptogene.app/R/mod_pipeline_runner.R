@@ -162,6 +162,14 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
 
             config_state$saved <- config_state$working
 
+            # Notify if a stale lock will be auto-cleared (pipeline_run handles the actual unlock)
+            if (pipeline_is_locked(project, pip_path)) {
+                shiny::showNotification(
+                    "Cleared a stale lock from a previously interrupted run. Resuming now.",
+                    type = "warning", duration = 6
+                )
+            }
+
             p <- tryCatch(
                 pipeline_run(mode, project, as.integer(cpu), pip_path),
                 error = function(e) {
@@ -201,7 +209,7 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
         shiny::observeEvent(input$stop_btn, {
             p <- proc()
             if (!is.null(p)) {
-                pipeline_kill(p, config_state$project)
+                pipeline_kill(p, config_state$project, mode)
             }
             proc(NULL)
             pipeline_running(FALSE)

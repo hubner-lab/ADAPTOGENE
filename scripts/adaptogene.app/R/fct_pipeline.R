@@ -52,6 +52,13 @@ pipeline_run <- function(mode, project, cpu,
 
     args <- pipeline_cmd(mode, project, cpu, pipeline_path)
 
+    # Auto-clear any stale lock left by a prior crash / docker stop / kill signal.
+    # Safe: the app's global pipeline_running lock ensures no other in-app snakemake
+    # is running by the time we reach here, so any on-disk lock is necessarily stale.
+    if (pipeline_is_locked(project, pipeline_path)) {
+        pipeline_unlock(project, mode, pipeline_path)
+    }
+
     # Find snakemake on PATH (pipx installs to ~/.local/bin, also /root/.local/bin)
     smk <- Sys.which("snakemake")
     if (!nzchar(smk)) {
@@ -82,18 +89,17 @@ pipeline_is_running <- function(proc) {
     !is.null(proc) && inherits(proc, "process") && proc$is_alive()
 }
 
-#' Kill a running pipeline and unlock the Snakemake workdir
+#' Run snakemake --unlock for a project's working directory
 #'
-#' @param proc processx::process object
+#' Safe to call even when no lock exists. Used both by pipeline_kill() (Stop button)
+#' and pipeline_run() (auto-clear stale lock from a prior crash/docker stop).
+#' mode is required by Snakemake to parse the Snakefile config block.
+#'
 #' @param project project name
+#' @param mode pipeline mode string (e.g. "gea") — required for Snakefile config parsing
 #' @param pipeline_path pipeline root path
 #' @noRd
-pipeline_kill <- function(proc, project, pipeline_path = get_pipeline_path()) {
-    if (pipeline_is_running(proc)) {
-        proc$kill()
-        proc$wait(timeout = 3000)
-    }
-    # Unlock the Snakemake working directory
+pipeline_unlock <- function(project, mode, pipeline_path = get_pipeline_path()) {
     tryCatch({
         smk <- Sys.which("snakemake")
         if (!nzchar(smk)) smk <- "/root/.local/bin/snakemake"
@@ -101,6 +107,7 @@ pipeline_kill <- function(proc, project, pipeline_path = get_pipeline_path()) {
             system2(smk,
                     args    = c("--unlock", "-s",
                                 file.path(pipeline_path, "Snakefile"),
+                                "--config", paste0("mode=", mode),
                                 "--configfile",
                                 config_file_path(project, pipeline_path)),
                     stdout  = FALSE,
@@ -108,6 +115,22 @@ pipeline_kill <- function(proc, project, pipeline_path = get_pipeline_path()) {
                     timeout = 10)
         }
     }, error = function(e) NULL)
+    invisible(NULL)
+}
+
+#' Kill a running pipeline and unlock the Snakemake workdir
+#'
+#' @param proc processx::process object
+#' @param project project name
+#' @param mode pipeline mode string (passed through to pipeline_unlock)
+#' @param pipeline_path pipeline root path
+#' @noRd
+pipeline_kill <- function(proc, project, mode, pipeline_path = get_pipeline_path()) {
+    if (pipeline_is_running(proc)) {
+        proc$kill()
+        proc$wait(timeout = 3000)
+    }
+    pipeline_unlock(project, mode, pipeline_path)
     invisible(NULL)
 }
 

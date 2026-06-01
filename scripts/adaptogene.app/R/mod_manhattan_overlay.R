@@ -179,7 +179,25 @@ mod_manhattan_overlay_server <- function(id, project_data,
 
         # ── Render plotly ──────────────────────────────────────────────────────
         output$overlay <- plotly::renderPlotly({
-            co <- shiny::req(coords())
+            co <- coords()
+            # coords.json absent: pipeline hasn't run yet or was interrupted mid-run.
+            # Show an informative placeholder instead of a silent blank.
+            if (is.null(co)) {
+                return(plotly::plot_ly(type = "scatter", mode = "markers") |>
+                    plotly::layout(
+                        xaxis = list(visible = FALSE),
+                        yaxis = list(visible = FALSE),
+                        annotations = list(list(
+                            text      = "Manhattan plot not available — run this mode from the sidebar to generate it.",
+                            x         = 0.5, y = 0.5,
+                            xref      = "paper", yref = "paper",
+                            showarrow = FALSE,
+                            font      = list(size = 14, color = "#888888")
+                        )),
+                        paper_bgcolor = "rgba(0,0,0,0)",
+                        plot_bgcolor  = "rgba(0,0,0,0)"
+                    ))
+            }
             bg <- bg_path()
 
             bg_uri <- if (file_ok(bg)) encode_background_png(bg) else NULL
