@@ -108,13 +108,11 @@ y_limit    <- max(y_max_gea, y_max_gwas)
 
 message('INFO: Generating simple Miami plot')
 
-# Background SNPs: ALL SNPs (threshold-independent), first method only per panel.
+# Background SNPs: ALL SNPs, ALL methods (threshold-independent), full cloud per panel.
 # Sig markers overlay on top; threshold lines drawn live in Shiny.
-gea_bg <- gea_data %>%
-    dplyr::filter(method == names(gea_info)[1])
-
-gwas_bg <- gwas_data %>%
-    dplyr::filter(method == names(gwas_info)[1])
+# Every SNP is baked in — background = complete static Manhattan per panel.
+gea_bg  <- gea_data
+gwas_bg <- gwas_data
 
 # Sig SNPs
 gea_sig  <- gea_data  %>% dplyr::filter(is_significant)

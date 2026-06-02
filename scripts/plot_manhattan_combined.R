@@ -94,10 +94,10 @@ if (!is.na(min_threshold)) y_max <- max(y_max, min_threshold * 1.1)
 
 message('INFO: Generating combined Manhattan plot (simple version)')
 
-# Background SNPs: ALL SNPs (threshold-independent), from first method only (avoid overplotting).
-# Sig markers overlay on top, so the background shows the full data cloud.
-df_background <- plot_data_all %>%
-    dplyr::filter(method == names(assoc_info)[1])
+# Background SNPs: ALL SNPs, ALL methods (threshold-independent), full data cloud.
+# Sig markers overlay on top; toggling a marker off leaves its faint background dot.
+# Every SNP (significant or not, every method) is baked in — background = complete static Manhattan.
+df_background <- plot_data_all
 
 # Significant SNPs: every (SNP, trait, method) combination shown individually
 df_significant <- plot_data_all %>%
