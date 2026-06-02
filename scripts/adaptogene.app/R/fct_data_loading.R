@@ -497,8 +497,9 @@ load_all_overlap_method_sigsnps <- function(project, k = NA) {
 load_all_method_pvalues <- function(project, module = MOD_GEA, k = NA) {
     glob <- mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv")
     files <- Sys.glob(glob)
-    # Exclude downstream outputs (sig_snps, wza, block)
+    # Exclude downstream outputs (sig_snps, wza, block) and GWAS per-trait files
     files <- grep("_sig_snps_|_wza_|_block_", files, value = TRUE, invert = TRUE)
+    files <- keep_merged_method_files(files, regime = "snp")
     if (length(files) == 0) return(list())
     if (!is.na(k)) {
         k_pattern <- paste0("_K", k, ".tsv")
@@ -530,6 +531,7 @@ load_all_method_wza_pvalues <- function(project, module = MOD_GEA, k = NA) {
     glob <- mod_path(project, module, "tables", "methods", "*", "*_wza_K*.tsv")
     files <- Sys.glob(glob)
     files <- grep("_sig_windows_", files, value = TRUE, invert = TRUE)
+    files <- keep_merged_method_files(files, regime = "wza")
     if (length(files) == 0) return(list())
     if (!is.na(k)) {
         k_pattern <- paste0("_K", k, ".tsv")
@@ -566,6 +568,7 @@ pvalues_file_fingerprint <- function(project, module, k, regime = "snp") {
     files      <- Sys.glob(glob_pat)
     files      <- grep("_sig_snps_|_block_|_sig_windows_", files,
                        value = TRUE, invert = TRUE)
+    files      <- keep_merged_method_files(files, regime = regime)
     if (!is.na(k)) {
         k_pat  <- paste0("_K", k, ".tsv")
         files  <- files[endsWith(basename(files), k_pat)]

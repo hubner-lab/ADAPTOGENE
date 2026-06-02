@@ -1,6 +1,29 @@
 # Tell data.table that this package uses its syntax (avoids cedta() errors)
 .datatable.aware <- TRUE
 
+#' Keep only canonical merged per-method pvalue/wza files from a glob result.
+#'
+#' GWAS DROP-mode (Path B) writes per-trait files ({trait}_pvalues_K{k}.tsv)
+#' directly into the same methods/{METHOD}/ directory as the merged
+#' {METHOD}_pvalues_K{k}.tsv. The canonical merged file always starts with the
+#' directory (method) name followed by the regime token ("_pvalues_K" or "_wza_K").
+#' Per-trait files never start with the method name, so this filter excludes them.
+#'
+#' @param files Character vector of glob results (already filtered for sig_snps/wza/block).
+#' @param regime "snp" (default) or "wza".
+#' @noRd
+keep_merged_method_files <- function(files, regime = "snp") {
+    if (length(files) == 0) return(files)
+    token <- if (regime == "wza") "_wza_K" else "_pvalues_K"
+    keep <- vapply(files, function(f) {
+        parts <- strsplit(f, .Platform$file.sep, fixed = TRUE)[[1]]
+        mi <- which(parts == "methods")
+        if (length(mi) == 0) return(FALSE)
+        startsWith(basename(f), paste0(parts[mi + 1L], token))
+    }, logical(1))
+    files[keep]
+}
+
 #' Check if a file path exists and is non-empty
 #' @noRd
 file_ok <- function(path) {

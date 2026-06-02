@@ -335,6 +335,7 @@ removed_snps_path <- function(project) {
 find_pvalue_tsv <- function(project, module = MOD_GEA) {
     files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
     files <- grep("_sig_snps_|_wza_|_block_pvalues_", files, value = TRUE, invert = TRUE)
+    files <- keep_merged_method_files(files, regime = "snp")
     if (length(files) == 0) "" else files[1]
 }
 
@@ -343,7 +344,8 @@ find_pvalue_tsv <- function(project, module = MOD_GEA) {
 #' @noRd
 find_method_pvalue_files <- function(project, module = MOD_GEA) {
     files <- Sys.glob(mod_path(project, module, "tables", "methods", "*", "*_pvalues_K*.tsv"))
-    grep("_sig_snps_|_wza_|_block_pvalues_", files, value = TRUE, invert = TRUE)
+    files <- grep("_sig_snps_|_wza_|_block_pvalues_", files, value = TRUE, invert = TRUE)
+    keep_merged_method_files(files, regime = "snp")
 }
 
 #' LD decay plot path
