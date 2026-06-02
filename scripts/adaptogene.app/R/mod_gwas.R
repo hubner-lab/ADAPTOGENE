@@ -163,8 +163,21 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
             )
         })
 
-        # Strategy always defaults to "All"
-        default_strategy <- shiny::reactive("All")
+        # Strategy: defaults to "All"; persisted to region_params.json so the GEAxGWAS
+        # "Fill from GWAS tab" button can read the user's last-chosen value.
+        default_strategy <- shiny::reactive({
+            pd    <- project_data()
+            rp    <- read_region_params(pd$name)
+            saved <- get_global_param(rp, module, "combine_strategy")
+            if (!is.null(saved)) .normalize_strategy(saved) else "All"
+        })
+
+        shiny::observeEvent(input$combine_strategy, {
+            pd <- project_data(); if (is.null(pd)) return()
+            rp <- read_region_params(pd$name)
+            rp <- set_global_param(rp, module, "combine_strategy", input$combine_strategy)
+            save_region_params(pd$name, rp)
+        }, ignoreInit = TRUE)
 
         active_strategy <- shiny::reactive(input$combine_strategy %||% default_strategy())
 

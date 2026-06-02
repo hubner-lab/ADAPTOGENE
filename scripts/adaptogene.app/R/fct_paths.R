@@ -421,6 +421,16 @@ ondemand_regionplot_dir <- function(project, module = MOD_GEA, combo_hash) {
     mod_path(project, "regionplot", module, combo_hash)
 }
 
+# ─── On-demand pairwise trait overlap ─────────────────────────────────────────
+
+#' Directory for on-demand pairwise trait overlap results.
+#' Keyed by a parameter hash so different threshold/clumping combinations are cached separately.
+#' Lives under GEAxGWAS/pairwise_ondemand/{hash}/ in the project results dir.
+#' @noRd
+ondemand_pairwise_dir <- function(project, hash) {
+    mod_path(project, MOD_GEAXGWAS, "pairwise_ondemand", hash)
+}
+
 #' Regionplot image path
 #' @noRd
 regionplot_path <- function(project, region_id, trait = NULL) {

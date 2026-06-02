@@ -10,14 +10,28 @@
 mod_gea_x_gwas_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
+        # Notification about filter bars and fill buttons
+        htmltools::div(
+            class = "alert alert-info py-2 mb-2 small",
+            bsicons::bs_icon("info-circle"), " ",
+            "The GEA and GWAS filter bars below drive the Miami plot, region overlap explorer, ",
+            "and Pairwise Trait Overlap table. ",
+            "Use the ", htmltools::strong("Fill from …"), " buttons to copy your settings from the GEA or GWAS tabs."
+        ),
+
         # GEA filter bar
         bslib::card(
             class = "mb-0",
             bslib::card_header(
-                htmltools::span("GEA Filter",
-                    class = "fw-semibold text-primary me-2"),
-                htmltools::span("(above zero line)",
-                    class = "text-muted small")
+                class = "d-flex justify-content-between align-items-center",
+                htmltools::div(
+                    htmltools::span("GEA Filter",
+                        class = "fw-semibold text-primary me-2"),
+                    htmltools::span("(above zero line)",
+                        class = "text-muted small")
+                ),
+                shiny::actionButton(ns("fill_gea"), "Fill from GEA tab",
+                                    class = "btn-sm btn-outline-primary")
             ),
             bslib::card_body(
             class = "p-2",
@@ -37,10 +51,15 @@ mod_gea_x_gwas_ui <- function(id) {
         bslib::card(
             class = "mb-0 mt-1",
             bslib::card_header(
-                htmltools::span("GWAS Filter",
-                    class = "fw-semibold text-success me-2"),
-                htmltools::span("(below zero line)",
-                    class = "text-muted small")
+                class = "d-flex justify-content-between align-items-center",
+                htmltools::div(
+                    htmltools::span("GWAS Filter",
+                        class = "fw-semibold text-success me-2"),
+                    htmltools::span("(below zero line)",
+                        class = "text-muted small")
+                ),
+                shiny::actionButton(ns("fill_gwas"), "Fill from GWAS tab",
+                                    class = "btn-sm btn-outline-success")
             ),
             bslib::card_body(
             class = "p-2",
@@ -356,6 +375,63 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         .init_threshold_param("gwas_threshold_type", "gwas_threshold_value",
             "gwas_threshold_type", "gwas_threshold_value", MOD_GWAS)
 
+        # ── Strategy persistence per side ─────────────────────────────────────
+        # Mirrors .init_regime_param; strategy is the radioButton input not a switch.
+        .init_strategy_param <- function(input_id, rp_key) {
+            shiny::observe({
+                pd    <- project_data()
+                rp    <- read_region_params(pd$name)
+                saved <- get_global_param(rp, module, rp_key)
+                if (!is.null(saved))
+                    shiny::updateRadioButtons(session, input_id,
+                                              selected = .normalize_strategy(saved))
+            })
+            shiny::observeEvent(input[[input_id]], {
+                pd <- project_data(); if (is.null(pd)) return()
+                rp <- read_region_params(pd$name)
+                rp <- set_global_param(rp, module, rp_key, input[[input_id]])
+                save_region_params(pd$name, rp)
+            }, ignoreInit = TRUE)
+        }
+
+        .init_strategy_param("gea_combine_strategy", "gea_strategy")
+        .init_strategy_param("gwas_combine_strategy", "gwas_strategy")
+
+        # ── Fill from GEA / GWAS tab buttons ─────────────────────────────────
+        # Reads the currently persisted params from the source module's region_params.json
+        # keys and pushes them into the prefixed GEAxGWAS filter-bar inputs.
+        # The existing .init_* observeEvent handlers auto-persist the copied values.
+        .fill_from <- function(src_module, prefix) {
+            pd  <- project_data()
+            rp  <- read_region_params(pd$name)
+            cfg <- pd$config
+            src_str <- if (src_module == MOD_GEA) "GEA" else "GWAS"
+
+            tt <- get_global_param(rp, src_module, "threshold_type") %||%
+                      default_threshold(cfg, src_module)$type
+            tv <- as.numeric(get_global_param(rp, src_module, "threshold_value") %||%
+                      default_threshold(cfg, src_module)$value)
+            cd <- as.integer(get_global_param(rp, src_module, "snp_clumping_distance") %||%
+                      resolve_ui_snp_clumping_distance(cfg, src_str, pd$name))
+            rg <- isTRUE(get_global_param(rp, src_module, "regime"))
+            st <- get_global_param(rp, src_module, "combine_strategy")
+
+            shiny::updateSelectInput(session,  paste0(prefix, "threshold_type"),  selected = tt)
+            shiny::updateNumericInput(session, paste0(prefix, "threshold_value"), value = tv)
+            shiny::updateNumericInput(session, paste0(prefix, "snp_clumping_distance"), value = cd)
+            bslib::update_switch(paste0(prefix, "regime"), value = rg, session = session)
+            if (!is.null(st))
+                shiny::updateRadioButtons(session, paste0(prefix, "combine_strategy"),
+                                          selected = .normalize_strategy(st))
+            shiny::showNotification(
+                sprintf("Copied %s tab settings into the GEAxGWAS %s filter bar.", src_module, toupper(prefix)),
+                type = "message", duration = 3
+            )
+        }
+
+        shiny::observeEvent(input$fill_gea,  .fill_from(MOD_GEA,  "gea_"))
+        shiny::observeEvent(input$fill_gwas, .fill_from(MOD_GWAS, "gwas_"))
+
         gea_threshold_type <- shiny::reactive(input$gea_threshold_type  %||% "bonf")
         gwas_threshold_type <- shiny::reactive(input$gwas_threshold_type %||% "bonf")
 
@@ -447,14 +523,20 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
 
         # ── GEA filter bar UI (matrix + strategy + clumping) ──────────────────
         output$gea_filter_bar <- shiny::renderUI({
+            pd <- project_data()
+            shiny::isolate({
+                rp           <- read_region_params(pd$name)
+                saved_strat  <- get_global_param(rp, module, "gea_strategy")
+                strat_val    <- if (!is.null(saved_strat)) .normalize_strategy(saved_strat) else "Union"
+            })
             build_filter_bar_ui(
                 ns                          = ns,
-                traits                      = gea_all_trait_names(),   # full list
+                traits                      = gea_all_trait_names(),
                 methods                     = gea_methods(),
                 trait_colors                = gea_trait_colors(),
                 combo_counts                = gea_combo_counts(),
                 combo_thresholds            = gea_combo_thresholds(),
-                default_strategy_value      = "Union",
+                default_strategy_value      = strat_val,
                 snp_clumping_distance_value = gea_snp_clumping_distance(),
                 input_prefix                = "gea_"
             )
@@ -462,14 +544,20 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
 
         # ── GWAS filter bar UI (matrix + strategy + clumping) ─────────────────
         output$gwas_filter_bar <- shiny::renderUI({
+            pd <- project_data()
+            shiny::isolate({
+                rp           <- read_region_params(pd$name)
+                saved_strat  <- get_global_param(rp, module, "gwas_strategy")
+                strat_val    <- if (!is.null(saved_strat)) .normalize_strategy(saved_strat) else "Union"
+            })
             build_filter_bar_ui(
                 ns                          = ns,
-                traits                      = gwas_all_trait_names(),   # full list
+                traits                      = gwas_all_trait_names(),
                 methods                     = gwas_methods(),
                 trait_colors                = gwas_trait_colors(),
                 combo_counts                = gwas_combo_counts(),
                 combo_thresholds            = gwas_combo_thresholds(),
-                default_strategy_value      = "Union",
+                default_strategy_value      = strat_val,
                 snp_clumping_distance_value = gwas_snp_clumping_distance(),
                 input_prefix                = "gwas_"
             )
@@ -652,7 +740,7 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             }
         }, ignoreNULL = TRUE)
 
-        # ── Pairwise Trait Overlap (unchanged, pipeline-computed) ──────────────
+        # ── Pairwise Trait Overlap (on-demand async, driven by filter-bar params) ─
         miami_coords <- shiny::reactive({
             pd   <- project_data()
             k    <- pd$k_best
@@ -664,9 +752,35 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             }, fingerprint = fp)
         })
 
+        # Parameter bundle for pairwise hash — includes a file fingerprint so
+        # a pipeline re-run (new pvalue files) invalidates the cache automatically.
+        pairwise_params <- shiny::reactive({
+            pd <- project_data()
+            k  <- pd$k_best
+            fp <- pairwise_file_fingerprint(pd$name)
+            list(
+                k              = k,
+                gea_thr_type   = gea_threshold_type(),
+                gea_thr_value  = gea_threshold_value(),
+                gea_regime     = isTRUE(input$gea_regime),
+                gwas_thr_type  = gwas_threshold_type(),
+                gwas_thr_value = gwas_threshold_value(),
+                gwas_regime    = isTRUE(input$gwas_regime),
+                gea_window     = gea_snp_clumping_distance(),
+                gwas_window    = gwas_snp_clumping_distance(),
+                min_snps       = as.integer(
+                    tryCatch(pd$config$GEAxGWAS$pairwise$min_snps, error = function(e) 2L) %||% 2L
+                ),
+                fp             = fp
+            )
+        })
+
         mod_pairwise_overlap_server("pairwise",
-            project_data = project_data,
-            coords       = miami_coords
+            project_data    = project_data,
+            coords          = miami_coords,
+            gea_sigsnps     = gea_effective_sigsnps,
+            gwas_sigsnps    = gwas_effective_sigsnps,
+            pairwise_params = pairwise_params
         )
     })
 }

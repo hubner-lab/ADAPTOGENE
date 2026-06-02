@@ -982,6 +982,125 @@ launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
     list(traits = sort(traits))
 }
 
+# ── Pairwise trait overlap (on-demand async) ──────────────────────────────────
+
+#' Flatten a named per-method sig-SNP list into a long TSV in tempdir.
+#' Input list: names = method names, values = data.tables with columns
+#' SNPID, chr, pos, pvalue, method, trait (as returned by compute_method_sigsnps_cached).
+#' Returns the path to the written file, or NULL if no SNPs.
+#' @noRd
+.write_sigsnps_tmp <- function(sig_list, source_label) {
+    if (length(sig_list) == 0) return(NULL)
+    rows <- lapply(names(sig_list), function(m) {
+        dt <- sig_list[[m]]
+        if (is.null(dt) || nrow(dt) == 0) return(NULL)
+        # Ensure the method column is set (compute_method_sigsnps_cached adds it)
+        dt <- data.table::copy(dt)
+        if (!"method" %in% names(dt)) dt[, method := m]
+        dt[, .(SNPID, chr, pos, pvalue, method, trait)]
+    })
+    rows <- Filter(Negate(is.null), rows)
+    if (length(rows) == 0) return(NULL)
+    flat <- data.table::rbindlist(rows, use.names = TRUE)
+    if (nrow(flat) == 0) return(NULL)
+    tmp <- tempfile(prefix = paste0("pw_sigsnps_", source_label, "_"), fileext = ".tsv")
+    data.table::fwrite(flat, tmp, sep = "\t", quote = FALSE)
+    tmp
+}
+
+#' Launch the pairwise overlap computation as a non-blocking background process.
+#' @param gea_sig_list Named list of per-method sig-SNP data.tables (GEA side).
+#' @param gwas_sig_list Named list of per-method sig-SNP data.tables (GWAS side).
+#' @param gea_window Clumping distance from the GEA filter bar (bp).
+#' @param gwas_window Clumping distance from the GWAS filter bar (bp).
+#' @param min_snps Minimum SNPs per side per cluster for a window overlap.
+#' @param hash 8-char MD5 hash of the current parameter set (used as output dir key).
+#' @param project_data Current project_data() bundle.
+#' @return list(process, log_file, type="pairwise", out_dir, gea_window, gwas_window)
+#'   or list(error=) on pre-flight failure.
+#' @noRd
+launch_pairwise_subprocess <- function(gea_sig_list, gwas_sig_list,
+                                        gea_window, gwas_window, min_snps,
+                                        hash, project_data) {
+    pd <- project_data
+
+    n_gea  <- sum(vapply(gea_sig_list,  function(d) if (!is.null(d)) nrow(d) else 0L, integer(1)))
+    n_gwas <- sum(vapply(gwas_sig_list, function(d) if (!is.null(d)) nrow(d) else 0L, integer(1)))
+    if (n_gea + n_gwas == 0)
+        return(list(error = "No significant SNPs at the current thresholds. Adjust the filter bars."))
+
+    gea_tmp  <- .write_sigsnps_tmp(gea_sig_list,  "climate")
+    gwas_tmp <- .write_sigsnps_tmp(gwas_sig_list, "phenotype")
+
+    # At least one side must have sig SNPs
+    gea_arg  <- if (!is.null(gea_tmp))  gea_tmp  else "NULL"
+    gwas_arg <- if (!is.null(gwas_tmp)) gwas_tmp else "NULL"
+
+    pipeline_path <- get_pipeline_path()
+
+    out_dir <- ondemand_pairwise_dir(pd$name, hash)
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+    out_collapsed <- file.path(out_dir, "pairwise_collapsed_snps.tsv")
+    out_table     <- file.path(out_dir, "pairwise_overlap_table.tsv")
+    log_file      <- file.path(tempdir(), paste0("pairwise_", hash, ".log"))
+
+    script_args <- paste(sapply(c(
+        file.path(pipeline_path, "scripts", "compute_pairwise_ondemand.R"),
+        gea_arg, gwas_arg,
+        as.character(gea_window), as.character(gwas_window), as.character(min_snps),
+        out_collapsed, out_table
+    ), shQuote), collapse = " ")
+
+    cmd <- paste0("Rscript ", script_args, " >> ", shQuote(log_file), " 2>&1")
+
+    proc <- tryCatch(
+        processx::process$new("bash", c("-c", cmd), wd = pipeline_path),
+        error = function(e) NULL
+    )
+    if (is.null(proc))
+        return(list(error = "Failed to launch pairwise computation process."))
+
+    list(
+        process    = proc,
+        log_file   = log_file,
+        type       = "pairwise",
+        out_dir    = out_dir,
+        gea_window = gea_window,
+        gwas_window = gwas_window
+    )
+}
+
+#' Collect pairwise result after the background process has finished.
+#' @return list(table=dt, collapsed=dt, windows=list(gea=, gwas=)) or list(error=)
+#' @noRd
+.collect_pairwise_result <- function(handle) {
+    tbl_path  <- file.path(handle$out_dir, "pairwise_overlap_table.tsv")
+    coll_path <- file.path(handle$out_dir, "pairwise_collapsed_snps.tsv")
+    if (!file_ok(tbl_path) || !file_ok(coll_path))
+        return(list(error = "Pairwise output files not found. Check the computation log."))
+    tbl  <- tryCatch(
+        data.table::fread(tbl_path,  sep = "\t",
+                          colClasses = c(trait_a="character", trait_b="character",
+                                         source_a="character", source_b="character",
+                                         comparison_type="character")),
+        error = function(e) NULL
+    )
+    coll <- tryCatch(
+        data.table::fread(coll_path, sep = "\t",
+                          colClasses = c(SNPID="character", chr="character",
+                                         trait="character", source="character")),
+        error = function(e) NULL
+    )
+    if (is.null(tbl) || is.null(coll))
+        return(list(error = "Could not read pairwise output files."))
+    list(
+        table     = tbl,
+        collapsed = coll,
+        windows   = list(gea = handle$gea_window, gwas = handle$gwas_window)
+    )
+}
+
 #' Build colon-separated ASSOC_TABLES arg for plot_regionplot.R
 #' Format: "method:adjust_str:pvalues_K{k}.tsv,..."
 #' Accepts plain pvalue TSVs ({method}_pvalues_K{k}.tsv).

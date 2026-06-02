@@ -578,6 +578,15 @@ pvalues_file_fingerprint <- function(project, module, k, regime = "snp") {
     digest::digest(list(mtime = fi$mtime, size = fi$size), algo = "md5")
 }
 
+#' Combined file fingerprint for both GEA and GWAS pvalue files.
+#' Used as part of the pairwise_params hash so a pipeline re-run invalidates cached results.
+#' @noRd
+pairwise_file_fingerprint <- function(project) {
+    fp_gea  <- tryCatch(pvalues_file_fingerprint(project, MOD_GEA,  NA), error = function(e) "err")
+    fp_gwas <- tryCatch(pvalues_file_fingerprint(project, MOD_GWAS, NA), error = function(e) "err")
+    paste(fp_gea, fp_gwas, sep = "__")
+}
+
 #' Compute significant SNPs interactively using a user-chosen threshold.
 #'
 #' Wraps compute_pval_threshold() (sourced from pipeline utils) per method × trait.
