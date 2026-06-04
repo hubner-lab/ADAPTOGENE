@@ -483,6 +483,12 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                     choices  = strategy_labels,
                     selected = default_strat_norm,
                     inline   = FALSE
+                ),
+                htmltools::span(
+                    class = "text-muted small mt-1",
+                    "Cross-method shows only SNPs/windows significant in ≥2 methods ",
+                    "within the clumping distance. A hit significant in a single method ",
+                    "appears only under Union."
                 )
             ),
             # Clumping distance
