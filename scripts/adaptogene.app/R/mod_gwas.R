@@ -299,7 +299,8 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                     regime_value          = isTRUE(input$regime),
                     threshold_type_value  = input$threshold_type  %||% "bonf",
                     threshold_value_value = input$threshold_value %||%
-                        default_threshold(pd$config, module)$value
+                        default_threshold(pd$config, module)$value,
+                    regime_context        = "gwas"
                 )
             })
         })

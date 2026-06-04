@@ -253,7 +253,8 @@ threshold_value_valid_for_type <- function(type, value) {
 build_threshold_bar_ui <- function(ns, input_prefix = "",
                                    regime_value          = FALSE,
                                    threshold_type_value  = "bonf",
-                                   threshold_value_value = 0.05) {
+                                   threshold_value_value = 0.05,
+                                   regime_context        = "gea") {
     pid <- function(name) ns(paste0(input_prefix, name))
 
     htmltools::div(
@@ -268,7 +269,8 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
             htmltools::span(
                 class = "text-muted small ms-2",
                 "Toggle to use Weighted-Z Analysis windows instead of per-SNP p-values"
-            )
+            ),
+            wza_window_note(regime_context)
         ),
         # Threshold type + value
         htmltools::div(

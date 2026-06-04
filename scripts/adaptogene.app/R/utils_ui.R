@@ -79,6 +79,71 @@ config_badges_bar <- function(...) {
     )
 }
 
+#' Info-circle popover explaining WZA window size and how to change it
+#'
+#' @param context One of "gea", "gwas", or "overlap"
+#' @noRd
+wza_window_note <- function(context = "gea") {
+    body <- switch(context,
+        gea = htmltools::tagList(
+            htmltools::p(
+                "WZA windows are ", htmltools::strong("precomputed by the pipeline"),
+                " — they are not recalculated live."
+            ),
+            htmltools::p(
+                "To change the WZA window size: open ",
+                htmltools::strong("Config → GEA → Advanced → ‘WZA window size’"),
+                " and set a fixed bp value, or ",
+                htmltools::code("auto_genome_wide"),
+                " / ",
+                htmltools::code("auto_per_chromosome"),
+                " (LD-derived). Then re-run the ",
+                htmltools::strong("GEA"),
+                " module; the new windows appear here after the run finishes."
+            )
+        ),
+        gwas = htmltools::tagList(
+            htmltools::p(
+                "WZA windows are ", htmltools::strong("precomputed by the pipeline"),
+                " — they are not recalculated live."
+            ),
+            htmltools::p(
+                "To change the WZA window size: open ",
+                htmltools::strong("Config → GWAS → Advanced → ‘WZA window size’"),
+                " and set a fixed bp value, or ",
+                htmltools::code("auto_genome_wide"),
+                " / ",
+                htmltools::code("auto_per_chromosome"),
+                " (LD-derived). Then re-run the ",
+                htmltools::strong("GWAS"),
+                " module; the new windows appear here after the run finishes."
+            )
+        ),
+        overlap = htmltools::tagList(
+            htmltools::p(
+                "The WZA windows in this Miami plot are ",
+                htmltools::strong("inherited from the GEA and GWAS modules"),
+                " — there is no separate WZA window setting for GEAxGWAS."
+            ),
+            htmltools::p(
+                "To use a different WZA distance: change ",
+                htmltools::strong("‘WZA window size’"),
+                " in the GEA and/or GWAS Advanced config, re-run those modules, then reload —",
+                " the Miami plot updates automatically."
+            )
+        )
+    )
+
+    bslib::popover(
+        trigger = bsicons::bs_icon("info-circle",
+                                   title = "WZA window size",
+                                   class = "text-muted ms-1",
+                                   style = "cursor:pointer;"),
+        title = "WZA window size",
+        body
+    )
+}
+
 #' A card header with title + download popover
 #' @noRd
 card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = NULL) {

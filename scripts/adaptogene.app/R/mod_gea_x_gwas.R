@@ -484,7 +484,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                     regime_value          = isTRUE(input$gea_regime),
                     threshold_type_value  = input$gea_threshold_type  %||% "bonf",
                     threshold_value_value = input$gea_threshold_value %||%
-                        default_threshold(pd$config, MOD_GEA)$value
+                        default_threshold(pd$config, MOD_GEA)$value,
+                    regime_context        = "overlap"
                 )
             })
         })
@@ -497,7 +498,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                     regime_value          = isTRUE(input$gwas_regime),
                     threshold_type_value  = input$gwas_threshold_type  %||% "bonf",
                     threshold_value_value = input$gwas_threshold_value %||%
-                        default_threshold(pd$config, MOD_GWAS)$value
+                        default_threshold(pd$config, MOD_GWAS)$value,
+                    regime_context        = "overlap"
                 )
             })
         })
