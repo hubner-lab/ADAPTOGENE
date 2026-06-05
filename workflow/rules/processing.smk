@@ -153,7 +153,11 @@ rule compute_snp_density_raw:
     log:    f"{LOGDIR}processing/compute_snp_density_raw.log"
     shell:
         """
-        /app/vcftools-0.1.16/bin/vcftools --vcf {input} --SNPdensity 1000000 --out {params.prefix} > {log} 2>&1
+        case "{input}" in
+            *.gz) VCF_FLAG=--gzvcf ;;
+            *)    VCF_FLAG=--vcf ;;
+        esac
+        /app/vcftools-0.1.16/bin/vcftools $VCF_FLAG {input} --SNPdensity 1000000 --out {params.prefix} > {log} 2>&1
         cp {params.prefix}.snpden {output}
         rm -f {params.prefix}.snpden {params.prefix}.log
         """
