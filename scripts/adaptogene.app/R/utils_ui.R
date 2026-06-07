@@ -144,6 +144,28 @@ wza_window_note <- function(context = "gea") {
     )
 }
 
+#' Info alert announcing the SNP -> WZA-window collapse under the WZA regime.
+#'
+#' Appears when the user switches the regime toggle ON; disappears when OFF.
+#' stats is the list returned by wza_collapse_stats(); pass NULL to suppress.
+#' @noRd
+wza_collapse_note <- function(stats) {
+    if (is.null(stats)) return(NULL)
+    snp_txt <- if (!is.na(stats$n_snps))
+        paste0(format(stats$n_snps, big.mark = ","), " SNPs collapsed into ") else ""
+    win_txt <- if (!is.na(stats$window_bp))
+        paste0(" (≈ ", format(stats$window_bp, big.mark = ","), " bp/window)") else ""
+    htmltools::div(
+        class = "alert alert-info d-flex gap-2 align-items-center py-2 mb-2 small",
+        bsicons::bs_icon("bounding-box", class = "flex-shrink-0"),
+        htmltools::div(
+            htmltools::strong("WZA regime active"), " — ", snp_txt,
+            htmltools::strong(format(stats$n_windows, big.mark = ","), " windows"),
+            win_txt, "."
+        )
+    )
+}
+
 #' A card header with title + download popover
 #' @noRd
 card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = NULL) {

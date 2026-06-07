@@ -51,6 +51,7 @@ mod_gwas_ui <- function(id) {
             ns("combined_manhattan"),
             filter_ui = htmltools::tagList(
                 shiny::uiOutput(ns("threshold_bar")),
+                shiny::uiOutput(ns("wza_collapse_note")),
                 shiny::uiOutput(ns("filter_bar"))
             )
         ),
@@ -228,6 +229,12 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         }, ignoreInit = TRUE)
 
         regime_wza <- shiny::reactive(isTRUE(input$regime))
+
+        # ── WZA collapse note (appears when regime switch is ON) ───────────────
+        output$wza_collapse_note <- shiny::renderUI({
+            if (!regime_wza()) return(NULL)
+            wza_collapse_note(wza_collapse_stats(all_method_wza_pvalues()))
+        })
 
         # ── Threshold type + value ────────────────────────────────────────────
         shiny::observe({
