@@ -232,13 +232,20 @@ for (tr in trait_cols) {
     if (sum(valid) >= 2) {
         corr <- poly_correction(win_zw$n_snps[valid], win_zw$Z_W[valid])
         wza_p <- rep(NA_real_, nrow(win_zw))
-        wza_p[valid] <- 1 - pnorm(win_zw$Z_W[valid], corr$pred_mean, corr$pred_sd)
+        wza_p[valid] <- pnorm(win_zw$Z_W[valid], corr$pred_mean, corr$pred_sd, lower.tail = FALSE)
     } else {
         message(paste0("WARNING: Too few windows with Z_W for trait '", tr,
                        "' (n=", sum(valid), "). Reporting uncorrected p-values."))
         global_sd <- max(sd(win_zw$Z_W, na.rm = TRUE), 1e-6)
-        wza_p     <- 1 - pnorm(win_zw$Z_W, mean(win_zw$Z_W, na.rm = TRUE), global_sd)
+        wza_p     <- pnorm(win_zw$Z_W, mean(win_zw$Z_W, na.rm = TRUE), global_sd, lower.tail = FALSE)
     }
+
+    # Upper-tail pnorm() avoids the catastrophic cancellation of `1 - pnorm()`, which
+    # loses precision for small p and rounds to exactly 0 for very large Z_W. Floor at
+    # the smallest positive double so a window p is never exactly 0 — otherwise
+    # -log10(p) becomes +Inf downstream and crashes scattermore in the Manhattan
+    # background. NA windows (no valid SNPs for the trait) are preserved as NA.
+    wza_p <- pmax(wza_p, .Machine$double.xmin)
 
     win_zw[, wza_p := wza_p]
 

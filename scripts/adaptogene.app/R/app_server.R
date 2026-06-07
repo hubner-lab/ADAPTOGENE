@@ -68,7 +68,8 @@ app_server <- function(input, output, session) {
         project_data_trigger()  # declare dependency
         proj <- input$project_selector
         make_project_data(proj)
-    }) |> shiny::bindCache(input$project_selector, project_data_trigger())
+    }) |> shiny::bindCache(input$project_selector, project_data_trigger(),
+                           cache = "session")
 
     # ── Config sidebar servers (one per tab) ───────────────────────────────────
     mod_config_sidebar_server("config_home",          config_state, "home")

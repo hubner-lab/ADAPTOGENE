@@ -107,6 +107,11 @@ get_method_shapes <- function(methods) {
 # scattermore layer with pre-computed per-chromosome colors.
 # chr_colors: named vector (names = chromosome levels from chr_f column).
 add_scatter_layer <- function(data, chr_colors, alpha = 0.5, pointsize = 10) {
+    # scattermore's C routine (scatter_points_rgbwt) aborts on NA/NaN/Inf coordinates
+    # ("NA/NaN/Inf in foreign function call"). Drop non-finite points: NA log10p occurs
+    # for WZA windows with no valid SNPs for a trait; +Inf occurs when a p-value is
+    # exactly 0 (-log10(0)). geom_point tolerates these silently, but scattermore does not.
+    data <- data[is.finite(data$log10p) & is.finite(data$pos_cum), ]
     if (nrow(data) == 0) {
         return(ggplot2::geom_blank())
     }

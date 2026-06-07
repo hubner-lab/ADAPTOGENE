@@ -389,12 +389,16 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
         sig_snps[, marker_color  := trait_colors[trait]]
         sig_snps[, marker_symbol := method_shapes[method]]
 
+        # Per-method sig SNPs have no region assignment, so region_id may be absent.
+        # Make it optional: omit the "Region:" hover line and drop customdata when missing.
+        has_region <- "region_id" %in% names(sig_snps)
+
         # Build hover text
         sig_snps[, hover_text := paste0(
             "SNP: ", SNPID, "<br>",
             "Trait: ", trait, "<br>",
             "Method: ", method, "<br>",
-            "Region: ", region_id, "<br>",
+            if (has_region) paste0("Region: ", region_id, "<br>") else "",
             "-log10(p): ", round(abs(log10p), 3)
         )]
 
@@ -418,7 +422,7 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
                     ),
                     text       = ~hover_text,
                     hoverinfo  = "text",
-                    customdata = ~region_id,
+                    customdata = if (has_region) ~region_id else NULL,
                     showlegend = FALSE
                 )
         }

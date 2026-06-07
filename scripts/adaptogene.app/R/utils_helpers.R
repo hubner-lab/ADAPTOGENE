@@ -44,7 +44,15 @@ resolve_k_best <- function(project, config = NULL) {
     k_cfg <- if (!is.null(config)) config_k_best(config) else NA_integer_
     if (!is.na(k_cfg) && k_cfg > 0L) return(k_cfg)
     ks <- find_k_values(project)
-    if (length(ks) > 0) max(ks) else NA_integer_
+    if (length(ks) == 0) return(NA_integer_)
+    # Flag the fallback: config k_best is absent/invalid so we guess max available K.
+    # This is the condition that can pin a stale K (e.g. K6 while outputs are K5) — keep
+    # the fallback (needed pre-sNMF) but make it visible in logs rather than silent.
+    k_fallback <- max(ks)
+    warning(sprintf(
+        "resolve_k_best: config sNMF.k_best absent/invalid for project '%s'; falling back to max available K = %s",
+        project, k_fallback))
+    k_fallback
 }
 
 #' Resolve adjust string for a method from ASSOC_CONFIGS entries

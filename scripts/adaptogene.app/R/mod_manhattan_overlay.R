@@ -178,25 +178,33 @@ mod_manhattan_overlay_server <- function(id, project_data,
         })
 
         # ── Render plotly ──────────────────────────────────────────────────────
+        # Informative blank plot used for the "no coords yet" case and as a fail-soft
+        # fallback when rendering errors — a single bad output must never crash the app.
+        overlay_placeholder <- function(msg) {
+            plotly::plot_ly(type = "scatter", mode = "markers") |>
+                plotly::layout(
+                    xaxis = list(visible = FALSE),
+                    yaxis = list(visible = FALSE),
+                    annotations = list(list(
+                        text      = msg,
+                        x         = 0.5, y = 0.5,
+                        xref      = "paper", yref = "paper",
+                        showarrow = FALSE,
+                        font      = list(size = 14, color = "#888888")
+                    )),
+                    paper_bgcolor = "rgba(0,0,0,0)",
+                    plot_bgcolor  = "rgba(0,0,0,0)"
+                )
+        }
+
         output$overlay <- plotly::renderPlotly({
+          tryCatch({
             co <- coords()
             # coords.json absent: pipeline hasn't run yet or was interrupted mid-run.
             # Show an informative placeholder instead of a silent blank.
             if (is.null(co)) {
-                return(plotly::plot_ly(type = "scatter", mode = "markers") |>
-                    plotly::layout(
-                        xaxis = list(visible = FALSE),
-                        yaxis = list(visible = FALSE),
-                        annotations = list(list(
-                            text      = "Manhattan plot not available — run this mode from the sidebar to generate it.",
-                            x         = 0.5, y = 0.5,
-                            xref      = "paper", yref = "paper",
-                            showarrow = FALSE,
-                            font      = list(size = 14, color = "#888888")
-                        )),
-                        paper_bgcolor = "rgba(0,0,0,0)",
-                        plot_bgcolor  = "rgba(0,0,0,0)"
-                    ))
+                return(overlay_placeholder(
+                    "Manhattan plot not available — run this mode from the sidebar to generate it."))
             }
             bg <- bg_path()
 
@@ -274,6 +282,12 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     threshold_y       = thr_y
                 )
             }
+          }, error = function(e) {
+              # Fail soft: one bad output degrades to a placeholder instead of
+              # terminating the whole Shiny session.
+              warning("Manhattan overlay render failed: ", conditionMessage(e))
+              overlay_placeholder("Could not render Manhattan overlay.")
+          })
         })
 
         # ── Sig SNP click → region_id reactive ────────────────────────────────

@@ -97,7 +97,9 @@ message('INFO: Generating combined Manhattan plot (simple version)')
 # Background SNPs: ALL SNPs, ALL methods (threshold-independent), full data cloud.
 # Sig markers overlay on top; toggling a marker off leaves its faint background dot.
 # Every SNP (significant or not, every method) is baked in — background = complete static Manhattan.
-df_background <- plot_data_all
+# Drop non-finite log10p (NA WZA windows; +Inf from p==0) — scattermore aborts on them
+# (geom_point in the sig overlay tolerates non-finite, so df_significant is left intact).
+df_background <- plot_data_all %>% dplyr::filter(is.finite(log10p))
 
 # Significant SNPs: every (SNP, trait, method) combination shown individually
 df_significant <- plot_data_all %>%
