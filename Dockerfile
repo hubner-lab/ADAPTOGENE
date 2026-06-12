@@ -92,6 +92,10 @@ RUN Rscript -e " \
     remotes::install_version('qs', version = '0.27.2'); \
 "
 
+# qs2 — faster qdata format for large object disk caching (successor to qs).
+# Installed separately to preserve layer cache for the block above.
+RUN Rscript -e "install.packages('qs2', repos = 'https://cloud.r-project.org')"
+
 # Visualization packages
 RUN Rscript -e " \
     remotes::install_version('viridis', version = '0.6.5'); \

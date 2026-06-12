@@ -77,10 +77,18 @@ assign_region_ids <- function(snps_dt, project, module) {
     reg_combined_path <- regions_combined_path(project, module)
     snps_dt[, region_id := NA_character_]
     if (!file.exists(reg_combined_path)) return(snps_dt)
-    regs <- tryCatch(
-        data.table::fread(reg_combined_path, sep = "\t", header = TRUE,
-                          colClasses = c(chr = "character", region_id = "character")),
-        error = function(e) data.table::data.table()
+    # Cache the regions file read so repeated calls (e.g., threshold changes re-triggering
+    # interactive_sigsnps) don't re-read from disk. Fingerprint = mtime so a pipeline
+    # re-run that writes new regions automatically invalidates the cache entry.
+    fp   <- tryCatch(as.character(file.info(reg_combined_path)$mtime), error = function(e) "unknown")
+    regs <- load_cached(
+        paste0("regions_combined_", project, "_", module),
+        function() tryCatch(
+            data.table::fread(reg_combined_path, sep = "\t", header = TRUE,
+                              colClasses = c(chr = "character", region_id = "character")),
+            error = function(e) data.table::data.table()
+        ),
+        fingerprint = fp
     )
     if (nrow(regs) == 0 || !all(c("chr", "start", "end", "region_id") %in% names(regs)))
         return(snps_dt)
@@ -525,6 +533,40 @@ load_all_method_pvalues <- function(project, module = MOD_GEA, k = NA) {
     result
 }
 
+#' qs2-backed disk cache for load_all_method_pvalues.
+#'
+#' On first call (or after a pipeline re-run that changes the file fingerprint),
+#' parses the TSVs and serialises the result list with qs2::qd_save() to
+#' {project}_results/_intermediate/qs_cache/.  On subsequent calls in the same
+#' or a new R session, qs2::qd_read() returns the pre-parsed list in ~milliseconds
+#' regardless of the 200 MB cachem in-memory cap.
+#'
+#' @noRd
+load_all_method_pvalues_cached <- function(project, module = MOD_GEA, k = NA) {
+    fp         <- pvalues_file_fingerprint(project, module, k, regime = "snp")
+    k_str      <- if (is.na(k)) "NA" else as.character(k)
+    cache_dir  <- file.path(project_base(project), MOD_INTER, "qs_cache")
+    cache_file <- file.path(cache_dir,
+                            paste0("pvalues_", module, "_K", k_str, "_", fp, ".qs2"))
+
+    if (file.exists(cache_file)) {
+        result <- tryCatch(qs2::qd_read(cache_file),
+                           error = function(e) NULL)
+        if (!is.null(result)) return(result)
+    }
+
+    result <- load_all_method_pvalues(project, module, k)
+
+    tryCatch({
+        dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+        qs2::qd_save(result, cache_file)
+    }, error = function(e) {
+        warning("qs2 cache write failed (pvalues): ", conditionMessage(e))
+    })
+
+    result
+}
+
 #' Load full WZA p-value TSVs for all methods (wide format: one column per trait).
 #' @noRd
 load_all_method_wza_pvalues <- function(project, module = MOD_GEA, k = NA) {
@@ -554,6 +596,34 @@ load_all_method_wza_pvalues <- function(project, module = MOD_GEA, k = NA) {
         if (nrow(dt) == 0) next
         result[[method_name]] <- dt
     }
+    result
+}
+
+#' qs2-backed disk cache for load_all_method_wza_pvalues.
+#' Same caching strategy as load_all_method_pvalues_cached — see that function.
+#' @noRd
+load_all_method_wza_pvalues_cached <- function(project, module = MOD_GEA, k = NA) {
+    fp         <- pvalues_file_fingerprint(project, module, k, regime = "wza")
+    k_str      <- if (is.na(k)) "NA" else as.character(k)
+    cache_dir  <- file.path(project_base(project), MOD_INTER, "qs_cache")
+    cache_file <- file.path(cache_dir,
+                            paste0("wza_", module, "_K", k_str, "_", fp, ".qs2"))
+
+    if (file.exists(cache_file)) {
+        result <- tryCatch(qs2::qd_read(cache_file),
+                           error = function(e) NULL)
+        if (!is.null(result)) return(result)
+    }
+
+    result <- load_all_method_wza_pvalues(project, module, k)
+
+    tryCatch({
+        dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+        qs2::qd_save(result, cache_file)
+    }, error = function(e) {
+        warning("qs2 cache write failed (wza): ", conditionMessage(e))
+    })
+
     result
 }
 
@@ -628,7 +698,8 @@ pairwise_file_fingerprint <- function(project) {
 #'   same shape as load_all_method_sigsnps().
 #' @noRd
 compute_method_sigsnps_cached <- function(pvalues_list, type, value,
-                                           k, regime, project, module) {
+                                           k, regime, project, module,
+                                           cutoffs = NULL) {
     if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
 
     # Validate that compute_pval_threshold is available (sourced above)
@@ -676,10 +747,18 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
             if (!(tr %in% names(pv_dt))) next
             pvec <- pv_dt[[tr]]
 
-            thresh_result <- tryCatch(
-                compute_pval_threshold(pvec, type, as.numeric(value)),
-                error = function(e) list(status = "error", threshold = NA_real_)
-            )
+            # Use precomputed cutoff from combo_thresholds if available (avoids a
+            # redundant full-vector scan on cold cache; same value, different path).
+            precomp_key <- paste0(tr, "::", m)
+            precomp_thr <- if (!is.null(cutoffs)) cutoffs[[precomp_key]] else NULL
+            thresh_result <- if (!is.null(precomp_thr) && !is.na(precomp_thr) && precomp_thr > 0) {
+                list(status = "ok", threshold = precomp_thr)
+            } else {
+                tryCatch(
+                    compute_pval_threshold(pvec, type, as.numeric(value)),
+                    error = function(e) list(status = "error", threshold = NA_real_)
+                )
+            }
             if (thresh_result$status != "ok" || is.na(thresh_result$threshold)) next
 
             mask <- pvec < thresh_result$threshold & !is.na(pvec)

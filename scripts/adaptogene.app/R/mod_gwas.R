@@ -98,14 +98,14 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         all_method_pvalues <- shiny::reactive({
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_pvalues(pd$name, module, pd$k_best)
+            load_all_method_pvalues_cached(pd$name, module, pd$k_best)
         })
 
         all_method_wza_pvalues <- shiny::reactive({
             if (!regime_wza()) return(list())
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_wza_pvalues(pd$name, module, pd$k_best)
+            load_all_method_wza_pvalues_cached(pd$name, module, pd$k_best)
         })
 
         effective_method_pvalues <- shiny::reactive({
@@ -155,6 +155,14 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
             counts
         })
 
+        # File fingerprint reactive — changes when pipeline regenerates pvalue TSVs.
+        pvalue_fingerprint <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()  # invalidate on pipeline completion
+            pd <- project_data()
+            pvalues_file_fingerprint(pd$name, module, pd$k_best,
+                                     regime = if (regime_wza()) "wza" else "snp")
+        })
+
         # Per-cell significance threshold: "trait::method" -> cutoff p-value (all cells, NA if unavailable)
         combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
@@ -162,7 +170,8 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 type         = threshold_type(),
                 value        = threshold_value()
             )
-        })
+        }) |> shiny::bindCache(threshold_type(), threshold_value(), regime_wza(),
+                               pvalue_fingerprint())
 
         # Strategy: defaults to "All"; persisted to region_params.json so the GEAxGWAS
         # "Fill from GWAS tab" button can read the user's last-chosen value.
@@ -270,7 +279,9 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
             save_region_params(pd$name, rp)
         }, ignoreInit = TRUE)
 
-        threshold_type  <- shiny::reactive(input$threshold_type  %||% "bonf")
+        threshold_type_raw <- shiny::reactive(input$threshold_type %||% "bonf")
+        # Debounce type so switching to "qval" doesn't fire the full 2M-row scan instantly
+        threshold_type  <- shiny::debounce(threshold_type_raw, 500)
         threshold_value_raw <- shiny::reactive({
             v <- input$threshold_value
             if (is.null(v) || is.na(v) || v <= 0) default_threshold(project_data()$config, module)$value
@@ -322,36 +333,29 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 k            = pd$k_best,
                 regime       = if (regime_wza()) "wza" else "snp",
                 project      = pd$name,
-                module       = module
+                module       = module,
+                cutoffs      = combo_thresholds()
             )
         })
 
+        # Derived from bindCached combo_thresholds — no redundant full-vector scan.
         combined_threshold_y <- shiny::reactive({
-            pv <- effective_method_pvalues(); if (length(pv) == 0) return(NULL)
-            type <- threshold_type(); value <- threshold_value()
-            all_thrs <- unlist(lapply(names(pv), function(m) {
-                dt <- pv[[m]]; if (nrow(dt) == 0) return(numeric(0))
-                tcols <- setdiff(names(dt), c("SNPID","chr","pos","n_snps","mean_maf"))
-                sapply(tcols, function(tr) {
-                    r <- tryCatch(compute_pval_threshold(dt[[tr]], type, value),
-                                  error = function(e) list(status="error"))
-                    if (r$status == "ok") r$threshold else NA_real_
-                })
-            }))
-            all_thrs <- all_thrs[!is.na(all_thrs) & all_thrs > 0]
-            if (length(all_thrs) == 0) return(NULL)
-            -log10(min(all_thrs))
+            ct <- combo_thresholds()
+            if (length(ct) == 0) return(NULL)
+            vals <- unlist(ct)
+            vals <- vals[!is.na(vals) & vals > 0]
+            if (length(vals) == 0) return(NULL)
+            -log10(min(vals))  # min raw p = most stringent = highest y line
         })
 
         per_method_threshold_y <- shiny::reactive({
             m <- active_method(); t <- per_method_trait()
             if (is.null(m) || is.null(t)) return(NULL)
-            pv <- effective_method_pvalues(); dt <- pv[[m]]
-            if (is.null(dt) || nrow(dt) == 0 || !(t %in% names(dt))) return(NULL)
-            r <- tryCatch(compute_pval_threshold(dt[[t]], threshold_type(), threshold_value()),
-                          error = function(e) list(status = "error"))
-            if (r$status != "ok") return(NULL)
-            -log10(r$threshold)
+            ct  <- combo_thresholds()
+            key <- paste0(t, "::", m)
+            thr <- ct[[key]]
+            if (is.null(thr) || is.na(thr) || thr <= 0) return(NULL)
+            -log10(thr)
         })
 
         # ── I4: Config parameter badges ────────────────────────────────────────

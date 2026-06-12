@@ -8,7 +8,7 @@ Description: Interactive Shiny application for visualizing ADAPTOGENE
     projections across multiple projects.
 License: MIT
 Imports:
-    shiny (>= 1.8.0),
+    shiny (>= 1.8.1),
     bslib (>= 0.7.0),
     bsicons,
     golem,
@@ -26,7 +26,8 @@ Imports:
     processx,
     shinyjs,
     shinyFiles,
-    digest
+    digest,
+    qs2
 Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

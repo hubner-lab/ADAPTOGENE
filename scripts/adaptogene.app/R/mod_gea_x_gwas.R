@@ -140,13 +140,13 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         gea_method_pvalues <- shiny::reactive({
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_pvalues(pd$name, MOD_GEA, pd$k_best)
+            load_all_method_pvalues_cached(pd$name, MOD_GEA, pd$k_best)
         })
         gea_method_wza_pvalues <- shiny::reactive({
             if (!gea_regime_wza()) return(list())
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_wza_pvalues(pd$name, MOD_GEA, pd$k_best)
+            load_all_method_wza_pvalues_cached(pd$name, MOD_GEA, pd$k_best)
         })
         gea_effective_pvalues <- shiny::reactive({
             if (gea_regime_wza()) gea_method_wza_pvalues() else gea_method_pvalues()
@@ -168,7 +168,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 k            = pd$k_best,
                 regime       = if (gea_regime_wza()) "wza" else "snp",
                 project      = pd$name,
-                module       = MOD_GEA
+                module       = MOD_GEA,
+                cutoffs      = gea_combo_thresholds()
             )
         })
 
@@ -203,13 +204,13 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         gwas_method_pvalues <- shiny::reactive({
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_pvalues(pd$name, MOD_GWAS, pd$k_best)
+            load_all_method_pvalues_cached(pd$name, MOD_GWAS, pd$k_best)
         })
         gwas_method_wza_pvalues <- shiny::reactive({
             if (!gwas_regime_wza()) return(list())
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
             pd <- project_data()
-            load_all_method_wza_pvalues(pd$name, MOD_GWAS, pd$k_best)
+            load_all_method_wza_pvalues_cached(pd$name, MOD_GWAS, pd$k_best)
         })
         gwas_effective_pvalues <- shiny::reactive({
             if (gwas_regime_wza()) gwas_method_wza_pvalues() else gwas_method_pvalues()
@@ -231,7 +232,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 k            = pd$k_best,
                 regime       = if (gwas_regime_wza()) "wza" else "snp",
                 project      = pd$name,
-                module       = MOD_GWAS
+                module       = MOD_GWAS,
+                cutoffs      = gwas_combo_thresholds()
             )
         })
 
@@ -260,14 +262,29 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             counts
         })
 
-        # Per-cell significance thresholds for filter bar cells
+        # File fingerprint reactives — change when the pipeline regenerates pvalue TSVs.
+        gea_pvalue_fingerprint <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()
+            pd <- project_data()
+            pvalues_file_fingerprint(pd$name, MOD_GEA, pd$k_best,
+                                     regime = if (gea_regime_wza()) "wza" else "snp")
+        })
+        gwas_pvalue_fingerprint <- shiny::reactive({
+            if (!is.null(run_trigger)) run_trigger()
+            pd <- project_data()
+            pvalues_file_fingerprint(pd$name, MOD_GWAS, pd$k_best,
+                                     regime = if (gwas_regime_wza()) "wza" else "snp")
+        })
+
+        # Per-cell significance thresholds for filter bar cells (bindCached per side)
         gea_combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
                 pvalues_list = gea_effective_pvalues(),
                 type         = gea_threshold_type(),
                 value        = gea_threshold_value()
             )
-        })
+        }) |> shiny::bindCache(gea_threshold_type(), gea_threshold_value(),
+                               gea_regime_wza(), gea_pvalue_fingerprint())
 
         gwas_combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
@@ -275,7 +292,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 type         = gwas_threshold_type(),
                 value        = gwas_threshold_value()
             )
-        })
+        }) |> shiny::bindCache(gwas_threshold_type(), gwas_threshold_value(),
+                               gwas_regime_wza(), gwas_pvalue_fingerprint())
 
         # ── Initialize per-side filter params from config/region_params ─────────
         .init_dist_param <- function(input_id, rp_key, config_default_fn) {
@@ -432,8 +450,11 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         shiny::observeEvent(input$fill_gea,  .fill_from(MOD_GEA,  "gea_"))
         shiny::observeEvent(input$fill_gwas, .fill_from(MOD_GWAS, "gwas_"))
 
-        gea_threshold_type <- shiny::reactive(input$gea_threshold_type  %||% "bonf")
-        gwas_threshold_type <- shiny::reactive(input$gwas_threshold_type %||% "bonf")
+        gea_threshold_type_raw  <- shiny::reactive(input$gea_threshold_type  %||% "bonf")
+        gwas_threshold_type_raw <- shiny::reactive(input$gwas_threshold_type %||% "bonf")
+        # Debounce type so switching to "qval" doesn't fire the full 2M-row scan instantly
+        gea_threshold_type  <- shiny::debounce(gea_threshold_type_raw,  500)
+        gwas_threshold_type <- shiny::debounce(gwas_threshold_type_raw, 500)
 
         .make_threshold_value <- function(input_id, src_module) {
             raw <- shiny::reactive({
@@ -670,25 +691,12 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         all_method_shapes <- shiny::reactive(method_shape_map(all_methods()))
 
         # Miami threshold y: min threshold across both sides (most stringent for display)
+        # Derived from bindCached combo_thresholds — no redundant full-vector scan.
         miami_threshold_y <- shiny::reactive({
-            .side_min_thr <- function(pv, type, value) {
-                if (length(pv) == 0) return(Inf)
-                thrs <- unlist(lapply(names(pv), function(m) {
-                    dt <- pv[[m]]; if (nrow(dt) == 0) return(numeric(0))
-                    tcols <- setdiff(names(dt), c("SNPID","chr","pos","n_snps","mean_maf"))
-                    sapply(tcols, function(tr) {
-                        r <- tryCatch(compute_pval_threshold(dt[[tr]], type, value),
-                                      error = function(e) list(status="error"))
-                        if (r$status == "ok") r$threshold else NA_real_
-                    })
-                }))
-                thrs <- thrs[!is.na(thrs) & thrs > 0]
-                if (length(thrs) == 0) Inf else min(thrs)
-            }
-            gea_min  <- .side_min_thr(gea_effective_pvalues(),  gea_threshold_type(),  gea_threshold_value())
-            gwas_min <- .side_min_thr(gwas_effective_pvalues(), gwas_threshold_type(), gwas_threshold_value())
-            overall  <- min(gea_min, gwas_min)
-            if (is.infinite(overall)) NULL else -log10(overall)
+            all_ct <- c(unlist(gea_combo_thresholds()), unlist(gwas_combo_thresholds()))
+            all_ct <- all_ct[!is.na(all_ct) & all_ct > 0]
+            if (length(all_ct) == 0) return(NULL)
+            -log10(min(all_ct))
         })
 
         miami_wza_bg <- shiny::reactive({

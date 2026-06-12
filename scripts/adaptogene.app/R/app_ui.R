@@ -13,9 +13,11 @@ app_ui <- function(request) {
         id       = "main_tabs",
         fillable = c("Home"),
 
-        # Enable shinyjs and load config-dirty.js
+        # Enable shinyjs, load config-dirty.js, and show busy spinners on
+        # recalculating outputs (plotlyOutput, tableOutput, etc.) — shiny >= 1.8.1
         header = htmltools::tagList(
             shinyjs::useShinyjs(),
+            shiny::useBusyIndicators(spinners = TRUE),
             htmltools::tags$script(src = "www/config-dirty.js")
         ),
 

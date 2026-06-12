@@ -177,6 +177,15 @@ mod_manhattan_overlay_server <- function(id, project_data,
             }
         })
 
+        # ── Encode background ─────────────────────────────────────────────────
+        # Hoisted outside renderPlotly so the PNG is read and base64-encoded only
+        # when bg_path() changes (project / K / method switch), not on every
+        # reactive invalidation (e.g., region click, threshold change).
+        bg_uri <- shiny::reactive({
+            b <- bg_path()
+            if (file_ok(b)) encode_background_png(b) else NULL
+        })
+
         # ── Render plotly ──────────────────────────────────────────────────────
         # Informative blank plot used for the "no coords yet" case and as a fail-soft
         # fallback when rendering errors — a single bad output must never crash the app.
@@ -206,9 +215,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 return(overlay_placeholder(
                     "Manhattan plot not available — run this mode from the sidebar to generate it."))
             }
-            bg <- bg_path()
-
-            bg_uri <- if (file_ok(bg)) encode_background_png(bg) else NULL
+            bg_uri_val <- bg_uri()
 
             snps <- sig_snps()
             # For per-method views the loaded data is already method-specific;
@@ -248,14 +255,16 @@ mod_manhattan_overlay_server <- function(id, project_data,
                         gea_regions                = regions(),
                         gwas_regions               = gwas_reg,
                         overlap_regions            = ov_reg,
-                        selected_overlap_region_id = current_region_id(),
+                        # isolate: region click must not trigger a full re-render;
+                        # the proxy observer handles incremental shape updates instead.
+                        selected_overlap_region_id = shiny::isolate(current_region_id()),
                         coords                     = co
                     )
                 } else {
                     list()
                 }
                 build_manhattan_plotly(
-                    bg_uri            = bg_uri,
+                    bg_uri            = bg_uri_val,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
                     regions           = NULL,
@@ -270,11 +279,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
             } else {
                 reg_data <- if (show_regions()) regions() else NULL
                 build_manhattan_plotly(
-                    bg_uri            = bg_uri,
+                    bg_uri            = bg_uri_val,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
                     regions           = reg_data,
-                    current_region_id = current_region_id(),
+                    # isolate: region click must not trigger a full re-render;
+                    # the proxy observer handles incremental shape updates instead.
+                    current_region_id = shiny::isolate(current_region_id()),
                     trait_colors      = trait_colors(),
                     method_shapes     = method_shapes(),
                     is_miami          = is_miami,
@@ -289,6 +300,59 @@ mod_manhattan_overlay_server <- function(id, project_data,
               overlay_placeholder("Could not render Manhattan overlay.")
           })
         })
+
+        # ── Region click → incremental shape relayout (T1.3 — no full re-render) ──
+        #
+        # current_region_id() is isolated in renderPlotly above so region clicks
+        # don't trigger a full widget teardown.  This observer fires instead and
+        # pushes only the updated shapes array via plotlyProxy, which is instant
+        # and blink-free.
+        #
+        # IMPORTANT: every relayout must include BOTH region rects AND threshold
+        # lines in one combined array because Plotly's relayout replaces the entire
+        # shapes list — sending only region shapes would erase the threshold line.
+        #
+        # All reads other than current_region_id() are isolated so that only a
+        # region-click triggers this path (threshold / project / method changes
+        # trigger a full renderPlotly re-render, which already includes correct shapes).
+        shiny::observeEvent(current_region_id(), {
+            co     <- shiny::isolate(coords())
+            if (is.null(co)) return()
+
+            thr_y    <- shiny::isolate(threshold_y())
+            reg_data <- shiny::isolate(regions())
+            gwas_reg <- shiny::isolate(gwas_regions())
+            ov_reg   <- shiny::isolate(overlap_regions())
+            show_reg <- shiny::isolate(show_regions())
+            cur_rid  <- current_region_id()
+
+            use_miami_shapes <- is_miami &&
+                !is.null(gwas_reg) && !is.null(ov_reg)
+
+            region_shapes <- if (!show_reg) {
+                list()
+            } else if (use_miami_shapes) {
+                build_miami_region_shapes(
+                    gea_regions                = reg_data,
+                    gwas_regions               = gwas_reg,
+                    overlap_regions            = ov_reg,
+                    selected_overlap_region_id = cur_rid,
+                    coords                     = co
+                )
+            } else if (!is.null(reg_data) && nrow(reg_data) > 0) {
+                build_dual_region_shapes(reg_data, cur_rid, co,
+                    y_lo = co$y_range[1], y_hi = co$y_range[2])
+            } else {
+                list()
+            }
+
+            # Replicate threshold lines using shared helper (fct_manhattan.R)
+            combined_shapes <- c(region_shapes,
+                                 build_threshold_lines(is_miami, thr_y, co))
+
+            plotly::plotlyProxy("overlay", session) |>
+                plotly::plotlyProxyInvoke("relayout", list(shapes = combined_shapes))
+        }, ignoreInit = TRUE, ignoreNULL = FALSE)
 
         # ── Sig SNP click → region_id reactive ────────────────────────────────
         selected_region <- shiny::reactive({

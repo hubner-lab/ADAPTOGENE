@@ -202,6 +202,73 @@ build_miami_region_shapes <- function(gea_regions, gwas_regions, overlap_regions
     shapes
 }
 
+#' Build plotly threshold line shapes for Manhattan / Miami plots
+#'
+#' Extracted so both build_manhattan_plotly (full render) and the plotlyProxy
+#' region-click observer (incremental relayout) produce identical threshold lines.
+#'
+#' @param is_miami   logical: TRUE for Miami plots
+#' @param threshold_y -log10(p) threshold from interactive controls, or NULL to use coords
+#' @param coords coordinate mapping list (from load_coords)
+#' @return list of plotly shape objects (may be empty)
+#' @noRd
+build_threshold_lines <- function(is_miami, threshold_y, coords) {
+    threshold_lines <- list()
+    if (!is_miami) {
+        thr_val <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            threshold_y
+        } else if (!is.null(coords$bonferroni_y) && !is.na(coords$bonferroni_y)) {
+            coords$bonferroni_y
+        } else {
+            NULL
+        }
+        if (!is.null(thr_val)) {
+            threshold_lines <- c(threshold_lines, list(
+                list(type = "line", xref = "paper", yref = "y",
+                     x0 = 0, x1 = 1, y0 = thr_val, y1 = thr_val,
+                     line = list(color = "red", dash = "dash", width = 1))
+            ))
+        }
+    }
+    if (is_miami) {
+        thr_gea <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            threshold_y
+        } else if (!is.null(coords$gea_threshold_y)) {
+            coords$gea_threshold_y
+        } else {
+            NULL
+        }
+        thr_gwas <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
+            -threshold_y
+        } else if (!is.null(coords$gwas_threshold_y)) {
+            coords$gwas_threshold_y
+        } else {
+            NULL
+        }
+        if (!is.null(thr_gea)) {
+            threshold_lines <- c(threshold_lines, list(
+                list(type = "line", xref = "paper", yref = "y",
+                     x0 = 0, x1 = 1, y0 = thr_gea, y1 = thr_gea,
+                     line = list(color = "red", dash = "dash", width = 1))
+            ))
+        }
+        if (!is.null(thr_gwas)) {
+            threshold_lines <- c(threshold_lines, list(
+                list(type = "line", xref = "paper", yref = "y",
+                     x0 = 0, x1 = 1, y0 = thr_gwas, y1 = thr_gwas,
+                     line = list(color = "red", dash = "dash", width = 1))
+            ))
+        }
+        # Zero line separating GEA / GWAS panels (structural)
+        threshold_lines <- c(threshold_lines, list(
+            list(type = "line", xref = "paper", yref = "y",
+                 x0 = 0, x1 = 1, y0 = 0, y1 = 0,
+                 line = list(color = "black", width = 1.5))
+        ))
+    }
+    threshold_lines
+}
+
 #' Build the plotly Manhattan overlay plot
 #' @param bg_uri base64 encoded background PNG (from encode_background_png)
 #' @param coords coordinate mapping list (from load_coords)
@@ -250,61 +317,8 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
     # Threshold lines.
     # threshold_y (caller-supplied, live from interactive controls) takes priority.
     # Falls back to coords$bonferroni_y (pipeline default) when threshold_y is NULL.
-    threshold_lines <- list()
-    if (!is_miami) {
-        thr_val <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
-            threshold_y
-        } else if (!is.null(coords$bonferroni_y) && !is.na(coords$bonferroni_y)) {
-            coords$bonferroni_y
-        } else {
-            NULL
-        }
-        if (!is.null(thr_val)) {
-            threshold_lines <- c(threshold_lines, list(
-                list(type = "line", xref = "paper", yref = "y",
-                     x0 = 0, x1 = 1, y0 = thr_val, y1 = thr_val,
-                     line = list(color = "red", dash = "dash", width = 1))
-            ))
-        }
-    }
-    if (is_miami) {
-        # For Miami, threshold_y is the GEA positive threshold (most stringent across both sides).
-        # Draw at +thr (GEA) and -thr (GWAS). Fall back to coords keys.
-        thr_gea <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
-            threshold_y
-        } else if (!is.null(coords$gea_threshold_y)) {
-            coords$gea_threshold_y
-        } else {
-            NULL
-        }
-        thr_gwas <- if (!is.null(threshold_y) && !is.na(threshold_y)) {
-            -threshold_y
-        } else if (!is.null(coords$gwas_threshold_y)) {
-            coords$gwas_threshold_y
-        } else {
-            NULL
-        }
-        if (!is.null(thr_gea)) {
-            threshold_lines <- c(threshold_lines, list(
-                list(type = "line", xref = "paper", yref = "y",
-                     x0 = 0, x1 = 1, y0 = thr_gea, y1 = thr_gea,
-                     line = list(color = "red", dash = "dash", width = 1))
-            ))
-        }
-        if (!is.null(thr_gwas)) {
-            threshold_lines <- c(threshold_lines, list(
-                list(type = "line", xref = "paper", yref = "y",
-                     x0 = 0, x1 = 1, y0 = thr_gwas, y1 = thr_gwas,
-                     line = list(color = "red", dash = "dash", width = 1))
-            ))
-        }
-        # Zero line separating GEA / GWAS panels (structural)
-        threshold_lines <- c(threshold_lines, list(
-            list(type = "line", xref = "paper", yref = "y",
-                 x0 = 0, x1 = 1, y0 = 0, y1 = 0,
-                 line = list(color = "black", width = 1.5))
-        ))
-    }
+    # Delegates to build_threshold_lines() so the proxy observer reuses identical logic.
+    threshold_lines <- build_threshold_lines(is_miami, threshold_y, coords)
 
     p <- plotly::plot_ly(source = source) |>
         plotly::layout(

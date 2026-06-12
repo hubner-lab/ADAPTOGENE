@@ -162,12 +162,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
         # Total SNP count in region (all SNPs in filtered VCF, not just sig).
         # Haplotype analysis operates on every variant in the region — this is
         # the relevant number for the min-SNPs check, not the sig-SNP count.
+        #
+        # T2.4: Pure read from vcf_snp_count_cache (reactiveValues); the blocking awk
+        # command runs in a background process (see observe after is_running definition).
+        # Returns NA_integer_ while pending — haplotype UI shows "unavailable" and
+        # re-renders automatically once the async count arrives.
         region_total_snps <- shiny::reactive({
             row <- current_region_row()
             if (is.null(row)) return(NA_integer_)
-            pd  <- project_data()
-            vcf <- hap_filtered_vcf_path(pd$name, pd$config)
-            count_vcf_region_snps(vcf, row$chr[1], row$start[1], row$end[1])
+            rid    <- row$region_id[1]
+            cached <- vcf_snp_count_cache[[rid]]
+            if (is.null(cached) || identical(cached, "pending")) return(NA_integer_)
+            as.integer(cached)
         })
 
         # ── Enrichment state ───────────────────────────────────────────────────
@@ -175,6 +181,11 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
         regionplot_cache <- shiny::reactiveValues()
         hap_scan_cache   <- shiny::reactiveValues()  # keyed by region_id___tag
         hap_viz_cache    <- shiny::reactiveValues()  # keyed by region_id___tag
+
+        # Session-level cache for VCF region SNP counts (keyed by region_id).
+        # "pending" = background awk in flight; integer = done; NA_integer_ = VCF missing.
+        # Populated by the async launch observe and read by region_total_snps().
+        vcf_snp_count_cache <- shiny::reactiveValues()
 
         # Handles for background processes: keyed by cache key
         # Each entry: list(process, log_file, type, ...) or NULL when done
@@ -358,6 +369,48 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             !is.null(h) && h$process$is_alive()
         }
 
+        # ── VCF SNP count: launch async awk subprocess on region selection (T2.4) ──
+        # Decoupled from region_total_snps() (which is a pure read reactive) so the
+        # session never blocks on the ~2M-line VCF scan. Memoized per region_id for
+        # the session lifetime — re-selecting the same region is instant.
+        shiny::observe({
+            row <- current_region_row()
+            if (is.null(row)) return()
+            rid        <- row$region_id[1]
+            handle_key <- paste0("vcf_count_", rid)
+
+            # Already cached or in flight — nothing to do
+            if (!is.null(vcf_snp_count_cache[[rid]]) || is_running(handle_key)) return()
+
+            pd  <- project_data()
+            vcf <- hap_filtered_vcf_path(pd$name, pd$config)
+            if (is.null(vcf) || !nzchar(vcf) || !file_ok(vcf)) {
+                vcf_snp_count_cache[[rid]] <- NA_integer_
+                return()
+            }
+
+            # Mark as pending so parallel reactive reads don't re-launch
+            vcf_snp_count_cache[[rid]] <- "pending"
+
+            # Use a temp file for output — mirrors the file-redirect pattern used by
+            # all other subprocess handlers (proved pattern; avoids pipe-buffer uncertainty).
+            out_file <- tempfile("vcf_count_", fileext = ".txt")
+            cmd <- sprintf(
+                "awk -v c=%s -v s=%d -v e=%d 'BEGIN{n=0} !/^#/ && $1==c && $2>=s && $2<=e {n++} END{print n}' %s > %s",
+                shQuote(as.character(row$chr[1])),
+                as.integer(row$start[1]), as.integer(row$end[1]),
+                shQuote(vcf),
+                shQuote(out_file)
+            )
+
+            subprocess_handles[[handle_key]] <- list(
+                process     = processx::process$new("bash", c("-c", cmd)),
+                type        = "vcf_count",
+                region_id   = rid,
+                output_file = out_file
+            )
+        })
+
         # ── Polling observer: checks background processes every second ──────────
         shiny::observe({
             handles_list <- shiny::reactiveValuesToList(subprocess_handles)
@@ -441,6 +494,18 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                     }
                     base_key <- sub("__viz$", "", key)
                     hap_viz_cache[[base_key]] <- result
+
+                } else if (h$type == "vcf_count") {
+                    # Read awk output from temp file (file-redirect pattern,
+                    # mirrors other subprocess handlers — no pipe-buffer uncertainty)
+                    lines <- tryCatch(
+                        readLines(h$output_file, warn = FALSE),
+                        error = function(e) character(0)
+                    )
+                    unlink(h$output_file)  # clean up temp file
+                    count <- suppressWarnings(as.integer(trimws(lines[1])))
+                    vcf_snp_count_cache[[h$region_id]] <-
+                        if (length(lines) > 0 && !is.na(count)) count else NA_integer_
                 }
 
                 subprocess_handles[[key]] <- NULL
