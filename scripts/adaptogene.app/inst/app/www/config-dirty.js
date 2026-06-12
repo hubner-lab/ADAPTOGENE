@@ -59,6 +59,18 @@ Shiny.addCustomMessageHandler("pheno_chips_reset", function(msg) {
     }
 });
 
+// plot_rearm — re-arm the Manhattan loading overlay when the project changes.
+// Receives: { id: "<ns>overlay" }
+// Removes .plot-revealed so the overlay re-covers the new cold-start blink;
+// the debounced plotly_afterplot listener baked into the widget re-reveals it.
+Shiny.addCustomMessageHandler("plot_rearm", function(msg) {
+    var out  = document.getElementById(msg.id);
+    var wrap = out && out.closest(".plot-loading-wrap");
+    if (!wrap) return;
+    wrap.classList.remove("plot-revealed");
+    delete wrap.dataset.revealFallback;   // re-arm max-timeout fallback
+});
+
 Shiny.addCustomMessageHandler("config_dirty_update", function(msg) {
     var sid  = msg.sidebar_id;
     var n    = msg.dirty_count;

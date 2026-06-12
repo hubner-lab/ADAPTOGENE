@@ -30,7 +30,15 @@ mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
         if (!is.null(filter_ui)) filter_ui,
         bslib::card_body(
             class = "p-1",
-            plotly::plotlyOutput(ns("overlay"), height = height)
+            htmltools::div(
+                class = "plot-loading-wrap",
+                htmltools::div(
+                    class = "plot-loading-overlay",
+                    bsicons::bs_icon("arrow-repeat", class = "spin-icon"),
+                    htmltools::span("Loading plot…")
+                ),
+                plotly::plotlyOutput(ns("overlay"), height = height)
+            )
         )
     )
 }
@@ -77,6 +85,31 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           overlap_regions   = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
+
+        # ── Latching loading overlay ───────────────────────────────────────────
+        # Bakes a debounced `plotly_afterplot` listener into every plotly widget
+        # returned by output$overlay.  Once the plot settles after cold-start,
+        # the `.plot-revealed` class is added to the wrapper and the CSS overlay
+        # fades out — it is never removed by JS so param toggles stay smooth.
+        # An 8 s max-timeout fallback ensures the overlay cannot stick forever.
+        JS_REVEAL <- htmlwidgets::JS("function(el, x) {
+            var wrap = el.closest('.plot-loading-wrap');
+            if (!wrap) return;
+            var debounce = null;
+            if (!wrap.dataset.revealFallback) {
+                wrap.dataset.revealFallback = '1';
+                setTimeout(function() { wrap.classList.add('plot-revealed'); }, 8000);
+            }
+            function revealDebounced() {
+                clearTimeout(debounce);
+                debounce = setTimeout(function() {
+                    wrap.classList.add('plot-revealed');
+                }, 350);
+            }
+            el.on('plotly_afterplot', revealDebounced);
+            revealDebounced();
+        }")
+        reveal_when_settled <- function(p) htmlwidgets::onRender(p, JS_REVEAL)
 
         output$title <- shiny::renderText(title_label())
 
@@ -212,8 +245,8 @@ mod_manhattan_overlay_server <- function(id, project_data,
             # coords.json absent: pipeline hasn't run yet or was interrupted mid-run.
             # Show an informative placeholder instead of a silent blank.
             if (is.null(co)) {
-                return(overlay_placeholder(
-                    "Manhattan plot not available — run this mode from the sidebar to generate it."))
+                return(reveal_when_settled(overlay_placeholder(
+                    "Manhattan plot not available — run this mode from the sidebar to generate it.")))
             }
             bg_uri_val <- bg_uri()
 
@@ -263,7 +296,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 } else {
                     list()
                 }
-                build_manhattan_plotly(
+                reveal_when_settled(build_manhattan_plotly(
                     bg_uri            = bg_uri_val,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
@@ -275,10 +308,10 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     source            = ns("overlay"),
                     extra_shapes      = custom_shapes,
                     threshold_y       = thr_y
-                )
+                ))
             } else {
                 reg_data <- if (show_regions()) regions() else NULL
-                build_manhattan_plotly(
+                reveal_when_settled(build_manhattan_plotly(
                     bg_uri            = bg_uri_val,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
@@ -291,13 +324,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     is_miami          = is_miami,
                     source            = ns("overlay"),
                     threshold_y       = thr_y
-                )
+                ))
             }
           }, error = function(e) {
               # Fail soft: one bad output degrades to a placeholder instead of
               # terminating the whole Shiny session.
               warning("Manhattan overlay render failed: ", conditionMessage(e))
-              overlay_placeholder("Could not render Manhattan overlay.")
+              reveal_when_settled(overlay_placeholder("Could not render Manhattan overlay."))
           })
         })
 
@@ -353,6 +386,15 @@ mod_manhattan_overlay_server <- function(id, project_data,
             plotly::plotlyProxy("overlay", session) |>
                 plotly::plotlyProxyInvoke("relayout", list(shapes = combined_shapes))
         }, ignoreInit = TRUE, ignoreNULL = FALSE)
+
+        # ── Re-arm overlay on project switch ─────────────────────────────────
+        # Switching projects reloads data cold — the overlay must cover that
+        # blink too.  Remove plot-revealed so the overlay re-shows; the next
+        # plotly_afterplot burst re-reveals it.  ignoreInit = TRUE so we don't
+        # re-arm on the very first load (overlay starts visible by default).
+        shiny::observeEvent(project_data(), {
+            session$sendCustomMessage("plot_rearm", list(id = ns("overlay")))
+        }, ignoreInit = TRUE)
 
         # ── Sig SNP click → region_id reactive ────────────────────────────────
         selected_region <- shiny::reactive({

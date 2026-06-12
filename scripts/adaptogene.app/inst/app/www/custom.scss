@@ -795,6 +795,32 @@
     to   { transform: rotate(360deg); }
 }
 
+// Manhattan / Miami first-load latching overlay
+// Visible by default; JS adds .plot-revealed once plotly_afterplot settles.
+// param toggles never re-show it — only a project-switch rearms via server.
+.plot-loading-wrap {
+    position: relative;
+}
+
+.plot-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--bs-card-bg, #fff);
+    color: var(--bs-secondary-color);
+    transition: opacity 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.plot-loading-wrap.plot-revealed .plot-loading-overlay {
+    opacity: 0;
+    pointer-events: none;
+}
+
 // Dark terminal-style log block in the modal
 .pipeline-log-content {
     max-height: 60vh;
