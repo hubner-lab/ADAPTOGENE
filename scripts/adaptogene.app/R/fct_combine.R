@@ -414,12 +414,22 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
 (function() {
     var container = document.getElementById("%s");
     if (!container) return;
+    // window-keyed last-sent cache so syncSelection() is idempotent across renderUI
+    // re-creations. Each re-run of the renderUI builds a fresh IIFE (new closure), so a
+    // closure-local lastSent would reset to undefined — window persists across re-renders.
+    if (!window.__tmSelLast) window.__tmSelLast = {};
     function syncSelection() {
         var active = container.querySelectorAll(".tm-cell.tm-active");
         var pairs = Array.from(active).map(function(el) {
             return el.dataset.trait + "::" + el.dataset.method;
         });
-        Shiny.setInputValue("%s", JSON.stringify(pairs), {priority: "event"});
+        var json = JSON.stringify(pairs);
+        // Skip setInputValue when selection unchanged — prevents reactive storms on
+        // renderUI re-runs caused by cold-load param restoration (no {priority:"event"};
+        // default priority adds a second dedup layer for genuine user interactions).
+        if (window.__tmSelLast["%s"] === json) return;
+        window.__tmSelLast["%s"] = json;
+        Shiny.setInputValue("%s", json);
     }
     container.addEventListener("click", function(e) {
         var cell = e.target.closest(".tm-cell");
@@ -448,7 +458,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
     });
     syncSelection();
 })();
-', container_id, input_id)
+', container_id, input_id, input_id, input_id)
 
     strategy_choices <- c("Union", "Cross-method", "Cross-method per-trait")
     strategy_labels  <- setNames(

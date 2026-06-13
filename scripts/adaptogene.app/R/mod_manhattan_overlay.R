@@ -100,14 +100,31 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 wrap.dataset.revealFallback = '1';
                 setTimeout(function() { wrap.classList.add('plot-revealed'); }, 8000);
             }
+            function doReveal() {
+                // Wait for SVG <image> elements (background PNG) to finish browser
+                // decode before fading overlay — plotly_afterplot fires after Plotly's
+                // JS cycle but before the large base64 PNG is decoded and painted.
+                var imgs = Array.from(el.querySelectorAll('image'));
+                if (!imgs.length) { wrap.classList.add('plot-revealed'); return; }
+                var n = imgs.length;
+                function done() { if (--n === 0) wrap.classList.add('plot-revealed'); }
+                imgs.forEach(function(si) {
+                    var src = si.getAttribute('href') || si.getAttribute('xlink:href') || '';
+                    if (!src) { done(); return; }
+                    var tmp = new Image();
+                    tmp.onload = tmp.onerror = done;
+                    tmp.src = src;
+                });
+            }
             function revealDebounced() {
+                // INSTRUMENTATION — remove after blink fix is verified.
+                console.log('[overlay] afterplot', performance.now());
                 clearTimeout(debounce);
-                debounce = setTimeout(function() {
-                    wrap.classList.add('plot-revealed');
-                }, 350);
+                debounce = setTimeout(doReveal, 350);
             }
             el.on('plotly_afterplot', revealDebounced);
-            revealDebounced();
+            // No initial revealDebounced() — premature 350ms timer caused early reveal
+            // on slow cold-start renders before plotly_afterplot had a chance to fire.
         }")
         reveal_when_settled <- function(p) htmlwidgets::onRender(p, JS_REVEAL)
 
@@ -250,6 +267,13 @@ mod_manhattan_overlay_server <- function(id, project_data,
             }
             bg_uri_val <- bg_uri()
 
+            # INSTRUMENTATION — remove after blink fix is verified.
+            # Counts how many times renderPlotly actually re-executes so we can
+            # confirm the fix collapsed cold-load to a single render.
+            message("[overlay render] id=", id, " bg_ok=", !is.null(bg_uri_val),
+                    " snps_rows=", if (!is.null(sig_snps())) nrow(sig_snps()) else "NULL",
+                    " thr_y=", shiny::isolate(threshold_y()))
+
             snps <- sig_snps()
             # For per-method views the loaded data is already method-specific;
             # only filter by trait. For combined/Miami, no filtering needed.
@@ -271,25 +295,29 @@ mod_manhattan_overlay_server <- function(id, project_data,
                 snps[trait %in% gwas_tr, log10p := -log10p]
             }
 
-            # Regions overlay data
-            # For the Overlapping Miami tab, use 4-category shape building
-            # when gwas_regions + overlap_regions are supplied.
-            gwas_reg  <- gwas_regions()
-            ov_reg    <- overlap_regions()
+            # ── Shape inputs: isolate so changes don't trigger a full re-render ──
+            #
+            # threshold_y(), regions(), gwas_regions(), overlap_regions(), show_regions()
+            # are shape-only: they don't affect the plotly widget skeleton (data traces,
+            # axis ranges, background image) — only the shapes[] overlay.  Isolating them
+            # here means late-resolving reactives (threshold_y is debounced 500 ms in
+            # parent modules) and project-data-dependent region tables don't cause extra
+            # cold-load renders.  The shape_trigger observer below picks up all
+            # subsequent changes and pushes them via plotlyProxy relayout instead.
+            gwas_reg  <- shiny::isolate(gwas_regions())
+            ov_reg    <- shiny::isolate(overlap_regions())
             use_miami_shapes <- is_miami &&
                 !is.null(gwas_reg) && !is.null(ov_reg)
 
-            thr_y <- threshold_y()
+            thr_y <- shiny::isolate(threshold_y())
 
             if (use_miami_shapes) {
                 # 4-category Miami shapes (GEA-only gray / GWAS-only gray / overlap orange / selected blue)
-                custom_shapes <- if (show_regions()) {
+                custom_shapes <- if (shiny::isolate(show_regions())) {
                     build_miami_region_shapes(
-                        gea_regions                = regions(),
+                        gea_regions                = shiny::isolate(regions()),
                         gwas_regions               = gwas_reg,
                         overlap_regions            = ov_reg,
-                        # isolate: region click must not trigger a full re-render;
-                        # the proxy observer handles incremental shape updates instead.
                         selected_overlap_region_id = shiny::isolate(current_region_id()),
                         coords                     = co
                     )
@@ -310,14 +338,12 @@ mod_manhattan_overlay_server <- function(id, project_data,
                     threshold_y       = thr_y
                 ))
             } else {
-                reg_data <- if (show_regions()) regions() else NULL
+                reg_data <- if (shiny::isolate(show_regions())) shiny::isolate(regions()) else NULL
                 reveal_when_settled(build_manhattan_plotly(
                     bg_uri            = bg_uri_val,
                     coords            = co,
                     sig_snps          = if (nrow(snps) > 0) snps else NULL,
                     regions           = reg_data,
-                    # isolate: region click must not trigger a full re-render;
-                    # the proxy observer handles incremental shape updates instead.
                     current_region_id = shiny::isolate(current_region_id()),
                     trait_colors      = trait_colors(),
                     method_shapes     = method_shapes(),
@@ -334,21 +360,25 @@ mod_manhattan_overlay_server <- function(id, project_data,
           })
         })
 
-        # ── Region click → incremental shape relayout (T1.3 — no full re-render) ──
+        # ── Shape trigger → incremental shape relayout (no full re-render) ──
         #
-        # current_region_id() is isolated in renderPlotly above so region clicks
-        # don't trigger a full widget teardown.  This observer fires instead and
-        # pushes only the updated shapes array via plotlyProxy, which is instant
-        # and blink-free.
+        # All shape-only inputs (current_region_id, threshold_y, regions,
+        # gwas_regions, overlap_regions, show_regions) are isolated inside
+        # renderPlotly above so they don't cause extra cold-load re-renders.
+        # This observer fires on ANY of their changes and pushes the updated
+        # shapes array via plotlyProxy relayout, which is instant and blink-free.
         #
         # IMPORTANT: every relayout must include BOTH region rects AND threshold
         # lines in one combined array because Plotly's relayout replaces the entire
         # shapes list — sending only region shapes would erase the threshold line.
         #
-        # All reads other than current_region_id() are isolated so that only a
-        # region-click triggers this path (threshold / project / method changes
-        # trigger a full renderPlotly re-render, which already includes correct shapes).
-        shiny::observeEvent(current_region_id(), {
+        # ignoreInit = TRUE: first establishment is skipped because renderPlotly
+        # already drew correct initial shapes from the isolated reads above.
+        shape_trigger <- shiny::reactive({
+            list(current_region_id(), threshold_y(), regions(),
+                 gwas_regions(), overlap_regions(), show_regions())
+        })
+        shiny::observeEvent(shape_trigger(), {
             co     <- shiny::isolate(coords())
             if (is.null(co)) return()
 

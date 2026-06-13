@@ -478,6 +478,12 @@ build_manhattan_plotly <- function(bg_uri, coords, sig_snps = NULL,
         }
     }
 
+    # Disable responsive resizing: the background is a data-anchored layout image
+    # (xref="x", yref="y"), so every container-resize relayout re-rasterizes the
+    # large base64 PNG — causing the visible "blinks many times" on first load as
+    # bslib fillable layout settles.  Fixed dimensions mean one decode, no blink.
+    p <- plotly::config(p, responsive = FALSE)
+
     plotly::event_register(p, "plotly_click")
 }
 
