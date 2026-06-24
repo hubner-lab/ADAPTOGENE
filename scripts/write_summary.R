@@ -283,27 +283,44 @@ if (MODE == 'processing') {
     }
 
 } else if (MODE == 'maladaptation') {
-    # args: MODE OUTPUT gf_adaptive offset_site_values
-    GF_ADAPTIVE = args[3]
-    OFFSET_SITE = args[4]
+    # args: MODE OUTPUT offset_site_values (space-joined paths, one per snp_set x spatial_tag)
+    OFFSET_SITE = args[3]
 
-    # Load offset values for range
-    offset <- fread(OFFSET_SITE)
-    offset_col <- setdiff(colnames(offset), c('site', 'sample', 'latitude', 'longitude'))
-    if (length(offset_col) > 0) {
-        offset_vals <- offset[[offset_col[1]]]
-        offset_min <- round(min(offset_vals, na.rm = TRUE), 4)
-        offset_max <- round(max(offset_vals, na.rm = TRUE), 4)
-        offset_mean <- round(mean(offset_vals, na.rm = TRUE), 4)
-    } else {
-        offset_min <- offset_max <- offset_mean <- NA
-    }
+    # Split space-joined paths into individual paths
+    offset_paths <- strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
+    offset_paths <- offset_paths[nchar(offset_paths) > 0]
+
+    # Emit per-tag offset stats (one row per SNP set x spatial tag)
+    tag_rows <- lapply(offset_paths, function(p) {
+        tag <- basename(dirname(p))
+        if (!file.exists(p)) {
+            return(list(
+                row('maladaptation', sprintf('offset_min_%s', tag), NA),
+                row('maladaptation', sprintf('offset_max_%s', tag), NA),
+                row('maladaptation', sprintf('offset_mean_%s', tag), NA)
+            ))
+        }
+        offset <- fread(p, colClasses = c(site = 'character', sample = 'character'))
+        offset_col <- setdiff(colnames(offset), c('site', 'sample', 'latitude', 'longitude'))
+        if (length(offset_col) > 0) {
+            vals <- offset[[offset_col[1]]]
+            list(
+                row('maladaptation', sprintf('offset_min_%s', tag),  round(min(vals,  na.rm = TRUE), 4)),
+                row('maladaptation', sprintf('offset_max_%s', tag),  round(max(vals,  na.rm = TRUE), 4)),
+                row('maladaptation', sprintf('offset_mean_%s', tag), round(mean(vals, na.rm = TRUE), 4))
+            )
+        } else {
+            list(
+                row('maladaptation', sprintf('offset_min_%s', tag),  NA),
+                row('maladaptation', sprintf('offset_max_%s', tag),  NA),
+                row('maladaptation', sprintf('offset_mean_%s', tag), NA)
+            )
+        }
+    })
 
     new_rows <- rbind(
         row('maladaptation', 'gf_model', 'completed'),
-        row('maladaptation', 'offset_min', offset_min),
-        row('maladaptation', 'offset_max', offset_max),
-        row('maladaptation', 'offset_mean', offset_mean)
+        rbindlist(lapply(unlist(tag_rows, recursive = FALSE), as.data.table))
     )
 
 } else if (MODE == 'gea_x_gwas') {

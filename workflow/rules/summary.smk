@@ -134,15 +134,14 @@ elif MODE == 'maladaptation':
             offset_site = _summary_offset_sites
         output: W['summary_done']
         params:
-            summary_tsv      = O['summary'],
-            adaptive_str     = ' '.join(_summary_adaptive),
-            offset_site_str  = ' '.join(_summary_offset_sites)
+            summary_tsv     = O['summary'],
+            offset_site_str = ' '.join(_summary_offset_sites)
         log: f"{LOGDIR}maladaptation/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 maladaptation {params.summary_tsv} \
-                "{params.adaptive_str}" "{params.offset_site_str}" > {log} 2>&1
+                "{params.offset_site_str}" > {log} 2>&1
             touch {output}
             """
 
