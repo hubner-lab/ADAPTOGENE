@@ -250,15 +250,34 @@ MODELS_STR = _future.get('models', '')
 MODELS_LIST = [m.strip() for m in MODELS_STR.split(',') if m.strip()] if MODELS_STR else []
 
 # GRADIENT FOREST parameters
-_gf = config.get('Maladaptation', {}).get('methods', {}).get('gradient_forest', {})
+_mala_cfg = config.get('Maladaptation', {})
+_gf = _mala_cfg.get('methods', {}).get('gradient_forest', {})
 NTREE = _gf.get('ntree', '500')
 COR_THRESHOLD = _gf.get('cor_threshold', '0.5')
 SPATIAL_CORRECTION = _gf.get('spatial_correction', 'with')
-GF_RUN_LABEL = _gf.get('run_label', '')
 GF_RANDOM_MODEL = _gf.get('random_model', True)
-GF_COMBINE_METHOD = _gf.get('combine_method', 'All')
-GF_COMBINE_GAP = int(_gf.get('combine_gap', 100000))
-SPATIAL_TAG = 'spatial' if SPATIAL_CORRECTION == 'with' else 'nospatial'
+# Legacy keys — ignored now (SNP sets are named by the user in the Shiny GEA tab)
+_GF_LEGACY = {k: _gf.get(k) for k in ('run_label', 'combine_method', 'combine_gap') if k in _gf}
+if _GF_LEGACY:
+    import sys; print(
+        f"WARNING: Maladaptation.methods.gradient_forest keys {list(_GF_LEGACY)} are no longer "
+        "used. SNP sets are now saved from the GEA tab in the Shiny app. "
+        "See Maladaptation.snp_sets in config.", file=sys.stderr)
+
+if SPATIAL_CORRECTION not in ('with', 'without', 'both'):
+    raise ValueError(
+        f"Maladaptation.methods.gradient_forest.spatial_correction must be "
+        f"'with', 'without', or 'both'; got {SPATIAL_CORRECTION!r}"
+    )
+if SPATIAL_CORRECTION == 'both':
+    ACTIVE_SPATIAL_TAGS = ['spatial', 'nospatial']
+elif SPATIAL_CORRECTION == 'without':
+    ACTIVE_SPATIAL_TAGS = ['nospatial']
+else:  # 'with'
+    ACTIVE_SPATIAL_TAGS = ['spatial']
+
+# Raw SNP-sets config (cheap parse — actual glob/validate happens only inside get_targets)
+SNP_SETS_CFG = _mala_cfg.get('snp_sets', 'all')
 
 # Validate and derive active maladaptation methods from config
 _mala_methods_cfg = config.get('Maladaptation', {}).get('methods', {})
@@ -739,8 +758,51 @@ def mala_model(method, run_label, spatial_tag, kind):
     """kind: 'adaptive' or 'random'"""
     return f"{mala_inter_dir(method, run_label, spatial_tag)}{kind}_model.qs"
 
-def mala_selected_snps(method, run_label, spatial_tag):
-    return f"{mala_inter_dir(method, run_label, spatial_tag)}selected_snps.tsv"
+def snp_set_dir(set_name):
+    """Directory for a curated SNP set (produced by Shiny, ancestor-less source)."""
+    return f"{INTER}snp_sets/{set_name}/"
+
+def snp_set_file(set_name):
+    """Path to the curated SNP set TSV (SNPID, chr, pos, min_pvalue)."""
+    return f"{INTER}snp_sets/{set_name}/selected_snps.tsv"
+
+def resolve_active_snp_sets():
+    """Return the list of active SNP-set names for mode=maladaptation.
+
+    Called ONLY from get_targets('maladaptation') — never at module top level,
+    because this function runs for every mode and would crash unrelated modes.
+    Raises a friendly ValueError if no sets are found / named sets are missing.
+    """
+    import glob as _glob
+    store = f"{INTER}snp_sets/"
+    if SNP_SETS_CFG == 'all' or SNP_SETS_CFG is None:
+        found = sorted(
+            os.path.basename(os.path.dirname(p))
+            for p in _glob.glob(f"{store}*/selected_snps.tsv")
+        )
+        if not found:
+            raise ValueError(
+                f"No curated SNP sets found under {store}. "
+                "Open the GEA tab in the ADAPTOGENE Shiny app, curate SNPs with your "
+                "desired threshold/strategy/regime, and click 'Save SNP set for "
+                "maladaptation' before running mode=maladaptation. "
+                "(Set Maladaptation.snp_sets to a list of names to select specific sets.)"
+            )
+        return found
+    # explicit list
+    names = list(SNP_SETS_CFG)
+    if not names:
+        raise ValueError(
+            "Maladaptation.snp_sets is an empty list. Set it to \"all\" or provide "
+            ">=1 saved set name from the GEA tab."
+        )
+    missing = [n for n in names if not os.path.exists(f"{store}{n}/selected_snps.tsv")]
+    if missing:
+        raise ValueError(
+            f"Maladaptation.snp_sets names not found under {store}: {missing}. "
+            "Save them in the GEA tab or fix the names in config."
+        )
+    return names
 
 def mala_offset_raster(method, run_label, spatial_tag):
     return f"{mala_inter_dir(method, run_label, spatial_tag)}offset_raster.tif"
@@ -779,11 +841,7 @@ def add_maladaptation_paths():
     # Future climate density plot (method-agnostic)
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"
 
-    # Create method-level directories
-    for method in ACTIVE_MALA_METHODS:
-        os.makedirs(mala_plot_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
-        os.makedirs(mala_table_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
-        os.makedirs(mala_inter_dir(method, GF_RUN_LABEL, SPATIAL_TAG), exist_ok=True)
+    # Snakemake auto-creates declared-output parent dirs; no makedirs needed here.
 
 add_maladaptation_paths()
 
@@ -1258,6 +1316,9 @@ def get_targets(mode):
         if not MODELS_LIST:
             raise ValueError("MODELS must be set for maladaptation mode")
 
+        # Resolve saved SNP sets (glob/validate happens here, not at module top level)
+        ACTIVE_SNP_SETS = resolve_active_snp_sets()
+
         targets = [
             # Future climate (method-agnostic)
             O['climate_future_site'],
@@ -1266,22 +1327,24 @@ def get_targets(mode):
             O['density_future'],
         ]
 
-        for method in ACTIVE_MALA_METHODS:
-            targets += [
-                mala_model(method, GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
-                mala_offset_map_values(method, GF_RUN_LABEL, SPATIAL_TAG),
-                mala_offset_site_values(method, GF_RUN_LABEL, SPATIAL_TAG),
-                mala_cumimp(method, GF_RUN_LABEL, SPATIAL_TAG),
-                mala_importance(method, GF_RUN_LABEL, SPATIAL_TAG),
-                mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'notrait'),
-            ]
-            if MALADAPTATION_METHODS[method]['supports_random_model'] and GF_RANDOM_MODEL:
-                targets.append(mala_model(method, GF_RUN_LABEL, SPATIAL_TAG, 'random'))
-            if CALC_POP_STATS:
-                targets += [
-                    mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'tajima_d'),
-                    mala_offset_piemap(method, GF_RUN_LABEL, SPATIAL_TAG, 'pi_diversity'),
-                ]
+        for set_name in ACTIVE_SNP_SETS:
+            for spatial_tag in ACTIVE_SPATIAL_TAGS:
+                for method in ACTIVE_MALA_METHODS:
+                    targets += [
+                        mala_model(method, set_name, spatial_tag, 'adaptive'),
+                        mala_offset_map_values(method, set_name, spatial_tag),
+                        mala_offset_site_values(method, set_name, spatial_tag),
+                        mala_cumimp(method, set_name, spatial_tag),
+                        mala_importance(method, set_name, spatial_tag),
+                        mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
+                    ]
+                    if MALADAPTATION_METHODS[method]['supports_random_model'] and GF_RANDOM_MODEL:
+                        targets.append(mala_model(method, set_name, spatial_tag, 'random'))
+                    if CALC_POP_STATS:
+                        targets += [
+                            mala_offset_piemap(method, set_name, spatial_tag, 'tajima_d'),
+                            mala_offset_piemap(method, set_name, spatial_tag, 'pi_diversity'),
+                        ]
 
         targets.append(W['summary_done'])
         return targets

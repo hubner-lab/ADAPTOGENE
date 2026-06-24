@@ -363,6 +363,24 @@ ld_decay_table_path <- function(project) {
 
 # ─── Maladaptation ───────────────────────────────────────────────────────────
 
+#' Directory for a curated SNP set (produced by Shiny GEA Save)
+#' @noRd
+snp_sets_dir <- function(project) {
+    mod_path(project, MOD_INTER, "snp_sets")
+}
+
+#' Path to a specific SNP set's selected_snps.tsv
+#' @noRd
+snp_set_path <- function(project, name) {
+    mod_path(project, MOD_INTER, "snp_sets", name, "selected_snps.tsv")
+}
+
+#' Path to the SNP sets manifest JSON
+#' @noRd
+snp_sets_manifest_path <- function(project) {
+    mod_path(project, MOD_INTER, "snp_sets", "manifest.json")
+}
+
 #' GF selected SNPs path (intermediate file under _intermediate/{method}/{suffix}/)
 #' @noRd
 gf_selected_snps_path <- function(project, suffix, method = "gradient_forest") {

@@ -8,13 +8,15 @@
 mod_maladaptation_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # GF Run selector + SNP count info + GF params badge
+        # SNP set / GF run selector + badges + set actions
         htmltools::div(
             class = "control-bar",
             shiny::uiOutput(ns("suffix_selector")),
             shiny::uiOutput(ns("snp_count_badge")),
             shiny::uiOutput(ns("gf_params_badge")),
-            shiny::uiOutput(ns("climate_scenario_badge"))
+            shiny::uiOutput(ns("climate_scenario_badge")),
+            shiny::uiOutput(ns("set_details_btn")),
+            shiny::uiOutput(ns("set_delete_btn"))
         ),
 
         # Importance plots
@@ -69,6 +71,18 @@ mod_maladaptation_ui <- function(id) {
                                           class = "btn-sm btn-outline-secondary mb-2"),
                     DT::DTOutput(ns("site_table"))
                 )
+            ),
+
+            bslib::accordion_panel(
+                "Cross-set comparison",
+                value = "cross_set",
+                icon  = bsicons::bs_icon("bar-chart-steps"),
+                bslib::card_body(
+                    htmltools::div(
+                        class = "text-muted small fst-italic",
+                        "Coming soon: side-by-side comparison of genetic offset across saved SNP sets."
+                    )
+                )
             )
         )
     )
@@ -79,17 +93,24 @@ mod_maladaptation_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @noRd
-mod_maladaptation_server <- function(id, project_data) {
+mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
-        gf_suffixes <- shiny::reactive(find_gf_suffixes(project_data()$name))
+        # gf_suffixes depends on both project_data AND snp_sets_trigger
+        # (project_data refreshes on pipeline run; trigger refreshes on delete)
+        gf_suffixes <- shiny::reactive({
+            if (!is.null(snp_sets_trigger)) snp_sets_trigger()
+            find_gf_suffixes(project_data()$name)
+        })
 
         output$suffix_selector <- shiny::renderUI({
             suf <- gf_suffixes()
             if (length(suf) == 0)
-                return(shiny::p("No GF runs found.", class = "text-muted small"))
-            shiny::selectInput(ns("suffix"), "GF Run", choices = suf, selected = suf[1])
+                return(shiny::p(
+                    "No GF runs found. Save a SNP set in the GEA tab and run Maladaptation.",
+                    class = "text-muted small"))
+            shiny::selectInput(ns("suffix"), "SNP set / GF run", choices = suf, selected = suf[1])
         })
 
         selected_suffix <- shiny::reactive({
@@ -101,13 +122,97 @@ mod_maladaptation_server <- function(id, project_data) {
             } else s
         })
 
+        # ── Resolve suffix → set name via manifest (NOT string-stripping) ─────
+        # Pipeline emits {name}_spatial | {name}_nospatial | {name} (without spatial).
+        # Underscores + 'both' mode make suffix-stripping ambiguous.
+        selected_set_name <- shiny::reactive({
+            suf <- selected_suffix(); if (is.null(suf)) return(NULL)
+            if (!is.null(snp_sets_trigger)) snp_sets_trigger()
+            names <- list_snp_sets(project_data()$name)$name
+            # Longest match: suf == name OR suf == name_spatial OR suf == name_nospatial
+            hit <- names[suf == names |
+                         suf == paste0(names, "_spatial") |
+                         suf == paste0(names, "_nospatial")]
+            if (length(hit) == 0) NULL else hit[which.max(nchar(hit))]
+        })
+
+        # ── Manifest entry for the selected set ───────────────────────────────
+        selected_set_entry <- shiny::reactive({
+            nm <- selected_set_name(); if (is.null(nm)) return(NULL)
+            man <- read_snp_sets_manifest(project_data()$name)
+            entries <- Filter(function(x) identical(x$name, nm), man)
+            if (length(entries) == 0) NULL else entries[[1]]
+        })
+
+        # ── View-details popover ───────────────────────────────────────────────
+        output$set_details_btn <- shiny::renderUI({
+            e <- selected_set_entry(); if (is.null(e)) return(NULL)
+            body <- htmltools::tags$ul(
+                class = "small mb-0 ps-3",
+                htmltools::tags$li(htmltools::strong("Threshold: "),
+                    paste0(e$threshold_type %||% "?", " = ", e$threshold_value %||% "?")),
+                htmltools::tags$li(htmltools::strong("Strategy: "),  e$strategy %||% "?"),
+                htmltools::tags$li(htmltools::strong("Regime: "),    e$regime %||% "?"),
+                htmltools::tags$li(htmltools::strong("Source: "),    e$source_module %||% "?"),
+                htmltools::tags$li(htmltools::strong("N SNPs: "),    e$n_snps %||% "?"),
+                htmltools::tags$li(htmltools::strong("Created: "),   e$created %||% "?")
+            )
+            bslib::popover(
+                shiny::actionButton(ns("set_details"),
+                    label = htmltools::tagList(bsicons::bs_icon("info-circle"), " View details"),
+                    class = "btn btn-outline-secondary btn-sm ms-2"),
+                title = paste("SNP set:", e$name %||% ""),
+                body
+            )
+        })
+
+        # ── Delete button + confirm modal ──────────────────────────────────────
+        output$set_delete_btn <- shiny::renderUI({
+            if (is.null(selected_set_name())) return(NULL)
+            shiny::actionButton(ns("set_delete"),
+                label = htmltools::tagList(bsicons::bs_icon("trash3"), " Delete"),
+                class = "btn btn-outline-danger btn-sm ms-1")
+        })
+
+        shiny::observeEvent(input$set_delete, {
+            nm <- selected_set_name(); if (is.null(nm)) return()
+            shiny::showModal(shiny::modalDialog(
+                title = "Delete SNP set",
+                htmltools::p(
+                    "Delete set ", htmltools::strong(nm),
+                    " and its Gradient Forest results? This cannot be undone."
+                ),
+                footer = htmltools::tagList(
+                    shiny::modalButton("Cancel"),
+                    shiny::actionButton(ns("set_delete_confirm"), "Delete",
+                                        class = "btn btn-danger")
+                ),
+                easyClose = TRUE
+            ))
+        })
+
+        shiny::observeEvent(input$set_delete_confirm, {
+            nm <- selected_set_name()
+            pd <- project_data()
+            if (is.null(nm) || is.null(pd)) { shiny::removeModal(); return() }
+            delete_snp_set(pd$name, nm, remove_gf_results = TRUE)
+            shiny::removeModal()
+            shiny::showNotification(
+                sprintf("Deleted SNP set '%s'.", nm),
+                type = "message", duration = 4)
+            if (!is.null(snp_sets_trigger))
+                snp_sets_trigger(snp_sets_trigger() + 1L)
+        })
+
         # ── G1: SNP count badge with denominator ──────────────────────────────
         output$snp_count_badge <- shiny::renderUI({
             suf <- selected_suffix()
             pd  <- project_data()
             if (is.null(suf) || is.null(pd)) return(NULL)
-            snps_path <- gf_selected_snps_path(pd$name, suf)
-            if (!file_ok(snps_path)) return(NULL)
+            # Look up via curated set name (manifest-resolved)
+            set_nm    <- selected_set_name()
+            snps_path <- if (!is.null(set_nm)) snp_set_path(pd$name, set_nm) else NULL
+            if (is.null(snps_path) || !file_ok(snps_path)) return(NULL)
             n <- tryCatch({
                 nrow(data.table::fread(snps_path, select = 1L))
             }, error = function(e) NULL)
@@ -282,7 +387,11 @@ mod_maladaptation_server <- function(id, project_data) {
         site_data <- shiny::reactive({
             suf <- selected_suffix()
             if (is.null(suf)) return(data.table::data.table())
-            load_cached(paste0("gf_site_", project_data()$name, "_", suf), function() {
+            p  <- gf_site_table_path(project_data()$name, suf)
+            # mtime fingerprint: re-running GF for the same suffix otherwise serves stale data
+            fp <- if (file.exists(p)) as.character(file.info(p)$mtime) else "missing"
+            load_cached(paste0("gf_site_", project_data()$name, "_", suf),
+                        function() {
                 p <- gf_site_table_path(project_data()$name, suf)
                 if (!file_ok(p)) return(data.table::data.table())
                 dt <- data.table::fread(p, colClasses = c("site" = "character",
@@ -301,7 +410,7 @@ mod_maladaptation_server <- function(id, project_data) {
                     dt    <- pi_dt[dt, on = "site"]
                 }
                 dt
-            })
+            }, fingerprint = fp)
         })
 
         output$site_table <- DT::renderDataTable({

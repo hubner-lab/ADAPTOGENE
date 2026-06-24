@@ -61,6 +61,10 @@ app_server <- function(input, output, session) {
     # ── Trigger to invalidate project_data after a successful run ─────────────
     project_data_trigger <- shiny::reactiveVal(0L)
 
+    # ── Trigger for SNP-set changes (save in GEA / delete in Maladaptation) ───
+    # Kept separate from project_data_trigger to avoid reloading heavy p-value tables.
+    snp_sets_trigger <- shiny::reactiveVal(0L)
+
     # ── Reactive project data bundle ───────────────────────────────────────────
     # Depends on project selector AND project_data_trigger (incremented post-run)
     project_data <- shiny::reactive({
@@ -79,7 +83,8 @@ app_server <- function(input, output, session) {
     mod_config_sidebar_server("config_gea",           config_state, "gea")
     mod_config_sidebar_server("config_gwas",          config_state, "gwas")
     mod_config_sidebar_server("config_gea_x_gwas",    config_state, "gea_x_gwas")
-    mod_config_sidebar_server("config_maladaptation", config_state, "maladaptation")
+    mod_config_sidebar_server("config_maladaptation", config_state, "maladaptation",
+                              snp_sets_trigger = snp_sets_trigger)
 
     # ── Save project files button (Home tab) ──────────────────────────────────
     shiny::observeEvent(input$save_project_files, {
@@ -108,15 +113,18 @@ app_server <- function(input, output, session) {
     mod_pipeline_runner_server("runner_gea_x_gwas",    config_state, pipeline_running,
                                 project_data_trigger, tab_name = "gea_x_gwas")
     mod_pipeline_runner_server("runner_maladaptation", config_state, pipeline_running,
-                                project_data_trigger, tab_name = "maladaptation")
+                                project_data_trigger, tab_name = "maladaptation",
+                                snp_sets_trigger = snp_sets_trigger)
 
     # ── Module servers ─────────────────────────────────────────────────────────
     mod_home_server("home",                    project_data = project_data)
     mod_processing_server("processing",        project_data = project_data)
     mod_prestructure_server("prestructure",    project_data = project_data)
     mod_structure_server("structure",          project_data = project_data)
-    mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger)
+    mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger,
+                   snp_sets_trigger = snp_sets_trigger)
     mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger)
     mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data, run_trigger = project_data_trigger)
-    mod_maladaptation_server("maladaptation",  project_data = project_data)
+    mod_maladaptation_server("maladaptation",  project_data = project_data,
+                             snp_sets_trigger = snp_sets_trigger)
 }

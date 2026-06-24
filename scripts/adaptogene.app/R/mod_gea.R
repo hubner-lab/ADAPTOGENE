@@ -17,7 +17,12 @@ mod_gea_ui <- function(id) {
             filter_ui = htmltools::tagList(
                 shiny::uiOutput(ns("threshold_bar")),
                 shiny::uiOutput(ns("wza_collapse_note")),
-                shiny::uiOutput(ns("filter_bar"))
+                shiny::uiOutput(ns("filter_bar")),
+                shiny::actionButton(
+                    ns("save_snp_set"),
+                    label = htmltools::tagList(bsicons::bs_icon("save"), " Save SNP set for maladaptation"),
+                    class = "btn btn-success btn-sm mt-2"
+                )
             )
         ),
 
@@ -55,7 +60,8 @@ mod_gea_ui <- function(id) {
 #' @param project_data reactive project data bundle
 #' @param module character: MOD_GEA or MOD_GWAS
 #' @noRd
-mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GEA) {
+mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GEA,
+                           snp_sets_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -423,6 +429,91 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                 project_name        = project_data()$name,
                 module              = module
             )
+        })
+
+        # ── Save SNP set for maladaptation ────────────────────────────────────
+        # Unique-SNP count for the live modal label (long dt → unique by SNPID)
+        save_set_n_unique <- shiny::reactive({
+            dt <- interactive_sigsnps()
+            if (is.null(dt) || nrow(dt) == 0L) return(0L)
+            data.table::uniqueN(dt$SNPID)
+        })
+
+        shiny::observeEvent(input$save_snp_set, {
+            if (save_set_n_unique() == 0L) {
+                shiny::showNotification(
+                    "No significant SNPs at current threshold/strategy. Adjust filters first.",
+                    type = "warning", duration = 5)
+                return()
+            }
+            shiny::showModal(shiny::modalDialog(
+                title = "Save SNP set for maladaptation",
+                shiny::textInput(ns("snp_set_name"), "Set name",
+                                 placeholder = "e.g. bonf05_union"),
+                shiny::uiOutput(ns("snp_set_name_feedback")),
+                footer = htmltools::tagList(
+                    shiny::modalButton("Cancel"),
+                    shiny::actionButton(ns("snp_set_save_confirm"), "Save",
+                                        class = "btn btn-success")
+                ),
+                easyClose = TRUE
+            ))
+        })
+
+        # Live feedback in modal: N SNPs + params summary + format/duplicate validation
+        output$snp_set_name_feedback <- shiny::renderUI({
+            nm  <- input$snp_set_name %||% ""
+            n   <- save_set_n_unique()
+            pd  <- shiny::req(project_data())
+            valid_fmt <- grepl("^[A-Za-z0-9_.]+$", nm)
+            dup       <- nzchar(nm) && valid_fmt && set_exists(pd$name, nm)
+            msg <- if (!nzchar(nm)) "Enter a name."
+                   else if (!valid_fmt) "Only letters, digits, underscore and dot allowed."
+                   else if (dup)       "A set with this name already exists — choose another."
+                   else NULL
+            htmltools::tagList(
+                htmltools::p(class = "small text-muted mt-1",
+                    sprintf("%d unique SNPs — threshold %s = %s — strategy %s — regime %s — clump %s bp",
+                            n,
+                            threshold_type(),
+                            threshold_value(),
+                            active_strategy(),
+                            if (regime_wza()) "WZA" else "per-SNP",
+                            format(snp_clumping_distance(), big.mark = ","))),
+                if (!is.null(msg)) htmltools::div(class = "text-danger small", msg)
+            )
+        })
+
+        shiny::observeEvent(input$snp_set_save_confirm, {
+            nm <- input$snp_set_name %||% ""
+            pd <- project_data()
+            if (!grepl("^[A-Za-z0-9_.]+$", nm)) {
+                shiny::showNotification("Invalid name.", type = "error"); return()
+            }
+            if (set_exists(pd$name, nm)) {
+                shiny::showNotification("A set with this name already exists.", type = "error"); return()
+            }
+            dt <- interactive_sigsnps()
+            if (is.null(dt) || nrow(dt) == 0L) { shiny::removeModal(); return() }
+
+            # Derive traits/methods from WHAT WENT INTO the set (after filter), not the full grid
+            params <- list(
+                source_module     = module,
+                threshold_type    = threshold_type(),
+                threshold_value   = threshold_value(),
+                regime            = if (regime_wza()) "wza" else "snp",
+                strategy          = active_strategy(),
+                clumping_distance = snp_clumping_distance(),
+                traits            = sort(unique(dt$trait)),
+                methods           = sort(unique(dt$method))
+            )
+            n <- save_snp_set(pd$name, nm, dt, params)
+            shiny::removeModal()
+            shiny::showNotification(
+                sprintf("Saved SNP set ‘%s’ (%d SNPs).", nm, n),
+                type = "message", duration = 4)
+            if (!is.null(snp_sets_trigger))
+                snp_sets_trigger(snp_sets_trigger() + 1L)
         })
 
         # ── WZA path overrides for Manhattan ──────────────────────────────────

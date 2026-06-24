@@ -103,19 +103,46 @@ elif MODE == 'gea':
             """
 
 elif MODE == 'maladaptation':
+    # Build fan-out input lists over all (set_name, spatial_tag, method) combinations.
+    # resolve_active_snp_sets() was already called in get_targets; call again here
+    # (cheap — just globs/validates) so summary.smk stays self-contained.
+    import glob as _smk_glob
+    _store = f"{INTER}snp_sets/"
+    if SNP_SETS_CFG == 'all' or SNP_SETS_CFG is None:
+        _summary_sets = sorted(
+            os.path.basename(os.path.dirname(p))
+            for p in _smk_glob.glob(f"{_store}*/selected_snps.tsv")
+        )
+    else:
+        _summary_sets = list(SNP_SETS_CFG)
+
+    _summary_adaptive = [
+        mala_model('gradient_forest', s, t, 'adaptive')
+        for s in (_summary_sets or ['_placeholder'])
+        for t in ACTIVE_SPATIAL_TAGS
+    ]
+    _summary_offset_sites = [
+        mala_offset_site_values('gradient_forest', s, t)
+        for s in (_summary_sets or ['_placeholder'])
+        for t in ACTIVE_SPATIAL_TAGS
+    ]
+
     rule write_summary:
-        """Write maladaptation mode summary to Pipeline_summary.tsv."""
+        """Write maladaptation mode summary to Pipeline_summary.tsv (one row per SNP set × spatial tag)."""
         input:
-            gf_adaptive = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
-            offset_site = mala_offset_site_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
+            gf_adaptive = _summary_adaptive,
+            offset_site = _summary_offset_sites
         output: W['summary_done']
-        params: summary_tsv = O['summary']
+        params:
+            summary_tsv      = O['summary'],
+            adaptive_str     = ' '.join(_summary_adaptive),
+            offset_site_str  = ' '.join(_summary_offset_sites)
         log: f"{LOGDIR}maladaptation/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 maladaptation {params.summary_tsv} \
-                {input.gf_adaptive} {input.offset_site} > {log} 2>&1
+                "{params.adaptive_str}" "{params.offset_site_str}" > {log} 2>&1
             touch {output}
             """
 

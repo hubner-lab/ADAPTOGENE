@@ -54,7 +54,7 @@ mod_config_sidebar_ui <- function(id, tab_title = "Config", runner_ui = NULL) {
 #' @param tab_name tab identifier matching config_schema()$tab values
 #' @return reactive integer: number of modified fields on this tab
 #' @noRd
-mod_config_sidebar_server <- function(id, config_state, tab_name) {
+mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -113,6 +113,54 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
             )
         })
 
+        # ── SNP set picker: nested renderUI driven by snp_sets_trigger ──────────
+        # Must NOT live inside sidebar_content's renderUI (render-once-per-project).
+        # Instead we render a uiOutput placeholder in build_config_input and drive it here.
+        picker_entries <- Filter(function(e) e$type == "snp_set_picker", entries)
+        if (length(picker_entries) > 0 && !is.null(snp_sets_trigger)) {
+            for (pe in picker_entries) {
+                local({
+                    pe_local <- pe
+                    iid      <- gsub("\\.", "_", pe_local$key)
+                    dyn_id   <- paste0(iid, "_dynamic")
+
+                    output[[dyn_id]] <- shiny::renderUI({
+                        snp_sets_trigger()                        # live refresh on save/delete
+                        proj <- config_state$project
+                        sets <- list_snp_sets(proj)
+
+                        if (nrow(sets) == 0) {
+                            return(htmltools::div(
+                                class = "alert alert-warning small mb-0 p-2",
+                                bsicons::bs_icon("info-circle"),
+                                " No saved SNP sets. Go to the ",
+                                htmltools::strong("GEA tab"),
+                                " → ",
+                                htmltools::strong("Save SNP set for maladaptation"),
+                                "."
+                            ))
+                        }
+
+                        cur <- config_get_by_path(shiny::isolate(config_state$working),
+                                                  pe_local$key)
+                        if (is.null(cur) || identical(cur, "all")) {
+                            selected <- sets$name
+                        } else {
+                            selected <- intersect(unlist(cur), sets$name)
+                            if (length(selected) == 0) selected <- sets$name
+                        }
+
+                        shiny::checkboxGroupInput(
+                            session$ns(iid), label = NULL,
+                            choiceNames  = sprintf("%s (%d SNPs)", sets$name, sets$n_snps),
+                            choiceValues = sets$name,
+                            selected     = selected
+                        )
+                    })
+                })
+            }
+        }
+
         # ── Input observers: write changed values into config_state$working ───
         # Guard: skip if the new value equals the current working value
         # (prevents circular updates from Reset/updateXxxInput calls).
@@ -123,7 +171,24 @@ mod_config_sidebar_server <- function(id, config_state, tab_name) {
                 iid      <- gsub("\\.", "_", e$key)
                 key_path <- e$key
 
-                if (e$type == "method_table") {
+                if (e$type == "snp_set_picker") {
+                    # Dedicated observer — must write "all" or an explicit list, NOT a CSV scalar
+                    shiny::observeEvent(input[[iid]], {
+                        proj     <- config_state$project
+                        all_nms  <- list_snp_sets(proj)$name
+                        sel      <- input[[iid]] %||% character(0)
+                        # "all" sentinel when every available set is checked; else explicit list
+                        new_val <- if (length(all_nms) > 0 && setequal(sel, all_nms)) {
+                            "all"
+                        } else {
+                            as.list(sel)
+                        }
+                        cur_val <- config_get_by_path(config_state$working, key_path)
+                        if (identical(new_val, cur_val)) return()
+                        config_state$working <- config_set_by_path(
+                            config_state$working, key_path, new_val)
+                    }, ignoreInit = TRUE, ignoreNULL = FALSE)
+                } else if (e$type == "method_table") {
                     # method_table: observe a hidden JSON bridge input
                     json_id <- paste0(iid, "_json")
                     shiny::observeEvent(input[[json_id]], {
@@ -287,6 +352,12 @@ build_config_input <- function(input_id, entry, value, project = NULL) {
             local_id <- sub("^.*-", "", input_id)
             render_method_editor(input_id, local_id, display_val)
         },
+        "snp_set_picker" = {
+            # Render a placeholder uiOutput; actual checkboxGroupInput is rendered
+            # server-side and driven by snp_sets_trigger (not sidebar_content).
+            # input_id is already ns()-wrapped; append "_dynamic" for the nested output.
+            shiny::uiOutput(paste0(input_id, "_dynamic"))
+        },
         "bio_chips" = {
             inv <- character(0)
             if (!is.null(project)) {
@@ -324,6 +395,14 @@ update_sidebar_inputs <- function(session, entries, saved_config) {
                 input_id = paste0(session$ns(iid), "_json"),
                 configs  = json_val
             ))
+            next
+        }
+
+        if (e$type == "snp_set_picker") {
+            # The nested renderUI re-reads config_state$working on snp_sets_trigger,
+            # so just update the working config to the saved value; the renderUI will
+            # pick it up on the next tick (or on next snp_sets_trigger bump).
+            # No direct updateCheckboxGroupInput needed — the renderUI handles it.
             next
         }
 

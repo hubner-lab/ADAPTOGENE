@@ -136,14 +136,15 @@ Future:
 # MALADAPTATION: Gradient Forest modeling for genetic offset
 #-----------------------------------------------------------------------------
 Maladaptation:
+  snp_sets: "all"                 # "all" = every set saved from GEA tab; or a list of names:
+  # snp_sets:                     #   - EMMAX_bonf005
+  #   - lenient_fdr10             #   - lenient_fdr10
   methods:
     gradient_forest:
       ntree: '1000'                 # Number of trees (higher = more accurate, slower)
       cor_threshold: '0.5'          # Correlation threshold for variable selection
-      spatial_correction: 'with'    # Include spatial variables: with/without
-      run_label: 'EMMAX_bonf005'    # Unique identifier for this GF run
+      spatial_correction: 'both'    # Include spatial variables: with | without | both (both = run each set as spatial AND nospatial)
       random_model: TRUE            # Also build neutral model for comparison
-      combine_gap: 100000           # Max distance (bp) for cross-method overlap (Overlap/MethodOverlap strategies only)
 
 #-----------------------------------------------------------------------------
 # PHENOTYPE ASSOCIATION (GWAS) — inherits from GEA.* by default

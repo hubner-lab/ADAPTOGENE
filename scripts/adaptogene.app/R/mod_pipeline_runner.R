@@ -118,12 +118,24 @@ mod_pipeline_runner_ui <- function(id, btn_label = NULL, mode_override = NULL) {
 #' @noRd
 mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
                                         project_data_trigger,
-                                        tab_name, mode_override = NULL) {
+                                        tab_name, mode_override = NULL,
+                                        snp_sets_trigger = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
         # Derive mode
         mode <- if (!is.null(mode_override)) mode_override else tab_to_mode(tab_name)
+
+        # ── Maladaptation: gate Run button on presence of saved SNP sets ─────
+        if (identical(tab_name, "maladaptation") && !is.null(snp_sets_trigger)) {
+            shiny::observe({
+                snp_sets_trigger()
+                proj   <- config_state$project
+                n_sets <- if (is.null(proj)) 0L else nrow(list_snp_sets(proj))
+                if (n_sets == 0L) shinyjs::disable("run_btn")
+                else              shinyjs::enable("run_btn")
+            })
+        }
 
         # Internal state
         proc             <- shiny::reactiveVal(NULL)
@@ -149,6 +161,21 @@ mod_pipeline_runner_server <- function(id, config_state, pipeline_running,
             project  <- config_state$project
             cpu      <- config_get_by_path(config_state$working, "cpu") %||% max(1L, parallel::detectCores() - 2L)
             pip_path <- get_pipeline_path()
+
+            # ── Maladaptation: hard guard + "all" injection ─────────────────
+            if (identical(tab_name, "maladaptation")) {
+                if (nrow(list_snp_sets(project)) == 0L) {
+                    shiny::showNotification(
+                        "No saved SNP sets. Go to the GEA tab and save at least one set first.",
+                        type = "warning", duration = 6)
+                    return()
+                }
+                # Inject "all" sentinel if snp_sets is absent in working config
+                if (is.null(config_get_by_path(config_state$working, "Maladaptation.snp_sets"))) {
+                    config_state$working <- config_set_by_path(
+                        config_state$working, "Maladaptation.snp_sets", "all")
+                }
+            }
 
             # Write working config to YAML before launching
             ok <- write_project_config(config_state$working, project, pip_path)

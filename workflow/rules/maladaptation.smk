@@ -2,6 +2,15 @@
 # MODULE 6: MALADAPTATION
 #=============================================================================
 
+# Wildcard constraints for all Gradient Forest rules.
+# run_label = set name (matches Shiny charset [A-Za-z0-9_.-]+, no slashes).
+# spatial_tag = exactly 'spatial' or 'nospatial' — disambiguates trailing token
+#   even when run_label itself contains underscores (e.g. 'EMMAX_bonf005').
+wildcard_constraints:
+    run_label   = r"[A-Za-z0-9_.-]+",
+    spatial_tag = r"spatial|nospatial",
+    method      = r"gradient_forest"
+
 # Per-model future climate download (runs in parallel via Snakemake)
 rule download_climate_future_model:
     """Download CMIP6 future climate data for a single model."""
@@ -60,42 +69,26 @@ rule density_plot_future:
             {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
-# Combine sig SNPs for Gradient Forest using GF-specific strategy
-rule combine_gf_snps:
-    """Combine significant SNPs for Gradient Forest using the gradient_forest.combine_method strategy."""
-    input:
-        sigsnps = lambda wc: [assoc_sigsnps(method, adjust) for method, adjust in GEA_CONFIGS.items()]
-    output: mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
-    params:
-        sigsnps_str = lambda wc, input: ' '.join(input.sigsnps),
-        method = GF_COMBINE_METHOD,
-        gap = GF_COMBINE_GAP,
-        predictors = PREDICTORS_SELECTED
-    log: f"{LOGDIR}maladaptation/combine_gf_snps.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/combine_selected_snps.R \
-            "{params.sigsnps_str}" {params.method} {params.gap} \
-            {params.predictors} {output} > {log} 2>&1
-        """
-
 # Gradient Forest - adaptive model
+# sigsnps is an ancestor-less source file produced by the Shiny GEA tab.
+# {run_label} = saved SNP-set name; {spatial_tag} = spatial|nospatial.
+# pcnm param translates spatial_tag -> 'with'/'without' for the R script.
 rule gradient_forest_adaptive:
-    """Build adaptive Gradient Forest model using significant SNPs."""
+    """Build adaptive Gradient Forest model using a user-curated SNP set."""
     input:
-        lfmm = W['lfmm_full'],
-        sigsnps = mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        vcfsnp = W['vcfsnp_full'],
+        lfmm    = W['lfmm_full'],
+        sigsnps = lambda wc: snp_set_file(wc.run_label),
+        vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
         climate = O['climate_site']
-    output: mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive')
+    output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive')
     params:
-        predictors = PREDICTORS_SELECTED,
-        ntree = NTREE,
+        predictors    = PREDICTORS_SELECTED,
+        ntree         = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm = SPATIAL_CORRECTION
-    log: f"{LOGDIR}maladaptation/gradient_forest_adaptive.log"
+        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without'
+    log: f"{LOGDIR}maladaptation/gradient_forest_adaptive_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/gradient_forest_model.R \
@@ -109,19 +102,19 @@ rule gradient_forest_adaptive:
 rule gradient_forest_random:
     """Build neutral Gradient Forest model using random SNPs."""
     input:
-        lfmm = W['lfmm_full'],
-        sigsnps = mala_selected_snps('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        vcfsnp = W['vcfsnp_full'],
+        lfmm    = W['lfmm_full'],
+        sigsnps = lambda wc: snp_set_file(wc.run_label),
+        vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = O['metadata'],
         climate = O['climate_site']
-    output: mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random')
+    output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random')
     params:
-        predictors = PREDICTORS_SELECTED,
-        ntree = NTREE,
+        predictors    = PREDICTORS_SELECTED,
+        ntree         = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm = SPATIAL_CORRECTION
-    log: f"{LOGDIR}maladaptation/gradient_forest_random.log"
+        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without'
+    log: f"{LOGDIR}maladaptation/gradient_forest_random_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/gradient_forest_model.R \
@@ -135,18 +128,18 @@ rule gradient_forest_random:
 rule gradient_forest_offset:
     """Calculate genetic offset between present and future climate."""
     input:
-        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
-        future_all = O['climate_future_all'],
-        present_all = O['climate_all'],
+        gf             = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive'),
+        future_all     = O['climate_future_all'],
+        present_all    = O['climate_all'],
         present_raster = W['climate_raster'],
-        samples = O['metadata']
+        samples        = O['metadata']
     output:
-        raster = mala_offset_raster('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        map_values = mala_offset_map_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        site_values = mala_offset_site_values('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
+        raster      = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
+        map_values  = mala_offset_map_values('gradient_forest', '{run_label}', '{spatial_tag}'),
+        site_values = mala_offset_site_values('gradient_forest', '{run_label}', '{spatial_tag}')
     params:
         predictors = PREDICTORS_SELECTED
-    log: f"{LOGDIR}maladaptation/gradient_forest_offset.log"
+    log: f"{LOGDIR}maladaptation/gradient_forest_offset_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/gradient_forest_offset.R \
@@ -159,14 +152,14 @@ rule gradient_forest_offset:
 rule plot_gf_cumimp:
     """Plot cumulative importance curves for adaptive (and optionally neutral) GF model."""
     input:
-        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
-        gf_random = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else []
-    output: mala_cumimp('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
+        gf        = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive'),
+        gf_random = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random') if GF_RANDOM_MODEL else []
+    output: mala_cumimp('gradient_forest', '{run_label}', '{spatial_tag}')
     params:
-        gf_random_path = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else 'NULL',
-        predictors = PREDICTORS_SELECTED,
-        inter_dir = INTER
-    log: f"{LOGDIR}maladaptation/plot_gf_cumimp.log"
+        gf_random_path = lambda wc: mala_model('gradient_forest', wc.run_label, wc.spatial_tag, 'random') if GF_RANDOM_MODEL else 'NULL',
+        predictors     = PREDICTORS_SELECTED,
+        inter_dir      = INTER
+    log: f"{LOGDIR}maladaptation/plot_gf_cumimp_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_gf_cumimp.R \
@@ -178,13 +171,13 @@ rule plot_gf_cumimp:
 rule plot_gf_importance:
     """Plot R2-weighted importance for adaptive (and optionally neutral) GF model."""
     input:
-        gf = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'adaptive'),
-        gf_random = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else []
-    output: mala_importance('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG)
+        gf        = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive'),
+        gf_random = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random') if GF_RANDOM_MODEL else []
+    output: mala_importance('gradient_forest', '{run_label}', '{spatial_tag}')
     params:
-        gf_random_path = mala_model('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, 'random') if GF_RANDOM_MODEL else 'NULL',
-        inter_dir = INTER
-    log: f"{LOGDIR}maladaptation/plot_gf_importance.log"
+        gf_random_path = lambda wc: mala_model('gradient_forest', wc.run_label, wc.spatial_tag, 'random') if GF_RANDOM_MODEL else 'NULL',
+        inter_dir      = INTER
+    log: f"{LOGDIR}maladaptation/plot_gf_importance_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_gf_importance.R \
@@ -217,23 +210,23 @@ rule plot_gf_offset_piemap:
     """Plot genetic offset piemap, optionally scaled by a population statistic."""
     wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
-        offset_raster = mala_offset_raster('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        samples = O['metadata'],
-        clusters = clusters_table(K_BEST),
-        trait_file = _piemap_trait_input
-    output: mala_offset_piemap('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG, '{size_trait}')
+        offset_raster = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
+        samples       = O['metadata'],
+        clusters      = clusters_table(K_BEST),
+        trait_file    = _piemap_trait_input
+    output: mala_offset_piemap('gradient_forest', '{run_label}', '{spatial_tag}', '{size_trait}')
     params:
-        pie_alpha = PIEMAP_ALPHA,
-        pop_label = PIEMAP_SHOW_LABELS,
-        pop_label_size = PIEMAP_LABEL_SIZE,
-        pie_scale = PIEMAP_PIE_SCALE,
-        use_points = PIEMAP_USE_POINTS,
-        plot_dir = mala_plot_dir('gradient_forest', GF_RUN_LABEL, SPATIAL_TAG),
-        inter_dir = INTER,
+        pie_alpha       = PIEMAP_ALPHA,
+        pop_label       = PIEMAP_SHOW_LABELS,
+        pop_label_size  = PIEMAP_LABEL_SIZE,
+        pie_scale       = PIEMAP_PIE_SCALE,
+        use_points      = PIEMAP_USE_POINTS,
+        plot_dir        = lambda wc: mala_plot_dir('gradient_forest', wc.run_label, wc.spatial_tag),
+        inter_dir       = INTER,
         regionmap_extent = REGIONMAP_EXTENT,
-        trait_path = _piemap_trait_path,
-        output_prefix = _piemap_output_prefix
-    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_{{size_trait}}.log"
+        trait_path      = _piemap_trait_path,
+        output_prefix   = _piemap_output_prefix
+    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_{{run_label}}_{{spatial_tag}}_{{size_trait}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_piemap.R \
