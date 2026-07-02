@@ -145,6 +145,10 @@ Maladaptation:
       cor_threshold: '0.5'          # Correlation threshold for variable selection
       spatial_correction: 'both'    # Include spatial variables: with | without | both (both = run each set as spatial AND nospatial)
       random_model: TRUE            # Also build neutral model for comparison
+    geometric_offset:
+      candidate_only: true          # Use candidate SNP set only (nospatial-only method)
+      k: ''                         # '' → use sNMF k_best; or set an integer override
+      scale: true                   # Standardise environment before fitting LFMM2
 
 #-----------------------------------------------------------------------------
 # PHENOTYPE ASSOCIATION (GWAS) — inherits from GEA.* by default

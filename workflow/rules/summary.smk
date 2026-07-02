@@ -103,7 +103,7 @@ elif MODE == 'gea':
             """
 
 elif MODE == 'maladaptation':
-    # Build fan-out input lists over all (set_name, spatial_tag, method) combinations.
+    # Build fan-out input lists over all (method, set_name, spatial_tag) combinations.
     # resolve_active_snp_sets() was already called in get_targets; call again here
     # (cheap — just globs/validates) so summary.smk stays self-contained.
     import glob as _smk_glob
@@ -116,22 +116,27 @@ elif MODE == 'maladaptation':
     else:
         _summary_sets = list(SNP_SETS_CFG)
 
+    # Collect model artifacts only for methods that build a separate model file
     _summary_adaptive = [
-        mala_model('gradient_forest', s, t, 'adaptive')
+        mala_model(m, s, t, 'adaptive')
+        for m in ACTIVE_MALA_METHODS
+        if MALADAPTATION_METHODS[m]['builds_model']
         for s in (_summary_sets or ['_placeholder'])
-        for t in ACTIVE_SPATIAL_TAGS
+        for t in mala_spatial_tags(m)
     ]
+    # Offset-site TSVs for all methods
     _summary_offset_sites = [
-        mala_offset_site_values('gradient_forest', s, t)
+        mala_offset_site_values(m, s, t)
+        for m in ACTIVE_MALA_METHODS
         for s in (_summary_sets or ['_placeholder'])
-        for t in ACTIVE_SPATIAL_TAGS
+        for t in mala_spatial_tags(m)
     ]
 
     rule write_summary:
-        """Write maladaptation mode summary to Pipeline_summary.tsv (one row per SNP set × spatial tag)."""
+        """Write maladaptation mode summary to Pipeline_summary.tsv (one row per method × SNP set × spatial tag)."""
         input:
-            gf_adaptive = _summary_adaptive,
-            offset_site = _summary_offset_sites
+            mala_adaptive = _summary_adaptive,
+            offset_site   = _summary_offset_sites
         output: W['summary_done']
         params:
             summary_tsv     = O['summary'],

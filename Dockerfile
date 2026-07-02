@@ -175,6 +175,7 @@ RUN Rscript -e "BiocManager::install('enrichplot', version = '3.22', ask = FALSE
 # CRAN packages used with Bioconductor workflows
 RUN Rscript -e " \
     remotes::install_version('vegan', version = '2.6-8'); \
+    remotes::install_version('SpatialPack', version = '0.3-9'); \
     remotes::install_version('vcfR', version = '1.15.0'); \
     remotes::install_version('adegenet', version = '2.1.10'); \
     remotes::install_version('poppr', version = '2.9.6'); \

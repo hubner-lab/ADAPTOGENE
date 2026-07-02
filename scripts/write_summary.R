@@ -290,9 +290,13 @@ if (MODE == 'processing') {
     offset_paths <- strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
     offset_paths <- offset_paths[nchar(offset_paths) > 0]
 
-    # Emit per-tag offset stats (one row per SNP set x spatial tag)
+    # Emit per-tag offset stats (one row per method x SNP set x spatial tag)
+    # Path structure: .../tables/{method}/{run_label}_{spatial_tag}/genetic_offset_site.tsv
+    # tag = "{method}_{run_label}_{spatial_tag}"
     tag_rows <- lapply(offset_paths, function(p) {
-        tag <- basename(dirname(p))
+        spatial_dir <- basename(dirname(p))          # e.g. "EMMAX_bonf005_nospatial"
+        method_dir  <- basename(dirname(dirname(p))) # e.g. "geometric_offset"
+        tag <- paste0(method_dir, '_', spatial_dir)
         if (!file.exists(p)) {
             return(list(
                 row('maladaptation', sprintf('offset_min_%s', tag), NA),
@@ -319,7 +323,7 @@ if (MODE == 'processing') {
     })
 
     new_rows <- rbind(
-        row('maladaptation', 'gf_model', 'completed'),
+        row('maladaptation', 'maladaptation_methods', 'completed'),
         rbindlist(lapply(unlist(tag_rows, recursive = FALSE), as.data.table))
     )
 

@@ -9,7 +9,7 @@
 wildcard_constraints:
     run_label   = r"[A-Za-z0-9_.-]+",
     spatial_tag = r"spatial|nospatial",
-    method      = r"gradient_forest"
+    method      = r"gradient_forest|geometric_offset"
 
 # Per-model future climate download (runs in parallel via Snakemake)
 rule download_climate_future_model:
@@ -148,6 +148,47 @@ rule gradient_forest_offset:
             {output.raster} {output.map_values} {output.site_values} > {log} 2>&1
         """
 
+# Geometric Genetic Offset (Gain et al. 2023, MBE) — single-call rule.
+# No separate model artifact: genetic.gap() fits LFMM2 + computes offset in one pass.
+# Nospatial-only: genetic.gap() has no spatial-correction argument.
+# candidate.loci = INTEGER INDEX vector into the full imputed matrix (never subset the matrix).
+rule geometric_offset:
+    """Compute geometric genetic offset using LEA::genetic.gap()."""
+    input:
+        lfmm_full   = W['lfmm_imp_full'],
+        vcfsnp      = W['vcfsnp_full'],
+        removed     = W['removed_full'],
+        sigsnps     = lambda wc: snp_set_file(wc.run_label),
+        env_site_pres  = O['climate_site'],
+        env_site_fut   = O['climate_future_site'],
+        env_all_pres   = O['climate_all'],
+        env_all_fut    = O['climate_future_all'],
+        pres_raster    = W['climate_raster'],
+        samples        = O['metadata']
+    output:
+        site_values = mala_offset_site_values('geometric_offset', '{run_label}', '{spatial_tag}'),
+        map_values  = mala_offset_map_values('geometric_offset', '{run_label}', '{spatial_tag}'),
+        raster      = mala_offset_raster('geometric_offset', '{run_label}', '{spatial_tag}'),
+        importance  = mala_importance('geometric_offset', '{run_label}', '{spatial_tag}')
+    wildcard_constraints:
+        spatial_tag = r"nospatial"   # geometric_offset is nospatial-only
+    params:
+        predictors = PREDICTORS_SELECTED,
+        k          = lambda wc: GO_K if GO_K != '' else K_BEST,
+        scale      = GO_SCALE
+    log: f"{LOGDIR}maladaptation/geometric_offset_{{run_label}}_{{spatial_tag}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/geometric_offset.R \
+            {input.lfmm_full} {input.vcfsnp} {input.removed} {input.sigsnps} \
+            {input.env_site_pres} {input.env_site_fut} \
+            {input.env_all_pres} {input.env_all_fut} \
+            {input.pres_raster} {input.samples} \
+            {params.predictors} {params.k} {params.scale} \
+            {output.site_values} {output.map_values} \
+            {output.raster} {output.importance} > {log} 2>&1
+        """
+
 # Cumulative importance plot
 rule plot_gf_cumimp:
     """Plot cumulative importance curves for adaptive (and optionally neutral) GF model."""
@@ -207,26 +248,26 @@ def _piemap_output_prefix(wc):
     return f'genetic_offset_piemap_{wc.size_trait}'
 
 rule plot_gf_offset_piemap:
-    """Plot genetic offset piemap, optionally scaled by a population statistic."""
+    """Plot genetic offset piemap for any maladaptation method, optionally scaled by a population statistic."""
     wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
-        offset_raster = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
+        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
         samples       = O['metadata'],
         clusters      = clusters_table(K_BEST),
         trait_file    = _piemap_trait_input
-    output: mala_offset_piemap('gradient_forest', '{run_label}', '{spatial_tag}', '{size_trait}')
+    output: mala_offset_piemap('{method}', '{run_label}', '{spatial_tag}', '{size_trait}')
     params:
         pie_alpha       = PIEMAP_ALPHA,
         pop_label       = PIEMAP_SHOW_LABELS,
         pop_label_size  = PIEMAP_LABEL_SIZE,
         pie_scale       = PIEMAP_PIE_SCALE,
         use_points      = PIEMAP_USE_POINTS,
-        plot_dir        = lambda wc: mala_plot_dir('gradient_forest', wc.run_label, wc.spatial_tag),
+        plot_dir        = lambda wc: mala_plot_dir(wc.method, wc.run_label, wc.spatial_tag),
         inter_dir       = INTER,
         regionmap_extent = REGIONMAP_EXTENT,
         trait_path      = _piemap_trait_path,
         output_prefix   = _piemap_output_prefix
-    log: f"{LOGDIR}maladaptation/plot_gf_offset_piemap_{{run_label}}_{{spatial_tag}}_{{size_trait}}.log"
+    log: f"{LOGDIR}maladaptation/plot_offset_piemap_{{method}}_{{run_label}}_{{spatial_tag}}_{{size_trait}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_piemap.R \

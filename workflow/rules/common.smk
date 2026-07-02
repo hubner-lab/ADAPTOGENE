@@ -276,6 +276,13 @@ elif SPATIAL_CORRECTION == 'without':
 else:  # 'with'
     ACTIVE_SPATIAL_TAGS = ['spatial']
 
+# GEOMETRIC OFFSET parameters
+_go = _mala_cfg.get('methods', {}).get('geometric_offset', {})
+GO_CANDIDATE_ONLY = _go.get('candidate_only', True)
+_go_k = _go.get('k', '')
+GO_K = str(_go_k) if _go_k != '' else ''   # '' → use K_BEST at rule time
+GO_SCALE = str(_go.get('scale', True)).upper()  # 'TRUE'/'FALSE' for R
+
 # Raw SNP-sets config (cheap parse — actual glob/validate happens only inside get_targets)
 SNP_SETS_CFG = _mala_cfg.get('snp_sets', 'all')
 
@@ -286,6 +293,16 @@ if _unknown_mala:
     raise ValueError(f"Unknown maladaptation methods in config: {_unknown_mala}. "
                      f"Registered: {list(MALADAPTATION_METHODS.keys())}")
 ACTIVE_MALA_METHODS = [m for m in _mala_methods_cfg if m in MALADAPTATION_METHODS] or ['gradient_forest']
+
+def mala_spatial_tags(method):
+    """Return the list of spatial tags this method supports.
+
+    geometric_offset is nospatial-only; gradient_forest follows ACTIVE_SPATIAL_TAGS
+    (which reflects the Maladaptation.methods.gradient_forest.spatial_correction setting).
+    """
+    if MALADAPTATION_METHODS.get(method, {}).get('supports_spatial', True):
+        return ACTIVE_SPATIAL_TAGS
+    return ['nospatial']
 
 def parse_association_configs(configs_list):
     """Parse association configs list into method -> adjust_threshold dict."""
@@ -1311,10 +1328,12 @@ def get_targets(mode):
             raise ValueError("maladaptation mode requires climate.enabled: true")
         check_numeric(K_BEST, 'K_BEST')
         check_numeric(SSP, 'SSP')
-        check_numeric(NTREE, 'NTREE')
-        check_float(COR_THRESHOLD, 'COR_THRESHOLD')
         if not MODELS_LIST:
             raise ValueError("MODELS must be set for maladaptation mode")
+        # GF-specific checks: only validate when GF is active
+        if 'gradient_forest' in ACTIVE_MALA_METHODS:
+            check_numeric(NTREE, 'NTREE')
+            check_float(COR_THRESHOLD, 'COR_THRESHOLD')
 
         # Resolve saved SNP sets (glob/validate happens here, not at module top level)
         ACTIVE_SNP_SETS = resolve_active_snp_sets()
@@ -1328,18 +1347,26 @@ def get_targets(mode):
         ]
 
         for set_name in ACTIVE_SNP_SETS:
-            for spatial_tag in ACTIVE_SPATIAL_TAGS:
-                for method in ACTIVE_MALA_METHODS:
+            for method in ACTIVE_MALA_METHODS:
+                _mflags = MALADAPTATION_METHODS[method]
+                for spatial_tag in mala_spatial_tags(method):
+                    # Separate model artifact (GF only — geometric_offset is single-call)
+                    if _mflags['builds_model']:
+                        targets.append(mala_model(method, set_name, spatial_tag, 'adaptive'))
+                    # Core offset outputs (all methods)
                     targets += [
-                        mala_model(method, set_name, spatial_tag, 'adaptive'),
                         mala_offset_map_values(method, set_name, spatial_tag),
                         mala_offset_site_values(method, set_name, spatial_tag),
-                        mala_cumimp(method, set_name, spatial_tag),
                         mala_importance(method, set_name, spatial_tag),
                         mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
                     ]
-                    if MALADAPTATION_METHODS[method]['supports_random_model'] and GF_RANDOM_MODEL:
+                    # Cumulative importance (GF only)
+                    if _mflags['supports_cumulative_importance']:
+                        targets.append(mala_cumimp(method, set_name, spatial_tag))
+                    # Random/neutral model (GF + config flag)
+                    if _mflags['supports_random_model'] and GF_RANDOM_MODEL:
                         targets.append(mala_model(method, set_name, spatial_tag, 'random'))
+                    # Pop-stats scaled piemaps (all methods, optional)
                     if CALC_POP_STATS:
                         targets += [
                             mala_offset_piemap(method, set_name, spatial_tag, 'tajima_d'),
