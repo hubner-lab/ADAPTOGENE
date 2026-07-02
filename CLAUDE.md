@@ -350,7 +350,7 @@ Interactive results viewer built as a **golem R package** using bslib (Bootstrap
 ### Dev Mode (no Docker rebuild)
 
 ```bash
-docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
+docker run --user $(id -u):$(id -g) --rm -e USER=pipeline -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
   Rscript /pipeline/scripts/adaptogene.app/dev.R
 ```
 
@@ -427,7 +427,7 @@ When pipeline modules produce optional outputs (pop_stats piemaps, zoom maps, ha
 
 ### Running the App
 ```bash
-docker run --user $(id -u):$(id -g) --rm -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
+docker run --user $(id -u):$(id -g) --rm -e USER=pipeline -p 3838:3838 -v $PWD:/pipeline adaptogene:latest \
   R -e "adaptogene.app::run_app(options = list(host = '0.0.0.0', port = 3838))"
 ```
 
