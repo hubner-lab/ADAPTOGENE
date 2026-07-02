@@ -409,6 +409,66 @@ gf_site_table_path <- function(project, suffix, method = "gradient_forest") {
     mod_path(project, MOD_MALAD, "tables", method, suffix, "genetic_offset_site.tsv")
 }
 
+#' GF map offset table path (landscape cells)
+#' @noRd
+gf_map_table_path <- function(project, suffix, method = "gradient_forest") {
+    mod_path(project, MOD_MALAD, "tables", method, suffix, "genetic_offset_map.tsv")
+}
+
+# ─── Model comparison paths ───────────────────────────────────────────────────
+
+#' Stable comparison key for two models (sorted so A/B order doesn't matter for cache)
+#' @noRd
+model_compare_key <- function(key_a, key_b) {
+    sorted <- sort(c(key_a, key_b))
+    paste0(
+        gsub(":::", "_", sorted[1], fixed = TRUE), "__vs__",
+        gsub(":::", "_", sorted[2], fixed = TRUE)
+    )
+}
+
+#' Cache directory for a two-model comparison
+#' @noRd
+model_compare_dir <- function(project, key_a, key_b) {
+    mod_path(project, MOD_INTER, "model_compare", model_compare_key(key_a, key_b))
+}
+
+#' Novelty cache directory (per scenario — shared across comparisons)
+#' @noRd
+novelty_cache_dir <- function(project, scenario_label) {
+    mod_path(project, MOD_INTER, "novelty", scenario_label)
+}
+
+#' stats.json path for a model comparison
+#' @noRd
+model_compare_stats_path <- function(project, key_a, key_b) {
+    file.path(model_compare_dir(project, key_a, key_b), "stats.json")
+}
+
+#' Disagreement raster path
+#' @noRd
+model_compare_disagree_raster <- function(project, key_a, key_b) {
+    file.path(model_compare_dir(project, key_a, key_b), "disagree_rank.tif")
+}
+
+#' Site offsets table path (merged, two columns offset_a / offset_b)
+#' @noRd
+model_compare_site_offsets <- function(project, key_a, key_b) {
+    file.path(model_compare_dir(project, key_a, key_b), "site_offsets.tsv")
+}
+
+#' Rank stability table path
+#' @noRd
+model_compare_rank_stability <- function(project, key_a, key_b) {
+    file.path(model_compare_dir(project, key_a, key_b), "rank_stability.tsv")
+}
+
+#' ExDet novelty raster path
+#' @noRd
+novelty_raster_path <- function(project, scenario_label) {
+    file.path(novelty_cache_dir(project, scenario_label), "exdet_novelty.tif")
+}
+
 # ─── Phenotype piemap ────────────────────────────────────────────────────────
 
 #' Phenotype association piemap (phenomap) path

@@ -1,19 +1,19 @@
 #' Maladaptation tab UI
 #'
-#' Gradient Forest results: importance plots, genetic offset piemaps,
-#' zoom maps, and site-level offset table.
+#' Gradient Forest + Geometric Offset results: importance plots, genetic offset
+#' piemaps, zoom maps, site-level offset table, and cross-model comparison.
 #'
 #' @param id module namespace id
 #' @noRd
 mod_maladaptation_ui <- function(id) {
     ns <- shiny::NS(id)
     htmltools::tagList(
-        # SNP set / GF run selector + badges + set actions
+        # Model selector (method × suffix) + badges + set actions
         htmltools::div(
             class = "control-bar",
-            shiny::uiOutput(ns("suffix_selector")),
+            shiny::uiOutput(ns("model_selector")),
             shiny::uiOutput(ns("snp_count_badge")),
-            shiny::uiOutput(ns("gf_params_badge")),
+            shiny::uiOutput(ns("method_params_badge")),
             shiny::uiOutput(ns("climate_scenario_badge")),
             shiny::uiOutput(ns("set_details_btn")),
             shiny::uiOutput(ns("set_delete_btn"))
@@ -74,14 +74,75 @@ mod_maladaptation_ui <- function(id) {
             ),
 
             bslib::accordion_panel(
-                "Cross-set comparison",
+                "Cross-model comparison",
                 value = "cross_set",
                 icon  = bsicons::bs_icon("bar-chart-steps"),
                 bslib::card_body(
-                    htmltools::div(
-                        class = "text-muted small fst-italic",
-                        "Coming soon: side-by-side comparison of genetic offset across saved SNP sets."
-                    )
+                    # ── Honesty banner ────────────────────────────────────────
+                    compare_honesty_banner(),
+
+                    # ── Two-model picker ──────────────────────────────────────
+                    bslib::card(
+                        class = "mb-3",
+                        bslib::card_header("Select Models to Compare"),
+                        bslib::card_body(
+                            class = "overflow-visible",
+                            bslib::layout_columns(
+                                col_widths = c(6, 6),
+                                htmltools::div(
+                                    class = "control-bar p-2 rounded border",
+                                    style = "border-color:#1B7A6E !important; overflow:visible",
+                                    htmltools::div(
+                                        htmltools::tags$span(
+                                            class = "badge text-bg-primary me-1",
+                                            style = "background-color:#1B7A6E !important",
+                                            "A"
+                                        ),
+                                        htmltools::tags$strong("Model A")
+                                    ),
+                                    shiny::selectInput(
+                                        shiny::NS(id, "compare_model_a"),
+                                        NULL,
+                                        choices  = c("— select —" = ""),
+                                        selected = ""
+                                    )
+                                ),
+                                htmltools::div(
+                                    class = "control-bar p-2 rounded border",
+                                    style = "border-color:#d97706 !important; overflow:visible",
+                                    htmltools::div(
+                                        htmltools::tags$span(
+                                            class = "badge me-1",
+                                            style = "background-color:#d97706",
+                                            "B"
+                                        ),
+                                        htmltools::tags$strong("Model B")
+                                    ),
+                                    shiny::selectInput(
+                                        shiny::NS(id, "compare_model_b"),
+                                        NULL,
+                                        choices  = c("— select —" = ""),
+                                        selected = ""
+                                    )
+                                )
+                            ),
+                            # Spatial-tag mismatch note + run button
+                            shiny::uiOutput(shiny::NS(id, "compare_spatial_note")),
+                            htmltools::div(
+                                class = "mt-2 d-flex align-items-center gap-2",
+                                shiny::actionButton(
+                                    shiny::NS(id, "run_compare"),
+                                    "Compare",
+                                    class = "btn-sm btn-primary",
+                                    icon  = shiny::icon("play")
+                                ),
+                                shiny::uiOutput(shiny::NS(id, "compare_cache_badge"))
+                            )
+                        )
+                    ),
+
+                    # ── Comparison results ─────────────────────────────────────
+                    shiny::uiOutput(shiny::NS(id, "compare_results_ui"))
                 )
             )
         )
@@ -97,42 +158,52 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
-        # gf_suffixes depends on both project_data AND snp_sets_trigger
-        # (project_data refreshes on pipeline run; trigger refreshes on delete)
-        gf_suffixes <- shiny::reactive({
+        # All maladaptation models across all methods, keyed as "method:::suffix"
+        mala_models <- shiny::reactive({
             if (!is.null(snp_sets_trigger)) snp_sets_trigger()
-            find_gf_suffixes(project_data()$name)
+            find_mala_models(project_data()$name)
         })
 
-        output$suffix_selector <- shiny::renderUI({
-            suf <- gf_suffixes()
-            if (length(suf) == 0)
+        output$model_selector <- shiny::renderUI({
+            models <- mala_models()
+            if (length(models) == 0)
                 return(shiny::p(
-                    "No GF runs found. Save a SNP set in the GEA tab and run Maladaptation.",
+                    "No maladaptation runs found. Save a SNP set in the GEA tab and run mode=maladaptation.",
                     class = "text-muted small"))
-            shiny::selectInput(ns("suffix"), "SNP set / GF run", choices = suf, selected = suf[1])
+            shiny::selectInput(ns("model_key"), "Model (method / SNP set)",
+                               choices = models, selected = models[1])
+        })
+
+        selected_model_key <- shiny::reactive({
+            k <- input$model_key
+            if (is.null(k)) {
+                models <- mala_models()
+                if (length(models) == 0) return(NULL)
+                models[1]
+            } else k
+        })
+
+        selected_method <- shiny::reactive({
+            p <- parse_model_key(selected_model_key())
+            if (is.null(p)) "gradient_forest" else p$method
         })
 
         selected_suffix <- shiny::reactive({
-            s <- input$suffix
-            if (is.null(s)) {
-                suf <- gf_suffixes()
-                if (length(suf) == 0) return(NULL)
-                suf[1]
-            } else s
+            p <- parse_model_key(selected_model_key())
+            if (is.null(p)) return(NULL)
+            p$suffix
         })
 
-        # ── Resolve suffix → set name via manifest (NOT string-stripping) ─────
-        # Pipeline emits {name}_spatial | {name}_nospatial | {name} (without spatial).
+        # ── Resolve suffix → set name via manifest (NOT string-stripping) ──────
+        # Pipeline emits {name}_spatial | {name}_nospatial | {name} (no spatial).
         # Underscores + 'both' mode make suffix-stripping ambiguous.
         selected_set_name <- shiny::reactive({
             suf <- selected_suffix(); if (is.null(suf)) return(NULL)
             if (!is.null(snp_sets_trigger)) snp_sets_trigger()
-            names <- list_snp_sets(project_data()$name)$name
-            # Longest match: suf == name OR suf == name_spatial OR suf == name_nospatial
-            hit <- names[suf == names |
-                         suf == paste0(names, "_spatial") |
-                         suf == paste0(names, "_nospatial")]
+            set_names <- list_snp_sets(project_data()$name)$name
+            hit <- set_names[suf == set_names |
+                             suf == paste0(set_names, "_spatial") |
+                             suf == paste0(set_names, "_nospatial")]
             if (length(hit) == 0) NULL else hit[which.max(nchar(hit))]
         })
 
@@ -234,28 +305,44 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             )
         })
 
-        # ── G2: GF run parameters badge ───────────────────────────────────────
-        output$gf_params_badge <- shiny::renderUI({
-            suf <- selected_suffix()
-            pd  <- project_data()
+        # ── G2: Method run parameters badge (method-aware) ───────────────────
+        output$method_params_badge <- shiny::renderUI({
+            suf    <- selected_suffix()
+            method <- selected_method()
+            pd     <- project_data()
             if (is.null(suf) || is.null(pd)) return(NULL)
-            cfg     <- pd$config
-            ntree   <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
-                                  "ntree", default = 500L)
-            cor_thr <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
-                                  "cor_threshold", default = 0.5)
-            spatial <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
-                                  "spatial_correction", default = "with")
-            rand    <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
-                                  "random_model", default = TRUE)
-            htmltools::div(
-                class = "ms-2 align-self-center",
-                config_badges_bar(
+            cfg <- pd$config
+            if (method == "gradient_forest") {
+                ntree   <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                      "ntree", default = 500L)
+                cor_thr <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                      "cor_threshold", default = 0.5)
+                spatial <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                      "spatial_correction", default = "with")
+                rand    <- config_get(cfg, "Maladaptation", "methods", "gradient_forest",
+                                      "random_model", default = TRUE)
+                badges <- list(
                     config_badge("ntree", ntree),
                     config_badge("cor.thr", cor_thr),
                     config_badge("spatial", spatial),
                     if (isTRUE(rand)) config_badge("random model", "yes") else NULL
                 )
+            } else if (method == "geometric_offset") {
+                k     <- config_get(cfg, "Maladaptation", "methods", "geometric_offset",
+                                    "k", default = "(sNMF k_best)")
+                scale <- config_get(cfg, "Maladaptation", "methods", "geometric_offset",
+                                    "scale", default = TRUE)
+                badges <- list(
+                    config_badge("K", if (is.null(k) || k == "") "k_best" else as.character(k)),
+                    config_badge("scale", if (isTRUE(scale)) "yes" else "no"),
+                    config_badge("spatial", "no (nospatial only)")
+                )
+            } else {
+                badges <- list()
+            }
+            htmltools::div(
+                class = "ms-2 align-self-center",
+                do.call(config_badges_bar, badges)
             )
         })
 
@@ -306,12 +393,13 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
 
         # ── Piemap variant selector (only shows variants that exist) ───────────
         output$piemap_variant_ui <- shiny::renderUI({
-            suf <- shiny::req(selected_suffix())
+            suf    <- shiny::req(selected_suffix())
+            method <- selected_method()
             pd  <- project_data()
             choices <- c("Genetic Offset" = "base")
-            if (file_ok(gf_offset_piemap_path(pd$name, suf, "tajima_d")))
+            if (file_ok(gf_offset_piemap_path(pd$name, suf, "tajima_d", method = method)))
                 choices <- c(choices, c("Offset \u00d7 Tajima's D" = "tajima_d"))
-            if (file_ok(gf_offset_piemap_path(pd$name, suf, "pi_diversity")))
+            if (file_ok(gf_offset_piemap_path(pd$name, suf, "pi_diversity", method = method)))
                 choices <- c(choices, c("Offset \u00d7 Pi Diversity" = "pi_diversity"))
             if (length(choices) == 1) return(NULL)  # only base — no selector needed
             shiny::selectInput(ns("piemap_variant"), "Piemap Type",
@@ -320,9 +408,10 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
 
         # ── Zoom selector (only shows if zoom maps exist) ──────────────────────
         output$zoom_selector <- shiny::renderUI({
-            suf   <- shiny::req(selected_suffix())
+            suf    <- shiny::req(selected_suffix())
+            method <- selected_method()
             pd    <- project_data()
-            zooms <- find_gf_zooms(pd$name, suf)
+            zooms <- find_gf_zooms(pd$name, suf, method = method)
             if (length(zooms) == 0) return(NULL)
             shiny::selectInput(ns("zoom"), "Zoom Region",
                 choices  = c("Full view" = "none", setNames(zooms, zooms)),
@@ -335,16 +424,17 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
 
         # ── Importance images ──────────────────────────────────────────────────
         shiny::observe({
-            suf <- shiny::req(selected_suffix())
-            pd  <- project_data()
+            suf    <- shiny::req(selected_suffix())
+            method <- selected_method()
+            pd     <- project_data()
 
             mod_image_card_server("overall_importance",
-                path    = shiny::reactive(gf_importance_path(pd$name, suf, "overall")),
+                path    = shiny::reactive(gf_importance_path(pd$name, suf, "overall", method = method)),
                 title   = shiny::reactive("Overall Variable Importance"),
                 dl_name = shiny::reactive(paste0("overall_importance_", suf))
             )
             mod_image_card_server("cumulative_importance",
-                path    = shiny::reactive(gf_importance_path(pd$name, suf, "cumulative")),
+                path    = shiny::reactive(gf_importance_path(pd$name, suf, "cumulative", method = method)),
                 title   = shiny::reactive("Cumulative Importance"),
                 dl_name = shiny::reactive(paste0("cumulative_importance_", suf))
             )
@@ -353,14 +443,15 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         # ── Single selector-driven offset piemap ───────────────────────────────
         piemap_path <- shiny::reactive({
             suf     <- shiny::req(selected_suffix())
+            method  <- selected_method()
             pd      <- project_data()
             variant <- selected_variant()
             zoom    <- selected_zoom()
             if (zoom != "none") {
-                mod_path(pd$name, MOD_MALAD, "plots", suf, "zoom",
+                mod_path(pd$name, MOD_MALAD, "plots", method, suf, "zoom",
                          paste0(zoom, ".png"))
             } else {
-                gf_offset_piemap_path(pd$name, suf, variant)
+                gf_offset_piemap_path(pd$name, suf, variant, method = method)
             }
         })
 
@@ -380,19 +471,20 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             title       = piemap_title,
             dl_name     = shiny::reactive(paste0("offset_piemap_", selected_variant(),
                                                   "_", selected_suffix() %||% "gf")),
-            placeholder = shiny::reactive("Run mode=maladaptation to generate Gradient Forest results")
+            placeholder = shiny::reactive("Run mode=maladaptation to generate offset results")
         )
 
         # ── Site table ─────────────────────────────────────────────────────────
         site_data <- shiny::reactive({
-            suf <- selected_suffix()
+            suf    <- selected_suffix()
+            method <- selected_method()
             if (is.null(suf)) return(data.table::data.table())
-            p  <- gf_site_table_path(project_data()$name, suf)
-            # mtime fingerprint: re-running GF for the same suffix otherwise serves stale data
+            p  <- gf_site_table_path(project_data()$name, suf, method = method)
+            # mtime fingerprint: re-running for the same suffix otherwise serves stale data
             fp <- if (file.exists(p)) as.character(file.info(p)$mtime) else "missing"
-            load_cached(paste0("gf_site_", project_data()$name, "_", suf),
+            load_cached(paste0("mala_site_", project_data()$name, "_", method, "_", suf),
                         function() {
-                p <- gf_site_table_path(project_data()$name, suf)
+                p <- gf_site_table_path(project_data()$name, suf, method = method)
                 if (!file_ok(p)) return(data.table::data.table())
                 dt <- data.table::fread(p, colClasses = c("site" = "character",
                                                             "sample" = "character"))
@@ -431,12 +523,345 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         output$dl_site <- shiny::downloadHandler(
             filename = function() {
                 paste0("genetic_offset_site_", project_data()$name,
-                       "_", selected_suffix(), ".csv")
+                       "_", selected_method(), "_", selected_suffix(), ".csv")
             },
             content = function(file) {
                 dt <- site_data()
                 utils::write.csv(as.data.frame(dt), file, row.names = FALSE)
             }
         )
+
+        # ── Cross-model comparison ──────────────────────────────────────────────
+        # Populate model selectors from all available models
+        shiny::observe({
+            all_models <- find_mala_models(project_data()$name)
+            shiny::updateSelectInput(session, "compare_model_a",
+                choices  = c("— select —" = "", all_models),
+                selected = ""
+            )
+            shiny::updateSelectInput(session, "compare_model_b",
+                choices  = c("— select —" = "", all_models),
+                selected = ""
+            )
+        })
+
+        # Spatial-tag mismatch note
+        output$compare_spatial_note <- shiny::renderUI({
+            key_a <- input$compare_model_a
+            key_b <- input$compare_model_b
+            if (!nzchar(key_a) || !nzchar(key_b)) return(NULL)
+            pa <- parse_model_key(key_a); pb <- parse_model_key(key_b)
+            if (is.null(pa) || is.null(pb)) return(NULL)
+            tag_a <- gsub("^.*_(spatial|nospatial)$", "\\1", pa$suffix)
+            tag_b <- gsub("^.*_(spatial|nospatial)$", "\\1", pb$suffix)
+            if (!identical(tag_a, tag_b)) {
+                htmltools::div(
+                    class = "alert alert-warning py-1 px-2 small mt-1 mb-0",
+                    htmltools::HTML("&#9888; Spatial tags differ (",
+                                   htmltools::strong(tag_a),
+                                   " vs ", htmltools::strong(tag_b),
+                                   "). Rank comparison is still valid; absolute magnitudes are not directly comparable.")
+                )
+            } else NULL
+        })
+
+        # Track whether cache exists for current selection
+        compare_stats <- shiny::reactiveVal(NULL)
+
+        output$compare_cache_badge <- shiny::renderUI({
+            if (!is.null(compare_stats()))
+                htmltools::span(class = "badge text-bg-success", "Cached")
+            else NULL
+        })
+
+        # Run comparison on button click
+        shiny::observeEvent(input$run_compare, {
+            key_a <- input$compare_model_a
+            key_b <- input$compare_model_b
+            if (!nzchar(key_a) || !nzchar(key_b) || identical(key_a, key_b)) {
+                shiny::showNotification("Select two different models.", type = "warning")
+                return()
+            }
+            # Try loading from cache first
+            stats <- load_compare_stats(project_data()$name, key_a, key_b)
+            if (!is.null(stats)) {
+                compare_stats(stats)
+                shiny::showNotification("Loaded from cache.", type = "message", duration = 2)
+                return()
+            }
+
+            # Find climate inputs from config
+            cfg    <- project_data()$config
+            preds  <- config_get(cfg, "Climate", "predictors") %||% character(0)
+            raster <- mod_path(project_data()$name, "_work",
+                               paste0("maf", config_get(cfg, "Filter", "maf"),
+                                      "_miss", config_get(cfg, "Filter", "snp_miss"),
+                                      "_smiss", config_get(cfg, "Filter", "sample_miss")),
+                               paste0("climate_raster_", preds[1], ".tif"))
+            env_sp <- mod_path(project_data()$name, MOD_CLIMATE, "tables", "present",
+                               "climate_present_site.tsv")
+            env_ap <- mod_path(project_data()$name, MOD_CLIMATE, "tables", "present",
+                               "climate_present_all.tsv")
+
+            # Use first future scenario in config
+            ssps <- config_get(cfg, "Future", "ssp")
+            yrs  <- config_get(cfg, "Future", "year")
+            ssp  <- if (length(ssps) > 0) ssps[[1]] else "585"
+            yr   <- if (length(yrs)  > 0) yrs[[1]]  else "2080"
+            env_af <- mod_path(project_data()$name, MOD_CLIMATE, "tables", "future",
+                               paste0("climate_future_year", yr, "_ssp", ssp, "_all.tsv"))
+            scen_label <- paste0("ssp", ssp, "_", yr)
+
+            # Find offset_raster.tif from model A's intermediate
+            pa <- parse_model_key(key_a)
+            rast_candidate <- mod_path(project_data()$name, MOD_INTER,
+                                       pa$method, pa$suffix, "offset_raster.tif")
+            if (!file_ok(rast_candidate)) {
+                shiny::showNotification(
+                    "Raster not found for Model A. Run mode=maladaptation first.",
+                    type = "error"
+                )
+                return()
+            }
+
+            shiny::showNotification("Running comparison (may take ~30 s)...",
+                                    id = "cmp_run", type = "message", duration = NULL)
+            ok <- tryCatch(
+                run_compare_offsets(
+                    project      = project_data()$name,
+                    key_a        = key_a,
+                    key_b        = key_b,
+                    env_site_pres = env_sp,
+                    env_all_pres  = env_ap,
+                    env_all_fut   = env_af,
+                    predictors    = preds,
+                    raster_tif    = rast_candidate,
+                    top_k         = 10L,
+                    scenario_label = scen_label
+                ),
+                error = function(e) { message("compare_offsets ERROR: ", e$message); FALSE }
+            )
+            shiny::removeNotification("cmp_run")
+            if (ok) {
+                compare_stats(load_compare_stats(project_data()$name, key_a, key_b))
+                shiny::showNotification("Comparison complete.", type = "message")
+            } else {
+                shiny::showNotification("Comparison failed. Check logs.", type = "error")
+            }
+        })
+
+        # ── Render comparison results tabs ────────────────────────────────────
+        output$compare_results_ui <- shiny::renderUI({
+            stats <- compare_stats()
+            key_a <- input$compare_model_a
+            key_b <- input$compare_model_b
+
+            if (!nzchar(key_a %||% "") || !nzchar(key_b %||% "")) {
+                return(compare_empty_state())
+            }
+            if (is.null(stats)) {
+                return(htmltools::div(
+                    class = "text-muted small fst-italic py-3",
+                    "Click Compare to compute extrapolation diagnostics."
+                ))
+            }
+
+            # KPI strip
+            kpi_strip <- htmltools::div(
+                class = "mb-3",
+                compare_stat_box(
+                    value  = stats$spearman_rho,
+                    label  = "Spearman ρ (sites)",
+                    p_val  = stats$spearman_p
+                ),
+                compare_stat_box(
+                    value  = stats$kendall_tau,
+                    label  = "Kendall τ (sites)",
+                    p_val  = stats$kendall_p
+                ),
+                compare_stat_box(
+                    value  = paste0(round(stats$jaccard_top_k * 100), "%"),
+                    label  = paste0("Top-", stats$top_k, " Jaccard")
+                ),
+                if (!is.null(stats$kendall_w) && !is.na(stats$kendall_w))
+                    compare_stat_box(
+                        value = stats$kendall_w,
+                        label = "Kendall W (N-way)"
+                    )
+            )
+
+            bslib::navset_card_tab(
+                id = ns("compare_tabs"),
+                bslib::nav_panel(
+                    "Novelty surface",
+                    bslib::card_body(
+                        kpi_strip,
+                        shiny::uiOutput(ns("compare_novelty_ui"))
+                    )
+                ),
+                bslib::nav_panel(
+                    "Disagreement × Novelty",
+                    bslib::card_body(
+                        htmltools::p(
+                            class = "small text-muted",
+                            "Rank-transformed offset rasters; |Δrank| divergence map. High disagreement in non-analog climate cells (ExDet ≥ 0) indicates the two models extrapolate differently — as expected for linear (Geometric) vs plateau-bounded (Gradient Forest) offsets."
+                        ),
+                        shiny::uiOutput(ns("compare_disagree_ui"))
+                    )
+                ),
+                bslib::nav_panel(
+                    "Rank concordance",
+                    bslib::card_body(
+                        htmltools::div(
+                            class = "alert alert-info py-1 px-2 small mb-2",
+                            "Per-site concordance only — site agreement is a weaker question than extrapolation behaviour. See tabs 1-2 for the extrapolation-focused view."
+                        ),
+                        shiny::uiOutput(ns("compare_concordance_ui"))
+                    )
+                ),
+                bslib::nav_panel(
+                    "Site stability",
+                    bslib::card_body(
+                        shiny::uiOutput(ns("compare_stability_ui"))
+                    )
+                ),
+                bslib::nav_panel(
+                    "N-way concordance",
+                    bslib::card_body(
+                        shiny::uiOutput(ns("compare_nway_ui"))
+                    )
+                )
+            )
+        })
+
+        # ── Tab sub-renderers ──────────────────────────────────────────────────
+        output$compare_novelty_ui <- shiny::renderUI({
+            stats <- compare_stats(); if (is.null(stats)) return(NULL)
+            pd <- project_data()
+            key_a <- input$compare_model_a; key_b <- input$compare_model_b
+            scen  <- "future"  # default; could be parameterised
+            nov_p <- novelty_raster_path(pd$name, scen)
+            if (!file_ok(nov_p)) {
+                return(htmltools::div(class = "text-muted small", "Novelty raster not computed yet."))
+            }
+            # Show cached ExDet table if present
+            nov_t <- file.path(dirname(nov_p), "exdet_novelty.tsv")
+            nov_info <- if (file_ok(nov_t)) {
+                tryCatch({
+                    dt <- data.table::fread(nov_t)
+                    htmltools::div(
+                        compare_stat_box(paste0(dt$pct_cells_novel, "%"), "Novel cells (ExDet ≥ 0)"),
+                        compare_stat_box(dt$max_nt2, "Max NT2 (Mahalanobis)")
+                    )
+                }, error = function(e) NULL)
+            } else NULL
+            htmltools::tagList(
+                nov_info,
+                htmltools::p(
+                    class = "small text-muted",
+                    "ExDet NT1: univariate novelty (positive = within training range). ",
+                    "NT2: multivariate combinatorial novelty (Mahalanobis to training centroid). ",
+                    "Reference = present climate at sampled sites."
+                )
+            )
+        })
+
+        output$compare_disagree_ui <- shiny::renderUI({
+            stats <- compare_stats(); if (is.null(stats)) return(NULL)
+            cor_txt <- if (!is.null(stats$disagree_nt2_spear) && !is.na(stats$disagree_nt2_spear))
+                paste0("Spearman(Δrank, NT2) = ", stats$disagree_nt2_spear,
+                       " — higher = disagreement tracks climate novelty")
+            else "Disagreement-novelty Spearman not available."
+            htmltools::div(
+                htmltools::p(class = "small", cor_txt),
+                htmltools::p(class = "small text-muted",
+                    "Disagree raster: ", file.path(
+                        model_compare_dir(project_data()$name,
+                                          input$compare_model_a, input$compare_model_b),
+                        "disagree_rank.tif"))
+            )
+        })
+
+        output$compare_concordance_ui <- shiny::renderUI({
+            stats <- compare_stats(); if (is.null(stats)) return(NULL)
+            dt <- load_compare_site_offsets(project_data()$name,
+                                            input$compare_model_a, input$compare_model_b)
+            if (nrow(dt) == 0) return(htmltools::div(class = "text-muted small", "No data."))
+            htmltools::tagList(
+                htmltools::div(
+                    compare_stat_box(stats$spearman_rho, "Spearman ρ", stats$spearman_p,
+                                     accent = "#1B7A6E"),
+                    compare_stat_box(stats$kendall_tau,  "Kendall τ",  stats$kendall_p),
+                    if (!is.null(stats$dutilleul_p) && !is.na(stats$dutilleul_p))
+                        compare_stat_box(
+                            signif(stats$dutilleul_p, 3),
+                            paste0("Dutilleul p (nₑₓₓ≈",
+                                   round(stats$dutilleul_n_eff), ")"),
+                            accent = "#5b9bd5"
+                        )
+                ),
+                # Scatter: Model A vs Model B offset per site
+                shiny::renderPlot({
+                    ggplot2::ggplot(as.data.frame(dt),
+                                    ggplot2::aes(x = offset_a, y = offset_b,
+                                                  label = site)) +
+                        ggplot2::geom_point(color = "#1B7A6E", alpha = 0.7, size = 2.5) +
+                        ggplot2::geom_smooth(method = "lm", color = "#888", se = TRUE, linewidth = 0.8) +
+                        ggplot2::labs(
+                            x = stats$model_a_label,
+                            y = stats$model_b_label,
+                            title = "Per-site offset rank concordance"
+                        ) +
+                        ggplot2::theme_minimal(base_size = 12)
+                }, height = 320)
+            )
+        })
+
+        output$compare_stability_ui <- shiny::renderUI({
+            stats <- compare_stats(); if (is.null(stats)) return(NULL)
+            dt    <- load_compare_rank_stability(project_data()$name,
+                                                  input$compare_model_a, input$compare_model_b)
+            htmltools::tagList(
+                htmltools::div(
+                    compare_stat_box(
+                        paste0(round(stats$jaccard_top_k * 100), "%"),
+                        paste0("Jaccard top-", stats$top_k, " high-risk sites"),
+                        accent = "#d97706"
+                    )
+                ),
+                if (nrow(dt) > 0) {
+                    shiny::renderPlot({
+                        dd <- as.data.frame(dt)
+                        dd$site <- factor(dd$site, levels = dd$site[order(dd$rank_diff, decreasing = TRUE)])
+                        ggplot2::ggplot(utils::head(dd[order(-dd$rank_diff), ], 20),
+                                        ggplot2::aes(x = site, y = rank_diff)) +
+                            ggplot2::geom_col(fill = "#d97706", alpha = 0.8) +
+                            ggplot2::coord_flip() +
+                            ggplot2::labs(x = NULL, y = "|Rank A − Rank B|",
+                                          title = "Top-20 sites by rank instability") +
+                            ggplot2::theme_minimal(base_size = 11)
+                    }, height = 320)
+                }
+            )
+        })
+
+        output$compare_nway_ui <- shiny::renderUI({
+            stats <- compare_stats(); if (is.null(stats)) return(NULL)
+            if (is.null(stats$kendall_w) || is.na(stats$kendall_w)) {
+                return(htmltools::div(
+                    class = "text-muted small",
+                    "N-way concordance requires vegan::kendall.global (vegan package) installed in the Docker container."
+                ))
+            }
+            htmltools::tagList(
+                compare_stat_box(stats$kendall_w, "Kendall's W", stats$kendall_w_p,
+                                  accent = "#1B7A6E"),
+                htmltools::p(
+                    class = "small text-muted",
+                    "Kendall's W = 0 (no concordance) to 1 (perfect concordance) across ",
+                    stats$n_models_nway, " models."
+                )
+            )
+        })
     })
 }

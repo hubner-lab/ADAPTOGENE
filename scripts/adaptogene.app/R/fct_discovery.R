@@ -70,6 +70,40 @@ find_gf_suffixes <- function(project, method = "gradient_forest") {
     dirs[dirs != "zoom"]
 }
 
+#' Find all available maladaptation models across all methods.
+#' Returns a named character vector: names = display labels, values = "method:::suffix".
+#' @noRd
+find_mala_models <- function(project) {
+    known_methods <- c("gradient_forest", "geometric_offset")
+    out_vals  <- character(0)
+    out_names <- character(0)
+    for (m in known_methods) {
+        suffs <- find_gf_suffixes(project, method = m)
+        if (length(suffs) == 0) next
+        method_label <- switch(m,
+            gradient_forest  = "GF",
+            geometric_offset = "GeoOff",
+            m
+        )
+        vals  <- paste0(m, ":::", suffs)
+        names <- paste0(method_label, " / ", suffs)
+        out_vals  <- c(out_vals,  vals)
+        out_names <- c(out_names, names)
+    }
+    if (length(out_vals) == 0) return(character(0))
+    setNames(out_vals, out_names)
+}
+
+#' Parse a "method:::suffix" model key into its components.
+#' Returns list(method = ..., suffix = ...) or NULL on bad input.
+#' @noRd
+parse_model_key <- function(key) {
+    if (is.null(key) || !grepl(":::", key, fixed = TRUE)) return(NULL)
+    parts <- strsplit(key, ":::", fixed = TRUE)[[1]]
+    if (length(parts) != 2) return(NULL)
+    list(method = parts[1], suffix = parts[2])
+}
+
 #' Find haplotype tags (validated: must have HapObject files).
 #' Auto-creates the scan_done.flag if HapObjects exist but flag is missing
 #' (self-healing for pipeline runs that predate the flag mechanism).

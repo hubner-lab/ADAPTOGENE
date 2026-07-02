@@ -348,7 +348,16 @@ config_schema <- function() {
         s("Maladaptation.methods.gradient_forest.random_model",
           "Random model",       "maladaptation","Gradient Forest",
           "checkbox", FALSE,
-          help = "Also build a random-SNP neutral model for comparison with adaptive model")
+          help = "Also build a random-SNP neutral model for comparison with adaptive model"),
+        s("Maladaptation.methods.geometric_offset.k",
+          "Latent factors (K)", "maladaptation","Geometric Offset",
+          "numeric", FALSE,
+          min = 1, step = 1,
+          help = "Number of LFMM2 latent factors. Leave blank to use sNMF k_best."),
+        s("Maladaptation.methods.geometric_offset.scale",
+          "Scale environment",  "maladaptation","Geometric Offset",
+          "checkbox", FALSE,
+          help = "Standardise climate predictors before fitting LFMM2 (recommended).")
     )
 }
 

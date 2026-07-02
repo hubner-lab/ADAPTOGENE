@@ -108,15 +108,19 @@ delete_snp_set <- function(project, name, remove_gf_results = TRUE) {
         suffixes <- c(name,
                       paste0(name, "_spatial"),
                       paste0(name, "_nospatial"))
-        for (base in c(
-            mod_path(project, MOD_MALAD, "plots",  "gradient_forest"),
-            mod_path(project, MOD_MALAD, "tables", "gradient_forest"),
-            mod_path(project, MOD_INTER, "gradient_forest")
-        )) {
-            for (suf in suffixes) {
-                target <- file.path(base, suf)
-                if (file.exists(target) || dir.exists(target))
-                    unlink(target, recursive = TRUE, force = TRUE)
+        # Remove results for all registered maladaptation methods
+        all_methods <- c("gradient_forest", "geometric_offset")
+        for (method in all_methods) {
+            for (base in c(
+                mod_path(project, MOD_MALAD, "plots",  method),
+                mod_path(project, MOD_MALAD, "tables", method),
+                mod_path(project, MOD_INTER, method)
+            )) {
+                for (suf in suffixes) {
+                    target <- file.path(base, suf)
+                    if (file.exists(target) || dir.exists(target))
+                        unlink(target, recursive = TRUE, force = TRUE)
+                }
             }
         }
     }
