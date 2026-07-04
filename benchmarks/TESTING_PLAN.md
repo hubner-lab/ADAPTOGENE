@@ -10,43 +10,39 @@ Goal: Run all pipeline modes on both datasets, verify correctness, compare with 
 
 ## Testing Sequence
 
-### Phase 1: Arabidopsis — Full Pipeline (10 modes)
+> **Mode name update (as of Phase 5 rename):** Old names (structure_K, association, association_phenotypes, overlapping, regionplot, haplotype_scan, haplotype) are all changed. `regionplot`, `haplotype_scan`, and `haplotype` modes were removed in Phase 3 — they are now on-demand in the Shiny app (Region Explorer → Run Haplotype Scan). Use the updated mode names below.
+
+### Phase 1: Arabidopsis — Full Pipeline (7 modes)
 
 Run inside Docker with `--configfile config_arabidopsis.yaml`:
 
 | Step | Mode | Key Outputs to Verify | Est. Time |
 |------|------|----------------------|-----------|
 | 1 | `processing` | filtered VCF, normalized chr names (1-5), metadata, GFF | 2-5 min |
-| 2 | `structure` | Q-matrices K2-K12, cross-entropy plot, PCA, Tracy-Widom | 30-45 min |
-| 3 | `structure_K` | piemaps (4 climate vars), pop stats (Tajima's D, Pi, IBD, AMOVA), climate tables, density plots, correlation heatmap | 10-20 min |
-| 4 | `association` | EMMAX+LFMM p-values for bio_1/4/12/15, Manhattan plots, sig SNPs, regions, genes | 20-40 min |
-| 5 | `association_phenotypes` | EMMAX p-values for FT10/FT16, Manhattan plots, phenomaps | 15-30 min |
-| 6 | `overlapping` | Combined GEA+GWAS regions, overlap pairs, Miami plot | 10-15 min |
-| 7 | `regionplot` | Regional detail plots (needs regionplot config — see note) | 5-10 min |
-| 8 | `maladaptation` | GF importance plots, genetic offset piemaps, future climate download | 20-40 min |
-| 9 | `haplotype_scan` | Clustree plots, scan_status.tsv, selected_regions.tsv | 15-30 min |
-| 10 | `haplotype` | crosshap viz, haplotype piemaps, assignment tables (needs epsilon selection after step 9) | 5-10 min |
+| 2 | `prestructure` | PCA plot, Tracy-Widom test, cross-entropy K-range plot | 30-45 min |
+| 3 | `structure` | Q-matrices at K-best, piemaps (4 climate vars), pop stats (Tajima's D, Pi, IBD, AMOVA), climate tables, density plots, correlation heatmap | 10-20 min |
+| 4 | `gea` | EMMAX+LFMM p-values for bio_1/4/12/15, Manhattan plots, sig SNPs, regions, genes | 20-40 min |
+| 5 | `gwas` | EMMAX p-values for FT10/FT16, Manhattan plots, phenomaps (GWAS = phenotype association) | 15-30 min |
+| 6 | `gea_x_gwas` | Miami plot, pairwise collapsed SNP table, pairwise overlap table | 10-15 min |
+| 7 | `maladaptation` | GF importance plots, genetic offset piemaps, future climate download | 20-40 min |
 
-**Note on regionplot**: Requires `regionplot.region`, `regionplot.traits`, `regionplot.method`, `regionplot.genes` in config. After step 4, pick a top region from `association/tables/regions_combined.tsv` and add to config before running.
+**Note on haplotype analysis**: Now interactive in the Shiny app — start the app, open the Region Explorer tab, select a region, and use "Run Haplotype Scan" / "Run Haplotype Viz". No pipeline mode needed.
 
-**Note on haplotype**: After step 9, review clustree plots and set `haplotype.epsilon_selected` in config before running step 10.
+**Note on region detail plots**: Regional Manhattan plots are rendered on-demand in the Shiny app (Region Explorer tab → Regionplot accordion). No `regionplot` pipeline mode exists.
 
-### Phase 2: Populus — GEA + Maladaptation (8 modes)
+### Phase 2: Populus — GEA + Maladaptation (5 modes)
 
 Run inside Docker with `--configfile config_populus.yaml`:
 
 | Step | Mode | Key Outputs to Verify | Est. Time |
 |------|------|----------------------|-----------|
 | 1 | `processing` | filtered VCF, normalized chr names, metadata | 2-5 min |
-| 2 | `structure` | Q-matrices K2-K6, cross-entropy plot | 20-30 min |
-| 3 | `structure_K` | piemaps (5 climate vars), pop stats, climate tables | 10-20 min |
-| 4 | `association` | EMMAX+LFMM p-values for bio_1/2/4/12/15, Manhattan plots, regions, genes | 20-40 min |
-| 5 | `regionplot` | Regional detail plots (needs config — same note as above) | 5-10 min |
-| 6 | `maladaptation` | GF importance, genetic offset piemaps (compare with Fitzpatrick et al. common garden) | 20-40 min |
-| 7 | `haplotype_scan` | Clustree plots, scan status | 15-30 min |
-| 8 | `haplotype` | crosshap viz, haplotype piemaps (needs epsilon selection) | 5-10 min |
+| 2 | `prestructure` | Cross-entropy plot, PCA | 20-30 min |
+| 3 | `structure` | Q-matrices at K-best, piemaps (5 climate vars), pop stats, climate tables | 10-20 min |
+| 4 | `gea` | EMMAX+LFMM p-values for bio_1/2/4/12/15, Manhattan plots, regions, genes | 20-40 min |
+| 5 | `maladaptation` | GF importance, genetic offset piemaps (compare with Fitzpatrick et al. common garden) | 20-40 min |
 
-**NOT applicable for Populus**: `association_phenotypes`, `overlapping` (no phenotype data).
+**NOT applicable for Populus**: `gwas`, `gea_x_gwas` (no phenotype columns in metadata).
 
 ### Error Handling
 
@@ -164,14 +160,10 @@ Structure of the report with embedded relative links to figures:
 
 The executor should:
 
-1. **Run Arabidopsis modes 1-6 sequentially** (processing through overlapping)
-2. **Inspect association results** to configure regionplot (pick top region)
-3. **Run regionplot** with configured region
-4. **Run maladaptation**
-5. **Run haplotype_scan**, inspect clustree, set epsilon
-6. **Run haplotype**
-7. **Repeat for Populus** (modes 1-4, then regionplot, maladaptation, haplotype_scan, haplotype)
-8. **Write `docs/benchmarks.md`** by reading output tables and linking figures
+1. **Run Arabidopsis modes 1-7 sequentially** (processing → prestructure → structure → gea → gwas → gea_x_gwas → maladaptation)
+2. **Inspect GEA/GWAS results interactively in the Shiny app** — region detail, haplotype scan, and regionplots are on-demand in the app; no pipeline modes needed
+3. **Repeat for Populus** (modes 1-5: processing → prestructure → structure → gea → maladaptation)
+4. **Write `docs/benchmarks.md`** by reading output tables and linking figures
 
 ### Docker command template
 ```bash
@@ -190,11 +182,11 @@ grep -i "error\|fail\|exception" {PROJECT}_logs/{module}/*.log
 ```
 
 ### Ground truth comparison (automated)
-After association_phenotypes completes for Arabidopsis:
+After `gwas` mode completes for Arabidopsis:
 ```bash
 # Check for sig SNPs near FRI (chr4:250k-290k) and FLC (chr5:3.0M-3.4M)
-awk -F'\t' '$1==4 && $2>250000 && $2<290000' Arabidopsis_results/phenotype_association/tables/EMMAX/EMMAX_sig_snps_bonf.tsv
-awk -F'\t' '$1==5 && $2>3000000 && $2<3400000' Arabidopsis_results/phenotype_association/tables/EMMAX/EMMAX_sig_snps_bonf.tsv
+awk -F'\t' '$1==4 && $2>250000 && $2<290000' Arabidopsis_results/GWAS/tables/methods/EMMAX/EMMAX_sig_snps_bonf.tsv
+awk -F'\t' '$1==5 && $2>3000000 && $2<3400000' Arabidopsis_results/GWAS/tables/methods/EMMAX/EMMAX_sig_snps_bonf.tsv
 ```
 
 ## Files to Create/Modify

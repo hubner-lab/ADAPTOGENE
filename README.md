@@ -467,6 +467,20 @@ Open http://localhost:3838 in your browser.
 
 ---
 
+## Validation and Benchmarking
+
+ADAPTOGENE is validated on two complementary categories of datasets:
+
+**Empirical benchmarks** (known ground-truth loci, real organisms):
+- [Benchmark Datasets](benchmarks/README.md) — Arabidopsis 1001G, Populus balsamifera, Rice RDP1, Sorghum SAP. Download and preparation scripts in `benchmarks/`.
+- [Benchmark Testing Plan](benchmarks/TESTING_PLAN.md) — step-by-step execution sequence for all modes.
+
+**Simulation benchmarks** (full ground truth: causal loci + fitness):
+- [Simulation Benchmark Guide](docs/laruson_benchmark.md) — end-to-end validation on Láruson et al. 2022 (SLiM simulations, Dryad DOI: 10.5061/dryad.x95x69pkk). Tests both offset-vs-fitness correlation and causal-SNP detection rates.
+- [Headless Automation Roadmap](docs/laruson_automation_roadmap.md) — specification for running the full benchmark without the Shiny GUI, including the custom-environment source, headless SNP-set promotion, run-all driver, and two-axis evaluation harness.
+
+---
+
 ## Citation
 
 If you use ADAPTOGENE in published work, please cite:
