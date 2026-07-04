@@ -22,3 +22,4 @@ app_cache/
 .R_libs_dev/
 workflow/methods/__pycache__/
 .understand-anything/
+graphify-out/
