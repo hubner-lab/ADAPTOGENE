@@ -69,8 +69,9 @@ load_site <- function(path, label) {
     off_col <- setdiff(names(dt), c('site', 'sample', 'latitude', 'longitude'))
     if (length(off_col) == 0) stop(paste0('No offset column in ', path))
     setnames(dt, off_col[1], 'offset')
-    dt[, model := label]
-    dt[, c('site', 'offset', 'model'), with = FALSE]
+    # Aggregate to one row per site (mean over samples) — prevents Cartesian join
+    # when merging two model tables that both have multiple samples per site.
+    dt[, .(offset = mean(offset, na.rm = TRUE), model = label), by = site]
 }
 
 site_a <- load_site(MODEL_A_SITE, MODEL_A_LABEL)
@@ -124,11 +125,13 @@ if (!file.exists(novelty_raster_path)) {
     # Combined ExDet: NT1 when < 0 (univariate), NT2 when >= 0 (combinatorial)
     exdet    <- ifelse(nt1_vals < 0, nt1_vals, nt2_vals)
 
-    # Write to raster
+    # Write to raster — use [[1]] (band index) so this is robust regardless of
+    # which band names the template raster carries. The template is used only for
+    # its spatial geometry (CRS, extent, resolution), never for its values.
     clim_pres  <- rast(RASTER_TIF)
-    nt1_rast   <- clim_pres[[PREDICTORS[1]]]; nt1_rast[] <- NA
-    nt2_rast   <- clim_pres[[PREDICTORS[1]]]; nt2_rast[] <- NA
-    exdet_rast <- clim_pres[[PREDICTORS[1]]]; exdet_rast[] <- NA
+    nt1_rast   <- clim_pres[[1]]; nt1_rast[] <- NA
+    nt2_rast   <- clim_pres[[1]]; nt2_rast[] <- NA
+    exdet_rast <- clim_pres[[1]]; exdet_rast[] <- NA
 
     nt1_rast[env_fut_ok$ID]   <- nt1_vals
     nt2_rast[env_fut_ok$ID]   <- nt2_vals
@@ -221,9 +224,9 @@ rk_a_c[valid] <- rank(vals_a[valid], ties.method = 'average')
 rk_b_c[valid] <- rank(vals_b[valid], ties.method = 'average')
 delta_rank <- abs(rk_a_c - rk_b_c)
 
-# Write disagreement raster
+# Write disagreement raster — [[1]] for geometry only (band-name-agnostic)
 clim_pres     <- rast(RASTER_TIF)
-disagree_rast <- clim_pres[[PREDICTORS[1]]]
+disagree_rast <- clim_pres[[1]]
 disagree_rast[] <- NA
 disagree_rast[seq_along(delta_rank)] <- delta_rank
 writeRaster(disagree_rast, file.path(CACHE_DIR, 'disagree_rank.tif'),

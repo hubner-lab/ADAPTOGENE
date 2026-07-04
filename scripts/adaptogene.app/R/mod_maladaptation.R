@@ -100,12 +100,7 @@ mod_maladaptation_ui <- function(id) {
                                         ),
                                         htmltools::tags$strong("Model A")
                                     ),
-                                    shiny::selectInput(
-                                        shiny::NS(id, "compare_model_a"),
-                                        NULL,
-                                        choices  = c("— select —" = ""),
-                                        selected = ""
-                                    )
+                                    shiny::uiOutput(shiny::NS(id, "compare_model_a_ui"))
                                 ),
                                 htmltools::div(
                                     class = "control-bar p-2 rounded border",
@@ -118,12 +113,7 @@ mod_maladaptation_ui <- function(id) {
                                         ),
                                         htmltools::tags$strong("Model B")
                                     ),
-                                    shiny::selectInput(
-                                        shiny::NS(id, "compare_model_b"),
-                                        NULL,
-                                        choices  = c("— select —" = ""),
-                                        selected = ""
-                                    )
+                                    shiny::uiOutput(shiny::NS(id, "compare_model_b_ui"))
                                 )
                             ),
                             # Spatial-tag mismatch note + run button
@@ -532,17 +522,30 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         )
 
         # ── Cross-model comparison ──────────────────────────────────────────────
-        # Populate model selectors from all available models
-        shiny::observe({
-            all_models <- find_mala_models(project_data()$name)
-            shiny::updateSelectInput(session, "compare_model_a",
-                choices  = c("— select —" = "", all_models),
-                selected = ""
-            )
-            shiny::updateSelectInput(session, "compare_model_b",
-                choices  = c("— select —" = "", all_models),
-                selected = ""
-            )
+        # Track user's A/B picks so they survive renderUI re-renders.
+        compare_sel_a <- shiny::reactiveVal("")
+        compare_sel_b <- shiny::reactiveVal("")
+        shiny::observeEvent(input$compare_model_a, compare_sel_a(input$compare_model_a),
+                            ignoreNULL = TRUE, ignoreInit = TRUE)
+        shiny::observeEvent(input$compare_model_b, compare_sel_b(input$compare_model_b),
+                            ignoreNULL = TRUE, ignoreInit = TRUE)
+
+        # Render model pickers from mala_models() — reacts to snp_sets_trigger().
+        output$compare_model_a_ui <- shiny::renderUI({
+            models <- mala_models()
+            choices <- c("— select —" = "", models)
+            cur <- compare_sel_a()
+            sel <- if (nzchar(cur) && cur %in% models) cur else ""
+            shiny::selectInput(ns("compare_model_a"), NULL,
+                               choices = choices, selected = sel)
+        })
+        output$compare_model_b_ui <- shiny::renderUI({
+            models <- mala_models()
+            choices <- c("— select —" = "", models)
+            cur <- compare_sel_b()
+            sel <- if (nzchar(cur) && cur %in% models) cur else ""
+            shiny::selectInput(ns("compare_model_b"), NULL,
+                               choices = choices, selected = sel)
         })
 
         # Spatial-tag mismatch note
@@ -593,11 +596,6 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             # Find climate inputs from config
             cfg    <- project_data()$config
             preds  <- config_get(cfg, "Climate", "predictors") %||% character(0)
-            raster <- mod_path(project_data()$name, "_work",
-                               paste0("maf", config_get(cfg, "Filter", "maf"),
-                                      "_miss", config_get(cfg, "Filter", "snp_miss"),
-                                      "_smiss", config_get(cfg, "Filter", "sample_miss")),
-                               paste0("climate_raster_", preds[1], ".tif"))
             env_sp <- mod_path(project_data()$name, MOD_CLIMATE, "tables", "present",
                                "climate_present_site.tsv")
             env_ap <- mod_path(project_data()$name, MOD_CLIMATE, "tables", "present",
@@ -612,13 +610,22 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                                paste0("climate_future_year", yr, "_ssp", ssp, "_all.tsv"))
             scen_label <- paste0("ssp", ssp, "_", yr)
 
-            # Find offset_raster.tif from model A's intermediate
-            pa <- parse_model_key(key_a)
-            rast_candidate <- mod_path(project_data()$name, MOD_INTER,
-                                       pa$method, pa$suffix, "offset_raster.tif")
-            if (!file_ok(rast_candidate)) {
+            # Canonical present-climate rasterstack = spatial template for ExDet/disagree rasters.
+            # All predictor bands, aligned to climate_present_all.tsv cell IDs.
+            # (offset_raster.tif is single-band and cannot serve as template.)
+            rast_template <- mod_path(project_data()$name, MOD_CLIMATE,
+                                      "rasters", "present", "climate_present_rasterstack.tif")
+            if (!file_ok(rast_template)) {
                 shiny::showNotification(
-                    "Raster not found for Model A. Run mode=maladaptation first.",
+                    "Present climate raster not found. Run mode=maladaptation (climate step) first.",
+                    type = "error"
+                )
+                return()
+            }
+            if (!file_ok(env_af)) {
+                shiny::showNotification(
+                    paste0("Future climate table not found for ", scen_label,
+                           ". Check Future.ssp / Future.year config."),
                     type = "error"
                 )
                 return()
@@ -635,7 +642,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                     env_all_pres  = env_ap,
                     env_all_fut   = env_af,
                     predictors    = preds,
-                    raster_tif    = rast_candidate,
+                    raster_tif    = rast_template,
                     top_k         = 10L,
                     scenario_label = scen_label
                 ),
