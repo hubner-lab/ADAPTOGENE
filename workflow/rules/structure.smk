@@ -25,28 +25,52 @@ rule lfmm2vcf_ld:
         """
     # NOTE: lfmm2vcf.R already exists, outputs .vcf with same base as .lfmm input
 
-rule download_climate_present:
-    """Download and process present climate data for sampling locations."""
-    input:  meta = O['metadata']
-    output:
-        site = O['climate_site'],
-        site_scaled = O['climate_site_scaled'],
-        all_vals = O['climate_all'],
-        raster = W['climate_raster']
-    params:
-        crop = CLIMATE_EXTENT,
-        gap = GAP,
-        resolution = RESOLUTION,
-        data_dir = f"{INDIR}",
-        raster_dir = f"{MOD_CLIMATE}rasters/present/",
-        tables_dir = f"{MOD_CLIMATE}tables/present/"
-    log: f"{LOGDIR}structure/download_climate_present.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/download_climate_present.R \
-            {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
-            {params.raster_dir} {params.tables_dir} > {log} 2>&1
-        """
+if CLIMATE_SOURCE == 'worldclim':
+    rule download_climate_present:
+        """Download and process present climate data for sampling locations."""
+        input:  meta = O['metadata']
+        output:
+            site = O['climate_site'],
+            site_scaled = O['climate_site_scaled'],
+            all_vals = O['climate_all'],
+            raster = W['climate_raster']
+        params:
+            crop = CLIMATE_EXTENT,
+            gap = GAP,
+            resolution = RESOLUTION,
+            data_dir = f"{INDIR}",
+            raster_dir = f"{MOD_CLIMATE}rasters/present/",
+            tables_dir = f"{MOD_CLIMATE}tables/present/"
+        log: f"{LOGDIR}structure/download_climate_present.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/download_climate_present.R \
+                {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
+                {params.raster_dir} {params.tables_dir} > {log} 2>&1
+            """
+else:
+    rule stage_custom_climate_present:
+        """Stage user-supplied present climate table into pipeline-standard outputs."""
+        input:  meta = O['metadata']
+        output:
+            site        = O['climate_site'],
+            site_scaled = O['climate_site_scaled'],
+            all_vals    = O['climate_all'],
+            raster      = W['climate_raster']
+        params:
+            env_table  = CUSTOM_PRESENT_TABLE,
+            columns    = CUSTOM_CLIMATE_COLUMNS,
+            key        = CUSTOM_CLIMATE_KEY,
+            grid_res   = CUSTOM_GRID_RES,
+            raster_dir = f"{MOD_CLIMATE}rasters/present/",
+            tables_dir = f"{MOD_CLIMATE}tables/present/"
+        log: f"{LOGDIR}structure/stage_custom_climate_present.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/stage_custom_climate.R present \
+                {input.meta} {params.env_table} {params.columns} {params.key} {params.grid_res} \
+                {output.raster} {output.all_vals} {output.site} {output.site_scaled} > {log} 2>&1
+            """
 
 rule check_climate_variance:
     """Detect invariant (zero-variance or all-NA) bioclimatic predictors at sample sites."""

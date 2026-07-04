@@ -11,49 +11,73 @@ wildcard_constraints:
     spatial_tag = r"spatial|nospatial",
     method      = r"gradient_forest|geometric_offset"
 
-# Per-model future climate download (runs in parallel via Snakemake)
-rule download_climate_future_model:
-    """Download CMIP6 future climate data for a single model."""
-    input: samples = O['metadata']
-    output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.tif"
-    wildcard_constraints: model = r"[A-Za-z0-9_-]+"
-    params:
-        crop = CLIMATE_EXTENT,
-        gap = GAP,
-        resolution = RESOLUTION,
-        data_dir = INDIR
-    log: f"{LOGDIR}maladaptation/download_climate_future_{{model}}.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/download_climate_future_model.R \
-            {input.samples} {params.crop} {params.gap} {params.data_dir} \
-            {SSP} {YEAR} {wildcards.model} {params.resolution} \
-            {output} > {log} 2>&1
-        """
+if CLIMATE_SOURCE == 'worldclim':
+    # Per-model future climate download (runs in parallel via Snakemake)
+    rule download_climate_future_model:
+        """Download CMIP6 future climate data for a single model."""
+        input: samples = O['metadata']
+        output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.tif"
+        wildcard_constraints: model = r"[A-Za-z0-9_-]+"
+        params:
+            crop = CLIMATE_EXTENT,
+            gap = GAP,
+            resolution = RESOLUTION,
+            data_dir = INDIR
+        log: f"{LOGDIR}maladaptation/download_climate_future_{{model}}.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/download_climate_future_model.R \
+                {input.samples} {params.crop} {params.gap} {params.data_dir} \
+                {SSP} {YEAR} {wildcards.model} {params.resolution} \
+                {output} > {log} 2>&1
+            """
 
-# Merge per-model rasters into averaged future climate
-rule merge_climate_future:
-    """Average future climate across models and extract site values."""
-    input:
-        samples = O['metadata'],
-        model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif" for model in MODELS_LIST],
-        present_raster = W['climate_raster'],
-        present_all = O['climate_all']
-    output:
-        raster = W['climate_future_raster'],
-        all_vals = O['climate_future_all'],
-        site_vals = O['climate_future_site']
-    params:
-        raster_str = lambda wc, input: ','.join(input.model_rasters),
-        n_models = len(MODELS_LIST)
-    log: f"{LOGDIR}maladaptation/merge_climate_future.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/merge_climate_future.R \
-            {input.samples} {params.raster_str} {params.n_models} \
-            {input.present_raster} {input.present_all} \
-            {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
-        """
+    # Merge per-model rasters into averaged future climate
+    rule merge_climate_future:
+        """Average future climate across models and extract site values."""
+        input:
+            samples = O['metadata'],
+            model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif" for model in MODELS_LIST],
+            present_raster = W['climate_raster'],
+            present_all = O['climate_all']
+        output:
+            raster = W['climate_future_raster'],
+            all_vals = O['climate_future_all'],
+            site_vals = O['climate_future_site']
+        params:
+            raster_str = lambda wc, input: ','.join(input.model_rasters),
+            n_models = len(MODELS_LIST)
+        log: f"{LOGDIR}maladaptation/merge_climate_future.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/merge_climate_future.R \
+                {input.samples} {params.raster_str} {params.n_models} \
+                {input.present_raster} {input.present_all} \
+                {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
+            """
+else:
+    rule stage_custom_climate_future:
+        """Stage user-supplied future climate table into pipeline-standard outputs."""
+        input:
+            samples        = O['metadata'],
+            present_all    = O['climate_all'],
+            present_raster = W['climate_raster']
+        output:
+            raster    = W['climate_future_raster'],
+            all_vals  = O['climate_future_all'],
+            site_vals = O['climate_future_site']
+        params:
+            env_table = CUSTOM_FUTURE_TABLE,
+            columns   = CUSTOM_CLIMATE_COLUMNS,
+            key       = CUSTOM_CLIMATE_KEY
+        log: f"{LOGDIR}maladaptation/stage_custom_climate_future.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/stage_custom_climate.R future \
+                {input.samples} {params.env_table} {params.columns} {params.key} \
+                {input.present_raster} {input.present_all} \
+                {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
+            """
 
 rule density_plot_future:
     """Generate combined density plot for future climate predictors."""

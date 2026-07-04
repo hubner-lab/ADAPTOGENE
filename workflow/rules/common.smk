@@ -124,9 +124,23 @@ def get_zoom_suffix():
 # CLIMATE parameters
 CLIMATE_ENABLED = _cfg_bool('Climate', 'enabled', True)
 PREDICTORS_SELECTED = _cfg('Climate', 'predictors', '') if CLIMATE_ENABLED else ''
+CLIMATE_SOURCE = _cfg('Climate', 'source', 'worldclim')
+check_in_list(CLIMATE_SOURCE, ['worldclim', 'custom'], 'Climate.source')
+_clim_custom = config.get('Climate', {}).get('custom', {}) if CLIMATE_SOURCE == 'custom' else {}
+CUSTOM_PRESENT_TABLE   = f"{INDIR}{_clim_custom.get('present_table', '')}"  if CLIMATE_SOURCE == 'custom' else ''
+CUSTOM_FUTURE_TABLE    = f"{INDIR}{_clim_custom.get('future_table',  '')}"  if CLIMATE_SOURCE == 'custom' else ''
+CUSTOM_CLIMATE_COLUMNS = _clim_custom.get('columns', PREDICTORS_SELECTED)
+CUSTOM_GRID_RES        = _clim_custom.get('grid_resolution', 0.1)
+CUSTOM_CLIMATE_KEY     = _clim_custom.get('key', 'site')
 
-# All 19 WorldClim bioclimatic variables — always available in the raster stack
-ALL_BIO     = [f"bio_{i}" for i in range(1, 20)]
+# Bioclimatic variable universe.
+# WorldClim: all 19 variables (raster always ships bio_1..bio_19).
+# Custom:    only the columns declared in Climate.custom.columns — narrows piemap/mantel fan-out
+#            so no unbuildable targets are generated for layers the custom raster lacks.
+if CLIMATE_SOURCE == 'custom':
+    ALL_BIO = [c.strip() for c in str(CUSTOM_CLIMATE_COLUMNS).split(',') if c.strip()]
+else:
+    ALL_BIO = [f"bio_{i}" for i in range(1, 20)]
 ALL_BIO_STR = ",".join(ALL_BIO)
 
 # POP parameters
@@ -843,14 +857,16 @@ def mala_offset_piemap(method, run_label, spatial_tag, size_trait):
 # Maladaptation paths
 def add_maladaptation_paths():
     """Add maladaptation-specific paths to W and O dictionaries."""
-    if K_BEST is None or not MODELS_LIST:
+    # Custom-climate path needs no MODELS_LIST — skip only when worldclim and models absent
+    if K_BEST is None or (CLIMATE_SOURCE == 'worldclim' and not MODELS_LIST):
         return
 
-    # Per-model future climate rasters (method-agnostic)
-    for model in MODELS_LIST:
-        W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif"
+    # Per-model future climate rasters (worldclim only — custom stages a single future table)
+    if CLIMATE_SOURCE == 'worldclim':
+        for model in MODELS_LIST:
+            W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif"
 
-    # Merged future climate (method-agnostic)
+    # Merged future climate (both sources — identical output paths)
     W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.tif"
     O['climate_future_all'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_all.tsv"
     O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
@@ -1328,8 +1344,8 @@ def get_targets(mode):
             raise ValueError("maladaptation mode requires climate.enabled: true")
         check_numeric(K_BEST, 'K_BEST')
         check_numeric(SSP, 'SSP')
-        if not MODELS_LIST:
-            raise ValueError("MODELS must be set for maladaptation mode")
+        if CLIMATE_SOURCE == 'worldclim' and not MODELS_LIST:
+            raise ValueError("MODELS must be set for maladaptation mode (worldclim source requires GCM models)")
         # GF-specific checks: only validate when GF is active
         if 'gradient_forest' in ACTIVE_MALA_METHODS:
             check_numeric(NTREE, 'NTREE')
