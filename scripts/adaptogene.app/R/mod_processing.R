@@ -36,9 +36,24 @@ mod_processing_ui <- function(id) {
 
         # ── Row 3: Sample QC ───────────────────────────────────────────────────
         bslib::layout_column_wrap(
-            width = 1 / 2,
+            width = 1 / 3,
             mod_image_card_ui(ns("sample_miss")),
-            mod_image_card_ui(ns("het_miss"))
+            mod_image_card_ui(ns("het_miss")),
+            mod_image_card_ui(ns("relatedness"))
+        ),
+
+        # Relatedness histogram is always shown (even when Filter.relatedness is
+        # disabled) — this note explains why the standard 0.2 pi-hat cutoff can be
+        # wrong for high-selfing species and points the user at the histogram.
+        htmltools::div(
+            class = "alert alert-info d-flex gap-2 align-items-start mt-2 mb-0",
+            bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
+            htmltools::div(
+                htmltools::tags$strong("Relatedness (IBD pi-hat):"),
+                " high-selfing species show naturally inflated pi-hat. ",
+                "Pick a threshold from the histogram above, not the standard outbred 0.2 default, ",
+                "then set ", htmltools::tags$code("Filter.relatedness"), " and re-run Processing."
+            )
         ),
 
         shiny::br(),
@@ -206,7 +221,21 @@ mod_processing_server <- function(id, project_data) {
                 )
             } else NULL
 
-            extra_boxes <- Filter(Negate(is.null), list(het_box, depth_box))
+            # Relatedness (IBD) removal — conditional on config
+            pihat_thresh <- config_get(pd$config, "Filter", "relatedness", default = NULL)
+            rel_box <- if (!is.null(pihat_thresh) && !is.na(pihat_thresh)) {
+                n_rel <- sv("samples_removed_relatedness", default = 0)
+                rel_theme <- if (is.na(n_rel) || n_rel == 0) "success" else "warning"
+                n_rel_str <- if (is.na(n_rel)) "—" else as.character(as.integer(n_rel))
+                bslib::value_box(
+                    title    = "Related Samples",
+                    value    = paste0(n_rel_str, " removed"),
+                    theme    = rel_theme,
+                    showcase = bsicons::bs_icon("people")
+                )
+            } else NULL
+
+            extra_boxes <- Filter(Negate(is.null), list(het_box, depth_box, rel_box))
             n_extra <- length(extra_boxes)
             width <- if (n_extra == 0) 1/4 else if (n_extra == 1) 1/5 else 1/6
 
@@ -263,6 +292,11 @@ mod_processing_server <- function(id, project_data) {
                 path    = shiny::reactive(qc_plot_path(pd$name, "het_vs_missingness.png")),
                 title   = shiny::reactive("Heterozygosity vs Missingness"),
                 dl_name = shiny::reactive(paste0(pd$name, "_het_vs_missingness"))
+            )
+            mod_image_card_server("relatedness",
+                path    = shiny::reactive(qc_plot_path(pd$name, "relatedness_distribution.png")),
+                title   = shiny::reactive("Relatedness (IBD pi-hat)"),
+                dl_name = shiny::reactive(paste0(pd$name, "_relatedness_distribution"))
             )
             mod_image_card_server("snp_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "snp_missingness_distribution.png")),

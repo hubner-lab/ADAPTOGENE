@@ -15,13 +15,16 @@ if MODE == 'processing':
             qc_raw_summary     = O['qc_raw_summary'],
             filtering_summary  = O['qc_filtering_summary'],
             plot_done          = O['qc_plot_attrition'],
-            depth_summary      = O['qc_depth_site'] if HAS_FORMAT_DP else []
+            depth_summary      = O['qc_depth_site'] if HAS_FORMAT_DP else [],
+            relatedness_removed= O['qc_relatedness_removed'] if PI_HAT is not None else []
         output: W['summary_done']
         params:
             summary_tsv    = O['summary'],
             het_outlier_sd = HET_OUTLIER_SD if HET_OUTLIER_SD is not None else 'NULL',
             has_dp         = 'TRUE' if HAS_FORMAT_DP else 'FALSE',
-            depth_summary  = f"{MOD_PROCESSING}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL'
+            depth_summary  = f"{MOD_PROCESSING}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL',
+            pihat_thresh   = PI_HAT if PI_HAT is not None else 'NULL',
+            relatedness_removed = O['qc_relatedness_removed'] if PI_HAT is not None else 'NULL'
         log: f"{LOGDIR}processing/write_summary.log"
         shell:
             """
@@ -30,7 +33,8 @@ if MODE == 'processing':
                 {input.vcf_filt} {input.vcf_ld} \
                 {input.samples_list} {input.samples_filtered} {input.samples_removed} \
                 {input.qc_raw_summary} {input.filtering_summary} \
-                {params.het_outlier_sd} {params.has_dp} {params.depth_summary} > {log} 2>&1
+                {params.het_outlier_sd} {params.has_dp} {params.depth_summary} \
+                {params.pihat_thresh} {params.relatedness_removed} > {log} 2>&1
             touch {output}
             """
 

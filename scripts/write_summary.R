@@ -48,7 +48,8 @@ summary_dt <- read_or_create_summary(OUTPUT)
 
 if (MODE == 'processing') {
     # args: MODE OUTPUT vcf_filt vcf_ld samples_list samples_filtered samples_removed
-    #       qc_raw_summary filtering_summary het_outlier_sd has_dp [depth_sample depth_site]
+    #       qc_raw_summary filtering_summary het_outlier_sd has_dp depth_summary
+    #       pihat_thresh relatedness_removed
     VCF_FILT          = args[3]
     VCF_LD            = args[4]
     SAMPLES_LIST      = args[5]
@@ -59,6 +60,8 @@ if (MODE == 'processing') {
     HET_OUTLIER_SD    = args[10]
     HAS_DP            = args[11]
     DEPTH_SUMMARY     = if (length(args) >= 12) args[12] else 'NULL'
+    PI_HAT_THRESH     = if (length(args) >= 13) args[13] else 'NULL'
+    RELATEDNESS_REMOVED = if (length(args) >= 14) args[14] else 'NULL'
 
     # Count samples
     n_samples_total    <- length(readLines(SAMPLES_LIST))
@@ -113,11 +116,19 @@ if (MODE == 'processing') {
     # Depth info
     depth_qc_status <- if (HAS_DP == 'TRUE') 'available' else 'not_provided'
 
+    # Relatedness (IBD pi-hat) removal count — 0 when Filter.relatedness disabled
+    n_relatedness_removed <- 0L
+    if (PI_HAT_THRESH != 'NULL' && RELATEDNESS_REMOVED != 'NULL' && file.exists(RELATEDNESS_REMOVED)) {
+        rel_removed <- fread(RELATEDNESS_REMOVED)
+        n_relatedness_removed <- nrow(rel_removed)
+    }
+
     new_rows <- rbind(
         row('processing', 'samples_total',              n_samples_total),
         row('processing', 'samples_after_filtering',    n_samples_filtered),
         row('processing', 'samples_removed',            n_samples_removed),
         row('processing', 'samples_het_outliers_removed', n_het_removed),
+        row('processing', 'samples_removed_relatedness', n_relatedness_removed),
         row('processing', 'snps_raw',                   n_raw_snps),
         row('processing', 'snps_after_filtering',       n_snps_filtered),
         row('processing', 'snps_after_ld_pruning',      n_snps_ld),

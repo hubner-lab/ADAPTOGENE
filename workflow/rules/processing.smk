@@ -126,11 +126,99 @@ if HET_OUTLIER_SD is not None:
             }}' {input.het} > {output} 2>> {log}
             """
 
+rule compute_relatedness:
+    """Compute pairwise IBD (plink --genome, PI_HAT) on LD-pruned genotypes (filtered/het-filtered samples).
+    Always runs — feeds the relatedness QC histogram so the user can pick a sensible threshold.
+    Sample removal only happens when Filter.relatedness is set (see relatedness_filter below).
+    NOTE: high-selfing plant species show naturally inflated pi-hat — the standard outbred
+    0.2 cutoff is often wrong here; choose a threshold from the histogram instead."""
+    input:
+        vcf     = f"{INDIR}{VCF_RAW}",
+        samples = W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']
+    output:
+        genome = W['relatedness_genome'],
+        pairs  = O['qc_relatedness_pairs']
+    params:
+        prefix = f"{INTER}qc/relatedness_tmp", win = LD_WIN, step = LD_STEP, r2 = LD_R2
+    log:    f"{LOGDIR}processing/compute_relatedness.log"
+    threads: CPU
+    shell:
+        """
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# --keep {input.samples} \
+            --indep-pairwise {params.win} {params.step} {params.r2} \
+            --out {params.prefix} > {log} 2>&1
+
+        plink --vcf {input.vcf} --const-fid --allow-extra-chr \
+            --set-missing-var-ids @:# --keep {input.samples} \
+            --extract {params.prefix}.prune.in \
+            --genome --out {params.prefix} >> {log} 2>&1
+
+        echo -e "IID1\tIID2\tPI_HAT" > {output.pairs}
+        tail -n +2 {params.prefix}.genome | awk '{{print $2"\t"$4"\t"$10}}' >> {output.pairs}
+        cp {params.prefix}.genome {output.genome}
+
+        n_pairs=$(tail -n +2 {output.pairs} | wc -l)
+        echo "WARNING: Relatedness (IBD) computed for $n_pairs sample pairs. High-selfing species show naturally inflated pi-hat — set Filter.relatedness from the histogram (Processing QC), not the standard outbred 0.2 default." >> {log}
+
+        rm -f {params.prefix}.nosex {params.prefix}.log {params.prefix}.hh {params.prefix}.prune.in {params.prefix}.prune.out {params.prefix}.genome
+        """
+
+if PI_HAT is not None:
+    rule relatedness_filter:
+        """Remove related samples (plink pi-hat) above the configured threshold.
+        For each over-threshold pair, drops the member with higher missingness
+        (simple pairwise rule — does not attempt maximal-set optimization).
+        Produces updated samples list used by filter_vcf."""
+        input:
+            pairs   = O['qc_relatedness_pairs'],
+            imiss   = W['samples_missing_stats'],
+            samples = W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']
+        output:
+            filtered = W['samples_rel_filtered'],
+            removed  = O['qc_relatedness_removed']
+        params:
+            thresh    = PI_HAT,
+            tmp_imiss = f"{INTER}samples/rel_tmp_imiss.tsv",
+            tmp_pairs = f"{INTER}samples/rel_tmp_sorted_pairs.tsv"
+        log:    f"{LOGDIR}processing/relatedness_filter.log"
+        shell:
+            """
+            tail -n +2 {input.imiss} > {params.tmp_imiss}
+            tail -n +2 {input.pairs} | awk -v thresh={params.thresh} '$3 > thresh' | sort -k3,3gr > {params.tmp_pairs}
+
+            awk -v thresh={params.thresh} -v removed_out={output.removed} '
+            BEGIN {{ OFS="\t"; file_num = 0; print "IID\tPI_HAT\tF_MISS" > removed_out }}
+            FNR==1 {{ file_num++ }}
+            file_num==1 {{ fmiss[$2]=$6; next }}
+            file_num==2 {{ keep[$2]=1; fid[$2]=$1; order[++n]=$2; next }}
+            file_num==3 {{
+                iid1=$1; iid2=$2; pihat=$3
+                if (keep[iid1]==1 && keep[iid2]==1) {{
+                    if (fmiss[iid1]+0 >= fmiss[iid2]+0) {{ drop=iid1 }} else {{ drop=iid2 }}
+                    keep[drop]=0
+                    print drop, pihat, fmiss[drop] >> removed_out
+                }}
+            }}
+            END {{
+                n_removed = 0
+                for (i=1;i<=n;i++) {{
+                    iid=order[i]
+                    if (keep[iid]==1) print fid[iid], iid
+                    else n_removed++
+                }}
+                print "WARNING: Relatedness filter (pi-hat>" thresh "): removed " n_removed " related samples" > "/dev/stderr"
+            }}
+            ' {params.tmp_imiss} {input.samples} {params.tmp_pairs} > {output.filtered} 2>> {log}
+
+            rm -f {params.tmp_imiss} {params.tmp_pairs}
+            """
+
 rule compute_snp_freq_raw:
     """Compute allele frequencies on the raw VCF (filtered samples, before MAF filter)."""
     input:
         vcf     = f"{INDIR}{VCF_RAW}",
-        samples = W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']
+        samples = W['samples_rel_filtered'] if PI_HAT is not None else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
     output: O['qc_maf_raw']
     params: prefix = f"{INTER}qc/maf_raw_tmp"
     log:    f"{LOGDIR}processing/compute_snp_freq_raw.log"
@@ -190,7 +278,7 @@ rule filter_vcf:
     Also normalizes chromosome names by removing 'chr' prefix to match LEA behavior."""
     input:
         vcf = W['vcf_depth_filtered'] if ((MIN_DEPTH is not None or MAX_DEPTH is not None) and HAS_FORMAT_DP) else f"{INDIR}{VCF_RAW}",
-        samples = W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']
+        samples = W['samples_rel_filtered'] if PI_HAT is not None else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
     output: W['vcf_filt']
     params: prefix = W['vcf_filt'].replace('.vcf', ''), maf = MAF, miss = MISS
     log:    f"{LOGDIR}processing/filter_vcf.log"
@@ -360,7 +448,8 @@ rule plot_qc_processing:
         vcf_filt         = W['vcf_filt'],
         vcf_ld           = W['vcf_ld'],
         depth_sample     = O['qc_depth_sample'] if HAS_FORMAT_DP else [],
-        depth_site       = O['qc_depth_site'] if HAS_FORMAT_DP else []
+        depth_site       = O['qc_depth_site'] if HAS_FORMAT_DP else [],
+        relatedness_pairs= O['qc_relatedness_pairs']
     output:
         plot_sample_miss = O['qc_plot_sample_miss'],
         plot_het_miss    = O['qc_plot_het_miss'],
@@ -370,6 +459,7 @@ rule plot_qc_processing:
         plot_snp_density = O['qc_plot_snp_density'],
         filtering_summary= O['qc_filtering_summary'],
         sample_het       = O['qc_sample_het'],
+        plot_relatedness = O['qc_plot_relatedness'],
         **({"plot_depth": O['qc_plot_depth']} if HAS_FORMAT_DP else {})
     params:
         sample_miss_thresh = SAMPLE_MISS,
@@ -380,7 +470,8 @@ rule plot_qc_processing:
         depth_sample       = O['qc_depth_sample'] if HAS_FORMAT_DP else 'NULL',
         depth_site         = O['qc_depth_site'] if HAS_FORMAT_DP else 'NULL',
         plots_dir          = f"{MOD_PROCESSING}plots/",
-        tables_dir         = f"{MOD_PROCESSING}tables/"
+        tables_dir         = f"{MOD_PROCESSING}tables/",
+        pihat_thresh       = PI_HAT if PI_HAT is not None else 'NULL'
     log: f"{LOGDIR}processing/plot_qc_processing.log"
     shell:
         """
@@ -405,5 +496,7 @@ rule plot_qc_processing:
             {params.depth_sample} \
             {params.depth_site} \
             {params.plots_dir} \
-            {params.tables_dir} > {log} 2>&1
+            {params.tables_dir} \
+            {input.relatedness_pairs} \
+            {params.pihat_thresh} > {log} 2>&1
         """

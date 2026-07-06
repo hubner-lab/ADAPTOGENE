@@ -80,6 +80,7 @@ SAMPLE_MISS = _cfg('Filter', 'sample_miss', 0.5); check_float(SAMPLE_MISS, 'filt
 MIN_DEPTH    = _cfg('Filter', 'min_depth', None)
 MAX_DEPTH    = _cfg('Filter', 'max_depth', None)
 HET_OUTLIER_SD = _cfg('Filter', 'het_outlier_sd', None)
+PI_HAT = _cfg('Filter', 'relatedness', None); check_float(PI_HAT, 'filter.relatedness', allow_null=True)
 
 # Detect FORMAT/DP field in raw VCF header at parse time (reads header only — fast)
 _raw_vcf_path = os.path.join(INDIR, VCF_RAW)
@@ -450,7 +451,8 @@ if MIN_DEPTH is not None or MAX_DEPTH is not None:
     if MAX_DEPTH is not None: _dp_parts.append(f"dpmax{MAX_DEPTH}")
     _depth_tag = "_" + "_".join(_dp_parts)
 _het_tag = f"_hetsd{HET_OUTLIER_SD}" if HET_OUTLIER_SD is not None else ""
-FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}{_depth_tag}{_het_tag}"
+_rel_tag = f"_rel{PI_HAT}" if PI_HAT is not None else ""
+FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}{_depth_tag}{_het_tag}{_rel_tag}"
 LD_TAG = f"ld{LD_R2}_win{LD_WIN}_step{LD_STEP}"
 
 # Base directories (new module-based layout)
@@ -481,6 +483,8 @@ W = {
     'samples_order': f"{INTER}samples/samples_order.list",
     # Optional: samples list after het outlier removal (used by filter_vcf when HET_OUTLIER_SD set)
     'samples_het_filtered': f"{INTER}samples/samples_het_filtered.list",
+    # Optional: samples list after relatedness (IBD pi-hat) removal (used by filter_vcf when PI_HAT set)
+    'samples_rel_filtered': f"{INTER}samples/samples_rel_filtered.list",
     # Normalized GFF (chromosome names match VCF - 'chr' prefix stripped)
     'gff_normalized': f"{INTER}annotation/normalized.gff3",
     # Optional: depth-masked VCF (before MAF/missingness filter, when min/max_depth set)
@@ -503,6 +507,8 @@ W = {
     # QC intermediate stats (used by plot_qc_processing)
     'het_stats_raw': f"{INTER}qc/het_raw.het",
     'het_stats_filtered': f"{INTER}qc/het_filtered.het",
+    # Relatedness (IBD) intermediate — always computed (feeds QC histogram; removal is optional)
+    'relatedness_genome': f"{INTER}qc/relatedness.genome",
 }
 
 # Output paths (organized by module)
@@ -518,6 +524,8 @@ O = {
     'qc_raw_summary':      f"{MOD_PROCESSING}tables/vcf_raw_summary.tsv",
     'qc_filtering_summary':f"{MOD_PROCESSING}tables/filtering_summary.tsv",
     'qc_sample_het':       f"{MOD_PROCESSING}tables/sample_heterozygosity.tsv",
+    'qc_relatedness_pairs':   f"{MOD_PROCESSING}tables/relatedness_pairs.tsv",
+    'qc_relatedness_removed': f"{MOD_PROCESSING}tables/relatedness_removed.tsv",
     'qc_maf_raw':          f"{INTER}qc/maf_raw.frq",
     'qc_maf_filtered':     f"{INTER}qc/maf_filtered.frq",
     'qc_maf_pos':          f"{INTER}qc/maf_pos.tsv",
@@ -534,6 +542,7 @@ O = {
     'qc_plot_attrition':   f"{MOD_PROCESSING}plots/filtering_attrition.png",
     'qc_plot_snp_density': f"{MOD_PROCESSING}plots/snp_density_by_chr.png",
     'qc_plot_depth':       f"{MOD_PROCESSING}plots/depth_distribution.png",
+    'qc_plot_relatedness': f"{MOD_PROCESSING}plots/relatedness_distribution.png",
 }
 
 # K_BEST dependent paths — pre-populated with a sentinel so .smk files can be parsed
@@ -1268,6 +1277,7 @@ def get_targets(mode):
             O['qc_plot_sample_miss'], O['qc_plot_het_miss'],
             O['qc_plot_maf'], O['qc_plot_snp_miss'],
             O['qc_plot_attrition'], O['qc_plot_snp_density'],
+            O['qc_plot_relatedness'], O['qc_relatedness_pairs'],
             W['summary_done']
         ]
         if GFF:

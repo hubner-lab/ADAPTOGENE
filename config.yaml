@@ -24,6 +24,7 @@ Filter:
   min_depth: null               # Optional: mask genotypes with FORMAT/DP < N (null = skip; requires DP field in VCF)
   max_depth: null               # Optional: mask genotypes with FORMAT/DP > N (null = skip; requires DP field in VCF)
   het_outlier_sd: null          # Optional: remove samples with heterozygosity beyond N SDs from mean (null = skip)
+  relatedness: null             # Optional: remove related samples (plink IBD pi-hat) above this (null = skip). A relatedness histogram is always plotted (Processing QC) — high-selfing species inflate pi-hat, so pick a threshold from the histogram rather than the standard outbred 0.2 default.
 
 #-----------------------------------------------------------------------------
 # LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)

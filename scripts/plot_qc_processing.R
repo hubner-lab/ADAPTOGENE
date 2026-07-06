@@ -24,6 +24,8 @@
 #   19 depth_site         - depth_per_site.ldepth.mean or 'NULL'
 #   20 plots_dir          - output directory for plots
 #   21 tables_dir         - output directory for tables
+#   22 relatedness_pairs  - relatedness_pairs.tsv (plink --genome, IID1/IID2/PI_HAT; always produced)
+#   23 pihat_thresh       - Filter.relatedness pi-hat threshold or 'NULL' (removal disabled)
 
 suppressPackageStartupMessages({
     library(data.table)
@@ -54,6 +56,8 @@ DEPTH_SAMPLE_FILE  <- args[18]
 DEPTH_SITE_FILE    <- args[19]
 PLOTS_DIR          <- args[20]
 TABLES_DIR         <- args[21]
+RELATEDNESS_PAIRS  <- args[22]
+PI_HAT_THRESH      <- if (args[23] == 'NULL') NULL else as.numeric(args[23])
 
 #=============================================================================
 # HELPERS
@@ -417,6 +421,55 @@ if (HAS_DP && DEPTH_SAMPLE_FILE != 'NULL' && file.exists(DEPTH_SAMPLE_FILE)) {
     )
     fwrite(depth_summary, file.path(TABLES_DIR, "depth_summary.tsv"), sep = "\t", quote = FALSE)
     message("INFO: Saved depth_distribution.png and depth_summary.tsv")
+}
+
+#=============================================================================
+# 9. RELATEDNESS (IBD PI-HAT) DISTRIBUTION — always drawn, selfer caveat note
+#=============================================================================
+if (file.exists(RELATEDNESS_PAIRS)) {
+    rel_pairs <- fread(RELATEDNESS_PAIRS)
+} else {
+    rel_pairs <- data.table(IID1 = character(0), IID2 = character(0), PI_HAT = numeric(0))
+}
+
+selfer_note <- "High-selfing species inflate pi-hat — pick a threshold from this\ndistribution, not the standard outbred 0.2 default."
+
+if (nrow(rel_pairs) > 0) {
+    if (!is.null(PI_HAT_THRESH)) {
+        n_above <- nrow(rel_pairs[PI_HAT > PI_HAT_THRESH])
+        thresh_label <- paste0(n_above, " pair", if (n_above != 1) "s" else "",
+                               " above threshold (pi-hat > ", PI_HAT_THRESH, ")")
+
+        p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
+            geom_histogram(
+                aes(fill = PI_HAT > PI_HAT_THRESH),
+                binwidth = 0.02, color = "white", linewidth = 0.1
+            ) +
+            scale_fill_manual(
+                values = c("FALSE" = "#4dac9d", "TRUE" = "#d73027"),
+                labels = c("FALSE" = "Below threshold", "TRUE" = "Above threshold"),
+                name = NULL
+            ) +
+            geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = "#333333") +
+            annotate("text", x = PI_HAT_THRESH + 0.01, y = Inf, vjust = 1.5, hjust = 0,
+                     label = thresh_label, size = 3.2, color = "#333333")
+    } else {
+        p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
+            geom_histogram(binwidth = 0.02, fill = "#4575b4", color = "white", linewidth = 0.1)
+    }
+
+    p_rel <- p_rel +
+        annotate("text", x = Inf, y = Inf, vjust = 3, hjust = 1.02,
+                 label = selfer_note, size = 2.7, color = "#8a5a00", fontface = "italic") +
+        labs(
+            title = "Pairwise relatedness distribution (plink IBD, pi-hat)",
+            x = "Pi-hat (proportion IBD)",
+            y = "Number of sample pairs"
+        ) +
+        theme_qc()
+    save_plot(p_rel, "relatedness_distribution.png")
+} else {
+    message("WARNING: Relatedness pairs file is empty or missing — skipping relatedness_distribution.png (need >=2 samples for pairwise IBD).")
 }
 
 message("INFO: All QC plots and tables complete.")
