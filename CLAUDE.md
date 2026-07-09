@@ -58,6 +58,8 @@ Biological data is messy. Different tools and file formats introduce inconsisten
 
    **Example — Manhattan background**: Background PNG = all SNPs, all methods (no filtering). Interactive overlay = sig SNP highlight markers. Toggle = highlight on/off. Every sig SNP always has a ghost dot behind it. Same rule in `plot_manhattan.R`, `plot_manhattan_combined.R`, `plot_miami.R`. Never use a "first-method-only" de-dup shortcut in the background — it makes behavior differ unpredictably by method order.
 
+8. **Instructional text belongs in Shiny, not baked into plots** — Plots (PNG/SVG) should carry only data-derived annotations (thresholds, counts, axis labels) — never static caveats, usage instructions, or "how to interpret this" messages as `annotate()`/`geom_text()` layers. Those overflow small plot cards, can't be styled/positioned responsively, and duplicate what the app already says. Put instructional/caveat text in a Shiny UI element next to the plot (info banner, tooltip, popover) instead — same content, one place, actually readable.
+
 ## Build and Run Commands
 
 ### Build Docker Image
