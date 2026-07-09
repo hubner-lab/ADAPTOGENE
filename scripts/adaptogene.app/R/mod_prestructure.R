@@ -73,17 +73,31 @@ mod_prestructure_server <- function(id, project_data) {
             mod_image_card_server("pca",
                 path    = shiny::reactive(pca_path(pd$name)),
                 title   = shiny::reactive("PCA"),
-                dl_name = shiny::reactive("pca")
+                dl_name = shiny::reactive("pca"),
+                note    = shiny::reactive(help_note("pca"))
             )
             mod_image_card_server("tracy_widom",
                 path    = shiny::reactive(tracy_widom_path(pd$name)),
                 title   = shiny::reactive("Tracy-Widom Test"),
-                dl_name = shiny::reactive("tracy_widom")
+                dl_name = shiny::reactive("tracy_widom"),
+                note    = shiny::reactive(filter_note(
+                    "sig. PCs",
+                    "PCs above the significance line capture real structure and inform how many PCs serve as association covariates."
+                ))
             )
             mod_image_card_server("cross_entropy",
                 path    = shiny::reactive(kr$path),
                 title   = shiny::reactive("Cross-Entropy"),
-                dl_name = shiny::reactive("cross_entropy")
+                dl_name = shiny::reactive("cross_entropy"),
+                note    = shiny::reactive({
+                    k <- pd$k_best
+                    if (is.null(k) || is.na(k)) return(NULL)
+                    filter_note(
+                        paste0("K = ", k),
+                        paste0("Lowest cross-entropy marks the best K — current selection k_best = ",
+                              k, "; change via sNMF.k_best and re-run.")
+                    )
+                })
             )
         })
 
@@ -94,18 +108,21 @@ mod_prestructure_server <- function(id, project_data) {
 
             mod_image_card_server("structure_bar",
                 path    = shiny::reactive(structure_k_path(pd$name, k)),
-                title   = shiny::reactive(paste0("Structure K=", k)),
-                dl_name = shiny::reactive(paste0("structure_K", k))
+                title   = shiny::reactive("Structure"),
+                dl_name = shiny::reactive(paste0("structure_K", k)),
+                note    = shiny::reactive(help_note("structure_bar", label = paste0("K=", k)))
             )
             mod_image_card_server("pca_structure",
                 path    = shiny::reactive(pca_structure_path(pd$name, k)),
-                title   = shiny::reactive(paste0("PCA K=", k)),
-                dl_name = shiny::reactive(paste0("pca_structure_K", k))
+                title   = shiny::reactive("PCA (Clustered)"),
+                dl_name = shiny::reactive(paste0("pca_structure_K", k)),
+                note    = shiny::reactive(help_note("pca_structure", label = paste0("K=", k)))
             )
             mod_image_card_server("pop_diff",
                 path    = shiny::reactive(pop_diff_path(pd$name, k)),
-                title   = shiny::reactive(paste0("Pop Differentiation K=", k)),
-                dl_name = shiny::reactive(paste0("pop_diff_K", k))
+                title   = shiny::reactive("Pop Differentiation"),
+                dl_name = shiny::reactive(paste0("pop_diff_K", k)),
+                note    = shiny::reactive(help_note("pop_diff", label = paste0("K=", k)))
             )
         })
     })

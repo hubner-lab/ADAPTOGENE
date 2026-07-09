@@ -240,6 +240,8 @@ mod_processing_server <- function(id, project_data) {
         })
 
         # ── LEA conversion losses alert ────────────────────────────────────────
+        # Converted from a full-width alert banner to a compact hover badge (same
+        # wording, now in the tooltip) — tidy FYI status, not a page-wide banner.
         output$lea_losses_alert <- shiny::renderUI({
             pd <- project_data()
             p  <- removed_snps_path(pd$name)
@@ -248,13 +250,16 @@ mod_processing_server <- function(id, project_data) {
             n <- length(lines)
             if (n == 0) return(NULL)
             htmltools::div(
-                class = "alert alert-info d-flex gap-2 align-items-start mt-2 mb-0",
-                bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
-                htmltools::div(
-                    htmltools::tags$strong(n, if (n == 1) "SNP" else "SNPs",
+                class = "d-flex justify-content-end mb-2",
+                filter_note(
+                    paste0(n, " removed"),
+                    htmltools::p(
+                        htmltools::tags$strong(n, if (n == 1) "SNP" else "SNPs",
                                            "removed during LEA format conversion"),
-                    " (multi-allelic or invariant after VCF\u2192LFMM conversion). ",
-                    "These are excluded from PCA, sNMF, and association analyses."
+                        " (multi-allelic or invariant after VCF\u2192LFMM conversion). ",
+                        "These are excluded from PCA, sNMF, and association analyses."
+                    ),
+                    class = "bg-secondary"
                 )
             )
         })
@@ -273,17 +278,44 @@ mod_processing_server <- function(id, project_data) {
                 path    = shiny::reactive(qc_plot_path(pd$name, "filtering_attrition.png")),
                 title   = shiny::reactive("Filtering Attrition"),
                 dl_name = shiny::reactive(paste0(pd$name, "_filtering_attrition")),
-                suggestion = shiny::reactive("Run mode=processing to generate QC plots")
+                suggestion = shiny::reactive("Run mode=processing to generate QC plots"),
+                note    = shiny::reactive(filter_note(
+                    "stages",
+                    "SNP counts surviving each filter stage: MAF → missingness → LD pruning."
+                ))
             )
             mod_image_card_server("sample_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "sample_missingness_distribution.png")),
                 title   = shiny::reactive("Sample Missingness"),
-                dl_name = shiny::reactive(paste0(pd$name, "_sample_missingness"))
+                dl_name = shiny::reactive(paste0(pd$name, "_sample_missingness")),
+                note    = shiny::reactive({
+                    t <- config_get(pd$config, "Filter", "sample_miss", default = NULL)
+                    if (is.null(t)) return(NULL)
+                    filter_note(
+                        paste0("miss > ", t),
+                        paste0("Samples missing more than ", t, " of genotypes are dropped.")
+                    )
+                })
             )
             mod_image_card_server("het_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "het_vs_missingness.png")),
                 title   = shiny::reactive("Heterozygosity vs Missingness"),
-                dl_name = shiny::reactive(paste0(pd$name, "_het_vs_missingness"))
+                dl_name = shiny::reactive(paste0(pd$name, "_het_vs_missingness")),
+                note    = shiny::reactive({
+                    sd_thresh <- config_get(pd$config, "Filter", "het_outlier_sd", default = NULL)
+                    miss_thresh <- config_get(pd$config, "Filter", "sample_miss", default = NULL)
+                    if (is.null(sd_thresh) && is.null(miss_thresh)) return(NULL)
+                    txt <- if (!is.null(sd_thresh)) {
+                        paste0("Samples beyond ±", sd_thresh,
+                              " SD heterozygosity or above the missingness cutoff are flagged as outliers.")
+                    } else {
+                        "Samples above the missingness cutoff are flagged as outliers."
+                    }
+                    filter_note(
+                        if (!is.null(sd_thresh)) paste0("±", sd_thresh, " SD") else "outliers",
+                        txt
+                    )
+                })
             )
             mod_image_card_server("relatedness",
                 path    = shiny::reactive(qc_plot_path(pd$name, "relatedness_distribution.png")),
@@ -304,17 +336,35 @@ mod_processing_server <- function(id, project_data) {
             mod_image_card_server("snp_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "snp_missingness_distribution.png")),
                 title   = shiny::reactive("SNP Missingness"),
-                dl_name = shiny::reactive(paste0(pd$name, "_snp_missingness"))
+                dl_name = shiny::reactive(paste0(pd$name, "_snp_missingness")),
+                note    = shiny::reactive({
+                    t <- config_get(pd$config, "Filter", "snp_miss", default = NULL)
+                    if (is.null(t)) return(NULL)
+                    filter_note(
+                        paste0("miss > ", t),
+                        paste0("SNPs missing in more than ", t, " of samples are dropped.")
+                    )
+                })
             )
             mod_image_card_server("maf",
                 path    = shiny::reactive(qc_plot_path(pd$name, "maf_distribution.png")),
                 title   = shiny::reactive("MAF Distribution"),
-                dl_name = shiny::reactive(paste0(pd$name, "_maf_distribution"))
+                dl_name = shiny::reactive(paste0(pd$name, "_maf_distribution")),
+                note    = shiny::reactive({
+                    t <- config_get(pd$config, "Filter", "maf", default = NULL)
+                    if (is.null(t)) return(NULL)
+                    filter_note(
+                        paste0("MAF < ", t),
+                        paste0("Variants with minor-allele frequency below ", t,
+                              " are removed before analysis.")
+                    )
+                })
             )
             mod_image_card_server("snp_density",
                 path    = shiny::reactive(qc_plot_path(pd$name, "snp_density_by_chr.png")),
                 title   = shiny::reactive("SNP Density by Chromosome"),
-                dl_name = shiny::reactive(paste0(pd$name, "_snp_density"))
+                dl_name = shiny::reactive(paste0(pd$name, "_snp_density")),
+                note    = shiny::reactive(help_note("snp_density"))
             )
         })
 
@@ -351,7 +401,19 @@ mod_processing_server <- function(id, project_data) {
             mod_image_card_server("depth",
                 path    = shiny::reactive(qc_plot_path(pd$name, "depth_distribution.png")),
                 title   = shiny::reactive("Depth Distribution"),
-                dl_name = shiny::reactive(paste0(pd$name, "_depth_distribution"))
+                dl_name = shiny::reactive(paste0(pd$name, "_depth_distribution")),
+                note    = shiny::reactive({
+                    min_d <- config_get(pd$config, "Filter", "min_depth", default = NULL)
+                    max_d <- config_get(pd$config, "Filter", "max_depth", default = NULL)
+                    if (is.null(min_d) && is.null(max_d)) return(NULL)
+                    lo <- if (!is.null(min_d)) min_d else "–"
+                    hi <- if (!is.null(max_d)) max_d else "–"
+                    filter_note(
+                        paste0(lo, "–", hi, "×"),
+                        paste0("Sites outside the ", lo, "–", hi,
+                              "× mean-depth window are removed.")
+                    )
+                })
             )
         })
 

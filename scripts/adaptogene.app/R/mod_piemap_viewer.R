@@ -19,11 +19,14 @@ mod_piemap_viewer_ui <- function(id) {
 #' @param bio reactive integer: bio variable number (1 for bio1, etc.)
 #' @param metric reactive character: "none", "tajima_d", or "pi_diversity"
 #' @param zoom reactive character: zoom region tag, or NULL/""/"none" for global
+#' @param note reactive returning a small htmltools tag (e.g. help_note()) shown next
+#'   to the title, or NULL to show nothing. Forwarded straight to mod_image_card_server.
 #' @noRd
 mod_piemap_viewer_server <- function(id, project_data,
                                       bio    = shiny::reactive(1L),
                                       metric = shiny::reactive("none"),
-                                      zoom   = shiny::reactive(NULL)) {
+                                      zoom   = shiny::reactive(NULL),
+                                      note   = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
 
         effective_metric <- shiny::reactive({
@@ -109,7 +112,8 @@ mod_piemap_viewer_server <- function(id, project_data,
             title       = title,
             dl_name     = dl_name,
             placeholder = placeholder,
-            suggestion  = suggestion
+            suggestion  = suggestion,
+            note        = note
         )
     })
 }

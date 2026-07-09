@@ -706,12 +706,14 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             mod_image_card_server("enrich_dotplot",
                 path    = shiny::reactive(cached$dotplot_path),
                 title   = shiny::reactive("GO Dotplot"),
-                dl_name = shiny::reactive("enrichment_dotplot")
+                dl_name = shiny::reactive("enrichment_dotplot"),
+                note    = shiny::reactive(help_note("enrich_dotplot"))
             )
             mod_image_card_server("enrich_emapplot",
                 path    = shiny::reactive(cached$emapplot_path),
                 title   = shiny::reactive("GO Emapplot"),
-                dl_name = shiny::reactive("enrichment_emapplot")
+                dl_name = shiny::reactive("enrichment_emapplot"),
+                note    = shiny::reactive(help_note("enrich_emapplot"))
             )
         })
 
@@ -797,7 +799,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
             mod_image_card_server("regionplot_img",
                 path    = shiny::reactive(path),
                 title   = shiny::reactive("Regional Manhattan"),
-                dl_name = shiny::reactive("regionplot")
+                dl_name = shiny::reactive("regionplot"),
+                note    = shiny::reactive(help_note("regionplot_img"))
             )
         })
 
@@ -1207,12 +1210,14 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 mod_image_card_server("hap_clustree_mg",
                     path    = shiny::reactive(mg_p),
                     title   = shiny::reactive(paste0("Clustree \u2014 Marker Groups", lbl)),
-                    dl_name = shiny::reactive(paste0("clustree_MG", if (use_trait) paste0("_", trait) else "")))
+                    dl_name = shiny::reactive(paste0("clustree_MG", if (use_trait) paste0("_", trait) else "")),
+                    note    = shiny::reactive(help_note("hap_clustree_mg")))
             if (!is.null(hap_p) && file_ok(hap_p))
                 mod_image_card_server("hap_clustree_hap",
                     path    = shiny::reactive(hap_p),
                     title   = shiny::reactive(paste0("Clustree \u2014 Haplotypes", lbl)),
-                    dl_name = shiny::reactive(paste0("clustree_hap", if (use_trait) paste0("_", trait) else "")))
+                    dl_name = shiny::reactive(paste0("clustree_hap", if (use_trait) paste0("_", trait) else "")),
+                    note    = shiny::reactive(help_note("hap_clustree_hap")))
         })
 
         # Reactive viz image paths — update when trait/region/viz results change
@@ -1238,7 +1243,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 t <- hap_viz_trait_r()
                 if (!is.null(t)) paste0("Haplotype Visualization (", t, ")") else "Haplotype Visualization"
             }),
-            dl_name = shiny::reactive(paste0("crosshap_", selected_region_id() %||% "region")))
+            dl_name = shiny::reactive(paste0("crosshap_", selected_region_id() %||% "region")),
+            note    = shiny::reactive(help_note("hap_crosshap_viz")))
 
         mod_image_card_server("hap_boxplot",
             path    = hap_viz_path_r(hap_boxplot_path),
@@ -1246,7 +1252,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 t <- hap_viz_trait_r()
                 if (!is.null(t)) paste0("Boxplot (", t, ")") else "Haplotype Phenotype Boxplot"
             }),
-            dl_name = shiny::reactive(paste0("hap_boxplot_", selected_region_id() %||% "region")))
+            dl_name = shiny::reactive(paste0("hap_boxplot_", selected_region_id() %||% "region")),
+            note    = shiny::reactive(help_note("hap_boxplot")))
 
         mod_image_card_server("hap_piemap",
             path    = hap_viz_path_r(hap_piemap_path),
@@ -1254,7 +1261,8 @@ mod_region_explorer_server <- function(id, project_data, module = MOD_GEA,
                 t <- hap_viz_trait_r()
                 if (!is.null(t)) paste0("Piemap (", t, ")") else "Haplotype Piemap"
             }),
-            dl_name = shiny::reactive(paste0("hap_piemap_", selected_region_id() %||% "region")))
+            dl_name = shiny::reactive(paste0("hap_piemap_", selected_region_id() %||% "region")),
+            note    = shiny::reactive(help_note("hap_piemap")))
 
         # ── Haplotype data tables (Assignments + Frequencies) ──────────────────
         hap_table_rid_r <- shiny::reactive({

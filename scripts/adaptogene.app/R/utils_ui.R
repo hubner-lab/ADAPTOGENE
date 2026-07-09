@@ -144,10 +144,12 @@ wza_window_note <- function(context = "gea") {
     )
 }
 
-#' Info alert announcing the SNP -> WZA-window collapse under the WZA regime.
+#' Hover note announcing the SNP -> WZA-window collapse under the WZA regime.
 #'
 #' Appears when the user switches the regime toggle ON; disappears when OFF.
 #' stats is the list returned by wza_collapse_stats(); pass NULL to suppress.
+#' Converted from a full-width alert banner to a compact hover badge (same
+#' wording, now in the tooltip) — ambient FYI, not a page-wide banner.
 #' @noRd
 wza_collapse_note <- function(stats) {
     if (is.null(stats)) return(NULL)
@@ -156,14 +158,39 @@ wza_collapse_note <- function(stats) {
     win_txt <- if (!is.na(stats$window_bp))
         paste0(" (≈ ", format(stats$window_bp, big.mark = ","), " bp/window)") else ""
     htmltools::div(
-        class = "alert alert-info d-flex gap-2 align-items-center py-2 mb-2 small",
-        bsicons::bs_icon("bounding-box", class = "flex-shrink-0"),
-        htmltools::div(
-            htmltools::strong("WZA regime active"), " — ", snp_txt,
-            htmltools::strong(format(stats$n_windows, big.mark = ","), " windows"),
-            win_txt, "."
+        class = "d-flex justify-content-end mb-2",
+        filter_note(
+            paste0(format(stats$n_windows, big.mark = ","), " windows"),
+            htmltools::p(
+                htmltools::strong("WZA regime active"), " — ", snp_txt,
+                htmltools::strong(format(stats$n_windows, big.mark = ","), " windows"),
+                win_txt, "."
+            ),
+            class = "bg-secondary"
         )
     )
+}
+
+#' Small badge that reveals a note in a hover tooltip.
+#'
+#' Generic building block for the "instructional text belongs in Shiny, not baked into
+#' plots" pattern: a compact badge (icon + short label) sits next to a plot's card
+#' title; hovering (bslib::tooltip, not a click-popover) reveals `body` — one short
+#' sentence or a few, kept out of the plot image itself.
+#'
+#' @param label short text shown on the badge itself (e.g. a threshold value, a count)
+#' @param body tooltip content — a string, or htmltools tags/tagList for multi-paragraph notes
+#' @param class Bootstrap badge background class (default neutral "bg-secondary";
+#'   use "bg-danger"/"bg-success" only for a genuine status signal, not a fixed threshold)
+#' @param placement tooltip placement, passed to bslib::tooltip()
+#' @noRd
+filter_note <- function(label, body, class = "bg-secondary", placement = "right") {
+    trigger <- htmltools::tags$span(
+        class = paste("badge", class),
+        style = "cursor:default; font-size:0.7rem; font-weight:500;",
+        bsicons::bs_icon("info-circle-fill", size = "0.75em"), " ", label
+    )
+    bslib::tooltip(trigger, body, placement = placement)
 }
 
 #' Colored hover note for the relatedness (IBD pi-hat) histogram.
@@ -172,6 +199,9 @@ wza_collapse_note <- function(stats) {
 #' plot title. Hovering (bslib::tooltip, not a click-popover) reveals the high-selfing
 #' caveat, the pair count, and action-specific guidance (nothing baked into the plot —
 #' data-derived numbers only, per the "instructional text belongs in Shiny" rule).
+#'
+#' Unlike filter_note()'s default neutral badge, this one is green/red because pair
+#' count is a genuine status signal ("related pairs found — look"), not a fixed threshold.
 #'
 #' @param threshold Filter.relatedness pi-hat threshold, or NULL/NA when unset
 #' @param action Filter.relatedness_action ("keep" or "remove")
@@ -185,12 +215,6 @@ relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
     badge_class <- if (is_red) "bg-danger" else "bg-success"
     badge_label <- if (is.na(n_pairs_above)) "—"
                    else paste0(n_pairs_above, " pair", if (n_pairs_above != 1) "s" else "")
-
-    trigger <- htmltools::tags$span(
-        class = paste("badge", badge_class),
-        style = "cursor:default; font-size:0.7rem; font-weight:500;",
-        bsicons::bs_icon("info-circle-fill", size = "0.75em"), " ", badge_label
-    )
 
     action_txt <- if (action == "remove") {
         if (is.na(n_would_remove)) "Related samples removed."
@@ -221,7 +245,7 @@ relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
         htmltools::p(action_txt)
     )
 
-    bslib::tooltip(trigger, body, placement = "right")
+    filter_note(badge_label, body, class = badge_class)
 }
 
 #' A card header with title + download popover

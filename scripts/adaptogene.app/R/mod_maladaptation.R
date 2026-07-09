@@ -371,12 +371,15 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             offs <- offs[!is.na(offs)]
             if (length(offs) == 0) return(NULL)
             htmltools::div(
-                class = "alert alert-info d-flex gap-2 align-items-start mb-2 py-2",
-                bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
-                htmltools::div(
-                    htmltools::tags$strong("Genetic offset range: "),
-                    sprintf("%.4f", min(offs)), " \u2013 ", sprintf("%.4f", max(offs)),
-                    " (mean: ", sprintf("%.4f", mean(offs)), ", n=", length(offs), " sites)"
+                class = "d-flex justify-content-end mb-2",
+                filter_note(
+                    sprintf("%.4f\u2013%.4f", min(offs), max(offs)),
+                    htmltools::p(
+                        htmltools::tags$strong("Genetic offset range: "),
+                        sprintf("%.4f", min(offs)), " \u2013 ", sprintf("%.4f", max(offs)),
+                        " (mean: ", sprintf("%.4f", mean(offs)), ", n=", length(offs), " sites)"
+                    ),
+                    class = "bg-secondary"
                 )
             )
         })
@@ -421,12 +424,14 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             mod_image_card_server("overall_importance",
                 path    = shiny::reactive(gf_importance_path(pd$name, suf, "overall", method = method)),
                 title   = shiny::reactive("Overall Variable Importance"),
-                dl_name = shiny::reactive(paste0("overall_importance_", suf))
+                dl_name = shiny::reactive(paste0("overall_importance_", suf)),
+                note    = shiny::reactive(help_note("overall_importance"))
             )
             mod_image_card_server("cumulative_importance",
                 path    = shiny::reactive(gf_importance_path(pd$name, suf, "cumulative", method = method)),
                 title   = shiny::reactive("Cumulative Importance"),
-                dl_name = shiny::reactive(paste0("cumulative_importance_", suf))
+                dl_name = shiny::reactive(paste0("cumulative_importance_", suf)),
+                note    = shiny::reactive(help_note("cumulative_importance"))
             )
         })
 
@@ -461,7 +466,8 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             title       = piemap_title,
             dl_name     = shiny::reactive(paste0("offset_piemap_", selected_variant(),
                                                   "_", selected_suffix() %||% "gf")),
-            placeholder = shiny::reactive("Run mode=maladaptation to generate offset results")
+            placeholder = shiny::reactive("Run mode=maladaptation to generate offset results"),
+            note        = shiny::reactive(help_note("offset_piemap"))
         )
 
         # ── Site table ─────────────────────────────────────────────────────────

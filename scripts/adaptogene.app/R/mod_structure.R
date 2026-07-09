@@ -146,7 +146,8 @@ mod_structure_server <- function(id, project_data) {
             project_data = project_data,
             bio          = selected_bio,
             metric       = selected_metric,
-            zoom         = selected_zoom
+            zoom         = selected_zoom,
+            note         = shiny::reactive(help_note("structure_piemap"))
         )
 
         # ── PCA-structure companion (k_best) ───────────────────────────────────
@@ -156,8 +157,9 @@ mod_structure_server <- function(id, project_data) {
             if (is.na(k)) return()
             mod_image_card_server("pca_structure_k",
                 path    = shiny::reactive(pca_structure_path(pd$name, k)),
-                title   = shiny::reactive(paste0("PCA K=", k)),
-                dl_name = shiny::reactive(paste0("pca_structure_K", k))
+                title   = shiny::reactive("PCA"),
+                dl_name = shiny::reactive(paste0("pca_structure_K", k)),
+                note    = shiny::reactive(help_note("pca_structure_k", label = paste0("K=", k)))
             )
         })
 
@@ -167,17 +169,20 @@ mod_structure_server <- function(id, project_data) {
             mod_image_card_server("climate_heatmap",
                 path    = shiny::reactive(climate_heatmap_path(pd$name)),
                 title   = shiny::reactive("Climate Correlation Heatmap"),
-                dl_name = shiny::reactive("climate_heatmap")
+                dl_name = shiny::reactive("climate_heatmap"),
+                note    = shiny::reactive(help_note("climate_heatmap"))
             )
             mod_image_card_server("climate_density",
                 path    = shiny::reactive(climate_density_path(pd$name)),
                 title   = shiny::reactive("Climate Density (Present)"),
-                dl_name = shiny::reactive("climate_density_present")
+                dl_name = shiny::reactive("climate_density_present"),
+                note    = shiny::reactive(help_note("climate_density"))
             )
             mod_image_card_server("phenotype_density",
                 path    = shiny::reactive(phenotype_density_path(pd$name)),
                 title   = shiny::reactive("Phenotype Density"),
-                dl_name = shiny::reactive("phenotype_density")
+                dl_name = shiny::reactive("phenotype_density"),
+                note    = shiny::reactive(help_note("phenotype_density"))
             )
         })
 
@@ -192,12 +197,14 @@ mod_structure_server <- function(id, project_data) {
             mod_image_card_server("mantel",
                 path    = shiny::reactive(if (file_ok(mantel_p)) mantel_p else NULL),
                 title   = shiny::reactive("Mantel Test"),
-                dl_name = shiny::reactive("mantel_test")
+                dl_name = shiny::reactive("mantel_test"),
+                note    = shiny::reactive(help_note("mantel"))
             )
             mod_image_card_server("amova",
                 path    = shiny::reactive(if (file_ok(amova_p)) amova_p else NULL),
                 title   = shiny::reactive("AMOVA"),
-                dl_name = shiny::reactive("amova")
+                dl_name = shiny::reactive("amova"),
+                note    = shiny::reactive(help_note("amova"))
             )
             # I3: Climate invariant predictors warning
             output$climate_invariant_warning <- shiny::renderUI({
@@ -217,15 +224,18 @@ mod_structure_server <- function(id, project_data) {
                     htmltools::tags$li(htmltools::tags$code(pr), reason)
                 })
                 htmltools::div(
-                    class = "alert alert-warning d-flex gap-2 align-items-start mb-3",
-                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
-                    htmltools::div(
-                        htmltools::tags$strong(length(preds),
-                            if (length(preds) == 1) "climate predictor" else "climate predictors",
-                            "excluded due to zero variance at sample sites"),
-                        " \u2014 not used in GEA or Gradient Forest analyses. ",
-                        "Consider removing from ", htmltools::tags$code("Climate.predictors"), ".",
-                        htmltools::tags$ul(class = "mb-0 mt-1", items)
+                    class = "d-flex justify-content-end mb-2",
+                    filter_note(
+                        paste0(length(preds), " excluded"),
+                        htmltools::p(
+                            htmltools::tags$strong(length(preds),
+                                if (length(preds) == 1) "climate predictor" else "climate predictors",
+                                "excluded due to zero variance at sample sites"),
+                            " \u2014 not used in GEA or Gradient Forest analyses. ",
+                            "Consider removing from ", htmltools::tags$code("Climate.predictors"), ".",
+                            htmltools::tags$ul(class = "mb-0 mt-1", items)
+                        ),
+                        class = "bg-warning text-dark"
                     )
                 )
             })
@@ -254,12 +264,15 @@ mod_structure_server <- function(id, project_data) {
                 rng    <- if (min_n == max_n) as.character(min_n)
                           else paste0(min_n, "\u2013", max_n)
                 htmltools::div(
-                    class = "alert alert-info d-flex gap-2 align-items-start mb-3",
-                    bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
-                    htmltools::div(
-                        htmltools::tags$strong(n_pops, "populations"),
-                        " at K=", k, " \u2014 ",
-                        rng, " samples per population."
+                    class = "d-flex justify-content-end mb-2",
+                    filter_note(
+                        paste0(n_pops, " pops"),
+                        htmltools::p(
+                            htmltools::tags$strong(n_pops, "populations"),
+                            " at K=", k, " \u2014 ",
+                            rng, " samples per population."
+                        ),
+                        class = "bg-secondary"
                     )
                 )
             })
@@ -279,31 +292,46 @@ mod_structure_server <- function(id, project_data) {
                     htmltools::tags$li(htmltools::tags$strong(g), paste0(" — ", r))
                 }, groups, reasons, SIMPLIFY = FALSE)
                 htmltools::div(
-                    class = "alert alert-warning d-flex gap-2 align-items-start mb-3",
-                    bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
-                    htmltools::div(
-                        htmltools::tags$strong(
-                            length(skipped),
-                            if (length(skipped) == 1) "group was" else "groups were",
-                            "excluded from per-group LD decay"
+                    class = "d-flex justify-content-end mb-2",
+                    filter_note(
+                        paste0(length(skipped), " skipped"),
+                        htmltools::p(
+                            htmltools::tags$strong(
+                                length(skipped),
+                                if (length(skipped) == 1) "group was" else "groups were",
+                                "excluded from per-group LD decay"
+                            ),
+                            " — below the ",
+                            htmltools::tags$code("LDdecay.min_samples"),
+                            " threshold. Adjust the config to include them.",
+                            htmltools::tags$ul(class = "mb-0 mt-1", items)
                         ),
-                        " — below the ",
-                        htmltools::tags$code("LDdecay.min_samples"),
-                        " threshold. Adjust the config to include them.",
-                        htmltools::tags$ul(class = "mb-0 mt-1", items)
+                        class = "bg-warning text-dark"
                     )
+                )
+            })
+
+            ld_r2_note <- shiny::reactive({
+                r2 <- config_get(pd$config, "LD", "r2", default = NULL)
+                if (is.null(r2)) return(NULL)
+                filter_note(
+                    paste0("r² = ", r2),
+                    paste0("Dashed line marks r² = ", r2,
+                          ", the LD threshold that sets the clumping distance for region building.")
                 )
             })
 
             mod_image_card_server("ld_decay",
                 path    = shiny::reactive(ld_decay_path(pd$name, per_chr = FALSE)),
                 title   = shiny::reactive("LD Decay (Genome-wide)"),
-                dl_name = shiny::reactive("ld_decay")
+                dl_name = shiny::reactive("ld_decay"),
+                note    = ld_r2_note
             )
             mod_image_card_server("ld_decay_chr",
                 path    = shiny::reactive(ld_decay_path(pd$name, per_chr = TRUE)),
                 title   = shiny::reactive("LD Decay (Per Chromosome)"),
-                dl_name = shiny::reactive("ld_decay_per_chr")
+                dl_name = shiny::reactive("ld_decay_per_chr"),
+                note    = ld_r2_note
             )
         })
 

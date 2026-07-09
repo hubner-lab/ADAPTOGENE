@@ -638,7 +638,8 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             dl_name = shiny::reactive({
                 paste0("qq_", active_method() %||% "method",
                        "_", per_method_trait() %||% "trait")
-            })
+            }),
+            note    = shiny::reactive(help_note("qq_plot_gea"))
         )
 
     })
