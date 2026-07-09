@@ -49,7 +49,7 @@ summary_dt <- read_or_create_summary(OUTPUT)
 if (MODE == 'processing') {
     # args: MODE OUTPUT vcf_filt vcf_ld samples_list samples_filtered samples_removed
     #       qc_raw_summary filtering_summary het_outlier_sd has_dp depth_summary
-    #       pihat_thresh relatedness_removed
+    #       pihat_thresh relatedness_removed relatedness_action
     VCF_FILT          = args[3]
     VCF_LD            = args[4]
     SAMPLES_LIST      = args[5]
@@ -62,6 +62,7 @@ if (MODE == 'processing') {
     DEPTH_SUMMARY     = if (length(args) >= 12) args[12] else 'NULL'
     PI_HAT_THRESH     = if (length(args) >= 13) args[13] else 'NULL'
     RELATEDNESS_REMOVED = if (length(args) >= 14) args[14] else 'NULL'
+    RELATEDNESS_ACTION  = if (length(args) >= 15) args[15] else 'keep'
 
     # Count samples
     n_samples_total    <- length(readLines(SAMPLES_LIST))
@@ -116,9 +117,13 @@ if (MODE == 'processing') {
     # Depth info
     depth_qc_status <- if (HAS_DP == 'TRUE') 'available' else 'not_provided'
 
-    # Relatedness (IBD pi-hat) removal count — 0 when Filter.relatedness disabled
+    # Relatedness (IBD pi-hat) removal count — 0 unless Filter.relatedness_action is 'remove'.
+    # relatedness_removed.tsv is always computed once a threshold is set (even in 'keep' mode,
+    # for the Shiny hover-note preview), so gate on the action here to avoid reporting samples
+    # as "removed" when they were only previewed.
     n_relatedness_removed <- 0L
-    if (PI_HAT_THRESH != 'NULL' && RELATEDNESS_REMOVED != 'NULL' && file.exists(RELATEDNESS_REMOVED)) {
+    if (tolower(RELATEDNESS_ACTION) == 'remove' &&
+        PI_HAT_THRESH != 'NULL' && RELATEDNESS_REMOVED != 'NULL' && file.exists(RELATEDNESS_REMOVED)) {
         rel_removed <- fread(RELATEDNESS_REMOVED)
         n_relatedness_removed <- nrow(rel_removed)
     }

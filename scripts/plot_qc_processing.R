@@ -25,7 +25,7 @@
 #   20 plots_dir          - output directory for plots
 #   21 tables_dir         - output directory for tables
 #   22 relatedness_pairs  - relatedness_pairs.tsv (plink --genome, IID1/IID2/PI_HAT; always produced)
-#   23 pihat_thresh       - Filter.relatedness pi-hat threshold or 'NULL' (removal disabled)
+#   23 pihat_thresh       - Filter.relatedness pi-hat threshold or 'NULL' (colors/counts only; removal is a separate Filter.relatedness_action gate)
 
 suppressPackageStartupMessages({
     library(data.table)
@@ -424,7 +424,7 @@ if (HAS_DP && DEPTH_SAMPLE_FILE != 'NULL' && file.exists(DEPTH_SAMPLE_FILE)) {
 }
 
 #=============================================================================
-# 9. RELATEDNESS (IBD PI-HAT) DISTRIBUTION — always drawn, selfer caveat note
+# 9. RELATEDNESS (IBD PI-HAT) DISTRIBUTION — always drawn
 #=============================================================================
 if (file.exists(RELATEDNESS_PAIRS)) {
     rel_pairs <- fread(RELATEDNESS_PAIRS)
@@ -432,14 +432,10 @@ if (file.exists(RELATEDNESS_PAIRS)) {
     rel_pairs <- data.table(IID1 = character(0), IID2 = character(0), PI_HAT = numeric(0))
 }
 
-selfer_note <- "High-selfing species inflate pi-hat — pick a threshold from this\ndistribution, not the standard outbred 0.2 default."
-
 if (nrow(rel_pairs) > 0) {
     if (!is.null(PI_HAT_THRESH)) {
-        n_above <- nrow(rel_pairs[PI_HAT > PI_HAT_THRESH])
-        thresh_label <- paste0(n_above, " pair", if (n_above != 1) "s" else "",
-                               " above threshold (pi-hat > ", PI_HAT_THRESH, ")")
-
+        # Pair count above threshold is reported in the Shiny hover note, not on-plot
+        # (rule: plots carry only data-derived annotations, not instructional text).
         p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
             geom_histogram(
                 aes(fill = PI_HAT > PI_HAT_THRESH),
@@ -450,17 +446,13 @@ if (nrow(rel_pairs) > 0) {
                 labels = c("FALSE" = "Below threshold", "TRUE" = "Above threshold"),
                 name = NULL
             ) +
-            geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = "#333333") +
-            annotate("text", x = PI_HAT_THRESH + 0.01, y = Inf, vjust = 1.5, hjust = 0,
-                     label = thresh_label, size = 3.2, color = "#333333")
+            geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = "#333333")
     } else {
         p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
             geom_histogram(binwidth = 0.02, fill = "#4575b4", color = "white", linewidth = 0.1)
     }
 
     p_rel <- p_rel +
-        annotate("text", x = Inf, y = Inf, vjust = 3, hjust = 1.02,
-                 label = selfer_note, size = 2.7, color = "#8a5a00", fontface = "italic") +
         labs(
             title = "Pairwise relatedness distribution (plink IBD, pi-hat)",
             x = "Pi-hat (proportion IBD)",

@@ -166,6 +166,64 @@ wza_collapse_note <- function(stats) {
     )
 }
 
+#' Colored hover note for the relatedness (IBD pi-hat) histogram.
+#'
+#' Replaces the old static caption alert with a compact green/red badge next to the
+#' plot title. Hovering (bslib::tooltip, not a click-popover) reveals the high-selfing
+#' caveat, the pair count, and action-specific guidance (nothing baked into the plot —
+#' data-derived numbers only, per the "instructional text belongs in Shiny" rule).
+#'
+#' @param threshold Filter.relatedness pi-hat threshold, or NULL/NA when unset
+#' @param action Filter.relatedness_action ("keep" or "remove")
+#' @param n_pairs_above number of pairs with pi-hat above threshold (NA if unknown)
+#' @param n_would_remove number of samples the greedy filter would drop (NA if unknown)
+#' @noRd
+relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
+    if (is.null(threshold) || is.na(threshold)) return(NULL)
+    action <- tolower(action %||% "keep")
+    is_red <- !is.na(n_pairs_above) && n_pairs_above > 0
+    badge_class <- if (is_red) "bg-danger" else "bg-success"
+    badge_label <- if (is.na(n_pairs_above)) "—"
+                   else paste0(n_pairs_above, " pair", if (n_pairs_above != 1) "s" else "")
+
+    trigger <- htmltools::tags$span(
+        class = paste("badge", badge_class),
+        style = "cursor:default; font-size:0.7rem; font-weight:500;",
+        bsicons::bs_icon("info-circle-fill", size = "0.75em"), " ", badge_label
+    )
+
+    action_txt <- if (action == "remove") {
+        if (is.na(n_would_remove)) "Related samples removed."
+        else paste0(n_would_remove, " related sample", if (n_would_remove != 1) "s" else "", " removed.")
+    } else {
+        paste0(
+            "Nothing removed (action = keep). ",
+            if (!is.na(n_would_remove))
+                paste0("Would remove ", n_would_remove, " sample",
+                       if (n_would_remove != 1) "s" else "", " if switched to remove. ")
+            else "",
+            "Set ", "Filter.relatedness_action: remove",
+            " and re-run Processing to drop the higher-missingness member of each pair."
+        )
+    }
+
+    body <- htmltools::tagList(
+        htmltools::p(
+            htmltools::strong("High-selfing species"),
+            " show naturally inflated pi-hat — pick a threshold from the histogram, ",
+            "not the standard outbred 0.2 default."
+        ),
+        htmltools::p(
+            if (is.na(n_pairs_above)) "No pair data available."
+            else paste0(n_pairs_above, " pair", if (n_pairs_above != 1) "s" else "",
+                       " above pi-hat > ", threshold, ".")
+        ),
+        htmltools::p(action_txt)
+    )
+
+    bslib::tooltip(trigger, body, placement = "right")
+}
+
 #' A card header with title + download popover
 #' @noRd
 card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = NULL) {

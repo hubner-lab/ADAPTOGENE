@@ -24,7 +24,8 @@ if MODE == 'processing':
             has_dp         = 'TRUE' if HAS_FORMAT_DP else 'FALSE',
             depth_summary  = f"{MOD_PROCESSING}tables/depth_summary.tsv" if HAS_FORMAT_DP else 'NULL',
             pihat_thresh   = PI_HAT if PI_HAT is not None else 'NULL',
-            relatedness_removed = O['qc_relatedness_removed'] if PI_HAT is not None else 'NULL'
+            relatedness_removed = O['qc_relatedness_removed'] if PI_HAT is not None else 'NULL',
+            relatedness_action  = RELATEDNESS_ACTION
         log: f"{LOGDIR}processing/write_summary.log"
         shell:
             """
@@ -34,7 +35,7 @@ if MODE == 'processing':
                 {input.samples_list} {input.samples_filtered} {input.samples_removed} \
                 {input.qc_raw_summary} {input.filtering_summary} \
                 {params.het_outlier_sd} {params.has_dp} {params.depth_summary} \
-                {params.pihat_thresh} {params.relatedness_removed} > {log} 2>&1
+                {params.pihat_thresh} {params.relatedness_removed} {params.relatedness_action} > {log} 2>&1
             touch {output}
             """
 

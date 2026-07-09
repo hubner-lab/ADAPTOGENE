@@ -129,7 +129,8 @@ if HET_OUTLIER_SD is not None:
 rule compute_relatedness:
     """Compute pairwise IBD (plink --genome, PI_HAT) on LD-pruned genotypes (filtered/het-filtered samples).
     Always runs — feeds the relatedness QC histogram so the user can pick a sensible threshold.
-    Sample removal only happens when Filter.relatedness is set (see relatedness_filter below).
+    Sample removal only happens when Filter.relatedness is set AND Filter.relatedness_action is
+    'remove' (see relatedness_filter below; default action is 'keep' — visualize/count only).
     NOTE: high-selfing plant species show naturally inflated pi-hat — the standard outbred
     0.2 cutoff is often wrong here; choose a threshold from the histogram instead."""
     input:
@@ -166,10 +167,12 @@ rule compute_relatedness:
 
 if PI_HAT is not None:
     rule relatedness_filter:
-        """Remove related samples (plink pi-hat) above the configured threshold.
-        For each over-threshold pair, drops the member with higher missingness
-        (simple pairwise rule — does not attempt maximal-set optimization).
-        Produces updated samples list used by filter_vcf."""
+        """Compute which related samples (plink pi-hat) would be dropped above the configured
+        threshold. Always runs when Filter.relatedness is set (even in 'keep' mode) so the Shiny
+        hover note can preview the removal count. For each over-threshold pair, drops the member
+        with higher missingness (simple pairwise rule — does not attempt maximal-set optimization).
+        The resulting samples list is only fed into filter_vcf when Filter.relatedness_action
+        is 'remove' (see RELATEDNESS_REMOVE gate below) — in 'keep' mode nothing is excluded."""
         input:
             pairs   = O['qc_relatedness_pairs'],
             imiss   = W['samples_missing_stats'],
@@ -218,7 +221,7 @@ rule compute_snp_freq_raw:
     """Compute allele frequencies on the raw VCF (filtered samples, before MAF filter)."""
     input:
         vcf     = f"{INDIR}{VCF_RAW}",
-        samples = W['samples_rel_filtered'] if PI_HAT is not None else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
+        samples = W['samples_rel_filtered'] if RELATEDNESS_REMOVE else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
     output: O['qc_maf_raw']
     params: prefix = f"{INTER}qc/maf_raw_tmp"
     log:    f"{LOGDIR}processing/compute_snp_freq_raw.log"
@@ -278,7 +281,7 @@ rule filter_vcf:
     Also normalizes chromosome names by removing 'chr' prefix to match LEA behavior."""
     input:
         vcf = W['vcf_depth_filtered'] if ((MIN_DEPTH is not None or MAX_DEPTH is not None) and HAS_FORMAT_DP) else f"{INDIR}{VCF_RAW}",
-        samples = W['samples_rel_filtered'] if PI_HAT is not None else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
+        samples = W['samples_rel_filtered'] if RELATEDNESS_REMOVE else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered'])
     output: W['vcf_filt']
     params: prefix = W['vcf_filt'].replace('.vcf', ''), maf = MAF, miss = MISS
     log:    f"{LOGDIR}processing/filter_vcf.log"

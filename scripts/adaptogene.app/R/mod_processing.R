@@ -35,25 +35,14 @@ mod_processing_ui <- function(id) {
         shiny::br(),
 
         # ── Row 3: Sample QC ───────────────────────────────────────────────────
+        # Relatedness caveat/counts live in the hover note badge next to the plot
+        # title (mod_image_card's `note` slot) rather than a static caption below —
+        # keeps the tab compact and matches the "minimal on-screen text" rule.
         bslib::layout_column_wrap(
             width = 1 / 3,
             mod_image_card_ui(ns("sample_miss")),
             mod_image_card_ui(ns("het_miss")),
             mod_image_card_ui(ns("relatedness"))
-        ),
-
-        # Relatedness histogram is always shown (even when Filter.relatedness is
-        # disabled) — this note explains why the standard 0.2 pi-hat cutoff can be
-        # wrong for high-selfing species and points the user at the histogram.
-        htmltools::div(
-            class = "alert alert-info d-flex gap-2 align-items-start mt-2 mb-0",
-            bsicons::bs_icon("info-circle-fill", class = "flex-shrink-0 mt-1"),
-            htmltools::div(
-                htmltools::tags$strong("Relatedness (IBD pi-hat):"),
-                " high-selfing species show naturally inflated pi-hat. ",
-                "Pick a threshold from the histogram above, not the standard outbred 0.2 default, ",
-                "then set ", htmltools::tags$code("Filter.relatedness"), " and re-run Processing."
-            )
         ),
 
         shiny::br(),
@@ -221,9 +210,12 @@ mod_processing_server <- function(id, project_data) {
                 )
             } else NULL
 
-            # Relatedness (IBD) removal — conditional on config
-            pihat_thresh <- config_get(pd$config, "Filter", "relatedness", default = NULL)
-            rel_box <- if (!is.null(pihat_thresh) && !is.na(pihat_thresh)) {
+            # Relatedness (IBD) removal — only shown when actually removing samples.
+            # In 'keep' mode (default) nothing is removed; the preview count lives in
+            # the hover note next to the relatedness plot instead of this value box.
+            pihat_thresh  <- config_get(pd$config, "Filter", "relatedness", default = NULL)
+            rel_action    <- tolower(config_get(pd$config, "Filter", "relatedness_action", default = "keep"))
+            rel_box <- if (!is.null(pihat_thresh) && !is.na(pihat_thresh) && rel_action == "remove") {
                 n_rel <- sv("samples_removed_relatedness", default = 0)
                 rel_theme <- if (is.na(n_rel) || n_rel == 0) "success" else "warning"
                 n_rel_str <- if (is.na(n_rel)) "—" else as.character(as.integer(n_rel))
@@ -296,7 +288,18 @@ mod_processing_server <- function(id, project_data) {
             mod_image_card_server("relatedness",
                 path    = shiny::reactive(qc_plot_path(pd$name, "relatedness_distribution.png")),
                 title   = shiny::reactive("Relatedness (IBD pi-hat)"),
-                dl_name = shiny::reactive(paste0(pd$name, "_relatedness_distribution"))
+                dl_name = shiny::reactive(paste0(pd$name, "_relatedness_distribution")),
+                note    = shiny::reactive({
+                    thresh <- config_get(pd$config, "Filter", "relatedness", default = NULL)
+                    if (is.null(thresh) || is.na(thresh)) return(NULL)
+                    action <- config_get(pd$config, "Filter", "relatedness_action", default = "keep")
+                    pairs   <- load_relatedness_pairs(pd$name)
+                    removed <- load_relatedness_removed(pd$name)
+                    n_pairs_above <- if (nrow(pairs) == 0) NA_integer_
+                                      else sum(pairs$PI_HAT > thresh, na.rm = TRUE)
+                    n_would_remove <- if (nrow(removed) == 0) NA_integer_ else nrow(removed)
+                    relatedness_note(thresh, action, n_pairs_above, n_would_remove)
+                })
             )
             mod_image_card_server("snp_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "snp_missingness_distribution.png")),

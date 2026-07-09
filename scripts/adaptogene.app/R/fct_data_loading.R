@@ -30,6 +30,31 @@ load_sample_heterozygosity <- function(project) {
     )
 }
 
+#' Load relatedness pairs table (plink IBD pi-hat, always produced by Processing)
+#' @noRd
+load_relatedness_pairs <- function(project) {
+    p <- qc_table_path(project, "relatedness_pairs.tsv")
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(IID1 = "character", IID2 = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Load related-samples removal preview table. Always produced once Filter.relatedness
+#' is set (even in 'keep' mode, as a preview) — see relatedness_filter rule.
+#' @noRd
+load_relatedness_removed <- function(project) {
+    p <- qc_table_path(project, "relatedness_removed.tsv")
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(IID = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
 #' Load pipeline summary TSV
 #' @noRd
 load_pipeline_summary <- function(project) {

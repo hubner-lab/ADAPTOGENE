@@ -12,7 +12,11 @@ mod_image_card_ui <- function(id, height = "auto") {
         full_screen = TRUE,
         bslib::card_header(
             class = "d-flex justify-content-between align-items-center",
-            shiny::textOutput(ns("title"), inline = TRUE),
+            htmltools::div(
+                class = "d-flex align-items-center gap-2",
+                shiny::textOutput(ns("title"), inline = TRUE),
+                shiny::uiOutput(ns("note"), inline = TRUE)
+            ),
             bslib::popover(
                 trigger = bsicons::bs_icon("download", title = "Download plot"),
                 title = "Download",
@@ -38,15 +42,20 @@ mod_image_card_ui <- function(id, height = "auto") {
 #' @param dl_name reactive string used as download filename base (no extension)
 #' @param placeholder reactive string shown when path is unavailable
 #' @param suggestion reactive string shown as smaller hint text below placeholder message
+#' @param note reactive returning a small htmltools tag (e.g. a colored badge with a hover
+#'   tooltip) shown next to the title, or NULL to show nothing. Used for compact data-derived
+#'   status (e.g. relatedness pair counts) instead of a static caption baked into the plot.
 #' @noRd
 mod_image_card_server <- function(id, path, title = shiny::reactive("Plot"),
                                    dl_name = shiny::reactive("plot"),
                                    placeholder = shiny::reactive("Plot not available"),
-                                   suggestion  = shiny::reactive(NULL)) {
+                                   suggestion  = shiny::reactive(NULL),
+                                   note        = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
         output$title <- shiny::renderText(title())
+        output$note  <- shiny::renderUI(note())
 
         output$image_or_placeholder <- shiny::renderUI({
             p <- path()

@@ -81,6 +81,17 @@ MIN_DEPTH    = _cfg('Filter', 'min_depth', None)
 MAX_DEPTH    = _cfg('Filter', 'max_depth', None)
 HET_OUTLIER_SD = _cfg('Filter', 'het_outlier_sd', None)
 PI_HAT = _cfg('Filter', 'relatedness', None); check_float(PI_HAT, 'filter.relatedness', allow_null=True)
+# relatedness_action gates removal separately from the threshold: 'keep' (default) only
+# colors/counts related pairs in the Processing histogram; 'remove' actually drops samples.
+_relatedness_action_explicit = 'relatedness_action' in config.get('Filter', {})
+RELATEDNESS_ACTION = str(_cfg('Filter', 'relatedness_action', 'keep')).lower()
+check_in_list(RELATEDNESS_ACTION, ['keep', 'remove'], 'filter.relatedness_action')
+if PI_HAT is not None and not _relatedness_action_explicit:
+    print(
+        f"WARNING: Filter.relatedness={PI_HAT} is set but Filter.relatedness_action is not — "
+        "defaulting to 'keep' (related samples are visualized/counted but NOT removed). "
+        "Set Filter.relatedness_action: remove to drop them.", file=sys.stderr)
+RELATEDNESS_REMOVE = (PI_HAT is not None and RELATEDNESS_ACTION == 'remove')
 
 # Detect FORMAT/DP field in raw VCF header at parse time (reads header only — fast)
 _raw_vcf_path = os.path.join(INDIR, VCF_RAW)
@@ -451,7 +462,7 @@ if MIN_DEPTH is not None or MAX_DEPTH is not None:
     if MAX_DEPTH is not None: _dp_parts.append(f"dpmax{MAX_DEPTH}")
     _depth_tag = "_" + "_".join(_dp_parts)
 _het_tag = f"_hetsd{HET_OUTLIER_SD}" if HET_OUTLIER_SD is not None else ""
-_rel_tag = f"_rel{PI_HAT}" if PI_HAT is not None else ""
+_rel_tag = f"_rel{PI_HAT}" if RELATEDNESS_REMOVE else ""
 FILT_TAG = f"maf{MAF}_miss{MISS}_smiss{SAMPLE_MISS}{_depth_tag}{_het_tag}{_rel_tag}"
 LD_TAG = f"ld{LD_R2}_win{LD_WIN}_step{LD_STEP}"
 
@@ -1284,8 +1295,12 @@ def get_targets(mode):
             targets.append(W['gff_normalized'])
         if HAS_FORMAT_DP:
             targets.append(O['qc_plot_depth'])
+        if PI_HAT is not None:
+            # Always compute the would-remove list (even in 'keep' mode) — the Shiny
+            # hover note needs it to preview the removal count before the user opts in.
+            targets.append(O['qc_relatedness_removed'])
         return targets
-    
+
     elif mode == 'prestructure':
         ks = k_range(K_START, K_END)
         return (
