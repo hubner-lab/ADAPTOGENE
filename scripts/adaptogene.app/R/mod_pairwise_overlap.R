@@ -141,14 +141,18 @@ mod_pairwise_overlap_server <- function(id, project_data, coords,
             # Allow re-run even if cached (user may want fresh run after pipeline re-run)
             p  <- pairwise_params()
             pd <- project_data()
-            handle <- launch_pairwise_subprocess(
-                gea_sig_list  = gea_sigsnps(),
-                gwas_sig_list = gwas_sigsnps(),
-                gea_window    = p$gea_window  %||% 1000000L,
-                gwas_window   = p$gwas_window %||% 1000000L,
-                min_snps      = p$min_snps    %||% 2L,
-                hash          = hash,
-                project_data  = pd
+            handle <- tryCatch(
+                launch_pairwise_subprocess(
+                    gea_sig_list  = gea_sigsnps(),
+                    gwas_sig_list = gwas_sigsnps(),
+                    gea_window    = p$gea_window  %||% 1000000L,
+                    gwas_window   = p$gwas_window %||% 1000000L,
+                    min_snps      = p$min_snps    %||% 2L,
+                    hash          = hash,
+                    project_data  = pd
+                ),
+                error = function(e)
+                    list(error = paste("Failed to launch pairwise computation:", conditionMessage(e)))
             )
             if (!is.null(handle$error)) {
                 pairwise_cache[[hash]] <- handle  # store error immediately

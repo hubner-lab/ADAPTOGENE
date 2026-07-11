@@ -1003,7 +1003,7 @@ launch_hap_viz_subprocess <- function(region_row, project_data, tag, params) {
     if (length(rows) == 0) return(NULL)
     flat <- data.table::rbindlist(rows, use.names = TRUE)
     if (nrow(flat) == 0) return(NULL)
-    tmp <- tempfile(prefix = paste0("pw_sigsnps_", source_label, "_"), fileext = ".tsv")
+    tmp <- tempfile(pattern = paste0("pw_sigsnps_", source_label, "_"), fileext = ".tsv")
     data.table::fwrite(flat, tmp, sep = "\t", quote = FALSE)
     tmp
 }
