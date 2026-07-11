@@ -26,8 +26,11 @@ mod_gwas_ui <- function(id) {
             bslib::card(
                 full_screen = TRUE,
                 bslib::card_header(
-                    bsicons::bs_icon("geo-fill"),
-                    " Phenotype Map"
+                    htmltools::div(
+                        class = "d-flex align-items-center gap-2",
+                        htmltools::span(bsicons::bs_icon("geo-fill"), " Phenotype Map"),
+                        help_note("phenomap")
+                    )
                 ),
                 bslib::card_body(
                     class = "piemap-container",
@@ -539,6 +542,7 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
             title_label          = shiny::reactive({
                 if (regime_wza()) "Combined GWAS Manhattan (WZA)" else "Combined GWAS Manhattan"
             }),
+            note                 = shiny::reactive(help_note("manhattan_gwas_combined")),
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
@@ -602,6 +606,7 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 t <- per_method_trait()
                 if (!is.null(m) && !is.null(t)) paste0(m, " — ", t) else "Method Manhattan"
             }),
+            note                 = shiny::reactive(help_note("manhattan_gwas_method")),
             show_regions_control = FALSE,
             threshold_y          = per_method_threshold_y
         )

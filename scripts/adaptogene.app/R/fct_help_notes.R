@@ -107,6 +107,54 @@ HELP_NOTES <- list(
     structure_piemap = list(
         desc   = "Geographic map of per-population ancestry/climate pie charts.",
         config = "Piemap.alpha, .show_labels, .pie_scale, Map.zoom_extent"
+    ),
+    manhattan_gea_combined = list(
+        desc   = "Genome-wide GEA associations from all methods combined, significant SNPs highlighted over the full SNP cloud.",
+        config = "GEA.configs"
+    ),
+    manhattan_gea_method = list(
+        desc   = "Genome-wide GEA associations for the selected method and trait, over the full SNP cloud.",
+        config = "GEA.configs"
+    ),
+    manhattan_gwas_combined = list(
+        desc   = "Genome-wide GWAS associations from all methods combined, significant SNPs over the full SNP cloud.",
+        config = "GWAS.configs"
+    ),
+    manhattan_gwas_method = list(
+        desc   = "Genome-wide GWAS associations for the selected method and trait, over the full SNP cloud.",
+        config = "GWAS.configs"
+    ),
+    miami_plot = list(
+        desc   = "GEA associations (upward) mirrored against GWAS associations (downward) to reveal loci shared by climate and phenotype.",
+        config = "GEAxGWAS.pairwise.window_size, .min_snps"
+    ),
+    pairwise_miami = list(
+        desc   = "Miami plot for one selected trait pair — the two traits' associations mirrored to compare locus overlap.",
+        config = "GEAxGWAS.pairwise.window_size, .min_snps"
+    ),
+    phenomap = list(
+        desc   = "Geographic map of phenotype values across sampling sites as scaled pie charts.",
+        config = "Piemap.alpha, .show_labels, .pie_scale, Map.zoom_extent"
+    ),
+    compare_novelty = list(
+        desc   = "ExDet climate-novelty surface (NT1 univariate, NT2 multivariate) — where future climate leaves the training range and offset extrapolation is least reliable.",
+        config = "Future.ssp, .year, .models"
+    ),
+    compare_disagree = list(
+        desc   = "Rank disagreement between the two offset models mapped against climate novelty.",
+        config = "Future.ssp, .year, .models"
+    ),
+    compare_concordance = list(
+        desc   = "Per-site scatter of offset ranks from the two models with a linear fit — overall ranking agreement.",
+        config = NULL
+    ),
+    compare_stability = list(
+        desc   = "The 20 sites with the largest offset-rank difference between the two models.",
+        config = NULL
+    ),
+    compare_nway = list(
+        desc   = "Kendall's W concordance across all offset models — a single 0-1 agreement statistic over site rankings.",
+        config = NULL
     )
 )
 

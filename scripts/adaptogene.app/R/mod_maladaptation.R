@@ -769,6 +769,11 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                 }, error = function(e) NULL)
             } else NULL
             htmltools::tagList(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    htmltools::span(class = "fw-semibold", "Novelty surface"),
+                    help_note("compare_novelty")
+                ),
                 nov_info,
                 htmltools::p(
                     class = "small text-muted",
@@ -786,6 +791,11 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                        " — higher = disagreement tracks climate novelty")
             else "Disagreement-novelty Spearman not available."
             htmltools::div(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    htmltools::span(class = "fw-semibold", "Disagreement × Novelty"),
+                    help_note("compare_disagree")
+                ),
                 htmltools::p(class = "small", cor_txt),
                 htmltools::p(class = "small text-muted",
                     "Disagree raster: ", file.path(
@@ -801,6 +811,11 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                                             input$compare_model_a, input$compare_model_b)
             if (nrow(dt) == 0) return(htmltools::div(class = "text-muted small", "No data."))
             htmltools::tagList(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    htmltools::span(class = "fw-semibold", "Rank concordance"),
+                    help_note("compare_concordance")
+                ),
                 htmltools::div(
                     compare_stat_box(stats$spearman_rho, "Spearman ρ", stats$spearman_p,
                                      accent = "#1B7A6E"),
@@ -822,8 +837,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                         ggplot2::geom_smooth(method = "lm", color = "#888", se = TRUE, linewidth = 0.8) +
                         ggplot2::labs(
                             x = stats$model_a_label,
-                            y = stats$model_b_label,
-                            title = "Per-site offset rank concordance"
+                            y = stats$model_b_label
                         ) +
                         ggplot2::theme_minimal(base_size = 12)
                 }, height = 320)
@@ -835,6 +849,11 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
             dt    <- load_compare_rank_stability(project_data()$name,
                                                   input$compare_model_a, input$compare_model_b)
             htmltools::tagList(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    htmltools::span(class = "fw-semibold", "Site stability"),
+                    help_note("compare_stability")
+                ),
                 htmltools::div(
                     compare_stat_box(
                         paste0(round(stats$jaccard_top_k * 100), "%"),
@@ -850,8 +869,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                                         ggplot2::aes(x = site, y = rank_diff)) +
                             ggplot2::geom_col(fill = "#d97706", alpha = 0.8) +
                             ggplot2::coord_flip() +
-                            ggplot2::labs(x = NULL, y = "|Rank A − Rank B|",
-                                          title = "Top-20 sites by rank instability") +
+                            ggplot2::labs(x = NULL, y = "|Rank A − Rank B|") +
                             ggplot2::theme_minimal(base_size = 11)
                     }, height = 320)
                 }
@@ -867,6 +885,11 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                 ))
             }
             htmltools::tagList(
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    htmltools::span(class = "fw-semibold", "N-way concordance"),
+                    help_note("compare_nway")
+                ),
                 compare_stat_box(stats$kendall_w, "Kendall's W", stats$kendall_w_p,
                                   accent = "#1B7A6E"),
                 htmltools::p(

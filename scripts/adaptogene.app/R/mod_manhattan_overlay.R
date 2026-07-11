@@ -12,7 +12,11 @@ mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
         full_screen = TRUE,
         bslib::card_header(
             class = "d-flex justify-content-between align-items-center",
-            shiny::textOutput(ns("title"), inline = TRUE),
+            htmltools::div(
+                class = "d-flex align-items-center gap-2",
+                shiny::textOutput(ns("title"), inline = TRUE),
+                shiny::uiOutput(ns("note"), inline = TRUE)
+            ),
             htmltools::span(
                 class = "d-flex gap-2 align-items-center",
                 shiny::uiOutput(ns("show_regions_toggle")),
@@ -53,6 +57,8 @@ mod_manhattan_overlay_ui <- function(id, height = "400px", filter_ui = NULL) {
 #' @param combined logical: TRUE = combined multi-trait/method view
 #' @param is_miami logical: TRUE = Miami plot mode
 #' @param title_label reactive character for card title
+#' @param note reactive returning an htmltools tag (e.g. help_note()) rendered
+#'   next to the title, or NULL for no badge
 #' @param regions reactive data.table of regions (optional, for overlay shapes)
 #' @param show_regions_control logical: show toggle for region highlights
 #' @param sig_snps_override reactive returning a long-format data.table to use
@@ -68,6 +74,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
                                           combined           = FALSE,
                                           is_miami           = FALSE,
                                           title_label        = shiny::reactive("Manhattan"),
+                                          note               = shiny::reactive(NULL),
                                           regions            = shiny::reactive(NULL),
                                           current_region_id  = shiny::reactive(NULL),
                                           show_regions_control = TRUE,
@@ -129,6 +136,7 @@ mod_manhattan_overlay_server <- function(id, project_data,
         reveal_when_settled <- function(p) htmlwidgets::onRender(p, JS_REVEAL)
 
         output$title <- shiny::renderText(title_label())
+        output$note  <- shiny::renderUI(note())
 
         # Toggle for showing region rectangles (optional)
         output$show_regions_toggle <- shiny::renderUI({

@@ -547,6 +547,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             title_label          = shiny::reactive({
                 if (regime_wza()) "Combined Manhattan (WZA)" else "Combined Manhattan"
             }),
+            note                 = shiny::reactive(help_note("manhattan_gea_combined")),
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
@@ -615,6 +616,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                 if (!is.null(m) && !is.null(t)) paste0(m, " — ", t)
                 else "Method Manhattan"
             }),
+            note                 = shiny::reactive(help_note("manhattan_gea_method")),
             show_regions_control = FALSE,
             threshold_y          = per_method_threshold_y
         )

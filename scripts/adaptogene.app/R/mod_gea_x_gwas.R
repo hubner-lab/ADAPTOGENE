@@ -723,6 +723,7 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 else
                     "Miami Plot (GEA \u2191 | GWAS \u2193)"
             }),
+            note                 = shiny::reactive(help_note("miami_plot")),
             regions              = gea_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,

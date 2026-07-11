@@ -307,9 +307,13 @@ mod_pairwise_overlap_server <- function(id, project_data, coords,
             if (is.null(pair)) return(NULL)
             bslib::card(
                 bslib::card_header(
-                    htmltools::span(
-                        bsicons::bs_icon("bar-chart-steps"),
-                        sprintf(" %s  vs  %s", pair$trait_a, pair$trait_b)
+                    htmltools::div(
+                        class = "d-flex align-items-center gap-2",
+                        htmltools::span(
+                            bsicons::bs_icon("bar-chart-steps"),
+                            sprintf(" %s  vs  %s", pair$trait_a, pair$trait_b)
+                        ),
+                        help_note("pairwise_miami")
                     )
                 ),
                 bslib::card_body(
