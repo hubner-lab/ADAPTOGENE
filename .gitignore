@@ -9,6 +9,7 @@ SIMDATA_logs/
 .snakemake/
 .claude
 CLAUDE.md
+CLAUDE.local.md
 Snakefile_old
 config_*.yaml
 WBDC*
