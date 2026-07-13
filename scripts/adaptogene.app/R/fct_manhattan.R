@@ -1,13 +1,9 @@
 #' Load coordinate mapping JSON from pipeline
-#' @param coords_path path to _coords.json file
-#' @return list with chr_offsets, x_range, y_range, bonferroni_y etc.
+#' @param coords_path path to _coords.json file (may be NULL when no K run yet)
+#' @return list with chr_offsets, x_range, y_range, bonferroni_y etc., or NULL
 #' @noRd
 load_coords <- function(coords_path) {
-    if (!file.exists(coords_path)) return(NULL)
-    tryCatch(
-        jsonlite::read_json(coords_path, simplifyVector = TRUE),
-        error = function(e) NULL
-    )
+    safe_read_json(coords_path)
 }
 
 #' Compute chromosome midpoints from coords for plotly tick labels
@@ -21,7 +17,7 @@ chr_midpoints <- function(coords) {
 #' Encode a PNG file as a base64 data URI for plotly layout.images
 #' @noRd
 encode_background_png <- function(bg_path) {
-    if (!file.exists(bg_path)) return(NULL)
+    if (!file_ok(bg_path)) return(NULL)
     base64enc::dataURI(file = bg_path, mime = "image/png")
 }
 
