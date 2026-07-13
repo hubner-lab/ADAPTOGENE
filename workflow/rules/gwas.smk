@@ -300,10 +300,12 @@ if GWAS_CONFIGS and PHENO_MISSING == 'DROP':
 if GWAS_CONFIGS:
 
   rule piemap_gwas:
-      """Generate pie map for phenotype trait with trait-controlled pie sizes."""
+      """Generate pie map for phenotype trait with trait-controlled pie sizes.
+      Uses metadata_climate.tsv for coordinates (samples with missing lat/lon can't be
+      plotted spatially, but remain in the phenotype association analysis itself)."""
       input:
           raster = W['climate_raster'],
-          metadata = O['metadata'],
+          metadata = W['metadata_climate'],
           clusters = clusters_table(K_BEST),
           trait = f"{WORK_FILT}phenotypes/{{pheno_trait}}_site_means.tsv"
       output:

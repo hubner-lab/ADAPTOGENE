@@ -492,6 +492,15 @@ W = {
     'samples_removed': f"{INTER}samples/samples_removed.list",
     'samples_missing_stats': f"{INTER}samples/samples_missing_stats.tsv",
     'samples_order': f"{INTER}samples/samples_order.list",
+    # Coord-valid subset (samples with non-NA latitude/longitude) - feeds climate/GEA/piemap paths
+    'coord_valid_samples': f"{INTER}samples/coord_valid_samples.list",
+    'metadata_climate': f"{INTER}samples/metadata_climate.tsv",
+    # Row-subset LFMM-format matrices matching the coord-valid sample set (see subset_lfmm_climate
+    # in processing.smk). EMMAX/LFMM/gradient_forest/geometric_offset all bind climate values to
+    # genotype-matrix rows positionally, so once climate drops coord-missing samples these must match.
+    'lfmm_imp_climate': f"{INTER}climate_subset/lfmm_imp_climate.lfmm",
+    'lfmm_imp_full_climate': f"{INTER}climate_subset/lfmm_imp_full_climate.lfmm",
+    'lfmm_full_climate': f"{INTER}climate_subset/lfmm_full_climate.lfmm",
     # Optional: samples list after het outlier removal (used by filter_vcf when HET_OUTLIER_SD set)
     'samples_het_filtered': f"{INTER}samples/samples_het_filtered.list",
     # Optional: samples list after relatedness (IBD pi-hat) removal (used by filter_vcf when PI_HAT set)
@@ -526,6 +535,7 @@ W = {
 O = {
     'summary': f"{OUTDIR}pipeline_summary.tsv",
     'metadata': f"{MOD_PROCESSING}tables/metadata.tsv",
+    'coord_missing_summary': f"{MOD_PROCESSING}tables/coord_missing_summary.tsv",
     'sample_missing_stats': f"{MOD_PROCESSING}tables/sample_missing_stats.tsv",
     'pca': f"{MOD_PRESTRUCT}plots/pca.png",
     'pca_svg': f"{MOD_PRESTRUCT}plots/pca.svg",
@@ -697,6 +707,13 @@ def add_association_paths():
         W['assoc_tped']    = f"{WORK_FILT}emmax/{VCF_BASE}.tped"
         W['assoc_tfam']    = f"{WORK_FILT}emmax/{VCF_BASE}.tfam"
         W['assoc_kinship'] = f"{WORK_FILT}emmax/{VCF_BASE}.aBN.kinf"
+        # Coord-valid subset (climate coordinate NA handling, GEA only) — samples with
+        # missing lat/lon are dropped for GEA; TPED/kinship rebuilt to match the reduced
+        # climate table, since EMMAX binds climate/PCA to genotypes positionally.
+        W['vcf_filt_climate']      = f"{WORK_FILT}climate/{VCF_BASE}.vcf"
+        W['assoc_tped_climate']    = f"{WORK_FILT}climate/emmax/{VCF_BASE}.tped"
+        W['assoc_tfam_climate']    = f"{WORK_FILT}climate/emmax/{VCF_BASE}.tfam"
+        W['assoc_kinship_climate'] = f"{WORK_FILT}climate/emmax/{VCF_BASE}.aBN.kinf"
     if "gapit" in _assoc_engines:
         W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
         W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
@@ -1283,6 +1300,7 @@ def get_targets(mode):
         targets = [
             W['samples_missing_stats'], W['samples_removed'],  # Sample missingness outputs
             W['vcf_filt'], W['vcf_ld'], W['geno'], W['lfmm'], O['metadata'],
+            O['coord_missing_summary'],
             # QC outputs
             O['qc_raw_summary'], O['qc_filtering_summary'], O['qc_sample_het'],
             O['qc_plot_sample_miss'], O['qc_plot_het_miss'],

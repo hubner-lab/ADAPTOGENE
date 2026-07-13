@@ -23,6 +23,9 @@ SAMPLES_FILE = args[7]
 OUT_FILE = args[8]     # Exact output path for per-trait pvalue TSV
 TPED_PREFIX = args[9]  # Pre-computed TPED/TFAM prefix
 KINSHIP_FILE = args[10] # Pre-computed .aBN.kinf
+SAMPLES_ORDER = if (length(args) >= 11) args[11] else NULL  # Optional: full sample order file
+                # (VCF is a coord-valid subset when samples with missing lat/lon were dropped
+                # for climate/GEA analysis — enables PCA row subsetting, see load_pca_covariates)
 ########################
 
 message("INFO: Starting EMMAX analysis (single-trait mode)")
@@ -35,8 +38,10 @@ message(paste0("INFO: Output: ", OUT_FILE))
 # Load trait data
 trait <- fread(TRAIT_FILE, sep = '\t', header = T)
 
-# Load covariates (PCs from LEA projections or PLINK eigenvec)
-covariates <- load_pca_covariates(COVARIATES_FILE, Kbest)
+# Load covariates (PCs from LEA projections or PLINK eigenvec).
+# SAMPLES_ORDER + the current VCF's sample list let load_pca_covariates() subset
+# PCA rows automatically when the VCF is a coord-valid subset of the full cohort.
+covariates <- load_pca_covariates(COVARIATES_FILE, Kbest, SAMPLES_ORDER, read_vcf_samples(VCF))
 
 ################################ Functions
 

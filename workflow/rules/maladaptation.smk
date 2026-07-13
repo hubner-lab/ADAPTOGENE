@@ -14,8 +14,9 @@ wildcard_constraints:
 if CLIMATE_SOURCE == 'worldclim':
     # Per-model future climate download (runs in parallel via Snakemake)
     rule download_climate_future_model:
-        """Download CMIP6 future climate data for a single model."""
-        input: samples = O['metadata']
+        """Download CMIP6 future climate data for a single model.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        input: samples = W['metadata_climate']
         output: f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{{model}}.tif"
         wildcard_constraints: model = r"[A-Za-z0-9_-]+"
         params:
@@ -34,9 +35,10 @@ if CLIMATE_SOURCE == 'worldclim':
 
     # Merge per-model rasters into averaged future climate
     rule merge_climate_future:
-        """Average future climate across models and extract site values."""
+        """Average future climate across models and extract site values.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
         input:
-            samples = O['metadata'],
+            samples = W['metadata_climate'],
             model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif" for model in MODELS_LIST],
             present_raster = W['climate_raster'],
             present_all = O['climate_all']
@@ -57,9 +59,10 @@ if CLIMATE_SOURCE == 'worldclim':
             """
 else:
     rule stage_custom_climate_future:
-        """Stage user-supplied future climate table into pipeline-standard outputs."""
+        """Stage user-supplied future climate table into pipeline-standard outputs.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
         input:
-            samples        = O['metadata'],
+            samples        = W['metadata_climate'],
             present_all    = O['climate_all'],
             present_raster = W['climate_raster']
         output:
@@ -100,11 +103,11 @@ rule density_plot_future:
 rule gradient_forest_adaptive:
     """Build adaptive Gradient Forest model using a user-curated SNP set."""
     input:
-        lfmm    = W['lfmm_full'],
+        lfmm    = W['lfmm_full_climate'],
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
-        samples = O['metadata'],
+        samples = W['metadata_climate'],
         climate = O['climate_site']
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive')
     params:
@@ -126,11 +129,11 @@ rule gradient_forest_adaptive:
 rule gradient_forest_random:
     """Build neutral Gradient Forest model using random SNPs."""
     input:
-        lfmm    = W['lfmm_full'],
+        lfmm    = W['lfmm_full_climate'],
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
-        samples = O['metadata'],
+        samples = W['metadata_climate'],
         climate = O['climate_site']
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random')
     params:
@@ -156,7 +159,7 @@ rule gradient_forest_offset:
         future_all     = O['climate_future_all'],
         present_all    = O['climate_all'],
         present_raster = W['climate_raster'],
-        samples        = O['metadata']
+        samples        = W['metadata_climate']
     output:
         raster      = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
         map_values  = mala_offset_map_values('gradient_forest', '{run_label}', '{spatial_tag}'),
@@ -179,7 +182,7 @@ rule gradient_forest_offset:
 rule geometric_offset:
     """Compute geometric genetic offset using LEA::genetic.gap()."""
     input:
-        lfmm_full   = W['lfmm_imp_full'],
+        lfmm_full   = W['lfmm_imp_full_climate'],
         vcfsnp      = W['vcfsnp_full'],
         removed     = W['removed_full'],
         sigsnps     = lambda wc: snp_set_file(wc.run_label),
@@ -188,7 +191,7 @@ rule geometric_offset:
         env_all_pres   = O['climate_all'],
         env_all_fut    = O['climate_future_all'],
         pres_raster    = W['climate_raster'],
-        samples        = O['metadata']
+        samples        = W['metadata_climate']
     output:
         site_values = mala_offset_site_values('geometric_offset', '{run_label}', '{spatial_tag}'),
         map_values  = mala_offset_map_values('geometric_offset', '{run_label}', '{spatial_tag}'),
@@ -276,7 +279,7 @@ rule plot_gf_offset_piemap:
     wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
         offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
-        samples       = O['metadata'],
+        samples       = W['metadata_climate'],
         clusters      = clusters_table(K_BEST),
         trait_file    = _piemap_trait_input
     output: mala_offset_piemap('{method}', '{run_label}', '{spatial_tag}', '{size_trait}')

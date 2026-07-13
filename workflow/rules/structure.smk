@@ -27,8 +27,9 @@ rule lfmm2vcf_ld:
 
 if CLIMATE_SOURCE == 'worldclim':
     rule download_climate_present:
-        """Download and process present climate data for sampling locations."""
-        input:  meta = O['metadata']
+        """Download and process present climate data for sampling locations.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        input:  meta = W['metadata_climate']
         output:
             site = O['climate_site'],
             site_scaled = O['climate_site_scaled'],
@@ -50,8 +51,9 @@ if CLIMATE_SOURCE == 'worldclim':
             """
 else:
     rule stage_custom_climate_present:
-        """Stage user-supplied present climate table into pipeline-standard outputs."""
-        input:  meta = O['metadata']
+        """Stage user-supplied present climate table into pipeline-standard outputs.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        input:  meta = W['metadata_climate']
         output:
             site        = O['climate_site'],
             site_scaled = O['climate_site_scaled'],
@@ -141,8 +143,9 @@ rule pi_diversity:
         """
 
 rule ibd:
-    """Calculate isolation by distance between populations."""
-    input:  clusters = clusters_table(K_BEST), meta = O['metadata']
+    """Calculate isolation by distance between populations.
+    Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+    input:  clusters = clusters_table(K_BEST), meta = W['metadata_climate']
     output: raw = O['ibd_raw'], pairs = O['ibd_pairs']
     params: tables_dir = f"{MOD_STRUCT}tables/pop_stats/"
     log:    f"{LOGDIR}structure/ibd.log"
@@ -166,8 +169,9 @@ rule correlation_heatmap:
         """
 
 rule mantel_test:
-    """Perform Mantel test for IBD/IBE."""
-    input:  meta = O['metadata'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
+    """Perform Mantel test for IBD/IBE.
+    Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+    input:  meta = W['metadata_climate'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
     output: O['mantel']
     params:
         predictors = ALL_BIO_STR,
@@ -196,9 +200,10 @@ rule amova:
         """
 
 rule piemap_plot:
-    """Generate PieMap plots for a climate predictor with trait-scaled pie sizes."""
+    """Generate PieMap plots for a climate predictor with trait-scaled pie sizes.
+    Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
     input:
-        meta = O['metadata'],
+        meta = W['metadata_climate'],
         clusters = clusters_table(K_BEST),
         raster = W['climate_raster'],
         tajima = O['tajima'],
@@ -240,9 +245,10 @@ rule piemap_plot:
         """
 
 rule piemap_simple:
-    """Generate basic PieMap plots with autoscaled uniform pie size (no trait overlay)."""
+    """Generate basic PieMap plots with autoscaled uniform pie size (no trait overlay).
+    Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
     input:
-        meta = O['metadata'],
+        meta = W['metadata_climate'],
         clusters = clusters_table(K_BEST),
         raster = W['climate_raster']
     output: piemap_notrait("{bio}")

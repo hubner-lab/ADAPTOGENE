@@ -408,6 +408,56 @@ rule align_metadata:
     log:    f"{LOGDIR}processing/align_metadata.log"
     shell:  "Rscript /pipeline/scripts/filter_arrange_metadata.R {input.meta} {input.order} {output} > {log} 2>&1"
 
+rule filter_coord_samples:
+    """Filter samples to those with valid (non-NA) coordinates, for climate/GEA analysis.
+    Unlike phenotypes, climate values cannot be meaningfully imputed, so missing
+    coordinates are always dropped (no config option). Samples missing coordinates
+    are retained in the full metadata.tsv (O['metadata']) for non-spatial analyses
+    such as GWAS/phenotype association. Runs unconditionally (not gated on
+    Climate.enabled) since piemaps/pop-stats also depend on valid coordinates."""
+    input:  meta = O['metadata']
+    output:
+        samples_list = W['coord_valid_samples'],
+        metadata     = W['metadata_climate'],
+        summary      = O['coord_missing_summary']
+    log:    f"{LOGDIR}processing/filter_coord_samples.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/filter_coord_samples.R \
+            {input.meta} {output.samples_list} {output.metadata} {output.summary} > {log} 2>&1
+        """
+
+# Sources for LFMM-format matrix coord subsetting (climate coordinate NA handling).
+# Each maps a {variant} wildcard to its full-cohort source matrix. Defined once here
+# (rather than per-consumer in gea.smk/maladaptation.smk) to guarantee exactly one
+# rule produces each output, since lfmm_imp_full is shared by GEA-LFMM and
+# Maladaptation's geometric_offset.
+_LFMM_CLIMATE_SOURCES = {
+    'lfmm_imp':      W['lfmm_imp'],       # GEA-LFMM, LD-pruned imputed
+    'lfmm_imp_full': W['lfmm_imp_full'],  # GEA-LFMM (full) + Maladaptation geometric_offset
+    'lfmm_full':     W['lfmm_full'],      # Maladaptation gradient_forest (raw, unimputed)
+}
+
+rule subset_lfmm_climate:
+    """Row-subset an LFMM-format matrix to coord-valid samples (climate coordinate NA
+    handling). EMMAX/LFMM/gradient_forest/geometric_offset all bind climate values to
+    genotype-matrix rows positionally, so once filter_coord_samples drops samples with
+    missing lat/lon from the climate table, every genotype-side matrix consumed
+    alongside it must be row-subset to match."""
+    input:
+        matrix        = lambda wc: _LFMM_CLIMATE_SOURCES[wc.variant],
+        samples_order = W['samples_order'],
+        coord_samples = W['coord_valid_samples']
+    output: f"{INTER}climate_subset/{{variant}}_climate.lfmm"
+    wildcard_constraints:
+        variant = "lfmm_imp|lfmm_imp_full|lfmm_full"
+    log: f"{LOGDIR}processing/subset_lfmm_climate_{{variant}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/subset_lfmm_matrix.R \
+            {input.matrix} {input.samples_order} {input.coord_samples} {output} > {log} 2>&1
+        """
+
 rule normalize_gff:
     """Normalize GFF chromosome names by removing 'chr' prefix to match VCF.
     Creates a normalized GFF in intermediate directory used by all downstream analysis."""

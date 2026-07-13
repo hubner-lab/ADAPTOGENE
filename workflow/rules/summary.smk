@@ -16,7 +16,8 @@ if MODE == 'processing':
             filtering_summary  = O['qc_filtering_summary'],
             plot_done          = O['qc_plot_attrition'],
             depth_summary      = O['qc_depth_site'] if HAS_FORMAT_DP else [],
-            relatedness_removed= O['qc_relatedness_removed'] if PI_HAT is not None else []
+            relatedness_removed= O['qc_relatedness_removed'] if PI_HAT is not None else [],
+            coord_missing_summary = O['coord_missing_summary']
         output: W['summary_done']
         params:
             summary_tsv    = O['summary'],
@@ -35,7 +36,8 @@ if MODE == 'processing':
                 {input.samples_list} {input.samples_filtered} {input.samples_removed} \
                 {input.qc_raw_summary} {input.filtering_summary} \
                 {params.het_outlier_sd} {params.has_dp} {params.depth_summary} \
-                {params.pihat_thresh} {params.relatedness_removed} {params.relatedness_action} > {log} 2>&1
+                {params.pihat_thresh} {params.relatedness_removed} {params.relatedness_action} \
+                {input.coord_missing_summary} > {log} 2>&1
             touch {output}
             """
 

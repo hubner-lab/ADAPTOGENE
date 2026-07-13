@@ -63,6 +63,7 @@ if (MODE == 'processing') {
     PI_HAT_THRESH     = if (length(args) >= 13) args[13] else 'NULL'
     RELATEDNESS_REMOVED = if (length(args) >= 14) args[14] else 'NULL'
     RELATEDNESS_ACTION  = if (length(args) >= 15) args[15] else 'keep'
+    COORD_MISSING_SUMMARY = if (length(args) >= 16) args[16] else 'NULL'
 
     # Count samples
     n_samples_total    <- length(readLines(SAMPLES_LIST))
@@ -147,6 +148,15 @@ if (MODE == 'processing') {
         for (i in seq_len(nrow(depth_dt))) {
             new_rows <- rbind(new_rows, row('processing', depth_dt$metric[i], depth_dt$value[i]))
         }
+    }
+
+    # Coordinate availability (climate/GEA auto-DROP of samples with missing lat/lon)
+    if (COORD_MISSING_SUMMARY != 'NULL' && file.exists(COORD_MISSING_SUMMARY)) {
+        coord_sum <- fread(COORD_MISSING_SUMMARY)
+        new_rows <- rbind(new_rows,
+            row('processing', 'samples_with_coordinates',        coord_sum$n_available[1]),
+            row('processing', 'samples_dropped_missing_coordinates', coord_sum$n_missing[1])
+        )
     }
 
 } else if (MODE == 'prestructure') {
