@@ -24,7 +24,7 @@ Filter:
   min_depth: null               # Optional: mask genotypes with FORMAT/DP < N (null = skip; requires DP field in VCF)
   max_depth: null               # Optional: mask genotypes with FORMAT/DP > N (null = skip; requires DP field in VCF)
   het_outlier_sd: null          # Optional: remove samples with heterozygosity beyond N SDs from mean (null = skip)
-  relatedness: null             # Optional: pi-hat (plink IBD) threshold for coloring/counting related pairs in the Processing relatedness histogram (null = skip). Does NOT remove samples by itself — see relatedness_action. A relatedness histogram is always plotted — high-selfing species inflate pi-hat, so pick a threshold from the histogram rather than the standard outbred 0.2 default.
+  relatedness: null             # Optional: IBS allele-sharing (plink --genome DST) threshold for coloring/counting related pairs in the Processing relatedness histogram (null = skip). Does NOT remove samples by itself — see relatedness_action. A relatedness histogram is always plotted — IBS is model-free (works for selfers and outcrossers alike, unlike pi-hat); duplicates/clones cluster near 1.0, so pick a threshold from the histogram (e.g. ~0.99 for duplicate detection).
   relatedness_action: keep      # keep | remove — 'keep' (default) only visualizes/counts pairs above the threshold; 'remove' drops the higher-missingness member of each pair. Recommended: set relatedness, inspect the histogram, THEN set 'remove' and re-run Processing.
 
 #-----------------------------------------------------------------------------

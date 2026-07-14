@@ -319,7 +319,7 @@ mod_processing_server <- function(id, project_data) {
             )
             mod_image_card_server("relatedness",
                 path    = shiny::reactive(qc_plot_path(pd$name, "relatedness_distribution.png")),
-                title   = shiny::reactive("Relatedness (IBD pi-hat)"),
+                title   = shiny::reactive("Relatedness (IBS allele-sharing)"),
                 dl_name = shiny::reactive(paste0(pd$name, "_relatedness_distribution")),
                 note    = shiny::reactive({
                     thresh <- config_get(pd$config, "Filter", "relatedness", default = NULL)
@@ -328,7 +328,7 @@ mod_processing_server <- function(id, project_data) {
                     pairs   <- load_relatedness_pairs(pd$name)
                     removed <- load_relatedness_removed(pd$name)
                     n_pairs_above <- if (nrow(pairs) == 0) NA_integer_
-                                      else sum(pairs$PI_HAT > thresh, na.rm = TRUE)
+                                      else sum(pairs$IBS > thresh, na.rm = TRUE)
                     n_would_remove <- if (nrow(removed) == 0) NA_integer_ else nrow(removed)
                     relatedness_note(thresh, action, n_pairs_above, n_would_remove)
                 })
@@ -379,16 +379,17 @@ mod_processing_server <- function(id, project_data) {
             )
         })
 
-        # ── Depth section (conditional) ────────────────────────────────────────
-        depth_available <- shiny::reactive({
+        # ── Depth section (always shown — placeholder explains unavailable states) ──
+        # Three states written by write_summary.R: not_provided / declared_empty / available.
+        depth_status <- shiny::reactive({
             s <- summary_data()
-            if (nrow(s) == 0) return(FALSE)
+            if (nrow(s) == 0) return("not_provided")
             row <- s[s$step == "processing" & s$metric == "depth_qc", ]
-            nrow(row) > 0 && row$value[1] == "available"
+            if (nrow(row) == 0) return("not_provided")
+            row$value[1]
         })
 
         output$depth_section <- shiny::renderUI({
-            if (!depth_available()) return(NULL)
             htmltools::tagList(
                 mod_image_card_ui(ns("depth")),
                 shiny::br()
@@ -396,12 +397,21 @@ mod_processing_server <- function(id, project_data) {
         })
 
         shiny::observe({
-            shiny::req(depth_available())
             pd <- project_data()
             mod_image_card_server("depth",
                 path    = shiny::reactive(qc_plot_path(pd$name, "depth_distribution.png")),
                 title   = shiny::reactive("Depth Distribution"),
                 dl_name = shiny::reactive(paste0(pd$name, "_depth_distribution")),
+                placeholder = shiny::reactive(switch(depth_status(),
+                    not_provided   = "VCF has no FORMAT/DP field",
+                    declared_empty = "FORMAT/DP is declared but genotype DP values are empty",
+                    "Plot not available"
+                )),
+                suggestion = shiny::reactive(switch(depth_status(),
+                    not_provided   = "Depth QC needs per-genotype DP in the VCF.",
+                    declared_empty = "Typical for GBS — no usable depth values. Re-call with DP populated to enable depth QC.",
+                    NULL
+                )),
                 note    = shiny::reactive({
                     min_d <- config_get(pd$config, "Filter", "min_depth", default = NULL)
                     max_d <- config_get(pd$config, "Filter", "max_depth", default = NULL)

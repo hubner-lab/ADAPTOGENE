@@ -380,6 +380,13 @@ if (HAS_DP && DEPTH_SAMPLE_FILE != 'NULL' && file.exists(DEPTH_SAMPLE_FILE)) {
     depth_s <- fread(DEPTH_SAMPLE_FILE)  # columns: INDV, N_SITES, MEAN_DEPTH
     depth_l <- fread(DEPTH_SITE_FILE)    # columns: CHROM, POS, MEAN_DEPTH
 
+    # GBS VCFs often declare FORMAT/DP in the header but leave per-genotype DP empty ('.'),
+    # which vcftools reports as -nan/0. Skip plot+table entirely rather than write a blank
+    # PNG — Shiny falls back to an explanatory placeholder when these files don't exist.
+    depth_ok <- any(is.finite(depth_s$MEAN_DEPTH) & depth_s$MEAN_DEPTH > 0) &&
+                any(is.finite(depth_l$MEAN_DEPTH) & depth_l$MEAN_DEPTH > 0)
+
+if (depth_ok) {
     # Bin per-site depth for histogram (avoid plotting millions of points)
     depth_l_hist <- depth_l[, .(count = .N), by = .(depth_bin = round(MEAN_DEPTH))]
 
@@ -421,24 +428,27 @@ if (HAS_DP && DEPTH_SAMPLE_FILE != 'NULL' && file.exists(DEPTH_SAMPLE_FILE)) {
     )
     fwrite(depth_summary, file.path(TABLES_DIR, "depth_summary.tsv"), sep = "\t", quote = FALSE)
     message("INFO: Saved depth_distribution.png and depth_summary.tsv")
+} else {
+    message("WARNING: FORMAT/DP is declared in the VCF header but no finite, positive depth values were found (typical for GBS with unpopulated DP) — skipping depth_distribution.png and depth_summary.tsv.")
+}
 }
 
 #=============================================================================
-# 9. RELATEDNESS (IBD PI-HAT) DISTRIBUTION — always drawn
+# 9. RELATEDNESS (IBS ALLELE-SHARING) DISTRIBUTION — always drawn
 #=============================================================================
 if (file.exists(RELATEDNESS_PAIRS)) {
     rel_pairs <- fread(RELATEDNESS_PAIRS)
 } else {
-    rel_pairs <- data.table(IID1 = character(0), IID2 = character(0), PI_HAT = numeric(0))
+    rel_pairs <- data.table(IID1 = character(0), IID2 = character(0), IBS = numeric(0))
 }
 
 if (nrow(rel_pairs) > 0) {
     if (!is.null(PI_HAT_THRESH)) {
         # Pair count above threshold is reported in the Shiny hover note, not on-plot
         # (rule: plots carry only data-derived annotations, not instructional text).
-        p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
+        p_rel <- ggplot(rel_pairs, aes(x = IBS)) +
             geom_histogram(
-                aes(fill = PI_HAT > PI_HAT_THRESH),
+                aes(fill = IBS > PI_HAT_THRESH),
                 binwidth = 0.02, color = "white", linewidth = 0.1
             ) +
             scale_fill_manual(
@@ -448,20 +458,20 @@ if (nrow(rel_pairs) > 0) {
             ) +
             geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = "#333333")
     } else {
-        p_rel <- ggplot(rel_pairs, aes(x = PI_HAT)) +
+        p_rel <- ggplot(rel_pairs, aes(x = IBS)) +
             geom_histogram(binwidth = 0.02, fill = "#4575b4", color = "white", linewidth = 0.1)
     }
 
     p_rel <- p_rel +
         labs(
-            title = "Pairwise relatedness distribution (plink IBD, pi-hat)",
-            x = "Pi-hat (proportion IBD)",
+            title = "Pairwise relatedness distribution (IBS allele-sharing)",
+            x = "IBS (proportion shared alleles)",
             y = "Number of sample pairs"
         ) +
         theme_qc()
     save_plot(p_rel, "relatedness_distribution.png")
 } else {
-    message("WARNING: Relatedness pairs file is empty or missing — skipping relatedness_distribution.png (need >=2 samples for pairwise IBD).")
+    message("WARNING: Relatedness pairs file is empty or missing — skipping relatedness_distribution.png (need >=2 samples for pairwise IBS).")
 }
 
 message("INFO: All QC plots and tables complete.")

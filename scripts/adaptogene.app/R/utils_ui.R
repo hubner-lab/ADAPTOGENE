@@ -193,19 +193,19 @@ filter_note <- function(label, body, class = "bg-secondary", placement = "right"
     bslib::tooltip(trigger, body, placement = placement)
 }
 
-#' Colored hover note for the relatedness (IBD pi-hat) histogram.
+#' Colored hover note for the relatedness (IBS allele-sharing) histogram.
 #'
 #' Replaces the old static caption alert with a compact green/red badge next to the
-#' plot title. Hovering (bslib::tooltip, not a click-popover) reveals the high-selfing
-#' caveat, the pair count, and action-specific guidance (nothing baked into the plot —
+#' plot title. Hovering (bslib::tooltip, not a click-popover) reveals what IBS means,
+#' the pair count, and action-specific guidance (nothing baked into the plot —
 #' data-derived numbers only, per the "instructional text belongs in Shiny" rule).
 #'
 #' Unlike filter_note()'s default neutral badge, this one is green/red because pair
 #' count is a genuine status signal ("related pairs found — look"), not a fixed threshold.
 #'
-#' @param threshold Filter.relatedness pi-hat threshold, or NULL/NA when unset
+#' @param threshold Filter.relatedness IBS threshold, or NULL/NA when unset
 #' @param action Filter.relatedness_action ("keep" or "remove")
-#' @param n_pairs_above number of pairs with pi-hat above threshold (NA if unknown)
+#' @param n_pairs_above number of pairs with IBS above threshold (NA if unknown)
 #' @param n_would_remove number of samples the greedy filter would drop (NA if unknown)
 #' @noRd
 relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
@@ -233,14 +233,15 @@ relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
 
     body <- htmltools::tagList(
         htmltools::p(
-            htmltools::strong("High-selfing species"),
-            " show naturally inflated pi-hat — pick a threshold from the histogram, ",
-            "not the standard outbred 0.2 default."
+            htmltools::strong("IBS"),
+            " = fraction of shared alleles (model-free — works for selfers and outcrossers alike). ",
+            "Selfers show a higher IBS baseline; duplicates/clones cluster near 1.0 — ",
+            "pick a threshold from the histogram."
         ),
         htmltools::p(
             if (is.na(n_pairs_above)) "No pair data available."
             else paste0(n_pairs_above, " pair", if (n_pairs_above != 1) "s" else "",
-                       " above pi-hat > ", threshold, ".")
+                       " above IBS > ", threshold, ".")
         ),
         htmltools::p(action_txt)
     )

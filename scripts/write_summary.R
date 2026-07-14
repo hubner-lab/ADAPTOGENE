@@ -115,10 +115,21 @@ if (MODE == 'processing') {
             n_het_removed <- as.integer(n_before) - as.integer(n_after)
     }
 
-    # Depth info
-    depth_qc_status <- if (HAS_DP == 'TRUE') 'available' else 'not_provided'
+    # Depth info — three states:
+    #   not_provided:   VCF has no FORMAT/DP field
+    #   declared_empty: FORMAT/DP declared but genotype DP values were empty/non-finite
+    #                   (typical for GBS) — plot_qc_processing.R skips depth_summary.tsv in this case
+    #   available:      usable depth values found, depth_summary.tsv was written
+    depth_summary_exists <- HAS_DP == 'TRUE' && DEPTH_SUMMARY != 'NULL' && file.exists(DEPTH_SUMMARY)
+    depth_qc_status <- if (HAS_DP != 'TRUE') {
+        'not_provided'
+    } else if (depth_summary_exists) {
+        'available'
+    } else {
+        'declared_empty'
+    }
 
-    # Relatedness (IBD pi-hat) removal count — 0 unless Filter.relatedness_action is 'remove'.
+    # Relatedness (IBS allele-sharing) removal count — 0 unless Filter.relatedness_action is 'remove'.
     # relatedness_removed.tsv is always computed once a threshold is set (even in 'keep' mode,
     # for the Shiny hover-note preview), so gate on the action here to avoid reporting samples
     # as "removed" when they were only previewed.
@@ -143,7 +154,7 @@ if (MODE == 'processing') {
     )
 
     # Append depth stats if available
-    if (HAS_DP == 'TRUE' && DEPTH_SUMMARY != 'NULL' && file.exists(DEPTH_SUMMARY)) {
+    if (depth_summary_exists) {
         depth_dt <- fread(DEPTH_SUMMARY)
         for (i in seq_len(nrow(depth_dt))) {
             new_rows <- rbind(new_rows, row('processing', depth_dt$metric[i], depth_dt$value[i]))

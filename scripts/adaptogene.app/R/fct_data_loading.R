@@ -30,7 +30,7 @@ load_sample_heterozygosity <- function(project) {
     )
 }
 
-#' Load relatedness pairs table (plink IBD pi-hat, always produced by Processing)
+#' Load relatedness pairs table (plink IBS allele-sharing, always produced by Processing)
 #' @noRd
 load_relatedness_pairs <- function(project) {
     p <- qc_table_path(project, "relatedness_pairs.tsv")

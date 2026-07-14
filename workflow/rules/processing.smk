@@ -127,12 +127,14 @@ if HET_OUTLIER_SD is not None:
             """
 
 rule compute_relatedness:
-    """Compute pairwise IBD (plink --genome, PI_HAT) on LD-pruned genotypes (filtered/het-filtered samples).
-    Always runs — feeds the relatedness QC histogram so the user can pick a sensible threshold.
-    Sample removal only happens when Filter.relatedness is set AND Filter.relatedness_action is
-    'remove' (see relatedness_filter below; default action is 'keep' — visualize/count only).
-    NOTE: high-selfing plant species show naturally inflated pi-hat — the standard outbred
-    0.2 cutoff is often wrong here; choose a threshold from the histogram instead."""
+    """Compute pairwise IBS allele-sharing (plink --genome, DST) on LD-pruned genotypes
+    (filtered/het-filtered samples). Always runs — feeds the relatedness QC histogram so the
+    user can pick a sensible threshold. Sample removal only happens when Filter.relatedness is
+    set AND Filter.relatedness_action is 'remove' (see relatedness_filter below; default action
+    is 'keep' — visualize/count only).
+    NOTE: IBS is model-free (no Hardy-Weinberg/outbred assumption), so it works for both
+    high-selfing and outcrossing species — unlike pi-hat, which collapses under high selfing.
+    Selfers show a higher IBS baseline overall; duplicates/clones cluster near 1.0."""
     input:
         vcf     = f"{INDIR}{VCF_RAW}",
         samples = W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']
@@ -155,19 +157,19 @@ rule compute_relatedness:
             --extract {params.prefix}.prune.in \
             --genome --out {params.prefix} >> {log} 2>&1
 
-        echo -e "IID1\tIID2\tPI_HAT" > {output.pairs}
-        tail -n +2 {params.prefix}.genome | awk '{{print $2"\t"$4"\t"$10}}' >> {output.pairs}
+        echo -e "IID1\tIID2\tIBS" > {output.pairs}
+        tail -n +2 {params.prefix}.genome | awk '{{print $2"\t"$4"\t"$12}}' >> {output.pairs}
         cp {params.prefix}.genome {output.genome}
 
         n_pairs=$(tail -n +2 {output.pairs} | wc -l)
-        echo "WARNING: Relatedness (IBD) computed for $n_pairs sample pairs. High-selfing species show naturally inflated pi-hat — set Filter.relatedness from the histogram (Processing QC), not the standard outbred 0.2 default." >> {log}
+        echo "WARNING: Relatedness (IBS allele-sharing) computed for $n_pairs sample pairs. Set Filter.relatedness from the histogram (Processing QC) — duplicates/clones cluster near 1.0." >> {log}
 
         rm -f {params.prefix}.nosex {params.prefix}.log {params.prefix}.hh {params.prefix}.prune.in {params.prefix}.prune.out {params.prefix}.genome
         """
 
 if PI_HAT is not None:
     rule relatedness_filter:
-        """Compute which related samples (plink pi-hat) would be dropped above the configured
+        """Compute which related samples (IBS allele-sharing) would be dropped above the configured
         threshold. Always runs when Filter.relatedness is set (even in 'keep' mode) so the Shiny
         hover note can preview the removal count. For each over-threshold pair, drops the member
         with higher missingness (simple pairwise rule — does not attempt maximal-set optimization).
@@ -191,16 +193,16 @@ if PI_HAT is not None:
             tail -n +2 {input.pairs} | awk -v thresh={params.thresh} '$3 > thresh' | sort -k3,3gr > {params.tmp_pairs}
 
             awk -v thresh={params.thresh} -v removed_out={output.removed} '
-            BEGIN {{ OFS="\t"; file_num = 0; print "IID\tPI_HAT\tF_MISS" > removed_out }}
+            BEGIN {{ OFS="\t"; file_num = 0; print "IID\tIBS\tF_MISS" > removed_out }}
             FNR==1 {{ file_num++ }}
             file_num==1 {{ fmiss[$2]=$6; next }}
             file_num==2 {{ keep[$2]=1; fid[$2]=$1; order[++n]=$2; next }}
             file_num==3 {{
-                iid1=$1; iid2=$2; pihat=$3
+                iid1=$1; iid2=$2; ibs=$3
                 if (keep[iid1]==1 && keep[iid2]==1) {{
                     if (fmiss[iid1]+0 >= fmiss[iid2]+0) {{ drop=iid1 }} else {{ drop=iid2 }}
                     keep[drop]=0
-                    print drop, pihat, fmiss[drop] >> removed_out
+                    print drop, ibs, fmiss[drop] >> removed_out
                 }}
             }}
             END {{
@@ -210,7 +212,7 @@ if PI_HAT is not None:
                     if (keep[iid]==1) print fid[iid], iid
                     else n_removed++
                 }}
-                print "WARNING: Relatedness filter (pi-hat>" thresh "): removed " n_removed " related samples" > "/dev/stderr"
+                print "WARNING: Relatedness filter (IBS>" thresh "): removed " n_removed " related samples" > "/dev/stderr"
             }}
             ' {params.tmp_imiss} {input.samples} {params.tmp_pairs} > {output.filtered} 2>> {log}
 
