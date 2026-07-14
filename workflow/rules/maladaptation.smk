@@ -52,8 +52,7 @@ if CLIMATE_SOURCE == 'worldclim':
             na_excluded = O['climate_future_na_excluded']
         params:
             raster_str = lambda wc, input: ','.join(input.model_rasters),
-            n_models = len(MODELS_LIST),
-            na_action = CLIMATE_NA_ACTION
+            n_models = len(MODELS_LIST)
         log: f"{LOGDIR}maladaptation/merge_climate_future.log"
         shell:
             """
@@ -61,7 +60,7 @@ if CLIMATE_SOURCE == 'worldclim':
                 {input.samples} {params.raster_str} {params.n_models} \
                 {input.present_raster} {input.present_all} \
                 {output.raster} {output.all_vals} {output.site_vals} \
-                {output.na_excluded} {params.na_action} > {log} 2>&1
+                {output.na_excluded} > {log} 2>&1
             """
 else:
     rule stage_custom_climate_future:

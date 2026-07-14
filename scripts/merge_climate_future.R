@@ -13,7 +13,6 @@ OUTPUT_RASTER = args[6]
 OUTPUT_ALL = args[7]
 OUTPUT_SITE = args[8]
 OUTPUT_NA_EXCLUDED = args[9]
-NA_ACTION = args[10]    # 'stop' (default, fail-loud) | 'warn' (exclude NA-climate samples, see below)
 #################################
 
 # Approximate distance (km) from an NA point to the nearest non-NA cell -- see
@@ -116,8 +115,8 @@ clim_future_site <- terra::extract(clim_future, coords)[, -1] %>% as.data.frame
 # Validate: check for samples with NA future climate values. SAMPLES is already narrowed to
 # the climate-valid tier upstream (metadata_climate_valid), so this is normally a no-op defense
 # check -- it only fires on a residual future-only NA (e.g. a different NoData mask in a CMIP6
-# model raster than in the present-climate raster). Same stop/warn treatment as
-# download_climate_present.R.
+# model raster than in the present-climate raster). Always excluded, never a hard stop -- same
+# treatment as download_climate_present.R.
 na_rows <- which(rowSums(is.na(clim_future_site)) > 0)
 
 excluded_dt <- data.table(sample = character(), site = character(), latitude = numeric(),
@@ -127,8 +126,7 @@ if (length(na_rows) > 0) {
     bad_samples <- samples[na_rows, ]
     reasons <- character(nrow(bad_samples))
     distances <- rep(NA_real_, nrow(bad_samples))
-    message(if (NA_ACTION == 'warn') "WARNING: Future climate extraction returned NA for the following samples:"
-            else "ERROR: Future climate extraction returned NA for the following samples:")
+    message("WARNING: Future climate extraction returned NA for the following samples:")
     for (i in seq_len(nrow(bad_samples))) {
         is_placeholder <- bad_samples$latitude[i] == 0 && bad_samples$longitude[i] == 0
         reasons[i] <- if (is_placeholder) "likely placeholder (0,0)" else "falls on ocean/NoData pixel"
@@ -142,16 +140,9 @@ if (length(na_rows) > 0) {
                        ") at (", bad_samples$latitude[i], ", ", bad_samples$longitude[i], "): ", reasons[i], dist_msg))
     }
 
-    if (NA_ACTION != 'warn') {
-        stop(paste0("Future climate extraction failed for ", length(na_rows), " samples. ",
-                    "Fix coordinates in input metadata or remove these samples. ",
-                    "(Or set Climate.na_action: warn to auto-exclude them from climate-dependent ",
-                    "steps only -- they stay in GWAS/phenotype/structure/PCA/sNMF.)"))
-    }
-
     warning(paste0("Future climate extraction returned NA for ", length(na_rows), " sample(s) -- ",
-                   "excluding from climate-VALUE-dependent steps (Climate.na_action=warn). ",
-                   "See the future climate_na_excluded table."))
+                   "excluding from climate-VALUE-dependent steps. See the future ",
+                   "climate_na_excluded table. Fix coordinates in input metadata if unexpected."))
 
     excluded_dt <- data.table(sample = bad_samples$sample, site = bad_samples$site,
                               latitude = bad_samples$latitude, longitude = bad_samples$longitude,

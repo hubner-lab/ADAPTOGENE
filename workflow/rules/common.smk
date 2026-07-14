@@ -138,12 +138,6 @@ CLIMATE_ENABLED = _cfg_bool('Climate', 'enabled', True)
 PREDICTORS_SELECTED = _cfg('Climate', 'predictors', '') if CLIMATE_ENABLED else ''
 CLIMATE_SOURCE = _cfg('Climate', 'source', 'worldclim')
 check_in_list(CLIMATE_SOURCE, ['worldclim', 'custom'], 'Climate.source')
-# na_action gates what happens when a coord-valid sample's raster extraction returns NA
-# (e.g. an ocean/NoData pixel): 'stop' (default) halts the run; 'warn' excludes the sample
-# from climate-VALUE-dependent steps only (GEA/gradient_forest/geometric_offset/Mantel),
-# never from GWAS/phenotype/structure/PCA/sNMF. Mirrors Filter.relatedness_action's shape.
-CLIMATE_NA_ACTION = str(_cfg('Climate', 'na_action', 'stop')).lower()
-check_in_list(CLIMATE_NA_ACTION, ['stop', 'warn'], 'Climate.na_action')
 _clim_custom = config.get('Climate', {}).get('custom', {}) if CLIMATE_SOURCE == 'custom' else {}
 CUSTOM_PRESENT_TABLE   = f"{INDIR}{_clim_custom.get('present_table', '')}"  if CLIMATE_SOURCE == 'custom' else ''
 CUSTOM_FUTURE_TABLE    = f"{INDIR}{_clim_custom.get('future_table',  '')}"  if CLIMATE_SOURCE == 'custom' else ''
@@ -502,12 +496,12 @@ W = {
     'coord_valid_samples': f"{INTER}samples/coord_valid_samples.list",
     'metadata_climate': f"{INTER}samples/metadata_climate.tsv",
     # Climate-valid subset: coord-valid samples further narrowed by filter_climate_valid_samples
-    # to exclude samples whose raster extraction returned NA (e.g. ocean/NoData pixel), only when
-    # Climate.na_action=warn (see download_climate_present.R). Feeds every climate-VALUE-dependent
-    # rule (GEA/gradient_forest/geometric_offset/Mantel); coordinate-only rules (IBD, piemaps) stay
-    # on the wider coord_valid_samples/metadata_climate. na_action only applies to CLIMATE_SOURCE
-    # 'worldclim' (custom climate can't produce ocean-NA by construction) — for 'custom', these
-    # alias directly to the coord-valid paths so consumers don't need source-specific branching.
+    # to always exclude samples whose raster extraction returned NA (e.g. ocean/NoData pixel;
+    # see download_climate_present.R). Feeds every climate-VALUE-dependent rule (GEA/
+    # gradient_forest/geometric_offset/Mantel); coordinate-only rules (IBD, piemaps) stay on the
+    # wider coord_valid_samples/metadata_climate. Only applies to CLIMATE_SOURCE 'worldclim'
+    # (custom climate can't produce ocean-NA by construction) — for 'custom', these alias
+    # directly to the coord-valid paths so consumers don't need source-specific branching.
     'climate_valid_samples': (f"{INTER}samples/climate_valid_samples.list" if CLIMATE_SOURCE == 'worldclim'
                                else f"{INTER}samples/coord_valid_samples.list"),
     'metadata_climate_valid': (f"{INTER}samples/metadata_climate_valid.tsv" if CLIMATE_SOURCE == 'worldclim'

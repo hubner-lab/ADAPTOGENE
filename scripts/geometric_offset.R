@@ -123,10 +123,10 @@ message(paste0('INFO: Site rows: ', n_site,
 
 # Defense-in-depth: env_site_pres/env_site_fut and lfmm_imp are all supposed to already be
 # row-aligned to the same climate-valid sample set (subset_lfmm_climate + the climate_site
-# tables narrowed by download_climate_present/merge_climate_future under Climate.na_action=
-# warn). This should never fire -- if it does, something upstream desynced the sample sets and
-# feeding mismatched rows into LEA::genetic.gap() would silently bind the wrong sample's
-# genotypes to the wrong climate values. Fail loud instead.
+# tables narrowed by download_climate_present/merge_climate_future). This should never fire --
+# if it does, something upstream desynced the sample sets and feeding mismatched rows into
+# LEA::genetic.gap() would silently bind the wrong sample's genotypes to the wrong climate
+# values. Fail loud instead.
 if (nrow(env_site_fut) != n_site || nrow(lfmm_imp) != n_site) {
     stop(paste0('FATAL: Sample-count mismatch between climate and genotype inputs -- ',
                 'env_site_pres has ', n_site, ' rows, env_site_fut has ', nrow(env_site_fut),

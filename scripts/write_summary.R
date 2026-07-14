@@ -204,9 +204,8 @@ if (MODE == 'processing') {
     }
 
     # Climate-NA exclusions (samples whose raster extraction returned NA, e.g. ocean/NoData
-    # pixel) -- mirrors the processing-mode coord-missing summary. Only non-zero when
-    # Climate.na_action=warn; always 0 under the default stop (the pipeline halts before this
-    # rule would even see NA rows).
+    # pixel) -- mirrors the processing-mode coord-missing summary. Zero when no sample hits an
+    # ocean/NoData pixel, the common case.
     if (CLIMATE_NA_EXCLUDED != 'NULL' && file.exists(CLIMATE_NA_EXCLUDED)) {
         na_excl <- fread(CLIMATE_NA_EXCLUDED)
         new_rows <- rbind(new_rows, row('structure', 'samples_excluded_climate_na', nrow(na_excl)))

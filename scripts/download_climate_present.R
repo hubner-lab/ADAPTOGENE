@@ -12,7 +12,6 @@ DATA_DIR = args[4]      # directory for storing downloaded climate data
 RESOLUTION = args[5] %>% as.numeric
 RASTER_DIR = args[6]    # for raster output
 TABLES_DIR = args[7]    # for tsv outputs
-NA_ACTION = args[8]     # 'stop' (default, fail-loud) | 'warn' (exclude NA-climate samples, see below)
 #################################
 
 #################################### Functions
@@ -188,11 +187,10 @@ message('INFO: Loading climate present data complete, saving to the disk')
 message(clim_present %>% str)
 
 # Validate: check for samples with NA climate values (e.g. a coordinate landing on an
-# ocean/NoData raster pixel). Climate.na_action=stop (default) halts the run so the user can
-# inspect/fix coordinates. Climate.na_action=warn excludes those samples from climate-VALUE-
-# dependent steps only (GEA/gradient_forest/geometric_offset/Mantel) -- see
-# filter_climate_valid_samples -- while keeping them in GWAS/phenotype/structure/PCA/sNMF and
-# coordinate-only plotting (IBD, piemaps).
+# ocean/NoData raster pixel). Always excluded from climate-VALUE-dependent steps only
+# (GEA/gradient_forest/geometric_offset/Mantel) -- see filter_climate_valid_samples -- while
+# staying in GWAS/phenotype/structure/PCA/sNMF and coordinate-only plotting (IBD, piemaps).
+# Never a hard stop: the user can fix coordinates or ignore it (see climate_na_excluded.tsv).
 site_values <- clim_present$SiteValues
 na_rows <- which(rowSums(is.na(site_values)) > 0)
 
@@ -203,8 +201,7 @@ if (length(na_rows) > 0) {
     bad_samples <- samples[na_rows, ]
     reasons <- character(nrow(bad_samples))
     distances <- rep(NA_real_, nrow(bad_samples))
-    message(if (NA_ACTION == 'warn') "WARNING: Climate extraction returned NA for the following samples:"
-            else "ERROR: Climate extraction returned NA for the following samples:")
+    message("WARNING: Climate extraction returned NA for the following samples:")
     for (i in seq_len(nrow(bad_samples))) {
         is_placeholder <- bad_samples$latitude[i] == 0 && bad_samples$longitude[i] == 0
         reasons[i] <- if (is_placeholder) "likely placeholder (0,0)" else "falls on ocean/NoData pixel"
@@ -219,16 +216,9 @@ if (length(na_rows) > 0) {
                        ") at (", bad_samples$latitude[i], ", ", bad_samples$longitude[i], "): ", reasons[i], dist_msg))
     }
 
-    if (NA_ACTION != 'warn') {
-        stop(paste0("Climate extraction failed for ", length(na_rows), " samples. ",
-                    "Fix coordinates in input metadata or remove these samples. ",
-                    "(Or set Climate.na_action: warn to auto-exclude them from climate-dependent ",
-                    "steps only -- they stay in GWAS/phenotype/structure/PCA/sNMF.)"))
-    }
-
     warning(paste0("Climate extraction returned NA for ", length(na_rows), " sample(s) -- ",
-                   "excluding from climate-VALUE-dependent steps (Climate.na_action=warn). ",
-                   "See climate_na_excluded.tsv."))
+                   "excluding from climate-VALUE-dependent steps. See climate_na_excluded.tsv. ",
+                   "Fix coordinates in input metadata if this is unexpected."))
 
     excluded_dt <- data.table(sample = bad_samples$sample, site = bad_samples$site,
                               latitude = bad_samples$latitude, longitude = bad_samples$longitude,

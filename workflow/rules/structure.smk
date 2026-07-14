@@ -30,9 +30,9 @@ if CLIMATE_SOURCE == 'worldclim':
         """Download and process present climate data for sampling locations.
         Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples).
         Always emits climate_na_excluded.tsv (empty when clean) diagnosing any sample whose
-        raster extraction returned NA (e.g. ocean/NoData pixel). Climate.na_action=stop
-        (default) halts the run on NA; na_action=warn excludes those samples from
-        climate-VALUE-dependent steps only (see filter_climate_valid_samples below)."""
+        raster extraction returned NA (e.g. ocean/NoData pixel) and always excludes those
+        samples from climate-VALUE-dependent steps only (see filter_climate_valid_samples
+        below) -- never a hard stop; the user can fix coordinates or ignore it."""
         input:  meta = W['metadata_climate']
         output:
             site = O['climate_site'],
@@ -46,21 +46,19 @@ if CLIMATE_SOURCE == 'worldclim':
             resolution = RESOLUTION,
             data_dir = f"{INDIR}",
             raster_dir = f"{MOD_CLIMATE}rasters/present/",
-            tables_dir = f"{MOD_CLIMATE}tables/present/",
-            na_action = CLIMATE_NA_ACTION
+            tables_dir = f"{MOD_CLIMATE}tables/present/"
         log: f"{LOGDIR}structure/download_climate_present.log"
         shell:
             """
             Rscript /pipeline/scripts/download_climate_present.R \
                 {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
-                {params.raster_dir} {params.tables_dir} {params.na_action} > {log} 2>&1
+                {params.raster_dir} {params.tables_dir} > {log} 2>&1
             """
 
     rule filter_climate_valid_samples:
         """Further narrow coord-valid samples to exclude any whose raster climate extraction
         returned NA (see download_climate_present). No-op (climate-valid == coord-valid) when
-        climate_na_excluded.tsv is empty -- always true when Climate.na_action=stop, since the
-        pipeline halts before this rule's inputs would exist with any NA rows."""
+        climate_na_excluded.tsv is empty -- the common case, no samples excluded."""
         input:
             coord_samples = W['coord_valid_samples'],
             meta          = W['metadata_climate'],

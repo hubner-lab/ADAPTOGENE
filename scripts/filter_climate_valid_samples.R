@@ -1,11 +1,9 @@
 #!/usr/bin/env Rscript
 # Further narrow the coord-valid sample set to exclude samples whose raster climate
-# extraction returned NA (e.g. a coordinate landing on an ocean/NoData pixel), when
-# Climate.na_action=warn (see download_climate_present.R). No-op (output == input)
-# when climate_na_excluded.tsv is empty -- the common case, and always the case when
-# Climate.na_action=stop (the pipeline halts before this rule's inputs would exist).
-# Samples excluded here are NOT removed from metadata.tsv/metadata_climate.tsv; they
-# remain available to GWAS/phenotype/structure/PCA/sNMF and coordinate-only plotting
+# extraction returned NA (e.g. a coordinate landing on an ocean/NoData pixel), reported by
+# download_climate_present.R. No-op (output == input) when climate_na_excluded.tsv is empty --
+# the common case. Samples excluded here are NOT removed from metadata.tsv/metadata_climate.tsv;
+# they remain available to GWAS/phenotype/structure/PCA/sNMF and coordinate-only plotting
 # (IBD, piemaps), which keep using the wider coord-valid set.
 
 library(data.table)
