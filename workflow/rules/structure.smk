@@ -28,26 +28,52 @@ rule lfmm2vcf_ld:
 if CLIMATE_SOURCE == 'worldclim':
     rule download_climate_present:
         """Download and process present climate data for sampling locations.
-        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples).
+        Always emits climate_na_excluded.tsv (empty when clean) diagnosing any sample whose
+        raster extraction returned NA (e.g. ocean/NoData pixel). Climate.na_action=stop
+        (default) halts the run on NA; na_action=warn excludes those samples from
+        climate-VALUE-dependent steps only (see filter_climate_valid_samples below)."""
         input:  meta = W['metadata_climate']
         output:
             site = O['climate_site'],
             site_scaled = O['climate_site_scaled'],
             all_vals = O['climate_all'],
-            raster = W['climate_raster']
+            raster = W['climate_raster'],
+            excluded = O['climate_na_excluded']
         params:
             crop = CLIMATE_EXTENT,
             gap = GAP,
             resolution = RESOLUTION,
             data_dir = f"{INDIR}",
             raster_dir = f"{MOD_CLIMATE}rasters/present/",
-            tables_dir = f"{MOD_CLIMATE}tables/present/"
+            tables_dir = f"{MOD_CLIMATE}tables/present/",
+            na_action = CLIMATE_NA_ACTION
         log: f"{LOGDIR}structure/download_climate_present.log"
         shell:
             """
             Rscript /pipeline/scripts/download_climate_present.R \
                 {input.meta} {params.crop} {params.gap} {params.data_dir} {params.resolution} \
-                {params.raster_dir} {params.tables_dir} > {log} 2>&1
+                {params.raster_dir} {params.tables_dir} {params.na_action} > {log} 2>&1
+            """
+
+    rule filter_climate_valid_samples:
+        """Further narrow coord-valid samples to exclude any whose raster climate extraction
+        returned NA (see download_climate_present). No-op (climate-valid == coord-valid) when
+        climate_na_excluded.tsv is empty -- always true when Climate.na_action=stop, since the
+        pipeline halts before this rule's inputs would exist with any NA rows."""
+        input:
+            coord_samples = W['coord_valid_samples'],
+            meta          = W['metadata_climate'],
+            excluded      = O['climate_na_excluded']
+        output:
+            samples_list = W['climate_valid_samples'],
+            metadata     = W['metadata_climate_valid']
+        log: f"{LOGDIR}structure/filter_climate_valid_samples.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/filter_climate_valid_samples.R \
+                {input.coord_samples} {input.meta} {input.excluded} \
+                {output.samples_list} {output.metadata} > {log} 2>&1
             """
 else:
     rule stage_custom_climate_present:
@@ -157,8 +183,13 @@ rule ibd:
         """
 
 rule correlation_heatmap:
-    """Generate correlation heatmap of climate variables and traits."""
-    input:  climate = O['climate_site'], meta = O['metadata']
+    """Generate correlation heatmap of climate variables and traits.
+    Uses metadata_climate_valid.tsv (climate-valid samples) -- plot_correlation_heatmap.R
+    cbind()s climate values to trait columns positionally, so meta must have the same row
+    count/order as climate (bonus fix: was O['metadata'], the full cohort, which silently
+    misaligned whenever any sample had missing coordinates -- a pre-existing bug independent
+    of the climate-NA warn-and-exclude feature this rule is now consistent with)."""
+    input:  climate = O['climate_site'], meta = W['metadata_climate_valid']
     output: O['corr_heatmap']
     params: inter_dir = INTER
     log:    f"{LOGDIR}structure/correlation_heatmap.log"
@@ -170,8 +201,10 @@ rule correlation_heatmap:
 
 rule mantel_test:
     """Perform Mantel test for IBD/IBE.
-    Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
-    input:  meta = W['metadata_climate'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
+    Uses metadata_climate_valid.tsv (climate-valid samples, see filter_climate_valid_samples) --
+    mantel_test.R's own complete.cases(env) guard drops geo/clust in lockstep with env, which
+    requires meta and climate to already have the same row count/order."""
+    input:  meta = W['metadata_climate_valid'], climate = O['climate_site'], clusters = clusters_table(K_BEST)
     output: O['mantel']
     params:
         predictors = ALL_BIO_STR,

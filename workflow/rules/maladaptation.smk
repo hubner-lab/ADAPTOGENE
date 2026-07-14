@@ -36,26 +36,32 @@ if CLIMATE_SOURCE == 'worldclim':
     # Merge per-model rasters into averaged future climate
     rule merge_climate_future:
         """Average future climate across models and extract site values.
-        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        Uses metadata_climate_valid.tsv (climate-valid samples -- already narrowed by
+        filter_climate_valid_samples to exclude any present-climate NA/ocean-pixel samples;
+        see download_climate_present). Still runs its own NA check as defense-in-depth against
+        a residual future-only NA (e.g. a different NoData mask in a CMIP6 model raster)."""
         input:
-            samples = W['metadata_climate'],
+            samples = W['metadata_climate_valid'],
             model_rasters = [f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif" for model in MODELS_LIST],
             present_raster = W['climate_raster'],
             present_all = O['climate_all']
         output:
             raster = W['climate_future_raster'],
             all_vals = O['climate_future_all'],
-            site_vals = O['climate_future_site']
+            site_vals = O['climate_future_site'],
+            na_excluded = O['climate_future_na_excluded']
         params:
             raster_str = lambda wc, input: ','.join(input.model_rasters),
-            n_models = len(MODELS_LIST)
+            n_models = len(MODELS_LIST),
+            na_action = CLIMATE_NA_ACTION
         log: f"{LOGDIR}maladaptation/merge_climate_future.log"
         shell:
             """
             Rscript /pipeline/scripts/merge_climate_future.R \
                 {input.samples} {params.raster_str} {params.n_models} \
                 {input.present_raster} {input.present_all} \
-                {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
+                {output.raster} {output.all_vals} {output.site_vals} \
+                {output.na_excluded} {params.na_action} > {log} 2>&1
             """
 else:
     rule stage_custom_climate_future:
@@ -107,7 +113,7 @@ rule gradient_forest_adaptive:
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
-        samples = W['metadata_climate'],
+        samples = W['metadata_climate_valid'],
         climate = O['climate_site']
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive')
     params:
@@ -133,7 +139,7 @@ rule gradient_forest_random:
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
-        samples = W['metadata_climate'],
+        samples = W['metadata_climate_valid'],
         climate = O['climate_site']
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random')
     params:
@@ -159,7 +165,7 @@ rule gradient_forest_offset:
         future_all     = O['climate_future_all'],
         present_all    = O['climate_all'],
         present_raster = W['climate_raster'],
-        samples        = W['metadata_climate']
+        samples        = W['metadata_climate_valid']
     output:
         raster      = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
         map_values  = mala_offset_map_values('gradient_forest', '{run_label}', '{spatial_tag}'),
@@ -191,7 +197,7 @@ rule geometric_offset:
         env_all_pres   = O['climate_all'],
         env_all_fut    = O['climate_future_all'],
         pres_raster    = W['climate_raster'],
-        samples        = W['metadata_climate']
+        samples        = W['metadata_climate_valid']
     output:
         site_values = mala_offset_site_values('geometric_offset', '{run_label}', '{spatial_tag}'),
         map_values  = mala_offset_map_values('geometric_offset', '{run_label}', '{spatial_tag}'),
@@ -279,7 +285,7 @@ rule plot_gf_offset_piemap:
     wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
         offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
-        samples       = W['metadata_climate'],
+        samples       = W['metadata_climate_valid'],
         clusters      = clusters_table(K_BEST),
         trait_file    = _piemap_trait_input
     output: mala_offset_piemap('{method}', '{run_label}', '{spatial_tag}', '{size_trait}')

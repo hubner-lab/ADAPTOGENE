@@ -62,12 +62,14 @@ elif MODE == 'structure':
         """Write structure mode summary to Pipeline_summary.tsv."""
         input:
             climate_site = O['climate_site'] if CLIMATE_ENABLED else [],
+            climate_na_excluded = O['climate_na_excluded'] if CLIMATE_ENABLED and CLIMATE_SOURCE == 'worldclim' else [],
             ld_decay = O['ld_decay_table']
         output: W['summary_done']
         params:
             k = K_BEST,
             predictors = ALL_BIO_STR if CLIMATE_ENABLED else 'NULL',
             climate_site_path = O['climate_site'] if CLIMATE_ENABLED else 'NULL',
+            climate_na_excluded_path = O['climate_na_excluded'] if CLIMATE_ENABLED and CLIMATE_SOURCE == 'worldclim' else 'NULL',
             summary_tsv = O['summary'],
             ld_decay_path = O['ld_decay_table'],
             ld_decay_group_by = LD_DECAY_GROUP_BY,
@@ -78,7 +80,8 @@ elif MODE == 'structure':
             Rscript /pipeline/scripts/write_summary.R \
                 structure {params.summary_tsv} \
                 {params.k} {params.climate_site_path} {params.predictors} \
-                {params.ld_decay_path} {params.ld_decay_group_by} {params.ld_decay_scope} > {log} 2>&1
+                {params.ld_decay_path} {params.ld_decay_group_by} {params.ld_decay_scope} \
+                {params.climate_na_excluded_path} > {log} 2>&1
             touch {output}
             """
 

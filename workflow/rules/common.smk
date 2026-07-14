@@ -138,6 +138,12 @@ CLIMATE_ENABLED = _cfg_bool('Climate', 'enabled', True)
 PREDICTORS_SELECTED = _cfg('Climate', 'predictors', '') if CLIMATE_ENABLED else ''
 CLIMATE_SOURCE = _cfg('Climate', 'source', 'worldclim')
 check_in_list(CLIMATE_SOURCE, ['worldclim', 'custom'], 'Climate.source')
+# na_action gates what happens when a coord-valid sample's raster extraction returns NA
+# (e.g. an ocean/NoData pixel): 'stop' (default) halts the run; 'warn' excludes the sample
+# from climate-VALUE-dependent steps only (GEA/gradient_forest/geometric_offset/Mantel),
+# never from GWAS/phenotype/structure/PCA/sNMF. Mirrors Filter.relatedness_action's shape.
+CLIMATE_NA_ACTION = str(_cfg('Climate', 'na_action', 'stop')).lower()
+check_in_list(CLIMATE_NA_ACTION, ['stop', 'warn'], 'Climate.na_action')
 _clim_custom = config.get('Climate', {}).get('custom', {}) if CLIMATE_SOURCE == 'custom' else {}
 CUSTOM_PRESENT_TABLE   = f"{INDIR}{_clim_custom.get('present_table', '')}"  if CLIMATE_SOURCE == 'custom' else ''
 CUSTOM_FUTURE_TABLE    = f"{INDIR}{_clim_custom.get('future_table',  '')}"  if CLIMATE_SOURCE == 'custom' else ''
@@ -495,6 +501,17 @@ W = {
     # Coord-valid subset (samples with non-NA latitude/longitude) - feeds climate/GEA/piemap paths
     'coord_valid_samples': f"{INTER}samples/coord_valid_samples.list",
     'metadata_climate': f"{INTER}samples/metadata_climate.tsv",
+    # Climate-valid subset: coord-valid samples further narrowed by filter_climate_valid_samples
+    # to exclude samples whose raster extraction returned NA (e.g. ocean/NoData pixel), only when
+    # Climate.na_action=warn (see download_climate_present.R). Feeds every climate-VALUE-dependent
+    # rule (GEA/gradient_forest/geometric_offset/Mantel); coordinate-only rules (IBD, piemaps) stay
+    # on the wider coord_valid_samples/metadata_climate. na_action only applies to CLIMATE_SOURCE
+    # 'worldclim' (custom climate can't produce ocean-NA by construction) — for 'custom', these
+    # alias directly to the coord-valid paths so consumers don't need source-specific branching.
+    'climate_valid_samples': (f"{INTER}samples/climate_valid_samples.list" if CLIMATE_SOURCE == 'worldclim'
+                               else f"{INTER}samples/coord_valid_samples.list"),
+    'metadata_climate_valid': (f"{INTER}samples/metadata_climate_valid.tsv" if CLIMATE_SOURCE == 'worldclim'
+                                else f"{INTER}samples/metadata_climate.tsv"),
     # Row-subset LFMM-format matrices matching the coord-valid sample set (see subset_lfmm_climate
     # in processing.smk). EMMAX/LFMM/gradient_forest/geometric_offset all bind climate values to
     # genotype-matrix rows positionally, so once climate drops coord-missing samples these must match.
@@ -593,6 +610,7 @@ W['ld_decay_chr_done']    = _ph('ld_decay_chr_done')
 O['climate_site']         = _ph('climate_site')
 O['climate_site_scaled']  = _ph('climate_site_scaled')
 O['climate_all']          = _ph('climate_all')
+O['climate_na_excluded']  = _ph('climate_na_excluded')
 O['climate_invariant']    = _ph('climate_invariant')
 O['tajima']               = _ph('tajima')
 O['pi_div']               = _ph('pi_div')
@@ -639,6 +657,7 @@ O['qq_combined']          = _ph('qq_combined')
 W['climate_future_raster']= _ph('climate_future_raster')
 O['climate_future_all']   = _ph('climate_future_all')
 O['climate_future_site']  = _ph('climate_future_site')
+O['climate_future_na_excluded'] = _ph('climate_future_na_excluded')
 O['density_future']       = _ph('density_future')
 
 def add_kbest_paths():
@@ -657,6 +676,7 @@ def add_kbest_paths():
     O['climate_site'] = f"{MOD_CLIMATE}tables/present/climate_present_site.tsv"
     O['climate_site_scaled'] = f"{MOD_CLIMATE}tables/present/climate_present_site_scaled.tsv"
     O['climate_all'] = f"{MOD_CLIMATE}tables/present/climate_present_all.tsv"
+    O['climate_na_excluded'] = f"{MOD_CLIMATE}tables/present/climate_na_excluded.tsv"
     O['climate_invariant'] = f"{MOD_CLIMATE}tables/present/climate_invariant_predictors.tsv"
     # Tables - structure_k/population stats
     O['tajima'] = f"{MOD_STRUCT}tables/pop_stats/tajima_d_by_pop.tsv"
@@ -911,6 +931,7 @@ def add_maladaptation_paths():
     W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.tif"
     O['climate_future_all'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_all.tsv"
     O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
+    O['climate_future_na_excluded'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_na_excluded.tsv"
 
     # Future climate density plot (method-agnostic)
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"

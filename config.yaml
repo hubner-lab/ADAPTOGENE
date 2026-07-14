@@ -59,6 +59,11 @@ Map:
 Climate:
   enabled: true                    # Set false to skip all climate-dependent analysis (GEA, maladaptation)
   predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
+  na_action: stop                  # stop (default, fail-loud) | warn (exclude NA-climate samples — e.g. coordinates
+                                    # landing on an ocean/NoData raster pixel — from climate-VALUE-dependent steps
+                                    # only: GEA, gradient_forest, geometric_offset, Mantel. Never removes samples
+                                    # from GWAS/phenotype/structure/PCA/sNMF. Default stop halts the pipeline so
+                                    # you can inspect/fix coordinates rather than silently dropping data.
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS: Population-level statistics (require >=3 samples per population)

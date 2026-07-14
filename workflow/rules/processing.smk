@@ -441,15 +441,15 @@ _LFMM_CLIMATE_SOURCES = {
 }
 
 rule subset_lfmm_climate:
-    """Row-subset an LFMM-format matrix to coord-valid samples (climate coordinate NA
+    """Row-subset an LFMM-format matrix to climate-valid samples (climate coordinate NA
     handling). EMMAX/LFMM/gradient_forest/geometric_offset all bind climate values to
-    genotype-matrix rows positionally, so once filter_coord_samples drops samples with
-    missing lat/lon from the climate table, every genotype-side matrix consumed
-    alongside it must be row-subset to match."""
+    genotype-matrix rows positionally, so once filter_coord_samples/filter_climate_valid_samples
+    drop samples with missing lat/lon or NA-climate raster extraction from the climate table,
+    every genotype-side matrix consumed alongside it must be row-subset to match."""
     input:
         matrix        = lambda wc: _LFMM_CLIMATE_SOURCES[wc.variant],
         samples_order = W['samples_order'],
-        coord_samples = W['coord_valid_samples']
+        coord_samples = W['climate_valid_samples']
     output: f"{INTER}climate_subset/{{variant}}_climate.lfmm"
     wildcard_constraints:
         variant = "lfmm_imp|lfmm_imp_full|lfmm_full"

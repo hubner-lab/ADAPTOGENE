@@ -12,6 +12,7 @@ DATA_DIR = args[4]      # directory for storing downloaded climate data
 RESOLUTION = args[5] %>% as.numeric
 RASTER_DIR = args[6]    # for raster output
 TABLES_DIR = args[7]    # for tsv outputs
+NA_ACTION = args[8]     # 'stop' (default, fail-loud) | 'warn' (exclude NA-climate samples, see below)
 #################################
 
 #################################### Functions
@@ -71,6 +72,29 @@ FUN_download_worldclim <- function(data_dir, resolution = 0.5) {
   }
 
   return(tif_dir)
+}
+
+# Approximate distance (km) from an NA point to the nearest non-NA cell, by cropping a
+# small window around just that point (independent of the overall CLIMATE_EXTENT crop) and
+# searching outward. Cheap: only ever operates on a handful of NA points, never the full raster.
+# Returns NA if no valid cell is found within a few widenings (degrades gracefully, never errors).
+FUN_nearest_valid_distance_km <- function(raster_layer, lon, lat, window = 0.1, max_window = 3.2) {
+  pt <- vect(data.frame(long = lon, lat = lat), geom = c("long", "lat"), crs = "EPSG:4326")
+  w <- window
+  while (w <= max_window) {
+    win_rast <- tryCatch(
+      terra::crop(raster_layer, ext(lon - w, lon + w, lat - w, lat + w)),
+      error = function(e) NULL
+    )
+    if (!is.null(win_rast)) {
+      valid_pts <- terra::as.points(win_rast, na.rm = TRUE)
+      if (length(valid_pts) > 0) {
+        return(round(min(terra::distance(pt, valid_pts)) / 1000, 2))  # meters -> km
+      }
+    }
+    w <- w * 4
+  }
+  return(NA_real_)
 }
 
 FUN_present_climate <- function(samples,
@@ -163,24 +187,61 @@ clim_present <- FUN_present_climate(samples,
 message('INFO: Loading climate present data complete, saving to the disk')
 message(clim_present %>% str)
 
-# Validate: check for samples with NA climate values
+# Validate: check for samples with NA climate values (e.g. a coordinate landing on an
+# ocean/NoData raster pixel). Climate.na_action=stop (default) halts the run so the user can
+# inspect/fix coordinates. Climate.na_action=warn excludes those samples from climate-VALUE-
+# dependent steps only (GEA/gradient_forest/geometric_offset/Mantel) -- see
+# filter_climate_valid_samples -- while keeping them in GWAS/phenotype/structure/PCA/sNMF and
+# coordinate-only plotting (IBD, piemaps).
 site_values <- clim_present$SiteValues
 na_rows <- which(rowSums(is.na(site_values)) > 0)
+
+excluded_dt <- data.table(sample = character(), site = character(), latitude = numeric(),
+                          longitude = numeric(), reason = character(), distance_km = numeric())
+
 if (length(na_rows) > 0) {
     bad_samples <- samples[na_rows, ]
-    message("ERROR: Climate extraction returned NA for the following samples:")
+    reasons <- character(nrow(bad_samples))
+    distances <- rep(NA_real_, nrow(bad_samples))
+    message(if (NA_ACTION == 'warn') "WARNING: Climate extraction returned NA for the following samples:"
+            else "ERROR: Climate extraction returned NA for the following samples:")
     for (i in seq_len(nrow(bad_samples))) {
-        msg <- if (bad_samples$latitude[i] == 0 && bad_samples$longitude[i] == 0) {
-            "likely placeholder (0,0)"
-        } else {
-            "falls on ocean/NoData pixel"
+        is_placeholder <- bad_samples$latitude[i] == 0 && bad_samples$longitude[i] == 0
+        reasons[i] <- if (is_placeholder) "likely placeholder (0,0)" else "falls on ocean/NoData pixel"
+        dist_msg <- ""
+        if (!is_placeholder) {
+            # Distance to coast is meaningless for a (0,0) data-entry placeholder -- skip it.
+            distances[i] <- FUN_nearest_valid_distance_km(clim_present$RasterStack[[1]],
+                                                            bad_samples$longitude[i], bad_samples$latitude[i])
+            if (!is.na(distances[i])) dist_msg <- paste0(" (~", distances[i], " km to nearest valid pixel)")
         }
         message(paste0("  - ", bad_samples$sample[i], " (", bad_samples$site[i],
-                       ") at (", bad_samples$latitude[i], ", ", bad_samples$longitude[i], "): ", msg))
+                       ") at (", bad_samples$latitude[i], ", ", bad_samples$longitude[i], "): ", reasons[i], dist_msg))
     }
-    stop(paste0("Climate extraction failed for ", length(na_rows), " samples. ",
-                "Fix coordinates in input metadata or remove these samples."))
+
+    if (NA_ACTION != 'warn') {
+        stop(paste0("Climate extraction failed for ", length(na_rows), " samples. ",
+                    "Fix coordinates in input metadata or remove these samples. ",
+                    "(Or set Climate.na_action: warn to auto-exclude them from climate-dependent ",
+                    "steps only -- they stay in GWAS/phenotype/structure/PCA/sNMF.)"))
+    }
+
+    warning(paste0("Climate extraction returned NA for ", length(na_rows), " sample(s) -- ",
+                   "excluding from climate-VALUE-dependent steps (Climate.na_action=warn). ",
+                   "See climate_na_excluded.tsv."))
+
+    excluded_dt <- data.table(sample = bad_samples$sample, site = bad_samples$site,
+                              latitude = bad_samples$latitude, longitude = bad_samples$longitude,
+                              reason = reasons, distance_km = distances)
+
+    # Drop the NA rows from site_values AND samples in lockstep, before any table is written,
+    # so climate_present_site(.scaled).tsv stay self-consistent (fewer rows, same relative
+    # order) with what filter_climate_valid_samples will later produce for the genotype side.
+    site_values <- site_values[-na_rows, , drop = FALSE]
+    samples <- samples[-na_rows, ]
 }
+
+fwrite(excluded_dt, paste0(TABLES_DIR, 'climate_na_excluded.tsv'), sep = '\t', quote = FALSE)
 
 # Save raster
 writeRaster(clim_present$RasterStack,

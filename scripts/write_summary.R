@@ -181,12 +181,14 @@ if (MODE == 'processing') {
 
 } else if (MODE == 'structure') {
     # args: MODE OUTPUT K_BEST climate_site predictors ld_decay_path ld_decay_group_by ld_decay_scope
+    #       climate_na_excluded
     K_BEST = args[3]
     CLIMATE_SITE = args[4]
     PREDICTORS = args[5]
     LD_DECAY_PATH = if (length(args) >= 6) args[6] else "NULL"
     LD_DECAY_GROUP_BY = if (length(args) >= 7) args[7] else "NULL"
     LD_DECAY_SCOPE_VAL = if (length(args) >= 8) args[8] else "NULL"
+    CLIMATE_NA_EXCLUDED = if (length(args) >= 9) args[9] else "NULL"
 
     new_rows <- rbind(row('structure', 'K_best', K_BEST))
 
@@ -199,6 +201,19 @@ if (MODE == 'processing') {
             row('structure', 'climate_predictors', PREDICTORS),
             row('structure', 'n_climate_variables', n_climate_vars)
         )
+    }
+
+    # Climate-NA exclusions (samples whose raster extraction returned NA, e.g. ocean/NoData
+    # pixel) -- mirrors the processing-mode coord-missing summary. Only non-zero when
+    # Climate.na_action=warn; always 0 under the default stop (the pipeline halts before this
+    # rule would even see NA rows).
+    if (CLIMATE_NA_EXCLUDED != 'NULL' && file.exists(CLIMATE_NA_EXCLUDED)) {
+        na_excl <- fread(CLIMATE_NA_EXCLUDED)
+        new_rows <- rbind(new_rows, row('structure', 'samples_excluded_climate_na', nrow(na_excl)))
+        if (nrow(na_excl) > 0) {
+            new_rows <- rbind(new_rows,
+                row('structure', 'climate_na_excluded_samples', paste(na_excl$sample, collapse = ',')))
+        }
     }
 
     # LD decay summary

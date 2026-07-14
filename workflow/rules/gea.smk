@@ -78,16 +78,17 @@ rule kinship_gea:
 
 # --- EMMAX climate-coord subset (climate coordinate NA handling) ---
 # EMMAX binds climate values to genotypes positionally (cbind on TFAM row order),
-# so when samples with missing lat/lon are dropped from the climate table
-# (filter_coord_samples), the genotype-side TPED/kinship must be rebuilt on the
-# same coord-valid sample set. Mirrors subset_vcf_gwas/tped_gwas_trait exactly.
+# so when samples with missing lat/lon or NA-climate raster extraction are dropped from
+# the climate table (filter_coord_samples / filter_climate_valid_samples), the genotype-side
+# TPED/kinship must be rebuilt on the same climate-valid sample set. Mirrors
+# subset_vcf_gwas/tped_gwas_trait exactly.
 if "EMMAX" in GEA_OTHER_CONFIGS:
 
     rule subset_vcf_gea_climate:
-        """Subset filtered VCF to coord-valid samples for GEA EMMAX."""
+        """Subset filtered VCF to climate-valid samples for GEA EMMAX."""
         input:
             vcf = W['vcf_filt'],
-            samples = W['coord_valid_samples']
+            samples = W['climate_valid_samples']
         output: W['vcf_filt_climate']
         params: prefix = f"{WORK_FILT}climate/{VCF_BASE}"
         log: f"{LOGDIR}gea/subset_vcf_gea_climate.log"
@@ -138,17 +139,17 @@ if "EMMAX" in GEA_OTHER_CONFIGS:
 
     rule assoc_emmax_gea_trait:
         """Run EMMAX for a single GEA bioclimatic trait (per-factor caching).
-        Uses the coord-valid-subset VCF/TPED/kinship (see subset_vcf_gea_climate) since
-        climate values (traits) exclude samples with missing lat/lon; PCA covariates
-        stay on the full cohort and are row-subset internally by load_pca_covariates()
-        via samples_order (see emmax.R)."""
+        Uses the climate-valid-subset VCF/TPED/kinship (see subset_vcf_gea_climate) since
+        climate values (traits) exclude samples with missing lat/lon or NA-climate raster
+        extraction; PCA covariates stay on the full cohort and are row-subset internally by
+        load_pca_covariates() via samples_order (see emmax.R)."""
         input:
             vcf        = W['vcf_filt_climate'],
             tped       = W['assoc_tped_climate'],
             kinship    = W['assoc_kinship_climate'],
             traits     = O['climate_site_scaled'],
             covariates = W['pca_projections'],
-            metadata   = W['metadata_climate'],
+            metadata   = W['metadata_climate_valid'],
             samples_order = W['samples_order'],
         output: f"{INTER}gea_per_trait/EMMAX/{{trait}}_pvalues_K{K_BEST}.tsv"
         wildcard_constraints:
