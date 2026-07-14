@@ -429,6 +429,12 @@ if (depth_ok) {
     fwrite(depth_summary, file.path(TABLES_DIR, "depth_summary.tsv"), sep = "\t", quote = FALSE)
     message("INFO: Saved depth_distribution.png and depth_summary.tsv")
 } else {
+    # Snakemake declares depth_distribution.png a required output whenever HAS_DP is TRUE
+    # (a header-only check) — it has no way to know at parse time that genotype DP is
+    # actually unpopulated. Leave a 0-byte marker so the rule's output contract is satisfied;
+    # Shiny's file_ok() treats file.size==0 as unavailable and still falls back to the
+    # explanatory placeholder (see mod_processing.R depth_status).
+    file.create(file.path(PLOTS_DIR, "depth_distribution.png"))
     message("WARNING: FORMAT/DP is declared in the VCF header but no finite, positive depth values were found (typical for GBS with unpopulated DP) — skipping depth_distribution.png and depth_summary.tsv.")
 }
 }
