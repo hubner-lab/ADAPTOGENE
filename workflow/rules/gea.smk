@@ -235,8 +235,9 @@ if GEA_GAPIT_CONFIGS:
         Output files land under _intermediate/gea_per_trait/{model}/{trait}_pvalues_K{k}.tsv.
         GAPIT writes {TABLES_DIR}/{model}/{OUTPUT_PREFIX}_pvalues_K{k}.tsv (existing behaviour
         when OUTPUT_PREFIX is set), so we reuse gapit.R unchanged.
-        Uses full-dataset GD/kinship (climate coordinate NA handling); gapit.R subsets
-        internally via coord_samples, same mechanism as GWAS DROP mode."""
+        Uses full-dataset GD/kinship; gapit.R subsets internally via coord_samples to the
+        climate-valid sample set (coord-valid minus ocean/NoData raster NAs), matching the
+        set already baked into O['climate_site_scaled'] — same mechanism as GWAS DROP mode."""
         input:
             gd       = W['gapit_gd'],
             gm       = W['gapit_gm'],
@@ -244,7 +245,7 @@ if GEA_GAPIT_CONFIGS:
             pca      = W['pca_projections'],
             kinship  = W['assoc_kinship'],
             metadata = O['metadata'],
-            coord_samples = W['coord_valid_samples'],
+            coord_samples = W['climate_valid_samples'],
         output:
             [f"{INTER}gea_per_trait/{model}/{{trait}}_pvalues_K{K_BEST}.tsv"
              for model in GEA_GAPIT_CONFIGS]
