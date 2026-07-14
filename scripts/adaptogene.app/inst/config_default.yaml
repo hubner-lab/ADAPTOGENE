@@ -27,6 +27,8 @@ Filter:
   min_depth: null                  # Optional: mask genotypes with FORMAT/DP < N (null = skip)
   max_depth: null                  # Optional: mask genotypes with FORMAT/DP > N (null = skip)
   het_outlier_sd: null             # Optional: remove samples with heterozygosity beyond N SDs (null = skip)
+  relatedness: 0.99                # IBS allele-sharing threshold for coloring/counting related pairs (duplicates cluster ~1.0); liberal default, colors/counts only
+  relatedness_action: keep         # keep (default): visualize/count only, remove nothing. remove: drop the higher-missingness member of each pair above the threshold
 
 #-----------------------------------------------------------------------------
 # LD: Linkage disequilibrium pruning
