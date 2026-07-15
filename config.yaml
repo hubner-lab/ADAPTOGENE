@@ -1,197 +1,93 @@
-#=============================================================================
-# ADAPTOGENE Configuration
-#=============================================================================
-
-#-----------------------------------------------------------------------------
-# INPUT: Files and project settings
-#-----------------------------------------------------------------------------
 Input:
-  dir: "data/"                   # Directory containing input files
-  vcf: 'Test.vcf'               # VCF file (supports .vcf and .vcf.gz)
-  metadata: 'Test_metadata.tsv'  # Sample metadata (site, sample, latitude, longitude)
-  gff: 'Test.gff3'              # GFF file for gene annotation
-
-project_name: 'TEST'             # Output directory prefix: {project_name}_results/
-cpu: 10                          # Number of CPU cores to use
-
-#-----------------------------------------------------------------------------
-# FILTER: VCF quality filtering (affects variant and sample retention)
-#-----------------------------------------------------------------------------
+  dir: data/
+  vcf: Test.vcf
+  metadata: Test_metadata.tsv
+  gff: Test.gff3
+project_name: TEST
+cpu: 10
 Filter:
-  maf: 0.05                     # Minor allele frequency threshold (remove rare variants)
-  snp_miss: 0.1                 # Max SNP missingness (remove SNPs missing in >10% samples)
-  sample_miss: 0.5              # Max sample missingness (remove samples with >50% missing)
-  min_depth: null               # Optional: mask genotypes with FORMAT/DP < N (null = skip; requires DP field in VCF)
-  max_depth: null               # Optional: mask genotypes with FORMAT/DP > N (null = skip; requires DP field in VCF)
-  het_outlier_sd: null          # Optional: remove samples with heterozygosity beyond N SDs from mean (null = skip)
-  relatedness: 0.99              # IBS allele-sharing (plink --genome DST) threshold for coloring/counting related pairs in the Processing relatedness histogram. Liberal default (colors/counts only) — does NOT remove samples by itself, see relatedness_action. A relatedness histogram is always plotted — IBS is model-free (works for selfers and outcrossers alike, unlike pi-hat); duplicates/clones cluster near 1.0. Lower it after inspecting your own histogram if you want to flag more distant relatives.
-  relatedness_action: keep      # keep | remove — 'keep' (default) only visualizes/counts pairs above the threshold; 'remove' drops the higher-missingness member of each pair. Recommended: set relatedness, inspect the histogram, THEN set 'remove' and re-run Processing.
-
-#-----------------------------------------------------------------------------
-# LD: Linkage disequilibrium pruning (reduces redundant correlated SNPs)
-#-----------------------------------------------------------------------------
+  maf: 0.05
+  snp_miss: 0.1
+  sample_miss: 0.5
+  relatedness: 0.99
+  relatedness_action: keep
 LD:
-  window: 100                   # Window size in kb for LD calculation
-  step: 20                      # Step size for sliding window
-  r2: 0.2                       # R^2 threshold (keep SNPs with r^2 < this value)
-
-#-----------------------------------------------------------------------------
-# SNMF: Population structure inference (ancestry proportions)
-#-----------------------------------------------------------------------------
+  window: 100
+  step: 20
+  r2: 0.2
 sNMF:
-  k_start: 3                    # Minimum K (number of ancestral populations) to test
-  k_end: 7                      # Maximum K to test
-  k_best: 5                     # Selected K for downstream analyses (set after reviewing cross-entropy)
-  repeats: 10                   # Number of repetitions per K (higher = more stable)
-
-#-----------------------------------------------------------------------------
-# MAP: Geographic extent and resolution for climate data
-#-----------------------------------------------------------------------------
+  k_start: 3
+  k_end: 7
+  k_best: 5
+  repeats: 10
 Map:
-  climate_extent: "auto"         # Coordinates [min_lon, max_lon, min_lat, max_lat] or "auto"
-  gap: 0.5                      # Buffer around samples in degrees (only used if auto)
-  resolution: 0.5               # Climate data resolution in arc-minutes (0.5, 2.5, 5, 10)
-  zoom_extent: "NULL"           # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL" (creates both full + zoomed plots)
-
-#-----------------------------------------------------------------------------
-# CLIMATE: Bioclimatic variables for association and offset analyses
-#-----------------------------------------------------------------------------
+  climate_extent: auto
+  gap: 0.5
+  resolution: 0.5
+  zoom_extent: 'NULL'
 Climate:
-  enabled: true                    # Set false to skip all climate-dependent analysis (GEA, maladaptation)
-  predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
-                                    # Samples whose coordinate lands on an ocean/NoData raster pixel are always
-                                    # excluded from climate-VALUE-dependent steps only (GEA, gradient_forest,
-                                    # geometric_offset, Mantel) — never from GWAS/phenotype/structure/PCA/sNMF.
-                                    # See climate_na_excluded.tsv for which samples and why.
-
-#-----------------------------------------------------------------------------
-# POPULATION STATS: Population-level statistics (require >=3 samples per population)
-#-----------------------------------------------------------------------------
+  enabled: yes
+  predictors: bio_1,bio_2,bio_3,bio_4,bio_5,bio_6,bio_7,bio_8,bio_9,bio_10,bio_11,bio_12,bio_13,bio_14,bio_15,bio_16,bio_17,bio_18,bio_19
 Population:
-  calc_stats: FALSE              # Calculate Tajima's D, Pi, AMOVA, IBD (set FALSE if <3 samples/pop)
-  window_size: 3000000           # Window size in bp for Tajima's D and Pi diversity
-  custom_trait_file: 'NULL'      # Custom trait file for piemap sizing (site + trait columns)
-
-#-----------------------------------------------------------------------------
-# PIEMAP: Population structure visualization on maps
-#-----------------------------------------------------------------------------
+  calc_stats: no
+  window_size: 3000000
+  custom_trait_file: 'NULL'
 Piemap:
-  alpha: 0.6                    # Pie chart transparency (0-1)
-  show_labels: 'F'              # Show population labels (T/F)
-  label_size: 8                 # Label font size
-  pie_scale: 1.0                # Pie chart size scale factor (1.0=100%, 0.5=50%, 2.0=200%)
-  use_points: FALSE             # Use small colored points instead of pie charts (TRUE/FALSE)
-
-#-----------------------------------------------------------------------------
-# LD_DECAY: Linkage disequilibrium decay analysis
-#-----------------------------------------------------------------------------
+  alpha: 0.6
+  show_labels: F
+  label_size: 8
+  pie_scale: 1.0
+  use_points: no
 LDdecay:
-  group_by: "site"          # "site" (metadata col 1) or "cluster" (sNMF K_BEST clusters)
-  min_samples: 10            # Groups below this are skipped with warning
-  max_distance: 500          # Max pairwise distance in kb (PopLDdecay -MaxDist)
-  scope: "both"              # "genome_wide", "per_chromosome", or "both"
-
-#-----------------------------------------------------------------------------
-# ASSOCIATION: Association analysis settings (GEA)
-#-----------------------------------------------------------------------------
+  group_by: site
+  min_samples: 10
+  max_distance: 500
+  scope: both
 GEA:
-  configs:                       # Methods and significance thresholds
-    - method: "EMMAX"            # EMMAX: mixed model, accounts for population structure
-      adjust: "bonf"             # Correction: bonf (Bonferroni) or qval (FDR)
-      threshold: '0.05'
-    - method: "LFMM"            # LFMM: latent factor mixed model
-      adjust: "bonf"
-      threshold: '0.05'
-  snp_clumping_distance: auto_per_chromosome  # SNP merge + region-bound padding distance.
-                                              # auto_per_chromosome | auto_genome_wide | <integer bp>
-                                              # Default = LD-decay r²=0.2 per chr (100 kb if unavailable).
-  clumping_r2_threshold: 0.2    # r² decay threshold for "auto" distances (lower = larger regions)
-  ld_decay_group: All           # Which LD decay group row to use (from ld_decay_half_distances.tsv)
-  promoter_length: 10000        # Promoter region length for SNP annotation
+  configs:
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: LFMM
+    adjust: bonf
+    threshold: '0.05'
+  - method: BLINK
+    adjust: bonf
+    threshold: '0.05'
+  snp_clumping_distance: '1000000'
+  clumping_r2_threshold: 0.2
+  ld_decay_group: All
+  promoter_length: 10000
   wza:
-    window_size: auto_genome_wide  # WZA block size: auto_genome_wide | auto_per_chromosome | <int bp>
-    fallback_window_bp: 10000      # Fixed window size when LD decay table unavailable
-
-#-----------------------------------------------------------------------------
-# GFF: Gene annotation parsing
-#-----------------------------------------------------------------------------
+    window_size: '1000000'
+    fallback_window_bp: 1000000.0
 GFF:
-  feature: 'mRNA'               # Feature type to extract (mRNA, gene, CDS, etc.)
-  gene_name: 'description'      # Attribute for gene names
-  biotype: 'biotype'            # Attribute for gene biotype
-  go_field: 'ontology'           # GFF attribute with GO terms (NULL to skip enrichment)
-
-#-----------------------------------------------------------------------------
-# ENRICHMENT: GO enrichment visualization settings
-#-----------------------------------------------------------------------------
+  feature: mRNA
+  gene_name: description
+  biotype: biotype
+  go_field: ontology
 Enrichment:
-  top_terms: 20                  # Number of top enriched terms to show in plots
-  plot_width: 12                 # Plot width in inches
-  plot_height: 10                # Plot height in inches
-  cnet_label: "gene_id"          # Gene label in cnetplot: "gene_id", "Name", "description"
-
-#-----------------------------------------------------------------------------
-# FUTURE CLIMATE: Climate projections for maladaptation analysis
-#-----------------------------------------------------------------------------
+  top_terms: 20
+  plot_width: 12
+  plot_height: 10
+  cnet_label: gene_id
 Future:
-  ssp: '585'                    # Shared Socioeconomic Pathway (126, 245, 370, 585)
-  year: '2061-2080'             # Time period for projections
-  models: 'MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR'  # Climate models to average
-
-#-----------------------------------------------------------------------------
-# MALADAPTATION: Gradient Forest modeling for genetic offset
-#-----------------------------------------------------------------------------
+  ssp: '585'
+  year: 2061-2080
+  models: MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR
 Maladaptation:
-  snp_sets: "all"                 # "all" = every set saved from GEA tab; or a list of names:
-  # snp_sets:                     #   - EMMAX_bonf005
-  #   - lenient_fdr10             #   - lenient_fdr10
+  snp_sets: all
   methods:
     gradient_forest:
-      ntree: '1000'                 # Number of trees (higher = more accurate, slower)
-      cor_threshold: '0.5'          # Correlation threshold for variable selection
-      spatial_correction: 'both'    # Include spatial variables: with | without | both (both = run each set as spatial AND nospatial)
-      random_model: TRUE            # Also build neutral model for comparison
+      ntree: '1000'
+      cor_threshold: '0.5'
+      spatial_correction: both
+      random_model: yes
     geometric_offset:
-      candidate_only: true          # Use candidate SNP set only (nospatial-only method)
-      k: ''                         # '' → use sNMF k_best; or set an integer override
-      scale: true                   # Standardise environment before fitting LFMM2
-
-#-----------------------------------------------------------------------------
-# PHENOTYPE ASSOCIATION (GWAS) — inherits from GEA.* by default
-#-----------------------------------------------------------------------------
-# GWAS:                          # Uncomment to enable phenotype association mode
-#   configs:
-#     - method: "EMMAX"
-#       adjust: "bonf"
-#       threshold: '0.05'
-#   missing_strategy: "DROP"      # MEAN, MEDIAN, or DROP
-#   # Override any GEA.* param only if different:
-#   # snp_clumping_distance: auto_per_chromosome
-#   # clumping_r2_threshold: 0.2
-#   # ld_decay_group: All
-
-#-----------------------------------------------------------------------------
-# OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)
-#-----------------------------------------------------------------------------
-# Defaults to max of GEA and GWAS values if not set
-# GEAxGWAS:
-#   snp_clumping_distance: 2000000
+      candidate_only: yes
+      k: ''
+      scale: yes
 GEAxGWAS:
   pairwise:
     window_size: 500000
     min_snps: 2
-
-#-----------------------------------------------------------------------------
-# Haplotype
-#-----------------------------------------------------------------------------
-# Haplotype:
-#   scan:
-#     regions_source: 'association'    # 'association', 'association_phenotypes', 'overlapping', 'all', 'custom'
-#     regions_file: 'NULL'            # Path to custom regions TSV (when source='custom')
-#     top_regions: 5                  # Number of top regions to analyze per source
-#     min_snps: 10                    # Minimum SNPs per region (skip regions with fewer)
-#     min_group_size: 50              # DBSCAN MinPts (marker group minimum size)
-#     min_haplotype_size: 15          # Minimum haplotype group size
-#     epsilon_range: [0.01, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-#     metadata_type: 'site'           # 'site', 'cluster', or 'both'
-#   epsilon_selected: 'NULL'          # Set after reviewing clustree plots from haplotype_scan
