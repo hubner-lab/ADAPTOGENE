@@ -316,9 +316,9 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         }
 
         .init_dist_param("gea_snp_clumping_distance", "gea_snp_clumping_distance",
-            function(cfg, proj) resolve_ui_snp_clumping_distance(cfg, "GEA", proj))
+            function(cfg, proj) DEFAULT_CLUMPING_DISTANCE)
         .init_dist_param("gwas_snp_clumping_distance", "gwas_snp_clumping_distance",
-            function(cfg, proj) resolve_ui_snp_clumping_distance(cfg, "GWAS", proj))
+            function(cfg, proj) DEFAULT_CLUMPING_DISTANCE)
 
         gea_snp_clumping_distance <- shiny::reactive({
             v <- input$gea_snp_clumping_distance
@@ -423,14 +423,13 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             pd  <- project_data()
             rp  <- read_region_params(pd$name)
             cfg <- pd$config
-            src_str <- if (src_module == MOD_GEA) "GEA" else "GWAS"
 
             tt <- get_global_param(rp, src_module, "threshold_type") %||%
                       default_threshold(cfg, src_module)$type
             tv <- as.numeric(get_global_param(rp, src_module, "threshold_value") %||%
                       default_threshold(cfg, src_module)$value)
             cd <- as.integer(get_global_param(rp, src_module, "snp_clumping_distance") %||%
-                      resolve_ui_snp_clumping_distance(cfg, src_str, pd$name))
+                      DEFAULT_CLUMPING_DISTANCE)
             rg <- isTRUE(get_global_param(rp, src_module, "regime"))
             st <- get_global_param(rp, src_module, "combine_strategy")
 
@@ -668,7 +667,7 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             # Assign overlap region_ids so Miami plot click → correct region
             ov_regs <- overlap_regions()
             if (!is.null(ov_regs) && nrow(ov_regs) > 0) {
-                unified <- assign_overlap_region_ids(unified, ov_regs)
+                unified <- assign_region_ids_from_regions(unified, ov_regs)
             }
             unified
         })

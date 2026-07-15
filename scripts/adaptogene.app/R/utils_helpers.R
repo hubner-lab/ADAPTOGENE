@@ -118,41 +118,12 @@ dt_format_pvals <- function(tbl, cols = c("pvalue", "p_adjust")) {
     DT::formatSignif(tbl, columns = cols_present, digits = 3)
 }
 
-#' Resolve snp_clumping_distance config value to a numeric bp for the Shiny filter bar.
+#' Default interactive SNP clumping distance (bp) for the GEA/GWAS filter bar.
 #'
-#' The pipeline config accepts "auto_per_chromosome", "auto_genome_wide", or an integer.
-#' The filter bar numericInput always needs an integer. When auto_* is set, we read
-#' the genome-wide r2_02_bp from the LD decay TSV (group "All"). Falls back to 1,000,000.
+#' Clumping distance is a purely interactive/exploratory parameter (not read from
+#' the pipeline config) so the filter-bar control is always the single source of
+#' truth for region merging/padding — no separate config-driven default to diverge
+#' from. User-chosen values persist per-project via region_params.json
+#' (get_global_param()/set_global_param()), independent of this constant.
 #' @noRd
-resolve_ui_snp_clumping_distance <- function(config, module, project_name,
-                                              fallback = 1000000L) {
-    raw <- config_get(config, module, "snp_clumping_distance",
-                      default = config_get(config, module, "region_distance",
-                                           default = "auto_per_chromosome"))
-    val <- suppressWarnings(as.integer(raw))
-    if (!is.na(val) && val >= 1000L) return(val)
-    # auto mode: read LD decay TSV
-    tsv <- ld_decay_table_path(project_name)
-    if (file_ok(tsv)) {
-        dt <- tryCatch(
-            data.table::fread(tsv, sep = "\t", header = TRUE),
-            error = function(e) NULL
-        )
-        required <- c("scope", "group", "r2_02_bp")
-        if (!is.null(dt) && nrow(dt) > 0 && all(required %in% names(dt))) {
-            mask <- dt$scope == "genome_wide" & dt$group == "All"
-            mask[is.na(mask)] <- FALSE
-            gw <- dt$r2_02_bp[mask]
-            if (length(gw) > 0 && !is.na(gw[1]) && gw[1] > 0)
-                return(as.integer(gw[1]))
-        }
-    }
-    fallback
-}
-
-#' Legacy alias — kept for any callers not yet updated
-#' @noRd
-resolve_ui_region_distance <- function(config, module, project_name,
-                                       fallback = 1000000L) {
-    resolve_ui_snp_clumping_distance(config, module, project_name, fallback)
-}
+DEFAULT_CLUMPING_DISTANCE <- 100000L

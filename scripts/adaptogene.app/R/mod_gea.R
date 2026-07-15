@@ -182,7 +182,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             rp      <- read_region_params(pd$name)
             saved_d <- get_global_param(rp, MOD_GEA, "snp_clumping_distance")
             d <- if (!is.null(saved_d)) as.integer(saved_d)
-                 else resolve_ui_snp_clumping_distance(pd$config, "GEA", pd$name)
+                 else DEFAULT_CLUMPING_DISTANCE
             shiny::updateNumericInput(session, "snp_clumping_distance", value = d)
         })
 
@@ -198,8 +198,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         snp_clumping_distance <- shiny::reactive({
             v <- input$snp_clumping_distance
             if (is.null(v) || is.na(v) || v < 1000L) {
-                pd <- project_data()
-                resolve_ui_snp_clumping_distance(pd$config, "GEA", pd$name)
+                DEFAULT_CLUMPING_DISTANCE
             } else {
                 as.integer(v)
             }
@@ -366,14 +365,9 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             if (is.na(k) && length(methods()) == 0) return(NULL)
             cfg  <- pd$config
             cmb  <- config_get(cfg, "GEA", "combine_method", default = "Union")
-            cdist <- config_get(cfg, "GEA", "snp_clumping_distance",
-                                default = "auto_per_chromosome")
-            cdist_str <- if (grepl("^auto", cdist)) paste0(cdist, " (LD-derived)")
-                         else paste0(format(as.integer(cdist), big.mark = ","), " bp")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
                 config_badge("combine", cmb),
-                config_badge("clumping", cdist_str),
                 if (regime_wza()) config_badge("regime", "WZA", "bg-info")
             )
         })
@@ -539,6 +533,17 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             regime              = regime_wza
         )
 
+        # SNPs re-stamped with region_id from the live-computed regions (not the
+        # static pipeline file) so a Manhattan click always selects the region
+        # whose bounds match what the table/rectangles show. copy() is required —
+        # assign_region_ids_from_regions() mutates by reference and
+        # interactive_sigsnps() is a shared cached reactive.
+        plotted_sigsnps <- shiny::reactive({
+            snps <- interactive_sigsnps()
+            if (is.null(snps) || nrow(snps) == 0) return(snps)
+            assign_region_ids_from_regions(data.table::copy(snps), explorer$computed_regions())
+        })
+
         # ── Combined Manhattan ─────────────────────────────────────────────────
         manhattan_click <- mod_manhattan_overlay_server("combined_manhattan",
             project_data         = project_data,
@@ -551,7 +556,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
-            sig_snps_override    = interactive_sigsnps,
+            sig_snps_override    = plotted_sigsnps,
             trait_colors         = trait_colors,
             method_shapes        = method_shapes,
             bg_path_override     = combined_wza_bg,

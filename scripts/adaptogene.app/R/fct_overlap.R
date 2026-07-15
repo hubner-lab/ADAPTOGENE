@@ -225,26 +225,28 @@ compute_all_overlap_regions <- function(overlap_pairs, gea_regions, gwas_regions
 
 # ── Unified sig SNP region assignment ─────────────────────────────────────────
 
-#' Assign overlap region_ids to unified sig SNPs based on computed overlap regions
+#' Assign region_ids to sig SNPs based on a computed regions table
 #'
-#' Replaces the pipeline-file-based assign_region_ids() for the overlapping tab.
-#' SNPs that fall within an overlap region's bounds get that overlap region's region_id.
-#' SNPs outside all overlap regions get NA.
+#' Replaces the pipeline-file-based assign_region_ids() with an on-the-fly stamp
+#' from live-computed regions (works for both the GEA/GWAS region explorer and the
+#' overlapping tab's overlap regions). SNPs that fall within a region's bounds get
+#' that region's region_id. SNPs outside all regions get NA.
 #'
-#' @param snps_dt       data.table with columns SNPID, chr (character), pos (integer)
-#' @param overlap_regions data.table from compute_all_overlap_regions()
+#' @param snps_dt data.table with columns SNPID, chr (character), pos (integer)
+#' @param regions data.table with columns chr, start, end, region_id (e.g. from
+#'   compute_all_regions() or compute_all_overlap_regions())
 #' @return snps_dt with region_id column set/updated
 #' @noRd
-assign_overlap_region_ids <- function(snps_dt, overlap_regions) {
+assign_region_ids_from_regions <- function(snps_dt, regions) {
     snps_dt[, region_id := NA_character_]
-    if (is.null(overlap_regions) || nrow(overlap_regions) == 0) return(snps_dt)
-    if (!all(c("chr", "start", "end", "region_id") %in% names(overlap_regions))) return(snps_dt)
+    if (is.null(regions) || nrow(regions) == 0) return(snps_dt)
+    if (!all(c("chr", "start", "end", "region_id") %in% names(regions))) return(snps_dt)
 
     regs_ov <- data.table::data.table(
-        chr       = as.character(overlap_regions$chr),
-        start     = as.integer(overlap_regions$start),
-        end       = as.integer(overlap_regions$end),
-        region_id = as.character(overlap_regions$region_id)
+        chr       = as.character(regions$chr),
+        start     = as.integer(regions$start),
+        end       = as.integer(regions$end),
+        region_id = as.character(regions$region_id)
     )
 
     snp_pos <- unique(snps_dt[, .(SNPID, chr = as.character(chr), pos = as.integer(pos))])

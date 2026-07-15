@@ -582,6 +582,10 @@ compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
 
     if (nrow(combined_dt) == 0) return(.empty_sigsnps_assoc())
 
-    combined_dt <- assign_region_ids(combined_dt, project_name, module)
+    # region_id is stamped downstream from the live-computed regions (see
+    # assign_region_ids_from_regions() / plotted_sigsnps in mod_gea.R / mod_gwas.R),
+    # not from the static pipeline regions_combined.tsv — keeps the clicked SNP's
+    # region in sync with the interactive region table/rectangles.
+    combined_dt[, region_id := NA_character_]
     combined_dt
 }

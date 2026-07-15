@@ -190,10 +190,9 @@ config_schema <- function() {
           help = "GFF attribute containing GO term IDs. NULL disables enrichment analysis.",
           placeholder = "NULL"),
         # Results processing
-        s("GEA.snp_clumping_distance", "SNP clumping distance", "gea", "Results",
-          "text",    FALSE,
-          help = "Single-linkage merge distance: SNPs within this distance form one region; region bounds are padded by this distance. auto_per_chromosome (default) uses per-chr LD r\u00b2=0.2; auto_genome_wide uses genome-wide; or enter a fixed bp value.",
-          placeholder = "auto_per_chromosome"),
+        # NOTE: SNP clumping distance is no longer config-editable \u2014 it is a purely
+        # interactive parameter in the GEA/GWAS filter bar (default 100 kb), kept in
+        # sync with the region table/rectangles. See mod_gea.R / mod_gwas.R.
         s("GEA.clumping_r2_threshold", "LD r\u00b2 threshold",  "gea", "Results",
           "numeric", FALSE,
           min = 0.05, max = 0.95, step = 0.05,
@@ -248,10 +247,7 @@ config_schema <- function() {
           "select",       TRUE,
           choices = c("DROP", "MEAN", "MEDIAN"),
           help = "How to handle samples missing phenotype data. DROP removes them per trait."),
-        s("GWAS.snp_clumping_distance", "SNP clumping distance", "gwas", "Results",
-          "text",    FALSE,
-          help = "Single-linkage merge distance: SNPs within this distance form one region; region bounds are padded by this distance. auto_per_chromosome (default) uses per-chr LD r\u00b2=0.2; auto_genome_wide uses genome-wide; or enter a fixed bp value.",
-          placeholder = "auto_per_chromosome"),
+        # NOTE: SNP clumping distance is no longer config-editable \u2014 see GEA note above.
         s("GWAS.clumping_r2_threshold", "LD r\u00b2 threshold",  "gwas", "Results",
           "numeric", FALSE,
           min = 0.05, max = 0.95, step = 0.05,
