@@ -35,6 +35,14 @@ missing_samples <- if (n_missing > 0) paste(meta$sample[!keep], collapse = ',') 
 message(paste0('INFO: Climate coordinates: ', n_available, '/', n_total, ' samples have valid coordinates'))
 if (n_missing > 0) {
     message(paste0('WARNING: Dropping ', n_missing, ' sample(s) with missing coordinates from climate/GEA analysis: ', missing_samples))
+    message('WARNING: MAF/missingness/biallelic filtering was computed on the full processing-module ',
+            'cohort BEFORE this drop. Removing samples here can leave those filters inconsistent with ',
+            'the actual GEA sample set -- a SNP that passed MAF/missingness genome-wide can become ',
+            'monomorphic or zero-variance once these samples are excluded, and is NOT re-filtered. This ',
+            'can produce degenerate model fits (e.g. exact p=0/-log10(p)=Inf) for a small number of SNPs, ',
+            'especially for methods sensitive to zero-variance genotypes (e.g. EMMAX). Check GEA results ',
+            'if they look anomalous for a subset of SNPs -- consider filtering suspect SNPs upstream on ',
+            'the actual analysis cohort if this occurs.')
 }
 
 meta_valid <- meta[keep, ]

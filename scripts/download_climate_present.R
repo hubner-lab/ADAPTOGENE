@@ -219,6 +219,13 @@ if (length(na_rows) > 0) {
     warning(paste0("Climate extraction returned NA for ", length(na_rows), " sample(s) -- ",
                    "excluding from climate-VALUE-dependent steps. See climate_na_excluded.tsv. ",
                    "Fix coordinates in input metadata if this is unexpected."))
+    message('WARNING: MAF/missingness/biallelic filtering was computed on the full processing-module ',
+            'cohort BEFORE this exclusion. Removing samples here can leave those filters inconsistent ',
+            'with the actual GEA sample set -- a SNP that passed MAF/missingness genome-wide can become ',
+            'monomorphic or zero-variance once these samples are excluded, and is NOT re-filtered. This ',
+            'can produce degenerate model fits (e.g. exact p=0/-log10(p)=Inf) for a small number of SNPs, ',
+            'especially for methods sensitive to zero-variance genotypes (e.g. EMMAX). Check GEA results ',
+            'if they look anomalous for a subset of SNPs.')
 
     excluded_dt <- data.table(sample = bad_samples$sample, site = bad_samples$site,
                               latitude = bad_samples$latitude, longitude = bad_samples$longitude,

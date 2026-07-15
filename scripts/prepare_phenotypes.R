@@ -100,6 +100,17 @@ if (MISSING_STRATEGY %in% c('MEAN', 'MEDIAN')) {
         keep <- !is.na(meta[[trait]])
         meta_trait <- meta[keep, ]
         message(paste0('INFO: Trait "', trait, '": ', sum(keep), '/', nrow(meta), ' samples available'))
+        if (sum(keep) < nrow(meta)) {
+            message('WARNING: MAF/missingness/biallelic filtering was computed on the full ',
+                    'processing-module cohort BEFORE this per-trait sample drop. Dropping samples for ',
+                    'a missing phenotype here can leave those filters inconsistent with the actual GWAS ',
+                    'sample set for this trait -- a SNP that passed MAF/missingness genome-wide can ',
+                    'become monomorphic or zero-variance once these samples are excluded, and is NOT ',
+                    're-filtered. This can produce degenerate model fits (e.g. exact p=0/-log10(p)=Inf) ',
+                    'for a small number of SNPs, especially for methods sensitive to zero-variance ',
+                    'genotypes (e.g. EMMAX). Check GWAS results for "', trait, '" if they look anomalous ',
+                    'for a subset of SNPs.')
+        }
 
         # Phenotype file: sample + trait value
         pheno_dt <- meta_trait %>% dplyr::select(sample, all_of(trait))
