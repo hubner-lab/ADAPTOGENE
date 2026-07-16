@@ -271,18 +271,17 @@ pop_diff_path <- function(project, k) {
 # ─── Structure ────────────────────────────────────────────────────────────────
 
 #' Piemap path
+#' @param points if TRUE, resolve the points ("clear map") companion instead of
+#'   the pie chart. Points are trait/metric-independent, so `metric` is ignored.
 #' @noRd
-piemap_path <- function(project, bio, metric = NULL, zoom = NULL) {
+piemap_path <- function(project, bio, metric = NULL, zoom = NULL, points = FALSE) {
     dir <- mod_path(project, MOD_STRUCT, "plots", "piemap")
+    metric <- if (points) NULL else metric
+    suffix <- if (points) "_points" else if (!is.null(metric) && nzchar(metric) && metric != "none") paste0("_", metric) else ""
     if (!is.null(zoom) && nzchar(zoom) && zoom != "none") {
         dir <- file.path(dir, "zoom", zoom)
-        fname <- paste0("piemap_bio_", bio,
-                        if (!is.null(metric) && nzchar(metric) && metric != "none") paste0("_", metric) else "", ".png")
-    } else if (!is.null(metric) && nzchar(metric) && metric != "none") {
-        fname <- paste0("piemap_bio_", bio, "_", metric, ".png")
-    } else {
-        fname <- paste0("piemap_bio_", bio, ".png")
     }
+    fname <- paste0("piemap_bio_", bio, suffix, ".png")
     file.path(dir, fname)
 }
 
@@ -472,10 +471,12 @@ novelty_raster_path <- function(project, scenario_label) {
 # ─── Phenotype piemap ────────────────────────────────────────────────────────
 
 #' Phenotype association piemap (phenomap) path
+#' @param points if TRUE, resolve the points ("clear map") companion instead of
+#'   the pie chart. Points are trait-independent, so `trait` is ignored.
 #' @noRd
-pheno_piemap_path <- function(project, trait) {
-    mod_path(project, MOD_GWAS, "plots", "piemap",
-             paste0("phenomap_", trait, ".png"))
+pheno_piemap_path <- function(project, trait, points = FALSE) {
+    fname <- if (points) "phenomap_points.png" else paste0("phenomap_", trait, ".png")
+    mod_path(project, MOD_GWAS, "plots", "piemap", fname)
 }
 
 # ─── Input data paths ─────────────────────────────────────────────────────────

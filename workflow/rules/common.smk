@@ -161,11 +161,14 @@ METRICS_WINSIZE = _cfg('Population', 'window_size', 10000)
 CUSTOM_TRAIT = _cfg('Population', 'custom_trait_file', 'NULL')
 
 # PIEMAP parameters (palette fixed to viridis plasma)
+# NOTE: use_points is NOT read here for the Structure/Maladaptation/GWAS geo
+# maps — those always emit a pie file plus a "*_points" companion file, and
+# the Shiny app toggles between them at runtime. Piemap.use_points still
+# governs the on-demand haplotype-viz piemaps (see fct_regions.R).
 PIEMAP_ALPHA = _cfg('Piemap', 'alpha', 0.6)
 PIEMAP_SHOW_LABELS = 'T' if _cfg_bool('Piemap', 'show_labels', False) else 'F'
 PIEMAP_LABEL_SIZE = _cfg('Piemap', 'label_size', 10)
 PIEMAP_PIE_SCALE = _cfg('Piemap', 'pie_scale', 1.0)
-PIEMAP_USE_POINTS = 'T' if _cfg_bool('Piemap', 'use_points', False) else 'F'
 
 # LD DECAY parameters
 _ld_decay = config.get('LDdecay', {})
@@ -909,6 +912,10 @@ def mala_offset_piemap(method, run_label, spatial_tag, size_trait):
     """size_trait: 'notrait' | 'tajima_d' | 'pi_diversity'"""
     return f"{mala_plot_dir(method, run_label, spatial_tag)}genetic_offset_piemap_{size_trait}.png"
 
+def mala_offset_piemap_points(method, run_label, spatial_tag):
+    """Points ('clear map') companion — trait-independent, one per method/run_label/spatial_tag."""
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}genetic_offset_piemap_points.png"
+
 # Maladaptation paths
 def add_maladaptation_paths():
     """Add maladaptation-specific paths to W and O dictionaries."""
@@ -946,6 +953,7 @@ DENSITY_PLOT_PHENOTYPES  = f"{MOD_CLIMATE}plots/density_plot_phenotypes.png"
 def piemap_tajima(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_tajima_d.png"
 def piemap_diversity(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_pi_diversity.png"
 def piemap_notrait(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}.png"
+def piemap_notrait_points(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_points.png"
 
 # Templates for association outputs
 def assoc_pvalues(method): return f"{MOD_GEA}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
@@ -1362,6 +1370,7 @@ def get_targets(mode):
             targets += [O['corr_heatmap']]
             # Simple PieMaps for ALL 19 BIO variables (exploration step)
             targets += [piemap_notrait(bio) for bio in ALL_BIO]
+            targets += [piemap_notrait_points(bio) for bio in ALL_BIO]
         if META_HAS_PHENO:
             targets += [DENSITY_PLOT_PHENOTYPES]
 
@@ -1437,6 +1446,7 @@ def get_targets(mode):
                         mala_offset_site_values(method, set_name, spatial_tag),
                         mala_importance(method, set_name, spatial_tag),
                         mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
+                        mala_offset_piemap_points(method, set_name, spatial_tag),
                     ]
                     # Cumulative importance (GF only)
                     if _mflags['supports_cumulative_importance']:
@@ -1469,6 +1479,8 @@ def get_targets(mode):
         if CLIMATE_ENABLED:
             for trait in PHENO_TRAITS:
                 targets.append(f"{MOD_GWAS}plots/piemap/phenomap_{trait}.png")
+            # Points ("clear map") companion — trait-independent, one per project
+            targets.append(f"{MOD_GWAS}plots/piemap/phenomap_points.png")
 
         targets.append(W['summary_done'])
         return targets

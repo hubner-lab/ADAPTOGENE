@@ -320,8 +320,7 @@ if GWAS_CONFIGS:
           plot_dir = f"{MOD_GWAS}plots/piemap/",
           inter_dir = INTER,
           regionmap_extent = REGIONMAP_EXTENT,
-          pie_scale = PIEMAP_PIE_SCALE,
-          use_points = PIEMAP_USE_POINTS
+          pie_scale = PIEMAP_PIE_SCALE
       log: f"{LOGDIR}gwas/piemap_pheno_{{pheno_trait}}.log"
       shell:
           """
@@ -331,5 +330,36 @@ if GWAS_CONFIGS:
               {input.trait} "{wildcards.pheno_trait}" \
               {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
               {params.plot_dir} {params.inter_dir} \
-              phenomap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+              phenomap_{wildcards.pheno_trait} {params.regionmap_extent} {params.pie_scale} Clusters > {log} 2>&1
+          """
+
+  rule piemap_gwas_points:
+      """Points ('clear map') companion for the phenotype piemap — trait-independent
+      (points only mark sample locations), one per project."""
+      input:
+          raster = W['climate_raster'],
+          metadata = W['metadata_climate'],
+          clusters = clusters_table(K_BEST)
+      output:
+          png = f"{MOD_GWAS}plots/piemap/phenomap_points.png",
+          svg = f"{MOD_GWAS}plots/piemap/phenomap_points.svg"
+      params:
+          raster_layer = get_predictors_list()[0] if get_predictors_list() else "1",
+          pie_alpha = PIEMAP_ALPHA,
+          pop_label = PIEMAP_SHOW_LABELS,
+          pop_label_size = PIEMAP_LABEL_SIZE,
+          plot_dir = f"{MOD_GWAS}plots/piemap/",
+          inter_dir = INTER,
+          regionmap_extent = REGIONMAP_EXTENT,
+          pie_scale = PIEMAP_PIE_SCALE
+      log: f"{LOGDIR}gwas/piemap_pheno_points.log"
+      shell:
+          """
+          Rscript /pipeline/scripts/plot_piemap.R \
+              {input.raster} {params.raster_layer} {params.raster_layer} \
+              {input.metadata} {input.clusters} \
+              NULL NULL \
+              {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+              {params.plot_dir} {params.inter_dir} \
+              phenomap_points {params.regionmap_extent} {params.pie_scale} Clusters T > {log} 2>&1
           """

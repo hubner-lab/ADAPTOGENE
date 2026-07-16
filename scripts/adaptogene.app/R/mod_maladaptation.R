@@ -28,13 +28,17 @@ mod_maladaptation_ui <- function(id) {
 
         shiny::hr(),
 
-        # Piemap Type + Zoom right before piemap
+        # Piemap Type + Zoom + Points right before piemap
         htmltools::div(
             class = "control-bar",
             bslib::layout_columns(
-                col_widths = c(6, 6),
+                col_widths = c(4, 4, 4),
                 shiny::uiOutput(ns("piemap_variant_ui")),
-                shiny::uiOutput(ns("zoom_selector"))
+                shiny::uiOutput(ns("zoom_selector")),
+                htmltools::div(
+                    class = "d-flex align-items-center h-100",
+                    bslib::input_switch(ns("points"), "Points (clear map)", value = FALSE)
+                )
             )
         ),
 
@@ -414,6 +418,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
 
         selected_variant <- shiny::reactive(input$piemap_variant %||% "base")
         selected_zoom    <- shiny::reactive(input$zoom %||% "none")
+        selected_points  <- shiny::reactive(isTRUE(input$points))
 
         # ── Importance images ──────────────────────────────────────────────────
         shiny::observe({
@@ -436,10 +441,16 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         })
 
         # ── Single selector-driven offset piemap ───────────────────────────────
+        # Points ("clear map") is trait/metric-independent and has no zoom
+        # companion — when on, it always shows the project-level points file,
+        # ignoring the zoom/variant selectors.
         piemap_path <- shiny::reactive({
             suf     <- shiny::req(selected_suffix())
             method  <- selected_method()
             pd      <- project_data()
+            if (selected_points()) {
+                return(gf_offset_piemap_path(pd$name, suf, "points", method = method))
+            }
             variant <- selected_variant()
             zoom    <- selected_zoom()
             if (zoom != "none") {
@@ -451,6 +462,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         })
 
         piemap_title <- shiny::reactive({
+            if (selected_points()) return("Genetic Offset (points)")
             variant <- selected_variant()
             zoom    <- selected_zoom()
             label   <- c(
@@ -464,7 +476,8 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         mod_image_card_server("offset_piemap",
             path        = piemap_path,
             title       = piemap_title,
-            dl_name     = shiny::reactive(paste0("offset_piemap_", selected_variant(),
+            dl_name     = shiny::reactive(paste0("offset_piemap_",
+                                                  if (selected_points()) "points" else selected_variant(),
                                                   "_", selected_suffix() %||% "gf")),
             placeholder = shiny::reactive("Run mode=maladaptation to generate offset results"),
             note        = shiny::reactive(help_note("offset_piemap"))

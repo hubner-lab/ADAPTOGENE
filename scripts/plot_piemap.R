@@ -166,17 +166,19 @@ create_piemap <- function(samples,
     labs(fill = legend_map_title)
 
   if (use_points) {
-    # Point mode: small single-color dots to show sample locations
-    # without distracting from the raster signal.
-    # Size = PIE_SCALE * base (3pt), floor at 0.8pt to stay visible.
-    # Cyan contrasts well across the entire plasma palette (no blues/cyans in plasma).
-    point_size <- max(0.8, 3.0 * PIE_SCALE)
+    # Point mode ("clear map"): tiny, barely-visible dots marking sample
+    # locations only, so the raster and geography read clearly under dense
+    # sampling where pies would overlap. NOTE: this is ~30-400 sample sites,
+    # not per-SNP data, so the WGS-density plotting rule (no geom_point at
+    # SNP scale) does not apply here.
+    # Size = PIE_SCALE * base (1.2pt), floor at 0.5pt to stay clickable.
+    point_size <- max(0.5, 1.2 * PIE_SCALE)
 
     gPlot <- gPlot +
       geom_point(data = clusters_by_pop,
                  aes(x = longitude, y = latitude),
-                 shape = 21, fill = 'cyan3', color = 'grey30',
-                 size = point_size, stroke = 0.3, alpha = pie_alpha) +
+                 shape = 21, fill = 'grey15', color = 'white',
+                 size = point_size, stroke = 0.15, alpha = 0.85) +
       theme_bw()
 
     message(paste0('INFO: Using point mode (size=', round(point_size, 2), ', PIE_SCALE=', PIE_SCALE, ')'))

@@ -12,10 +12,14 @@ mod_structure_ui <- function(id) {
         htmltools::div(
             class = "control-bar",
             bslib::layout_columns(
-                col_widths = c(4, 4, 4),
+                col_widths = c(3, 3, 3, 3),
                 shiny::uiOutput(ns("bio_selector")),
                 shiny::uiOutput(ns("metric_selector")),
-                shiny::uiOutput(ns("zoom_selector"))
+                shiny::uiOutput(ns("zoom_selector")),
+                htmltools::div(
+                    class = "d-flex align-items-center h-100",
+                    bslib::input_switch(ns("points"), "Points (clear map)", value = FALSE)
+                )
             )
         ),
 
@@ -140,6 +144,7 @@ mod_structure_server <- function(id, project_data) {
 
         selected_metric <- shiny::reactive(input$metric %||% "none")
         selected_zoom   <- shiny::reactive(input$zoom   %||% "none")
+        selected_points <- shiny::reactive(isTRUE(input$points))
 
         # ── Piemap viewer ──────────────────────────────────────────────────────
         mod_piemap_viewer_server("piemap",
@@ -147,6 +152,7 @@ mod_structure_server <- function(id, project_data) {
             bio          = selected_bio,
             metric       = selected_metric,
             zoom         = selected_zoom,
+            points       = selected_points,
             note         = shiny::reactive(help_note("structure_piemap"))
         )
 

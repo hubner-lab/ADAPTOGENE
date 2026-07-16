@@ -152,7 +152,7 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
 ├── Structure/
-│   ├── plots/piemap/                      # piemap_{bio}.png/svg/qs + zoom/
+│   ├── plots/piemap/                      # piemap_{bio}.png/svg/qs + _points.png/svg/qs (clear-map companion) + zoom/
 │   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
 │   ├── plots/pop_stats/                   # mantel_test, amova (optional)
 │   └── tables/pop_stats/                  # tajima_d_by_pop, pi_diversity_by_pop, ibd_*, amova
@@ -173,7 +173,7 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   └── tables/pairwise_{overlap_table,collapsed_snps}.tsv
 │   # NOTE: overlap regions/genes/enrichment are fully interactive in Shiny (not pipeline-computed)
 ├── Maladaptation/
-│   ├── plots/{method}/{SUFFIX}/           # cumulative_importance, overall_importance, genetic_offset_piemap[_{tajima_d,pi_diversity}]
+│   ├── plots/{method}/{SUFFIX}/           # cumulative_importance, overall_importance, genetic_offset_piemap[_{tajima_d,pi_diversity,points}]
 │   │   └── zoom/{coords}/                # zoomed piemaps
 │   └── tables/{method}/{SUFFIX}/          # genetic_offset_map, genetic_offset_site
 ├── haplotype_scan/{tag}/                  # clustree plots, selected_regions.tsv, scan_status.tsv
@@ -406,6 +406,16 @@ docker run --user $(id -u):$(id -g) --rm -e USER=pipeline -p 3838:3838 -v $PWD:/
 **Haplotype tag resolution**: Tags are `{meta_type}_{source}` (e.g., `site_association`). Each association tab finds its matching haplotype tag by splitting on `_` and matching source part.
 
 **Plotly source scoping**: Each `mod_manhattan_overlay` instance uses `ns("overlay")` as the plotly event source to prevent click events from cross-firing between Combined and Per-Method Manhattans.
+
+### Piemap Pie/Points Toggle
+
+Dense sampling makes pie charts overlap and occlude the raster/geography. Every geo piemap (Structure ancestry, Maladaptation genetic-offset, GWAS phenomap) is generated **twice** by the pipeline: the pie chart (main render) and a `*_points` companion (tiny dark dots marking sample locations only, via `plot_piemap.R`'s `use_points` branch). The Shiny app renders both and lets the user flip between them at runtime with a `bslib::input_switch("Points")` in each tab's `.control-bar` — no pipeline re-run needed.
+
+- Points are **trait/metric-independent** (they only plot lon/lat) — one points file per background raster (per bio for Structure, per method/run_label/spatial_tag for Maladaptation, per project for GWAS phenomap), not per metric/trait/variant.
+- `piemap_path()` and `pheno_piemap_path()` (`fct_paths.R`) take a `points = FALSE` param that resolves the companion filename and ignores `metric`/`trait` when TRUE. `gf_offset_piemap_path(..., variant = "points")` already works via its verbatim-variant branch — no change needed there.
+- Structure's `_no_spatial_variance.flag` placeholder (climate var invariant across sites) is **bypassed** in points mode — points show geography, which stays meaningful even when the climate signal doesn't vary spatially.
+- Maladaptation's points toggle ignores the zoom/variant selectors (the flat `zoom/{tag}.png` naming has no points companion) and always shows the project-level points file.
+- `Piemap.use_points` config key still exists but only governs the on-demand haplotype-viz piemaps (`fct_regions.R`) — it is NOT read by the Structure/Maladaptation/GWAS map rules, which always emit both renders.
 
 ### Piemap Sizing
 

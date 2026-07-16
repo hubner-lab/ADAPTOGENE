@@ -19,6 +19,10 @@ mod_piemap_viewer_ui <- function(id) {
 #' @param bio reactive integer: bio variable number (1 for bio1, etc.)
 #' @param metric reactive character: "none", "tajima_d", or "pi_diversity"
 #' @param zoom reactive character: zoom region tag, or NULL/""/"none" for global
+#' @param points reactive logical: show the points ("clear map") companion instead
+#'   of the pie chart. Points are trait/metric-independent and always meaningful
+#'   (they show geography, not cluster proportions), so the no-spatial-variance
+#'   placeholder is bypassed when TRUE.
 #' @param note reactive returning a small htmltools tag (e.g. help_note()) shown next
 #'   to the title, or NULL to show nothing. Forwarded straight to mod_image_card_server.
 #' @noRd
@@ -26,6 +30,7 @@ mod_piemap_viewer_server <- function(id, project_data,
                                       bio    = shiny::reactive(1L),
                                       metric = shiny::reactive("none"),
                                       zoom   = shiny::reactive(NULL),
+                                      points = shiny::reactive(FALSE),
                                       note   = shiny::reactive(NULL)) {
     shiny::moduleServer(id, function(input, output, session) {
 
@@ -41,14 +46,17 @@ mod_piemap_viewer_server <- function(id, project_data,
 
         raw_path <- shiny::reactive({
             pd <- project_data()
-            piemap_path(pd$name, bio(), effective_metric(), effective_zoom())
+            piemap_path(pd$name, bio(), effective_metric(), effective_zoom(), points = points())
         })
 
-        # Suppress the image when the no-variance flag is present (even if file exists)
+        # Suppress the image when the no-variance flag is present (even if file exists).
+        # Points mode shows geography only (not cluster proportions), so it stays
+        # meaningful even when the climate variable has near-zero spatial variance —
+        # bypass the flag in that case.
         path <- shiny::reactive({
             p    <- raw_path()
             flag <- base_flag()
-            if (file_ok(p) && file.exists(flag)) NULL else p
+            if (!points() && file_ok(p) && file.exists(flag)) NULL else p
         })
 
         title <- shiny::reactive({
@@ -56,6 +64,7 @@ mod_piemap_viewer_server <- function(id, project_data,
             m <- effective_metric()
             z <- effective_zoom()
             base <- paste0("Piemap bio", b)
+            if (points())          base <- paste0(base, " (points)")
             if (!is.null(z))      paste0(base, " (zoom: ", z, ")")
             else if (!is.null(m)) paste0(base, " (", gsub("_", " ", m), ")")
             else                  base
@@ -66,6 +75,7 @@ mod_piemap_viewer_server <- function(id, project_data,
             m <- effective_metric()
             z <- effective_zoom()
             base <- paste0("piemap_bio", b)
+            if (points())          base <- paste0(base, "_points")
             if (!is.null(z))      paste0(base, "_zoom_", z)
             else if (!is.null(m)) paste0(base, "_", m)
             else                  base

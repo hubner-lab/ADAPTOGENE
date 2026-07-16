@@ -14,10 +14,17 @@ mod_gwas_ui <- function(id) {
         # Phenotype missing data alert
         shiny::uiOutput(ns("pheno_missing_alert")),
 
-        # Trait selector inline above phenomap
+        # Trait selector + points toggle inline above phenomap
         htmltools::div(
             class = "control-bar",
-            shiny::uiOutput(ns("trait_selector"))
+            bslib::layout_columns(
+                col_widths = c(8, 4),
+                shiny::uiOutput(ns("trait_selector")),
+                htmltools::div(
+                    class = "d-flex align-items-center h-100",
+                    bslib::input_switch(ns("points"), "Points (clear map)", value = FALSE)
+                )
+            )
         ),
 
         # Phenomap piemap (constrained to 2/3 width)
@@ -482,13 +489,15 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         })
 
         selected_pheno_trait <- shiny::reactive(input$pheno_trait %||% all_trait_names_rv()[1])
+        selected_points      <- shiny::reactive(isTRUE(input$points))
 
         # ── Phenomap ───────────────────────────────────────────────────────────
+        # Points ("clear map") is trait-independent — ignores the trait selector.
         output$phenomap_content <- shiny::renderUI({
             tr <- selected_pheno_trait()
             if (is.null(tr)) return(plot_placeholder("Select a trait"))
             pd   <- project_data()
-            path <- pheno_piemap_path(pd$name, tr)
+            path <- pheno_piemap_path(pd$name, tr, points = selected_points())
             if (file_ok(path)) {
                 shiny::imageOutput(ns("phenomap_img"), height = "auto", width = "100%")
             } else {
@@ -500,7 +509,7 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         output$phenomap_img <- shiny::renderImage({
             tr <- shiny::req(selected_pheno_trait())
             pd <- project_data()
-            p  <- pheno_piemap_path(pd$name, tr)
+            p  <- pheno_piemap_path(pd$name, tr, points = selected_points())
             shiny::validate(shiny::need(file_ok(p), "Phenomap not found"))
             list(src = p, contentType = "image/png", width = "100%", alt = paste("Phenomap", tr))
         }, deleteFile = FALSE)

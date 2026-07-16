@@ -162,7 +162,7 @@ config_schema <- function() {
           help = "Multiplier for pie chart diameter (1.0 = default)"),
         s("Piemap.use_points",  "Use points",        "structure", "Piemap",
           "checkbox", FALSE,
-          help = "Replace pie charts with single colored points (for large datasets)"),
+          help = "Points-only style used by on-demand haplotype-viz piemaps. The main Structure/Maladaptation/GWAS geo maps always emit both pie and points versions, switchable at runtime with the Points toggle in the app."),
         # Optional — LD decay
         s("LDdecay.group_by",    "Group by",        "structure", "LD Decay",
           "select", TRUE,

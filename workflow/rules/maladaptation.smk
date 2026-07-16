@@ -293,7 +293,6 @@ rule plot_gf_offset_piemap:
         pop_label       = PIEMAP_SHOW_LABELS,
         pop_label_size  = PIEMAP_LABEL_SIZE,
         pie_scale       = PIEMAP_PIE_SCALE,
-        use_points      = PIEMAP_USE_POINTS,
         plot_dir        = lambda wc: mala_plot_dir(wc.method, wc.run_label, wc.spatial_tag),
         inter_dir       = INTER,
         regionmap_extent = REGIONMAP_EXTENT,
@@ -308,5 +307,33 @@ rule plot_gf_offset_piemap:
             {params.trait_path} \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            {params.output_prefix} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            {params.output_prefix} {params.regionmap_extent} {params.pie_scale} Clusters > {log} 2>&1
+        """
+
+rule plot_gf_offset_piemap_points:
+    """Points ('clear map') companion for the genetic offset piemap — trait-independent
+    (points only mark sample locations), one per method/run_label/spatial_tag."""
+    input:
+        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
+        samples       = W['metadata_climate_valid'],
+        clusters      = clusters_table(K_BEST)
+    output: mala_offset_piemap_points('{method}', '{run_label}', '{spatial_tag}')
+    params:
+        pie_alpha       = PIEMAP_ALPHA,
+        pop_label       = PIEMAP_SHOW_LABELS,
+        pop_label_size  = PIEMAP_LABEL_SIZE,
+        pie_scale       = PIEMAP_PIE_SCALE,
+        plot_dir        = lambda wc: mala_plot_dir(wc.method, wc.run_label, wc.spatial_tag),
+        inter_dir       = INTER,
+        regionmap_extent = REGIONMAP_EXTENT
+    log: f"{LOGDIR}maladaptation/plot_offset_piemap_points_{{method}}_{{run_label}}_{{spatial_tag}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.offset_raster} 1 "Genetic Offset" \
+            {input.samples} {input.clusters} \
+            NULL NULL \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            genetic_offset_piemap_points {params.regionmap_extent} {params.pie_scale} Clusters T > {log} 2>&1
         """

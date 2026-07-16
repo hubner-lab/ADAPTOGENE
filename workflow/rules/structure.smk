@@ -249,7 +249,6 @@ rule piemap_plot:
         pop_label = PIEMAP_SHOW_LABELS,
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
-        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{MOD_STRUCT}plots/piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
@@ -263,7 +262,7 @@ rule piemap_plot:
             {input.tajima} "Tajima's D" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            piemap_{params.bio}_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            piemap_{params.bio}_tajima_d {params.regionmap_extent} {params.pie_scale} Clusters > {log} 2>&1
 
         # PiDiversity piemap
         Rscript /pipeline/scripts/plot_piemap.R \
@@ -272,7 +271,7 @@ rule piemap_plot:
             {input.diversity} "Pi Diversity" \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            piemap_{params.bio}_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} >> {log} 2>&1
+            piemap_{params.bio}_pi_diversity {params.regionmap_extent} {params.pie_scale} Clusters >> {log} 2>&1
         """
 
 rule piemap_simple:
@@ -282,7 +281,9 @@ rule piemap_simple:
         meta = W['metadata_climate'],
         clusters = clusters_table(K_BEST),
         raster = W['climate_raster']
-    output: piemap_notrait("{bio}")
+    output:
+        pie = piemap_notrait("{bio}"),
+        points = piemap_notrait_points("{bio}")
     wildcard_constraints: bio = r"bio_\d+"
     params:
         bio = lambda wc: wc.bio,
@@ -290,20 +291,29 @@ rule piemap_simple:
         pop_label = PIEMAP_SHOW_LABELS,
         pop_label_size = PIEMAP_LABEL_SIZE,
         pie_scale = PIEMAP_PIE_SCALE,
-        use_points = PIEMAP_USE_POINTS,
         plot_dir = f"{MOD_STRUCT}plots/piemap/",
         inter_dir = INTER,
         regionmap_extent = REGIONMAP_EXTENT
     log: f"{LOGDIR}structure/piemap_simple_{{bio}}.log"
     shell:
         """
+        # Pie chart (main render)
         Rscript /pipeline/scripts/plot_piemap.R \
             {input.raster} {params.bio} {params.bio} \
             {input.meta} {input.clusters} \
             NULL NULL \
             {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
             {params.plot_dir} {params.inter_dir} \
-            piemap_{params.bio} {params.regionmap_extent} {params.pie_scale} Clusters {params.use_points} > {log} 2>&1
+            piemap_{params.bio} {params.regionmap_extent} {params.pie_scale} Clusters > {log} 2>&1
+
+        # Points ("clear map") companion — same background, tiny dots instead of pies
+        Rscript /pipeline/scripts/plot_piemap.R \
+            {input.raster} {params.bio} {params.bio} \
+            {input.meta} {input.clusters} \
+            NULL NULL \
+            {params.pie_alpha} {params.pop_label} {params.pop_label_size} \
+            {params.plot_dir} {params.inter_dir} \
+            piemap_{params.bio}_points {params.regionmap_extent} {params.pie_scale} Clusters T >> {log} 2>&1
         """
 
 #=============================================================================
