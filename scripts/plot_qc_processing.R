@@ -24,14 +24,18 @@
 #   19 depth_site         - depth_per_site.ldepth.mean or 'NULL'
 #   20 plots_dir          - output directory for plots
 #   21 tables_dir         - output directory for tables
-#   22 relatedness_pairs  - relatedness_pairs.tsv (plink --genome, IID1/IID2/PI_HAT; always produced)
-#   23 pihat_thresh       - Filter.relatedness pi-hat threshold or 'NULL' (colors/counts only; removal is a separate Filter.relatedness_action gate)
+#   22 relatedness_pairs  - relatedness_pairs.tsv (plink --genome, IID1/IID2/IBS; always produced)
+#   23 pihat_thresh       - Filter.relatedness IBS threshold or 'NULL' (colors/counts only; removal is a separate Filter.relatedness_action gate)
+#   24 relatedness_removed - relatedness_removed.tsv (preview of samples that WOULD be dropped, IID/IBS/F_MISS) or 'NULL' when no threshold is set
+#   25 relatedness_action  - Filter.relatedness_action ('keep' or 'remove') -- whether the preview above was actually applied
 
 suppressPackageStartupMessages({
     library(data.table)
     library(ggplot2)
     library(dplyr)
 })
+
+source("/pipeline/scripts/R/utils/theme_adaptogene.R")
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -58,6 +62,8 @@ PLOTS_DIR          <- args[20]
 TABLES_DIR         <- args[21]
 RELATEDNESS_PAIRS  <- args[22]
 PI_HAT_THRESH      <- if (args[23] == 'NULL') NULL else as.numeric(args[23])
+RELATEDNESS_REMOVED_FILE <- if (args[24] == 'NULL') NULL else args[24]
+RELATEDNESS_ACTION       <- tolower(args[25])
 
 #=============================================================================
 # HELPERS
@@ -75,15 +81,6 @@ count_vcf_snps <- function(vcf_path) {
         n <- n + sum(!startsWith(line, '#'))
     close(con)
     n
-}
-
-theme_qc <- function() {
-    theme_bw(base_size = 11) +
-    theme(
-        panel.grid.minor = element_blank(),
-        plot.title = element_text(size = 11, face = "bold"),
-        axis.title = element_text(size = 10)
-    )
 }
 
 #=============================================================================
@@ -122,19 +119,17 @@ p_smiss <- ggplot(smiss, aes(x = F_MISS)) +
         binwidth = 0.02, color = "white", linewidth = 0.2
     ) +
     scale_fill_manual(
-        values = c("FALSE" = "#4dac9d", "TRUE" = "#d73027"),
+        values = c("FALSE" = ADAPT_RETAINED, "TRUE" = ADAPT_REMOVED),
         labels = c("FALSE" = "Retained", "TRUE" = "Removed"),
         name = NULL
     ) +
-    geom_vline(xintercept = SAMPLE_MISS_THRESH, linetype = "dashed", color = "#333333") +
-    annotate("text", x = SAMPLE_MISS_THRESH + 0.01, y = Inf, vjust = 1.5, hjust = 0,
-             label = paste0("threshold = ", SAMPLE_MISS_THRESH), size = 3.2, color = "#333333") +
+    geom_vline(xintercept = SAMPLE_MISS_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD) +
     labs(
         title = "Per-sample missingness distribution",
         x = "Fraction missing genotypes (F_MISS)",
         y = "Number of samples"
     ) +
-    theme_qc()
+    theme_adaptogene()
 save_plot(p_smiss, "sample_missingness_distribution.png")
 
 #=============================================================================
@@ -147,19 +142,17 @@ p_lmiss <- ggplot(lmiss, aes(x = F_MISS)) +
         binwidth = 0.01, color = "white", linewidth = 0.1
     ) +
     scale_fill_manual(
-        values = c("FALSE" = "#4575b4", "TRUE" = "#d73027"),
+        values = c("FALSE" = ADAPT_RETAINED, "TRUE" = ADAPT_REMOVED),
         labels = c("FALSE" = "Retained", "TRUE" = "Removed"),
         name = NULL
     ) +
-    geom_vline(xintercept = SNP_MISS_THRESH, linetype = "dashed", color = "#333333") +
-    annotate("text", x = SNP_MISS_THRESH + 0.005, y = Inf, vjust = 1.5, hjust = 0,
-             label = paste0("threshold = ", SNP_MISS_THRESH), size = 3.2, color = "#333333") +
+    geom_vline(xintercept = SNP_MISS_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD) +
     labs(
         title = "Per-SNP missingness distribution (pre-filter)",
         x = "Fraction missing genotypes (F_MISS)",
         y = "Number of SNPs"
     ) +
-    theme_qc()
+    theme_adaptogene()
 save_plot(p_lmiss, "snp_missingness_distribution.png")
 
 #=============================================================================
@@ -169,20 +162,16 @@ maf_raw  <- fread(MAF_RAW_FILE)
 maf_filt <- fread(MAF_FILT_FILE)  # kept for attrition computation below
 
 n_below_maf <- nrow(maf_raw[MAF < MAF_THRESH])
-maf_label <- paste0(n_below_maf, " SNP", if (n_below_maf != 1) "s" else "",
-                    " below threshold (MAF < ", MAF_THRESH, ")")
 
 p_maf <- ggplot(maf_raw, aes(x = MAF)) +
-    geom_histogram(binwidth = 0.01, fill = "#4575b4", color = NA) +
-    geom_vline(xintercept = MAF_THRESH, linetype = "dashed", color = "#333333") +
-    annotate("text", x = MAF_THRESH + 0.005, y = Inf, vjust = 1.5, hjust = 0,
-             label = maf_label, size = 3.2, color = "#333333") +
+    geom_histogram(binwidth = 0.01, fill = ADAPT_RETAINED, color = NA) +
+    geom_vline(xintercept = MAF_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD) +
     labs(
         title = "Minor allele frequency distribution (pre-filter)",
         x = "Minor allele frequency (MAF)",
         y = "Number of SNPs"
     ) +
-    theme_qc()
+    theme_adaptogene()
 save_plot(p_maf, "maf_distribution.png")
 
 #=============================================================================
@@ -195,7 +184,9 @@ meta <- fread(METADATA_FILE, colClasses = list(character = "sample"))
 het[, obs_het := (N_NM - O_HOM) / N_NM]
 het[, sample := IID]
 
-# Merge with metadata to get site
+# Merge with metadata to get site (kept for the table only \u2014 NOT used to color
+# the plot: population studies typically have far more sampling sites than a
+# legend can usefully show).
 merged <- merge(het, meta[, .(sample, site)], by = "sample", all.x = TRUE)
 merged[is.na(site), site := "unknown"]
 
@@ -212,20 +203,19 @@ het_lo <- het_mean - sd_thresh * het_sd
 het_hi <- het_mean + sd_thresh * het_sd
 merged[, outlier := obs_het < het_lo | obs_het > het_hi]
 
-# Build plot
-p_het <- ggplot(merged, aes(x = F_MISS, y = obs_het, color = site)) +
-    geom_point(aes(shape = outlier), size = 2, alpha = 0.8) +
+# Build plot \u2014 no site coloring (see comment above); outliers marked red.
+p_het <- ggplot(merged, aes(x = F_MISS, y = obs_het)) +
+    geom_point(aes(color = outlier, shape = outlier), size = 2, alpha = 0.8) +
+    scale_color_manual(values = c("FALSE" = ADAPT_NEUTRAL, "TRUE" = ADAPT_REMOVED), guide = "none") +
     scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 4), guide = "none") +
-    geom_hline(yintercept = c(het_lo, het_hi), linetype = "dashed", color = "#d73027", linewidth = 0.5) +
-    geom_vline(xintercept = SAMPLE_MISS_THRESH, linetype = "dashed", color = "#555555", linewidth = 0.5) +
+    geom_hline(yintercept = c(het_lo, het_hi), linetype = "dashed", color = ADAPT_THRESHOLD, linewidth = 0.5) +
+    geom_vline(xintercept = SAMPLE_MISS_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD, linewidth = 0.5) +
     labs(
         title = "Heterozygosity vs missingness per sample",
-        subtitle = paste0("Dashed lines: missingness threshold + het mean \u00b1 ", sd_thresh, " SD"),
         x = "Fraction missing (F_MISS)",
-        y = "Observed heterozygosity",
-        color = "Site"
+        y = "Observed heterozygosity"
     ) +
-    theme_qc()
+    theme_adaptogene()
 
 # Label outliers
 outliers <- merged[outlier == TRUE]
@@ -234,7 +224,7 @@ if (nrow(outliers) > 0) {
         ggrepel::geom_text_repel(
             data = outliers,
             aes(label = sample),
-            size = 2.5, color = "#d73027", max.overlaps = 20
+            size = 2.5, color = ADAPT_REMOVED, max.overlaps = 20
         )
 }
 save_plot(p_het, "het_vs_missingness.png", width = 8, height = 6)
@@ -277,9 +267,9 @@ dens_both[, CHROM := factor(CHROM, levels = chr_order)]
 p_density <- ggplot(dens_both, aes(x = pos_mb, y = stage, fill = SNP_COUNT)) +
     geom_tile(height = 0.9) +
     scale_fill_gradientn(
-        colors = c("#f0f0f0", "#4dac9d", "#006d5b"),
+        colors = c("#F0F2F5", ADAPT_RETAINED, "#0B4A42"),
         name = "SNPs/1Mb",
-        na.value = "#f0f0f0"
+        na.value = "#F0F2F5"
     ) +
     facet_grid(CHROM ~ ., switch = "y") +
     labs(
@@ -287,7 +277,7 @@ p_density <- ggplot(dens_both, aes(x = pos_mb, y = stage, fill = SNP_COUNT)) +
         x = "Position (Mb)",
         y = NULL
     ) +
-    theme_qc() +
+    theme_adaptogene() +
     theme(
         axis.text.y = element_text(size = 8),
         legend.position = "right",
@@ -316,6 +306,15 @@ n_after_sample_filter <- nrow(smiss[F_MISS <= SAMPLE_MISS_THRESH])
 n_after_het_filter    <- if (!is.null(HET_OUTLIER_SD)) sum(!merged$outlier, na.rm = TRUE) else n_after_sample_filter
 n_final_samples       <- nrow(meta)  # post all filtering (from aligned metadata)
 
+# Relatedness removal count (read once here, reused by the Section 10 MDS plot below)
+relatedness_removed_applied <- RELATEDNESS_ACTION == "remove" &&
+    !is.null(RELATEDNESS_REMOVED_FILE) && file.exists(RELATEDNESS_REMOVED_FILE)
+removed_ids <- character(0)
+if (!is.null(RELATEDNESS_REMOVED_FILE) && file.exists(RELATEDNESS_REMOVED_FILE)) {
+    removed_tbl <- fread(RELATEDNESS_REMOVED_FILE)
+    if (nrow(removed_tbl) > 0) removed_ids <- removed_tbl$IID
+}
+
 # SNP attrition: separate MAF and SNP missingness stages
 # n_below_maf is already computed above from maf_raw
 n_after_maf <- n_raw_snps - n_below_maf
@@ -325,6 +324,7 @@ attrition <- data.table(
         "Raw VCF",
         "After sample missingness filter",
         if (!is.null(HET_OUTLIER_SD)) "After het outlier removal" else NULL,
+        if (relatedness_removed_applied) "After relatedness filter" else NULL,
         "After MAF filter",
         "After MAF + SNP missingness filter",
         "After LD pruning"
@@ -333,7 +333,12 @@ attrition <- data.table(
         n_raw_samples_in_meta,
         n_after_sample_filter,
         if (!is.null(HET_OUTLIER_SD)) n_after_het_filter else NULL,
-        n_after_sample_filter,
+        if (relatedness_removed_applied) n_final_samples else NULL,
+        # filter_vcf applies --keep and --maf/--geno in a single plink call, so
+        # sample selection is already final by this point regardless of which
+        # optional stages above ran — always n_final_samples, never a stale
+        # pre-relatedness/pre-het count (that produced a nonsensical up-jump).
+        n_final_samples,
         n_final_samples,
         n_final_samples
     ),
@@ -341,6 +346,7 @@ attrition <- data.table(
         n_raw_snps,
         n_raw_snps,
         if (!is.null(HET_OUTLIER_SD)) n_raw_snps else NULL,
+        if (relatedness_removed_applied) n_raw_snps else NULL,
         n_after_maf,
         n_filt_snps,
         n_ld_snps
@@ -359,7 +365,7 @@ attrition_snps <- attrition[stage %in% snp_stages]
 attrition_snps[, stage := factor(stage, levels = snp_stages)]
 
 p_attrition <- ggplot(attrition_snps, aes(x = stage, y = n_snps)) +
-    geom_col(fill = "#4dac9d", width = 0.6) +
+    geom_col(fill = ADAPT_RETAINED, width = 0.6) +
     geom_text(aes(label = paste0(n_snps, "\n(", pct_snps, "%)")),
               vjust = -0.3, size = 3) +
     scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 18)) +
@@ -369,7 +375,7 @@ p_attrition <- ggplot(attrition_snps, aes(x = stage, y = n_snps)) +
         x = NULL,
         y = "Number of SNPs"
     ) +
-    theme_qc() +
+    theme_adaptogene() +
     theme(axis.text.x = element_text(size = 9))
 save_plot(p_attrition, "filtering_attrition.png", width = 8, height = 5)
 
@@ -391,24 +397,24 @@ if (depth_ok) {
     depth_l_hist <- depth_l[, .(count = .N), by = .(depth_bin = round(MEAN_DEPTH))]
 
     p_depth_s <- ggplot(depth_s, aes(x = MEAN_DEPTH)) +
-        geom_histogram(bins = 40, fill = "#74add1", color = "white", linewidth = 0.2) +
+        geom_histogram(bins = 40, fill = ADAPT_RETAINED, color = "white", linewidth = 0.2) +
         geom_vline(xintercept = mean(depth_s$MEAN_DEPTH, na.rm = TRUE),
-                   linetype = "dashed", color = "#333333") +
+                   linetype = "dashed", color = ADAPT_THRESHOLD) +
         labs(
             title = "Per-sample mean depth distribution",
             x = "Mean depth per sample",
             y = "Number of samples"
         ) +
-        theme_qc()
+        theme_adaptogene()
 
     p_depth_l <- ggplot(depth_l_hist, aes(x = depth_bin, y = count)) +
-        geom_col(fill = "#4575b4", width = 0.8) +
+        geom_col(fill = ADAPT_RETAINED, width = 0.8) +
         labs(
             title = "Per-SNP mean depth distribution",
             x = "Mean depth per SNP",
             y = "Number of SNPs"
         ) +
-        theme_qc()
+        theme_adaptogene()
 
     # Combine into one figure (2 panels)
     p_depth <- cowplot::plot_grid(p_depth_s, p_depth_l, ncol = 2, labels = c("A", "B"))
@@ -458,14 +464,14 @@ if (nrow(rel_pairs) > 0) {
                 binwidth = 0.02, color = "white", linewidth = 0.1
             ) +
             scale_fill_manual(
-                values = c("FALSE" = "#4dac9d", "TRUE" = "#d73027"),
+                values = c("FALSE" = ADAPT_RETAINED, "TRUE" = ADAPT_REMOVED),
                 labels = c("FALSE" = "Below threshold", "TRUE" = "Above threshold"),
                 name = NULL
             ) +
-            geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = "#333333")
+            geom_vline(xintercept = PI_HAT_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD)
     } else {
         p_rel <- ggplot(rel_pairs, aes(x = IBS)) +
-            geom_histogram(binwidth = 0.02, fill = "#4575b4", color = "white", linewidth = 0.1)
+            geom_histogram(binwidth = 0.02, fill = ADAPT_RETAINED, color = "white", linewidth = 0.1)
     }
 
     p_rel <- p_rel +
@@ -474,10 +480,74 @@ if (nrow(rel_pairs) > 0) {
             x = "IBS (proportion shared alleles)",
             y = "Number of sample pairs"
         ) +
-        theme_qc()
+        theme_adaptogene()
     save_plot(p_rel, "relatedness_distribution.png")
 } else {
     message("WARNING: Relatedness pairs file is empty or missing — skipping relatedness_distribution.png (need >=2 samples for pairwise IBS).")
 }
+
+#=============================================================================
+# 10. RELATEDNESS MDS (IBS allele-sharing as distance) — always drawn
+#=============================================================================
+# Reuses rel_pairs from Section 9 and removed_ids from Section 7 (compute
+# once). Discarded samples (preview from relatedness_filter, or actual
+# removals when Filter.relatedness_action is 'remove') are marked red so
+# users see WHICH samples cluster as duplicates/clones, not just that a
+# spike exists in the histogram.
+all_ids <- unique(c(rel_pairs$IID1, rel_pairs$IID2))
+
+mds_coords <- if (nrow(rel_pairs) > 0 && length(all_ids) >= 3) {
+    tryCatch({
+        n <- length(all_ids)
+        dist_mat <- matrix(0, n, n, dimnames = list(all_ids, all_ids))
+        idx1 <- match(rel_pairs$IID1, all_ids)
+        idx2 <- match(rel_pairs$IID2, all_ids)
+        dist_mat[cbind(idx1, idx2)] <- 1 - rel_pairs$IBS
+        dist_mat[cbind(idx2, idx1)] <- 1 - rel_pairs$IBS
+
+        fit <- cmdscale(as.dist(dist_mat), k = 2)
+        data.table(sample = rownames(fit), MDS1 = fit[, 1], MDS2 = fit[, 2])
+    }, error = function(e) {
+        message("WARNING: relatedness MDS failed (", conditionMessage(e), ") — skipping relatedness_mds.png content.")
+        NULL
+    })
+} else {
+    message("WARNING: Fewer than 3 samples with pairwise IBS — skipping relatedness_mds.png content.")
+    NULL
+}
+
+if (!is.null(mds_coords)) {
+    mds_coords[, discarded := sample %in% removed_ids]
+
+    p_mds <- ggplot(mds_coords, aes(x = MDS1, y = MDS2, color = discarded)) +
+        geom_point(size = 2.5, alpha = 0.85) +
+        scale_color_manual(
+            values = c("FALSE" = ADAPT_NEUTRAL, "TRUE" = ADAPT_REMOVED),
+            labels = c("FALSE" = "Retained", "TRUE" = "Discarded (relatedness)"),
+            name = NULL
+        ) +
+        labs(
+            title = "Sample relatedness MDS (IBS allele-sharing)",
+            x = "MDS1", y = "MDS2"
+        ) +
+        theme_adaptogene()
+
+    discarded_pts <- mds_coords[discarded == TRUE]
+    if (nrow(discarded_pts) > 0) {
+        discarded_pts[, label := sub("_DUP$", "", sample)]
+        p_mds <- p_mds +
+            ggrepel::geom_text_repel(
+                data = discarded_pts, aes(label = label),
+                size = 2.5, color = ADAPT_REMOVED, max.overlaps = Inf,
+                show.legend = FALSE
+            )
+    }
+} else {
+    # Empty placeholder so the Snakemake output contract is always satisfied.
+    p_mds <- ggplot() +
+        annotate("text", x = 0, y = 0, label = "Not enough samples for relatedness MDS", color = ADAPT_NEUTRAL) +
+        theme_void()
+}
+save_plot(p_mds, "relatedness_mds.png")
 
 message("INFO: All QC plots and tables complete.")

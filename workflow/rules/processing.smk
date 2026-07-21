@@ -504,7 +504,8 @@ rule plot_qc_processing:
         vcf_ld           = W['vcf_ld'],
         depth_sample     = O['qc_depth_sample'] if HAS_FORMAT_DP else [],
         depth_site       = O['qc_depth_site'] if HAS_FORMAT_DP else [],
-        relatedness_pairs= O['qc_relatedness_pairs']
+        relatedness_pairs= O['qc_relatedness_pairs'],
+        relatedness_removed = O['qc_relatedness_removed'] if PI_HAT is not None else []
     output:
         plot_sample_miss = O['qc_plot_sample_miss'],
         plot_het_miss    = O['qc_plot_het_miss'],
@@ -515,6 +516,7 @@ rule plot_qc_processing:
         filtering_summary= O['qc_filtering_summary'],
         sample_het       = O['qc_sample_het'],
         plot_relatedness = O['qc_plot_relatedness'],
+        plot_relatedness_mds = O['qc_plot_relatedness_mds'],
         **({"plot_depth": O['qc_plot_depth']} if HAS_FORMAT_DP else {})
     params:
         sample_miss_thresh = SAMPLE_MISS,
@@ -526,7 +528,9 @@ rule plot_qc_processing:
         depth_site         = O['qc_depth_site'] if HAS_FORMAT_DP else 'NULL',
         plots_dir          = f"{MOD_PROCESSING}plots/",
         tables_dir         = f"{MOD_PROCESSING}tables/",
-        pihat_thresh       = PI_HAT if PI_HAT is not None else 'NULL'
+        pihat_thresh       = PI_HAT if PI_HAT is not None else 'NULL',
+        relatedness_removed = O['qc_relatedness_removed'] if PI_HAT is not None else 'NULL',
+        relatedness_action = RELATEDNESS_ACTION
     log: f"{LOGDIR}processing/plot_qc_processing.log"
     shell:
         """
@@ -553,5 +557,7 @@ rule plot_qc_processing:
             {params.plots_dir} \
             {params.tables_dir} \
             {input.relatedness_pairs} \
-            {params.pihat_thresh} > {log} 2>&1
+            {params.pihat_thresh} \
+            {params.relatedness_removed} \
+            {params.relatedness_action} > {log} 2>&1
         """

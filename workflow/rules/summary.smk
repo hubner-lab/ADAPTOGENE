@@ -10,7 +10,10 @@ if MODE == 'processing':
             vcf_filt           = W['vcf_filt'],
             vcf_ld             = W['vcf_ld'],
             samples_list       = W['samples_list'],
-            samples_filtered   = W['samples_filtered'],
+            # The actual final sample list -- same resolution filter_vcf uses -- so the
+            # "Samples" summary box reports the true post-ALL-filtering count (including
+            # relatedness/het removal), not just post-missingness.
+            samples_filtered   = W['samples_rel_filtered'] if RELATEDNESS_REMOVE else (W['samples_het_filtered'] if HET_OUTLIER_SD is not None else W['samples_filtered']),
             samples_removed    = W['samples_removed'],
             qc_raw_summary     = O['qc_raw_summary'],
             filtering_summary  = O['qc_filtering_summary'],

@@ -578,6 +578,7 @@ O = {
     'qc_plot_snp_density': f"{MOD_PROCESSING}plots/snp_density_by_chr.png",
     'qc_plot_depth':       f"{MOD_PROCESSING}plots/depth_distribution.png",
     'qc_plot_relatedness': f"{MOD_PROCESSING}plots/relatedness_distribution.png",
+    'qc_plot_relatedness_mds': f"{MOD_PROCESSING}plots/relatedness_mds.png",
 }
 
 # K_BEST dependent paths — pre-populated with a sentinel so .smk files can be parsed
@@ -1333,7 +1334,7 @@ def get_targets(mode):
             O['qc_plot_sample_miss'], O['qc_plot_het_miss'],
             O['qc_plot_maf'], O['qc_plot_snp_miss'],
             O['qc_plot_attrition'], O['qc_plot_snp_density'],
-            O['qc_plot_relatedness'], O['qc_relatedness_pairs'],
+            O['qc_plot_relatedness'], O['qc_plot_relatedness_mds'], O['qc_relatedness_pairs'],
             W['summary_done']
         ]
         if GFF:
