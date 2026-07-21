@@ -75,16 +75,18 @@ docker build -t adaptogene .
 ```
 Rebuild required after any Dockerfile or R package version change.
 
-### Run Pipeline (SIMDATA — fast iteration)
+### Run Pipeline (SIMDATA — main testing dataset)
 ```bash
 docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
   snakemake -c4 -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
 ```
 
-### Run Pipeline (TEST — final validation)
+### Run Pipeline (additional real-data project — validation only, on demand)
+No default config file for this anymore (see Test Datasets below) — create a
+`config_<PROJECT>.yaml` naming the project after its actual VCF before running:
 ```bash
 docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
-  snakemake -c4 -s Snakefile --config mode=<MODE> --configfile config.yaml --scheduler greedy
+  snakemake -c4 -s Snakefile --config mode=<MODE> --configfile config_<PROJECT>.yaml --scheduler greedy
 ```
 
 ### Interactive Docker Entry
@@ -102,7 +104,9 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
 
 *`haplotype_scan` / `haplotype` modes removed in Phase 3 — haplotype analysis now runs interactively in the Shiny app (Region Explorer → Run Haplotype Scan / Run Haplotype Viz).*
 
-**CRITICAL: Never run multiple modes in parallel for the same project.** All modes share the same `{PROJECT}_results/` working directory and Snakemake lock. Running two modes concurrently (e.g., `association` and `association_phenotypes` for SIMDATA) causes lock conflicts and potential file corruption. Always run modes sequentially. Parallel runs are only safe across **different projects** (e.g., SIMDATA and TEST simultaneously).
+**CRITICAL: Never run multiple modes in parallel for the same project.** All modes share the same `{PROJECT}_results/` working directory and Snakemake lock. Running two modes concurrently (e.g., `association` and `association_phenotypes` for SIMDATA) causes lock conflicts and potential file corruption. Always run modes sequentially. Parallel runs are only safe across **different projects** (e.g., two projects with distinct `project_name` values, each with its own `_results/` directory).
+
+**CRITICAL: `{PROJECT}_results/` is keyed by `project_name` alone — the pipeline never checks that a config's `Input.vcf/metadata/gff` still matches what actually produced the existing outputs in that folder.** Two different config files sharing the same `project_name` (e.g., the CLI's config file and the Shiny app's own `config_{project_name}.yaml`, written separately from the Home tab's Input Files section) will both read/write the same `_results/` directory even if they point at completely different raw data. Non-parameterized paths (`Processing/tables/metadata.tsv`, `PreStructure/plots/K*/`, etc.) get silently overwritten by whichever config ran most recently — this already happened once (2026-07-21, a CLI run and a Shiny-triggered run both targeting `project_name: TEST` with different `Input.vcf`, three minutes apart). **Name projects after their actual VCF/dataset, never reuse a project name across datasets, and never run the CLI and the Shiny "Run" button against the same project concurrently.**
 
 **Snakemake debug flags**: `-n` (dry run), `-R <rule>` (rerun rule + downstream), `--forcerun <rule>` (rerun only rule), `-F` (force all), `-p` (print shell commands)
 
@@ -114,7 +118,7 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
 - `workflow/rules/{module}.smk` - Per-module rules: `processing`, `structure`, `structure_k`, `association`, `phenotype_assoc`, `overlapping`, `maladaptation`, `summary`
 - `workflow/rules/regionplot.smk` - Only `gff2topr` rule remains (used by Shiny on-demand regionplots); `mode=regionplot` is deprecated
 - `Snakefile_old` - Original workflow (**do NOT modify**)
-- `config.yaml` / `config_SIMDATA.yaml` - Pipeline configuration (nested YAML)
+- `config_SIMDATA.yaml` - Main testing dataset config (nested YAML). Additional per-project configs (`config_<PROJECT>.yaml`, named after the actual VCF/dataset) are created on demand for real-data validation runs — see Test Datasets.
 - `scripts/*.R` - R scripts (executed at `/pipeline/scripts/` inside Docker)
 - `scripts/emmax-intel64`, `scripts/emmax-kin-intel64` - Pre-built EMMAX binaries (checked in, not built from source)
 - `scripts/app.R` - Shiny interactive results viewer (~2,500 lines) -- **NOT YET UPDATED** for new paths
@@ -200,24 +204,29 @@ Each mode is run separately via `--config mode=<MODE>`.
 
 ## Test Datasets (CRITICAL)
 
-**Active testing dataset: TEST (config.yaml).** SIMDATA is preserved but not used for this phase. All pipeline validation runs use `config.yaml` / `TEST_results/`.
+**SIMDATA is the main, primary testing dataset (`config_SIMDATA.yaml` / `SIMDATA_results/`).** All routine development and testing runs use SIMDATA — fast, self-contained, no ambiguity about what it contains.
 
-| | **SIMDATA** | **TEST** |
-|---|---|---|
-| **Config** | `config_SIMDATA.yaml` | `config.yaml` |
-| **Size** | 10 samples, ~400 SNPs, 3 chr | Larger real-like dataset |
-| **Speed** | Seconds to ~1 min | Minutes to hours |
-| **Purpose** | Quick iterative testing | Final validation |
-| **Features** | 3 pops, missing data test, climate-associated SNPs, GO terms | Real genomic data |
+Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand validation** — not the default. There is no standing "TEST" project or config file anymore (2026-07-21: a leftover `config.yaml`/`TEST_results/` pairing under the generic name `TEST` collided with an unrelated Shiny-side project also named `TEST`, silently mixing two different datasets' outputs — see the CRITICAL note under Build and Run Commands). When a real dataset is needed:
+- Create `config_<PROJECT>.yaml` naming the project after its actual VCF/dataset (e.g. `config_WBDC.yaml`, `project_name: WBDC`) — never the generic name `TEST`.
+- This applies to both the CLI config and the Shiny app's own per-project `config_{project_name}.yaml` (written from the Home tab's Input Files section) — **keep the same project name and Input files in both, or don't reuse the name at all.**
+
+| | **SIMDATA** |
+|---|---|
+| **Config** | `config_SIMDATA.yaml` |
+| **Size** | 10 samples, ~400 SNPs, 3 chr |
+| **Speed** | Seconds to ~1 min |
+| **Purpose** | Primary testing dataset — all routine development |
+| **Features** | 3 pops, missing data test, climate-associated SNPs, GO terms |
 
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
-2. Test with TEST (config.yaml)
+2. Test with SIMDATA (`config_SIMDATA.yaml`)
+3. Only spin up a real-data project (its own `config_<PROJECT>.yaml`) for validation the user explicitly requests
 
 ### Testing Guidelines
 
 **CRITICAL - Preserve output directories**:
-- **DO NOT** remove `TEST_results/`, `TEST_logs/`, `SIMDATA_results/`, `SIMDATA_logs/` between runs
+- **DO NOT** remove `SIMDATA_results/`, `SIMDATA_logs/` (or any other project's `_results/`/`_logs/`) between runs
 - Snakemake skips rules with valid outputs (saves time)
 - `download_climate_present` is very slow - preserve it!
 
