@@ -38,11 +38,14 @@ mod_processing_ui <- function(id) {
         # Relatedness caveat/counts live in the hover note badge next to the plot
         # title (mod_image_card's `note` slot) rather than a static caption below —
         # keeps the tab compact and matches the "minimal on-screen text" rule.
+        # 2x2 grid: the relatedness MDS sits beside its histogram so users see
+        # WHICH samples cluster as duplicates, not just that a spike exists.
         bslib::layout_column_wrap(
-            width = 1 / 3,
+            width = 1 / 2,
             mod_image_card_ui(ns("sample_miss")),
             mod_image_card_ui(ns("het_miss")),
-            mod_image_card_ui(ns("relatedness"))
+            mod_image_card_ui(ns("relatedness")),
+            mod_image_card_ui(ns("relatedness_mds"))
         ),
 
         shiny::br(),
@@ -180,20 +183,6 @@ mod_processing_server <- function(id, project_data) {
                 showcase = bsicons::bs_icon("arrow-left-right")
             )
 
-            # Heterozygosity outliers — conditional on config
-            het_sd <- config_get(pd$config, "Filter", "het_outlier_sd", default = NULL)
-            het_box <- if (!is.null(het_sd) && !is.na(het_sd)) {
-                n_het <- sv("samples_het_outliers_removed", default = 0)
-                het_theme <- if (is.na(n_het) || n_het == 0) "success" else "warning"
-                n_het_str <- if (is.na(n_het)) "\u2014" else as.character(as.integer(n_het))
-                bslib::value_box(
-                    title    = "Het Outliers",
-                    value    = paste0(n_het_str, " removed"),
-                    theme    = het_theme,
-                    showcase = bsicons::bs_icon("activity")
-                )
-            } else NULL
-
             # Depth filter — conditional on config
             min_dp <- config_get(pd$config, "Filter", "min_depth", default = NULL)
             max_dp <- config_get(pd$config, "Filter", "max_depth", default = NULL)
@@ -210,24 +199,7 @@ mod_processing_server <- function(id, project_data) {
                 )
             } else NULL
 
-            # Relatedness (IBD) removal — only shown when actually removing samples.
-            # In 'keep' mode (default) nothing is removed; the preview count lives in
-            # the hover note next to the relatedness plot instead of this value box.
-            pihat_thresh  <- config_get(pd$config, "Filter", "relatedness", default = NULL)
-            rel_action    <- tolower(config_get(pd$config, "Filter", "relatedness_action", default = "keep"))
-            rel_box <- if (!is.null(pihat_thresh) && !is.na(pihat_thresh) && rel_action == "remove") {
-                n_rel <- sv("samples_removed_relatedness", default = 0)
-                rel_theme <- if (is.na(n_rel) || n_rel == 0) "success" else "warning"
-                n_rel_str <- if (is.na(n_rel)) "—" else as.character(as.integer(n_rel))
-                bslib::value_box(
-                    title    = "Related Samples",
-                    value    = paste0(n_rel_str, " removed"),
-                    theme    = rel_theme,
-                    showcase = bsicons::bs_icon("people")
-                )
-            } else NULL
-
-            extra_boxes <- Filter(Negate(is.null), list(het_box, depth_box, rel_box))
+            extra_boxes <- Filter(Negate(is.null), list(depth_box))
             n_extra <- length(extra_boxes)
             width <- if (n_extra == 0) 1/4 else if (n_extra == 1) 1/5 else 1/6
 
@@ -333,6 +305,21 @@ mod_processing_server <- function(id, project_data) {
                     relatedness_note(thresh, action, n_pairs_above, n_would_remove)
                 })
             )
+            mod_image_card_server("relatedness_mds",
+                path    = shiny::reactive(qc_plot_path(pd$name, "relatedness_mds.png")),
+                title   = shiny::reactive("Relatedness MDS (IBS)"),
+                dl_name = shiny::reactive(paste0(pd$name, "_relatedness_mds")),
+                note    = shiny::reactive({
+                    thresh <- config_get(pd$config, "Filter", "relatedness", default = NULL)
+                    if (is.null(thresh) || is.na(thresh)) return(NULL)
+                    removed <- load_relatedness_removed(pd$name)
+                    n_would_remove <- if (nrow(removed) == 0) NA_integer_ else nrow(removed)
+                    filter_note(
+                        if (is.na(n_would_remove)) "0 discarded" else paste0(n_would_remove, " discarded"),
+                        "Samples that cluster near an IBS of 1.0 (duplicates/clones) are marked red."
+                    )
+                })
+            )
             mod_image_card_server("snp_miss",
                 path    = shiny::reactive(qc_plot_path(pd$name, "snp_missingness_distribution.png")),
                 title   = shiny::reactive("SNP Missingness"),
@@ -353,9 +340,22 @@ mod_processing_server <- function(id, project_data) {
                 note    = shiny::reactive({
                     t <- config_get(pd$config, "Filter", "maf", default = NULL)
                     if (is.null(t)) return(NULL)
+                    # Below-threshold count derived from filtering_summary.tsv (Raw VCF vs
+                    # After MAF filter n_snps) rather than baked into the plot as on-figure
+                    # text — keeps the count next to the threshold explanation, not on the PNG.
+                    fs <- as.data.frame(load_filtering_summary(pd$name))
+                    n_below <- NA_integer_
+                    if (nrow(fs) > 0) {
+                        raw_row <- fs[fs$stage == "Raw VCF", ]
+                        maf_row <- fs[fs$stage == "After MAF filter", ]
+                        if (nrow(raw_row) > 0 && nrow(maf_row) > 0)
+                            n_below <- as.integer(raw_row$n_snps[1]) - as.integer(maf_row$n_snps[1])
+                    }
+                    below_txt <- if (is.na(n_below)) "" else
+                        paste0(n_below, " SNP", if (n_below != 1) "s" else "", " below threshold. ")
                     filter_note(
                         paste0("MAF < ", t),
-                        paste0("Variants with minor-allele frequency below ", t,
+                        paste0(below_txt, "Variants with minor-allele frequency below ", t,
                               " are removed before analysis.")
                     )
                 })

@@ -82,6 +82,18 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
                 return(htmltools::p(class = "text-muted small p-2",
                                     "No configuration parameters for this tab."))
 
+            # Tabs where any entry sets `group` render as flat named top-level
+            # sections (mandatory/Advanced split does not apply) — see
+            # config_schema() docs and render_group().
+            has_groups <- any(vapply(entries, function(e) !is.null(e$group), logical(1)))
+
+            if (has_groups) {
+                groups <- unique(vapply(entries, function(e) e$group %||% "", character(1)))
+                return(htmltools::tagList(lapply(groups, function(g) {
+                    render_group(ns, g, Filter(function(e) identical(e$group, g), entries), cfg, proj)
+                })))
+            }
+
             sp    <- schema_split(entries)
             mand  <- sp$mandatory
             opt   <- sp$optional
@@ -281,16 +293,38 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
+#' Render one top-level config group (used by tabs that opt into `group`,
+#' e.g. Processing's "SNP Filtering" / "Sample Filtering" — no Advanced
+#' accordion, no mandatory/optional split; every field in the group is
+#' always visible). Entries with `section == NULL` render flat; entries
+#' with a distinct `section` (e.g. "LD Pruning") render as a labeled
+#' subsection within the group, via the same helper used elsewhere.
+#' @noRd
+render_group <- function(ns, group_title, entries, config, project = NULL) {
+    htmltools::div(
+        class = "config-section",
+        htmltools::p(class = "config-section-header", group_title),
+        render_section_groups(ns, entries, config, project)
+    )
+}
+
 #' Render inputs grouped by their section label
+#'
+#' `section` may be NULL (flat field, no subsection header — used by tabs
+#' with `group`, e.g. Processing). NULL is normalized to "" for comparison
+#' so it never reaches `==`/`Filter` as a bare NULL (which would error on a
+#' zero-length comparison); "" is only ever suppressed from rendering a
+#' header, never treated as a distinct blank-titled subsection.
 #' @noRd
 render_section_groups <- function(ns, entries, config, project = NULL) {
-    sections <- unique(sapply(entries, `[[`, "section"))
+    sec_key <- function(e) e$section %||% ""
+    sections <- unique(vapply(entries, sec_key, character(1)))
     multi_section <- length(sections) > 1
 
     htmltools::tagList(lapply(sections, function(sec) {
-        sec_entries <- Filter(function(e) e$section == sec, entries)
+        sec_entries <- Filter(function(e) identical(sec_key(e), sec), entries)
         htmltools::tagList(
-            if (multi_section)
+            if (multi_section && nzchar(sec))
                 htmltools::p(class = "config-subsection-label", sec),
             lapply(sec_entries, function(e) render_config_field(ns, e, config, project))
         )

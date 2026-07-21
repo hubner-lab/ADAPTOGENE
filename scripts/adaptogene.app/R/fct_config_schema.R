@@ -8,9 +8,14 @@
 #'   label      human-readable label
 #'   tab        tab name: home | processing | prestructure | structure | gea |
 #'                         gwas | gea_x_gwas | haplotype | maladaptation
-#'   section    grouping label within the tab
+#'   section    grouping label within the tab (subsection when `group` is set)
+#'   group      optional top-level grouping label. When ANY entry on a tab sets
+#'              `group`, that tab renders as flat named sections (one per group,
+#'              `section` becomes a subsection label within it) instead of the
+#'              default mandatory-core / Advanced-accordion split.
 #'   type       numeric | text | select | checkbox | textarea | method_table
 #'   mandatory  TRUE = shown in core section; FALSE = shown in Advanced accordion
+#'              (ignored for tabs using `group`)
 #'   help       tooltip / hint text shown below input
 #'   placeholder hint text for empty text inputs
 #'   min/max/step  for numeric type
@@ -19,13 +24,14 @@
 #' @noRd
 config_schema <- function() {
     # helper to build one entry compactly
-    s <- function(key, label, tab, section, type, mandatory, ...) {
+    s <- function(key, label, tab, section, type, mandatory, ..., group = NULL) {
         args <- list(...)
         list(
             key         = key,
             label       = label,
             tab         = tab,
             section     = section,
+            group       = group,
             type        = type,
             mandatory   = mandatory,
             help        = args$help,
@@ -57,38 +63,41 @@ config_schema <- function() {
           placeholder = "annotation.gff3"),
 
         # ── PROCESSING TAB ────────────────────────────────────────────────────
-        s("Filter.maf",         "Minor allele freq",  "processing", "Filtering",
-          "numeric", TRUE,
+        # Two top-level groups (SNP Filtering / Sample Filtering), no Advanced
+        # accordion — every processing filter is a first-look decision, not a
+        # rarely-touched knob. LD Pruning is a subsection within SNP Filtering.
+        s("Filter.maf",         "Minor allele freq",  "processing", NULL,
+          "numeric", TRUE, group = "SNP Filtering",
           min = 0, max = 0.5, step = 0.01,
           help = "Minimum MAF threshold (e.g. 0.05)"),
-        s("Filter.snp_miss",    "SNP missingness",    "processing", "Filtering",
-          "numeric", TRUE,
+        s("Filter.snp_miss",    "SNP missingness",    "processing", NULL,
+          "numeric", TRUE, group = "SNP Filtering",
           min = 0, max = 1, step = 0.01,
           help = "Maximum fraction of missing genotypes per SNP"),
-        s("Filter.sample_miss", "Sample missingness", "processing", "Filtering",
-          "numeric", TRUE,
-          min = 0, max = 1, step = 0.01,
-          help = "Maximum fraction of missing genotypes per sample (default 0.5)"),
-        s("Filter.relatedness", "Max relatedness (IBS)", "processing", "Filtering",
-          "numeric", FALSE,
-          min = 0, max = 1, step = 0.05,
-          help = "Optional. Colors/counts related pairs (plink IBS allele-sharing) above this in the Processing relatedness histogram (blank = skip). Does NOT remove samples by itself — see 'Relatedness action' below. IBS is model-free — works for selfers and outcrossers alike; duplicates/clones cluster near 1.0 — set from the histogram, not a fixed outbred default."),
-        s("Filter.relatedness_action", "Relatedness action", "processing", "Filtering",
-          "select",  FALSE,
-          choices = c("keep", "remove"),
-          help = "keep (default): only visualize/count related pairs, remove nothing. remove: drop the higher-missingness member of each pair above the threshold. Recommended: set the threshold, inspect the relatedness histogram, then switch to remove and re-run Processing."),
         s("LD.window", "LD window (kb)",  "processing", "LD Pruning",
-          "numeric", TRUE,
+          "numeric", TRUE, group = "SNP Filtering",
           min = 1, step = 1,
           help = "Sliding window size for LD pruning in kilobases"),
         s("LD.step",   "LD step size",   "processing", "LD Pruning",
-          "numeric", TRUE,
+          "numeric", TRUE, group = "SNP Filtering",
           min = 1, step = 1,
           help = "Number of SNPs to slide per step"),
         s("LD.r2",     "LD r\u00b2 threshold", "processing", "LD Pruning",
-          "numeric", TRUE,
+          "numeric", TRUE, group = "SNP Filtering",
           min = 0, max = 1, step = 0.05,
           help = "Prune SNP pairs in LD above this r\u00b2 threshold"),
+        s("Filter.sample_miss", "Sample missingness", "processing", NULL,
+          "numeric", TRUE, group = "Sample Filtering",
+          min = 0, max = 1, step = 0.01,
+          help = "Maximum fraction of missing genotypes per sample (default 0.5)"),
+        s("Filter.relatedness", "Max relatedness (IBS)", "processing", NULL,
+          "numeric", FALSE, group = "Sample Filtering",
+          min = 0, max = 1, step = 0.05,
+          help = "Optional. Colors/counts related pairs (plink IBS allele-sharing) above this in the Processing relatedness histogram (blank = skip). Does NOT remove samples by itself \u2014 see 'Relatedness action' below. IBS is model-free \u2014 works for selfers and outcrossers alike; duplicates/clones cluster near 1.0 \u2014 set from the histogram, not a fixed outbred default."),
+        s("Filter.relatedness_action", "Relatedness action", "processing", NULL,
+          "select",  FALSE, group = "Sample Filtering",
+          choices = c("keep", "remove"),
+          help = "keep (default): only visualize/count related pairs, remove nothing. remove: drop the higher-missingness member of each pair above the threshold. Recommended: set the threshold, inspect the relatedness histogram, then switch to remove and re-run Processing."),
 
         # ── PRESTRUCTURE TAB ──────────────────────────────────────────────────
         s("sNMF.k_start", "K range start",  "prestructure", "sNMF",
