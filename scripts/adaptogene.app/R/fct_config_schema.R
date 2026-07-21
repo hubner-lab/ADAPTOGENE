@@ -109,7 +109,7 @@ config_schema <- function() {
           min = 1, max = 20, step = 1,
           help = "Maximum K to test in cross-validation"),
         s("sNMF.repeats", "Repeats per K",  "prestructure", "sNMF",
-          "numeric", FALSE,
+          "numeric", TRUE,
           min = 1, max = 100, step = 1,
           help = "Number of independent sNMF runs per K for robust cross-entropy estimation"),
 

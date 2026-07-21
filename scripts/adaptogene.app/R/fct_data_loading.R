@@ -55,6 +55,36 @@ load_relatedness_removed <- function(project) {
     )
 }
 
+#' Load sNMF Q-matrix (clusters_K{k}.tsv: sample, site, C1..CK — soft ancestry
+#' proportions, no discrete cluster column). @noRd
+load_clusters <- function(project, k) {
+    p <- hap_clusters_path(project, k)
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(sample = "character", site = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Summarize a Q-matrix into per-cluster sample counts via argmax over the C1..CK
+#' columns (there is no discrete cluster column on disk — see load_clusters()).
+#' Returns NULL when dt is empty. @noRd
+cluster_pop_summary <- function(dt, k) {
+    if (nrow(dt) == 0) return(NULL)
+    q_cols <- paste0("C", seq_len(k))
+    q_cols <- intersect(q_cols, names(dt))
+    if (length(q_cols) == 0) return(NULL)
+    assign <- q_cols[max.col(as.matrix(dt[, ..q_cols]), ties.method = "first")]
+    counts <- table(assign)
+    list(
+        n_samples = nrow(dt),
+        n_pops    = length(counts),
+        min_n     = as.integer(min(counts)),
+        max_n     = as.integer(max(counts))
+    )
+}
+
 #' Load pipeline summary TSV
 #' @noRd
 load_pipeline_summary <- function(project) {

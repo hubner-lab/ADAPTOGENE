@@ -40,6 +40,22 @@ ADAPT_NEUTRAL   <- ADAPT_RETAINED  # plain/no-flag data points — same green as
 ADAPT_CATEGORICAL <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
                         "#0072B2", "#D55E00", "#CC79A7", "#999999")
 
+# Extended categorical palette for many-level grouping (K-clusters, sites) where
+# 8 colors isn't enough — converges the 21-color `my.colors` duplicated across
+# plot_structure.R / plot_pca_structure.R onto one shared palette. Colorblind-
+# oriented (Wong 2011 + Paul Tol); no grey (ADAPT_NEUTRAL already owns "no flag").
+ADAPT_CLUSTERS <- c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9",
+                    "#332288", "#882255", "#44AA99", "#AA4499", "#999933",
+                    "#E69F00", "#661100", "#88CCEE", "#CC6677", "#117733",
+                    "#6A3D9A", "#855C75", "#D9AF6B", "#736F4C", "#526A83", "#625377")
+
+#' n distinct colors from ADAPT_CLUSTERS; interpolates when n exceeds the palette.
+#' @noRd
+adapt_cluster_palette <- function(n) {
+    if (n <= length(ADAPT_CLUSTERS)) ADAPT_CLUSTERS[seq_len(n)]
+    else grDevices::colorRampPalette(ADAPT_CLUSTERS)(n)
+}
+
 #' Shared ggplot2 theme — "Publication Classic"
 #'
 #' theme_classic() base (axis lines, no gridlines) + Precision Genomics sizing.

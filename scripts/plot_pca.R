@@ -4,6 +4,8 @@ library(dplyr)
 library(data.table)
 library(qs)
 
+source("/pipeline/scripts/R/utils/theme_adaptogene.R")
+
 args = commandArgs(trailingOnly=TRUE)
 #################################
 LFMM = args[1]
@@ -32,19 +34,22 @@ pc <- LEA::pca(LFMM, scale = TRUE)
 PCA <- as.data.frame(pc$projections) %>%
        setNames(paste0('PC', 1:ncol(.)))
 isrPCA <- cbind(samples.df, PCA)
+isrPCA$site <- factor(isrPCA$site)
 
 var.explained <- c((pc$eigenvalues[1,] / sum(pc$eigenvalues)) * 100,
                    (pc$eigenvalues[2,] / sum(pc$eigenvalues)) * 100)
 
 # PCA plot
 gPCA <- ggplot(isrPCA, aes(x = PC1, y = PC2,
-                           label = as.factor(site),
-                           color = as.factor(site))) +
+                           label = site,
+                           color = site)) +
         geom_label() +
+        scale_color_manual(name = "Site",
+                           values = adapt_cluster_palette(nlevels(isrPCA$site))) +
         xlab("PC1") +
         ylab("PC2") +
         guides(color = guide_legend(ncol=2)) +
-        theme_bw()
+        theme_adaptogene()
 
 ggsave(OUT_PCA_PNG, gPCA)
 ggsave(OUT_PCA_SVG, gPCA, device = svglite::svglite, bg = 'transparent')
@@ -54,10 +59,10 @@ qsave(gPCA, OUT_PCA_QS)
 tw <- tracy.widom(pc)
 
 gTW <- ggplot(data = tw, aes(x = N, y = percentage)) +
-       geom_point() +
+       geom_point(color = ADAPT_NEUTRAL) +
        xlim(1, 25) +
-       theme_classic() +
        ggtitle("Tracy Widom") +
+       theme_adaptogene() +
        theme(plot.title = element_text(hjust = 0.5))
 
 ggsave(OUT_TRACY_PNG, gTW)

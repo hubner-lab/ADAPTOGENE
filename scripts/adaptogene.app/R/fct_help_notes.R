@@ -13,19 +13,27 @@ HELP_NOTES <- list(
         config = NULL
     ),
     pca = list(
-        desc   = "Sample scatter on genotype PCs — unsupervised structure overview.",
+        desc   = "Sample scatter on the first two genotype PCs, labeled by sampling site — unsupervised structure overview before any clustering model is fit.",
         config = NULL
     ),
+    tracy_widom = list(
+        desc   = "Tracy-Widom test statistic per PC — the eigenvalue variance each PC explains, in decreasing order. PCs before the curve flattens capture real structure; flat PCs are noise.",
+        config = NULL
+    ),
+    cross_entropy = list(
+        desc   = "sNMF cross-entropy per tested K (lower = better fit) — the standard criterion for choosing the number of ancestral populations.",
+        config = "sNMF.k_start, sNMF.k_end, sNMF.repeats"
+    ),
     structure_bar = list(
-        desc   = "sNMF ancestry proportions per sample at the selected K.",
+        desc   = "sNMF ancestry proportions per sample at the selected K, one bar per sample.",
         config = "sNMF.k_best"
     ),
     pca_structure = list(
-        desc   = "PCA scatter colored by K-cluster assignment.",
+        desc   = "PCA scatter with each sample's genotype PCs pie-chart colored by its sNMF ancestry proportions at the selected K.",
         config = "sNMF.k_best"
     ),
     pop_diff = list(
-        desc   = "Population differentiation among K clusters.",
+        desc   = "sNMF population-differentiation p-values per SNP among K clusters (histogram + genome-wide -log10(p) track).",
         config = "sNMF.k_best"
     ),
     pca_structure_k = list(
@@ -158,33 +166,39 @@ HELP_NOTES <- list(
     )
 )
 
-#' Build a neutral hover-note badge for a plot: what it shows + its config link.
+#' Build a neutral hover-note badge for a plot: what it shows + results + config link.
 #'
 #' Icon-only trigger (no visible label) — this is always-present reference info,
 #' not a status alert, so it stays visually quiet next to the card title. Reveals
-#' the description + config path on hover via filter_note() (R/utils_ui.R).
+#' a structured tooltip body on hover via filter_note() (R/utils_ui.R):
+#'   - "What it shows": entry$desc (always present)
+#'   - "Results": caller-supplied, data-derived from tables already on disk
+#'     (e.g. best K, N samples, pops-per-K) — omitted when NULL, never invented
+#'   - "Config": entry$config, the dot-path(s) that control the plot — omitted
+#'     when NULL
 #'
 #' Returns NULL silently for an unknown id — a missing help-note should never
 #' break a card's rendering.
 #'
 #' @param id key into HELP_NOTES
+#' @param results optional data-derived results line (string or htmltools tag)
 #' @param extra optional extra line appended to the tooltip body
 #' @param label optional visible badge label (e.g. "K = 3") — same convention as
 #'   the MAF/missingness filter badges, which show the live value on the badge
 #'   itself, not just in the tooltip. Pass a value the caller already has —
 #'   don't recompute it here.
 #' @noRd
-help_note <- function(id, extra = NULL, label = "") {
+help_note <- function(id, results = NULL, extra = NULL, label = "") {
     entry <- HELP_NOTES[[id]]
     if (is.null(entry)) return(NULL)
 
     body <- htmltools::tagList(
-        htmltools::p(entry$desc),
+        htmltools::p(htmltools::strong("What it shows: "), entry$desc),
+        if (!is.null(results))
+            htmltools::p(htmltools::strong("Results: "), results),
         if (!is.null(entry$config))
-            htmltools::p(
-                htmltools::span(class = "text-muted small",
-                    "Config: ", htmltools::code(entry$config))
-            ),
+            htmltools::p(class = "text-muted small",
+                htmltools::strong("Config: "), htmltools::code(entry$config)),
         if (!is.null(extra)) htmltools::p(extra)
     )
 

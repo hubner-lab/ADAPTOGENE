@@ -248,33 +248,20 @@ mod_structure_server <- function(id, project_data) {
 
             # C3: Population statistics sample counts
             output$pop_stats_info <- shiny::renderUI({
-                k   <- pd$k_best
+                k <- pd$k_best
                 if (is.na(k)) return(NULL)
-                # Read clusters table to count samples per population
-                clust_path <- mod_path(pd$name, MOD_PRESTRUCT, "tables",
-                                       paste0("K", k), paste0("clusters_K", k, ".tsv"))
-                if (!file.exists(clust_path)) return(NULL)
-                dt <- tryCatch(
-                    data.table::fread(clust_path, sep = "\t", header = TRUE),
-                    error = function(e) data.table::data.table()
-                )
-                if (nrow(dt) == 0) return(NULL)
-                # Find the cluster assignment column
-                clust_col <- intersect(c(paste0("cluster_K", k), "cluster", "population"), names(dt))
-                if (length(clust_col) == 0) return(NULL)
-                clust_col <- clust_col[1]
-                counts <- table(dt[[clust_col]])
-                n_pops <- length(counts)
-                min_n  <- min(counts)
-                max_n  <- max(counts)
-                rng    <- if (min_n == max_n) as.character(min_n)
-                          else paste0(min_n, "\u2013", max_n)
+                # Q-matrix has no discrete cluster column \u2014 derive pop counts via
+                # argmax over C1..CK (same helper PreStructure uses)
+                summary <- cluster_pop_summary(load_clusters(pd$name, k), k)
+                if (is.null(summary)) return(NULL)
+                rng <- if (summary$min_n == summary$max_n) as.character(summary$min_n)
+                       else paste0(summary$min_n, "\u2013", summary$max_n)
                 htmltools::div(
                     class = "d-flex justify-content-end mb-2",
                     filter_note(
-                        paste0(n_pops, " pops"),
+                        paste0(summary$n_pops, " pops"),
                         htmltools::p(
-                            htmltools::tags$strong(n_pops, "populations"),
+                            htmltools::tags$strong(summary$n_pops, "populations"),
                             " at K=", k, " \u2014 ",
                             rng, " samples per population."
                         ),

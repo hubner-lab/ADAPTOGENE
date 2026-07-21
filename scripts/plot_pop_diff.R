@@ -5,6 +5,8 @@ library(dplyr)
 library(qs)
 library(scattermore)
 
+source("/pipeline/scripts/R/utils/theme_adaptogene.R")
+
 args = commandArgs(trailingOnly=TRUE)
 #################################
 SNMF_PROJECT = args[1]
@@ -17,15 +19,6 @@ INTER_DIR = args[5]
 # Derive SVG and QS paths from PNG path
 OUT_SVG <- sub("\\.png$", ".svg", OUT_PNG)
 OUT_QS  <- paste0(INTER_DIR, sub("\\.png$", ".qs", basename(OUT_PNG)))
-
-# Plot theme
-plot_theme <-
-  theme_classic(base_size = 12, base_family = 'Helvetica') +
-  theme(plot.title = element_text(size = 17, face = 'bold'),
-        axis.text = element_text(face = "bold", size = 18),
-        axis.title = element_text(face = "bold", size = 22),
-        legend.text = element_text(size = 18),
-        legend.title = element_text(face = "bold", size = 22))
 
 # Load SNMF project
 snmf_res <- load.snmfProject(SNMF_PROJECT)
@@ -45,19 +38,19 @@ message(paste0('INFO: Using scattermore for rendering (', n_snps, ' SNPs)'))
 # Histogram plot
 gHist <-
   ggplot(pvalues.df, aes(x = pvalues)) +
-    geom_histogram(aes(y = after_stat(density)), color = 'black', fill = 'lightblue') +
-    geom_density(alpha = 0.2, fill = '#FF6666') +
-    plot_theme
+    geom_histogram(aes(y = after_stat(density)), color = 'black', fill = ADAPT_NEUTRAL) +
+    geom_density(alpha = 0.2, color = ADAPT_THRESHOLD, fill = ADAPT_THRESHOLD) +
+    theme_adaptogene(base_size = 16)
 
 # Manhattan-style plot
 gPval <- ggplot(pvalues.df, aes(x = idx, y = log10p)) +
     # pixels should match output: 12.8in x 4.8in (half height) @ 300dpi = ~3840x1440
-    geom_scattermore(color = 'blue', pointsize = 12, pixels = c(3840, 1440),
+    geom_scattermore(color = ADAPT_NEUTRAL, pointsize = 12, pixels = c(3840, 1440),
                      interpolate = FALSE)
 
 gPval <- gPval +
     labs(x = 'Index', y = expression(-log[10](p-value))) +
-    plot_theme
+    theme_adaptogene(base_size = 16)
 
 # Combine plots
 gGrid <- ggarrange(gHist, gPval, nrow = 2)
