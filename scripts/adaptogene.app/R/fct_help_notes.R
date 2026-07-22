@@ -78,7 +78,7 @@ HELP_NOTES <- list(
     ),
     regionplot_img = list(
         desc   = "Zoomed regional Manhattan with gene track.",
-        config = "GEA.snp_clumping_distance / GWAS.snp_clumping_distance"
+        config = "Filter bar → Clumping distance (bp); fixed 100 kb default, tune interactively"
     ),
     hap_clustree_mg = list(
         desc   = "Marker-group cluster stability across scanned epsilon values.",

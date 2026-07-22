@@ -230,7 +230,7 @@ def resolve_region_params(group_dict, defaults=None):
     defaults = defaults or {}
     group_dict = _migrate_assoc_config(group_dict)
     defaults   = _migrate_assoc_config(defaults)
-    raw_rdist = group_dict.get('snp_clumping_distance', defaults.get('snp_clumping_distance', 'auto_per_chromosome'))
+    raw_rdist = group_dict.get('snp_clumping_distance', defaults.get('snp_clumping_distance', 100000))
     raw_str   = str(raw_rdist).lower().strip()
     if raw_str in _VALID_REGION_MODES:
         rdist_mode = 'auto_genome_wide' if raw_str == 'auto' else raw_str

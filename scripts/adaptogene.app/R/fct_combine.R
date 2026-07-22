@@ -504,7 +504,16 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
             # Clumping distance
             htmltools::div(
                 class = "d-flex flex-column me-4",
-                htmltools::span("Clumping distance (bp)", class = "filter-label mb-1"),
+                htmltools::div(
+                    class = "mb-1",
+                    filter_note(
+                        "Clumping distance (bp)",
+                        paste0(
+                            "Region merge distance. Pick a value informed by your data's LD decay ",
+                            "(Structure tab → LD Decay panel) or set a custom number."
+                        )
+                    )
+                ),
                 shiny::numericInput(
                     pid("snp_clumping_distance"), label = NULL,
                     value = snp_clumping_distance_value, min = 1000L, step = 100000L,
