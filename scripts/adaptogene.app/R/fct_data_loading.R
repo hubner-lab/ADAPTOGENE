@@ -18,6 +18,18 @@ load_filtering_summary <- function(project) {
     )
 }
 
+#' Load LD decay half-distance summary table (half-decay bp, r2=0.2 bp, per group/scope)
+#' @noRd
+load_ld_decay_table <- function(project) {
+    p <- ld_decay_table_path(project)
+    if (!file.exists(p)) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(p, sep = "\t", header = TRUE,
+                          colClasses = c(group = "character", scope = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
 #' Load sample heterozygosity table
 #' @noRd
 load_sample_heterozygosity <- function(project) {

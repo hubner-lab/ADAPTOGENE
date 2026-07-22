@@ -58,7 +58,9 @@ mod_structure_ui <- function(id) {
                     width = 1 / 2,
                     mod_image_card_ui(ns("ld_decay")),
                     mod_image_card_ui(ns("ld_decay_chr"))
-                )
+                ),
+                htmltools::h6("LD Decay Summary", class = "mt-3"),
+                DT::DTOutput(ns("ld_decay_table"))
             ),
 
             bslib::accordion_panel(
@@ -305,12 +307,13 @@ mod_structure_server <- function(id, project_data) {
             })
 
             ld_r2_note <- shiny::reactive({
-                r2 <- config_get(pd$config, "LD", "r2", default = NULL)
-                if (is.null(r2)) return(NULL)
                 filter_note(
-                    paste0("r² = ", r2),
-                    paste0("Dashed line marks r² = ", r2,
-                          ", the LD threshold that sets the clumping distance for region building.")
+                    "r² = 0.2",
+                    paste0(
+                        "Dashed line marks the r² = 0.2 background-LD reference level. ",
+                        "Half-decay and r²=0.2 distances per group are tabulated below — ",
+                        "use them to pick a clumping distance in the GEA/GWAS filter bar."
+                    )
                 )
             })
 
@@ -325,6 +328,25 @@ mod_structure_server <- function(id, project_data) {
                 title   = shiny::reactive("LD Decay (Per Chromosome)"),
                 dl_name = shiny::reactive("ld_decay_per_chr"),
                 note    = ld_r2_note
+            )
+        })
+
+        # ── LD decay summary table (half-decay + r2=0.2 distance per group/scope) ──
+        output$ld_decay_table <- DT::renderDataTable({
+            pd  <- project_data()
+            tbl <- as.data.frame(load_ld_decay_table(pd$name))
+            if (nrow(tbl) > 0) {
+                tbl$half_decay_kb <- round(tbl$half_decay_bp / 1000, 1)
+                tbl$r2_02_kb      <- round(tbl$r2_02_bp / 1000, 1)
+                tbl <- tbl[, c("group", "scope", "half_decay_kb", "r2_02_kb",
+                               "n_samples", "n_pairs", "r2_intercept", "method")]
+                names(tbl) <- c("Group", "Scope", "Half-decay (kb)", "r²=0.2 distance (kb)",
+                                 "N samples", "N pairs", "r² intercept", "Method")
+            }
+            safe_datatable(
+                tbl,
+                options  = list(dom = "t", scrollX = TRUE, pageLength = -1),
+                rownames = FALSE
             )
         })
 
