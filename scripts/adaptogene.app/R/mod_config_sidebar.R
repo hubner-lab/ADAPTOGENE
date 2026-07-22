@@ -102,11 +102,6 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
                 if (length(mand) > 0)
                     htmltools::div(
                         class = "config-section",
-                        htmltools::p(
-                            class = "config-section-header",
-                            bsicons::bs_icon("asterisk", size = "0.75em"),
-                            " Core Parameters"
-                        ),
                         render_section_groups(ns, mand, cfg, proj)
                     ),
                 if (length(opt) > 0)
@@ -340,7 +335,7 @@ render_config_field <- function(ns, entry, config, project = NULL) {
         htmltools::tags$small(class = "form-text text-muted config-help", entry$help)
     else NULL
     input_el <- build_config_input(input_id, entry, value, project)
-    label_el <- if (entry$type != "checkbox")
+    label_el <- if (!entry$type %in% c("checkbox", "checkbox_invert"))
         htmltools::tags$label(
             class = "form-label config-field-label",
             `for` = input_id,
@@ -348,7 +343,20 @@ render_config_field <- function(ns, entry, config, project = NULL) {
         )
     else NULL
 
-    htmltools::div(class = "config-field", label_el, input_el, help_el)
+    field <- htmltools::div(class = "config-field", label_el, input_el, help_el)
+
+    # Optional reveal-on-check: only render while the referenced checkbox is
+    # checked (client-side conditionalPanel, no server round-trip needed).
+    if (!is.null(entry$show_if)) {
+        cond_id <- gsub("\\.", "_", entry$show_if)
+        field <- shiny::conditionalPanel(
+            condition = sprintf("input.%s == true", cond_id),
+            ns = ns,
+            field
+        )
+    }
+
+    field
 }
 
 #' Build the correct Shiny input widget for a schema entry
@@ -374,6 +382,9 @@ build_config_input <- function(input_id, entry, value, project = NULL) {
         ),
         "checkbox" = shiny::checkboxInput(
             input_id, label = entry$label, value = isTRUE(display_val)
+        ),
+        "checkbox_invert" = shiny::checkboxInput(
+            input_id, label = entry$label, value = !isTRUE(display_val)
         ),
         "textarea" = shiny::textAreaInput(
             input_id, label = NULL, value = display_val,
@@ -460,11 +471,12 @@ update_sidebar_inputs <- function(session, entries, saved_config) {
 
         dv  <- normalize_display_value(val, e$type)
         switch(e$type,
-            "numeric"  = shiny::updateNumericInput(session, iid, value = dv),
-            "text"     = shiny::updateTextInput(session, iid, value = dv %||% ""),
-            "select"   = shiny::updateSelectInput(session, iid, selected = dv %||% ""),
-            "checkbox" = shiny::updateCheckboxInput(session, iid, value = isTRUE(dv)),
-            "textarea" = shiny::updateTextAreaInput(session, iid, value = dv %||% "")
+            "numeric"         = shiny::updateNumericInput(session, iid, value = dv),
+            "text"            = shiny::updateTextInput(session, iid, value = dv %||% ""),
+            "select"          = shiny::updateSelectInput(session, iid, selected = dv %||% ""),
+            "checkbox"        = shiny::updateCheckboxInput(session, iid, value = isTRUE(dv)),
+            "checkbox_invert" = shiny::updateCheckboxInput(session, iid, value = !isTRUE(dv)),
+            "textarea"        = shiny::updateTextAreaInput(session, iid, value = dv %||% "")
         )
     }
 }
@@ -473,15 +485,17 @@ update_sidebar_inputs <- function(session, entries, saved_config) {
 #' @noRd
 normalize_display_value <- function(value, type) {
     if (is.null(value)) return(switch(type,
-        "numeric"      = NA_real_,
-        "checkbox"     = FALSE,
-        "method_table" = list(),
-        "bio_chips"    = "",
-        "pheno_chips"  = "",
+        "numeric"         = NA_real_,
+        "checkbox"        = FALSE,
+        "checkbox_invert" = FALSE,
+        "method_table"    = list(),
+        "bio_chips"       = "",
+        "pheno_chips"     = "",
         ""
     ))
     switch(type,
-        "checkbox" = {
+        "checkbox" = ,
+        "checkbox_invert" = {
             if (is.logical(value)) value
             else value %in% c("T", "TRUE", "true", "1", "yes")
         },

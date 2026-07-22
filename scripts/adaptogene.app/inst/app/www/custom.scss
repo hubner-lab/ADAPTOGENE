@@ -534,27 +534,33 @@
 }
 
 .config-section-header {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: $primary;
-    opacity: 0.85;
     margin: 0 0 0.5rem 0;
-    padding-bottom: 0.25rem;
-    border-bottom: 1px solid rgba(27, 122, 110, 0.15);
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid rgba(27, 122, 110, 0.35);
 }
 
-// Sub-section labels within a group (e.g. "Input Files", "Filtering")
+[data-bs-theme="dark"] .config-section-header {
+    color: #4FBBA8;
+    border-bottom-color: rgba(79, 187, 168, 0.4);
+}
+
+// Sub-section labels within a group (e.g. "Climate", "Map", "LD Decay") —
+// bold rule + darker primary text so parameter categories read as clearly
+// separated blocks, not a continuous list.
 .config-subsection-label {
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-size: 0.72rem;
+    font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--bs-secondary-color);
-    margin: 0.75rem 0 0.25rem 0;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    color: $primary;
+    margin: 1rem 0 0.35rem 0;
+    padding-top: 0.6rem;
+    border-top: 2px solid rgba(27, 122, 110, 0.35);
 
     &:first-child {
         margin-top: 0;
@@ -564,7 +570,8 @@
 }
 
 [data-bs-theme="dark"] .config-subsection-label {
-    border-top-color: rgba(255, 255, 255, 0.08);
+    color: #4FBBA8;
+    border-top-color: rgba(79, 187, 168, 0.4);
 }
 
 // Individual config field block

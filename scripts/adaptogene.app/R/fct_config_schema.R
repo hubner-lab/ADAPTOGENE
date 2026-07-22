@@ -13,9 +13,14 @@
 #'              `group`, that tab renders as flat named sections (one per group,
 #'              `section` becomes a subsection label within it) instead of the
 #'              default mandatory-core / Advanced-accordion split.
-#'   type       numeric | text | select | checkbox | textarea | method_table
+#'   type       numeric | text | select | checkbox | checkbox_invert | textarea |
+#'                       method_table
+#'              checkbox_invert displays/writes the negation of the stored value
+#'              (e.g. a "Disable X" box backed by an `X.enabled` key)
 #'   mandatory  TRUE = shown in core section; FALSE = shown in Advanced accordion
 #'              (ignored for tabs using `group`)
+#'   show_if    optional dot-key of a checkbox entry; this field only renders
+#'              while that checkbox is checked (client-side conditionalPanel)
 #'   help       tooltip / hint text shown below input
 #'   placeholder hint text for empty text inputs
 #'   min/max/step  for numeric type
@@ -24,7 +29,7 @@
 #' @noRd
 config_schema <- function() {
     # helper to build one entry compactly
-    s <- function(key, label, tab, section, type, mandatory, ..., group = NULL) {
+    s <- function(key, label, tab, section, type, mandatory, ..., group = NULL, show_if = NULL) {
         args <- list(...)
         list(
             key         = key,
@@ -34,6 +39,7 @@ config_schema <- function() {
             group       = group,
             type        = type,
             mandatory   = mandatory,
+            show_if     = show_if,
             help        = args$help,
             placeholder = args$placeholder,
             min         = args$min,
@@ -118,9 +124,9 @@ config_schema <- function() {
           "numeric", TRUE,
           min = 1, max = 20, step = 1,
           help = "Selected K for all downstream analysis. Review cross-entropy plot first."),
-        s("Climate.enabled",       "Enable climate",    "structure", "Climate",
-          "checkbox", TRUE,
-          help = "Download WorldClim data and enable GEA / maladaptation analysis"),
+        s("Climate.enabled",       "Disable climate",   "structure", "Climate",
+          "checkbox_invert", TRUE,
+          help = "For datasets without coordinates. Check to run GWAS analysis only — skips WorldClim download, GEA, and maladaptation."),
         s("Climate.predictors",    "Climate predictors", "gea", "Climate",
           "bio_chips", TRUE,
           help = "Click to toggle variables for GEA. Review piemaps in Structure first to drop collinear or low-variance predictors."),
@@ -141,37 +147,42 @@ config_schema <- function() {
           "text",    FALSE,
           help = "Optional zoom region for piemaps: xmin,xmax,ymin,ymax",
           placeholder = "NULL"),
-        # Optional — population stats
+        # Population stats — core (not Advanced): dependents reveal only once
+        # calc_stats is checked, so the section stays compact when unused.
         s("Population.calc_stats",       "Calculate pop stats", "structure", "Pop Stats",
-          "checkbox", FALSE,
+          "checkbox", TRUE,
           help = "Compute Tajima's D, Pi diversity, AMOVA, and IBD analysis"),
         s("Population.window_size",      "Window size (bp)",   "structure", "Pop Stats",
-          "numeric",  FALSE,
+          "numeric",  TRUE,
           min = 1000, step = 1000,
+          show_if = "Population.calc_stats",
           help = "Sliding window size in base pairs for Tajima's D and Pi diversity"),
         s("Population.custom_trait_file","Custom trait file",  "structure", "Pop Stats",
-          "text",     FALSE,
+          "text",     TRUE,
+          show_if = "Population.calc_stats",
           help = "Custom trait file for piemap sizing (NULL = use metadata phenotype columns)",
           placeholder = "NULL"),
-        # Optional — piemap
+        # Optional — piemap. Order: size/appearance first, then the pie->points
+        # style switch, then label controls (label size gated on show_labels).
+        s("Piemap.pie_scale",   "Pie size scale",    "structure", "Piemap",
+          "numeric", FALSE,
+          min = 0.1, max = 5, step = 0.1,
+          help = "Multiplier for pie chart diameter (1.0 = default)"),
         s("Piemap.alpha",       "Pie transparency",  "structure", "Piemap",
           "numeric", FALSE,
           min = 0, max = 1, step = 0.05,
           help = "Transparency of pie slices (0 = transparent, 1 = opaque)"),
+        s("Piemap.use_points",  "Replace pies with points", "structure", "Piemap",
+          "checkbox", FALSE,
+          help = "Draw sample sites as simple dots instead of pie charts — clearer when dense sampling makes pies overlap. Affects on-demand haplotype-viz maps; the main Structure/Maladaptation/GWAS maps always emit both and switch live via the Points toggle in the app."),
         s("Piemap.show_labels", "Show pop labels",   "structure", "Piemap",
           "checkbox", FALSE,
           help = "Overlay population name labels on piemaps"),
         s("Piemap.label_size",  "Label size",        "structure", "Piemap",
           "numeric",  FALSE,
           min = 4, max = 20, step = 1,
+          show_if = "Piemap.show_labels",
           help = "Font size for population labels"),
-        s("Piemap.pie_scale",   "Pie size scale",    "structure", "Piemap",
-          "numeric", FALSE,
-          min = 0.1, max = 5, step = 0.1,
-          help = "Multiplier for pie chart diameter (1.0 = default)"),
-        s("Piemap.use_points",  "Use points",        "structure", "Piemap",
-          "checkbox", FALSE,
-          help = "Points-only style used by on-demand haplotype-viz piemaps. The main Structure/Maladaptation/GWAS geo maps always emit both pie and points versions, switchable at runtime with the Points toggle in the app."),
         # Optional — LD decay
         s("LDdecay.group_by",    "Group by",        "structure", "LD Decay",
           "select", TRUE,
@@ -425,6 +436,9 @@ input_to_config_value <- function(raw_value, type) {
         },
         "checkbox" = {
             isTRUE(raw_value)
+        },
+        "checkbox_invert" = {
+            !isTRUE(raw_value)
         },
         "textarea" = {
             # Comma-separated string -> list of trimmed values
