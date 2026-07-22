@@ -140,10 +140,9 @@ Maladaptation:
       ntree: '1000'
       cor_threshold: '0.5'
       spatial_correction: 'with'       # Include spatial variables: with/without
-      run_label: ''                    # Unique identifier for this GF run
       random_model: true               # Also build neutral model for comparison
-      combine_method: 'All'            # SNP selection: All/Overlap/MethodOverlap/EMMAX/LFMM/etc.
-      combine_gap: 100000
+  snp_sets: 'all'                      # SNP set(s) to run maladaptation on — 'all' or a list of
+                                        # names saved from the GEA tab's "Save SNP set" action
 
 #-----------------------------------------------------------------------------
 # OVERLAP: Combined GEA + GWAS analysis (mode=overlapping)

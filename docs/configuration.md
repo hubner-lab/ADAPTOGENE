@@ -289,23 +289,20 @@ Maladaptation:
       ntree: 500
       cor_threshold: 0.5
       spatial_correction: both
-      run_label: my_run
       random_model: false
-      combine_gap: 200000
+  snp_sets: all
 ```
 
-All settings are nested under `Maladaptation.methods.gradient_forest`:
+Gradient Forest settings are nested under `Maladaptation.methods.gradient_forest`:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `ntree` | Number of trees in Gradient Forest | `500` |
 | `cor_threshold` | Correlation threshold for variable selection | `0.5` |
 | `spatial_correction` | Include PCNM spatial variables: `"with"`, `"without"`, or `"both"` | `"both"` |
-| `run_label` | Label for output directory names | — |
 | `random_model` | Also run a neutral (random SNP) GF model for comparison | `false` |
-| `combine_gap` | Gap (bp) for merging SNPs from multiple GEA methods before GF | `200000` |
 
-**Combine strategy** for adaptive SNPs (set in Shiny): `All` or `MethodOverlap` — controls which GEA sig SNPs are passed to Gradient Forest.
+**`Maladaptation.snp_sets`** (sibling of `methods`, not nested under `gradient_forest`): `"all"` or a list of SNP set names to run maladaptation on. SNP sets are named and saved from the GEA tab's "Save SNP set for maladaptation" action in Shiny — there is no pipeline-side `run_label`/`combine_method`/`combine_gap` selection anymore; SNP selection happens interactively before the set is saved.
 
 ---
 
