@@ -1,5 +1,3 @@
-# NOTE: This template uses the Phase 5 Capitalized key schema.
-# The Shiny app still reads old lowercase keys — Phase 7 will fix the app.
 #=============================================================================
 # ADAPTOGENE Default Configuration
 # Copy this file to config_{project_name}.yaml and fill in your values.
@@ -101,8 +99,25 @@ GEA:
     - method: "LFMM"
       adjust: "bonf"
       threshold: '0.05'
-  combine_gap: 100000              # Max distance (bp) for cross-method overlap annotation
-  region_distance: 1000000         # Distance in bp, or "auto" to use LD decay r2<0.2 distance
+  snp_clumping_distance: 100000    # Region merge distance (bp), fixed default — tune interactively
+                                    # in the GEA tab's filter bar (or "auto_genome_wide"/"auto_per_chromosome"
+                                    # to derive it from the LD decay table instead)
+  promoter_length: 10000           # Promoter region length for SNP annotation
+
+#-----------------------------------------------------------------------------
+# GWAS: Phenotype association settings
+#-----------------------------------------------------------------------------
+GWAS:
+  configs:
+    - method: "EMMAX"
+      adjust: "bonf"
+      threshold: '0.05'
+    - method: "BLINK"
+      adjust: "bonf"
+      threshold: '0.05'
+  missing_strategy: "DROP"         # How to handle samples missing phenotype data
+  snp_clumping_distance: 100000    # Region merge distance (bp), fixed default — tune interactively
+                                    # in the GWAS tab's filter bar
   promoter_length: 10000           # Promoter region length for SNP annotation
 
 #-----------------------------------------------------------------------------
