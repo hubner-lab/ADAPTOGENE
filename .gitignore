@@ -24,3 +24,4 @@ app_cache/
 workflow/methods/__pycache__/
 .understand-anything/
 graphify-out/
+docs/
