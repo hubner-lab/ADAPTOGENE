@@ -493,12 +493,6 @@ Validate exon/promoter SNP counting in `find_genes_around_regions.R` (uses Genom
 - Modifying `Snakefile_old`
 - Installing new R packages or changing Dockerfile versions
 
-## graphify
+## graphify — DISABLED for this project
 
-This project has a graphify knowledge graph at graphify-out/.
-
-Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+Do not use graphify (`graphify-out/`, `graphify query/path/explain/update`) in ADAPTOGENE. Use normal Grep/Glob/Explore instead, even for architecture/cross-module questions. `graphify-out/` may still exist on disk — ignore it, do not read `GRAPH_REPORT.md` or `wiki/index.md`, do not run `graphify update` after edits.
