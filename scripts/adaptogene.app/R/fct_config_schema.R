@@ -204,7 +204,7 @@ config_schema <- function() {
         # ── GEA TAB ───────────────────────────────────────────────────────────
         s("GEA.configs", "GEA methods", "gea", "Methods",
           "method_table", TRUE,
-          help = "Methods to run: EMMAX, LFMM, GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK"),
+          help = "Methods to run, with optional per-method hyperparameters (expand a row's Params to edit). Method list and hyperparameter defaults come from the pipeline's method registry (workflow/methods/gea.py) — read the preGEA ladders before overriding a default."),
         # NOTE: SNP clumping distance is no longer config-editable \u2014 it is a purely
         # interactive parameter in the GEA/GWAS filter bar (default 100 kb), kept in
         # sync with the region table/rectangles. See mod_gea.R / mod_gwas.R.

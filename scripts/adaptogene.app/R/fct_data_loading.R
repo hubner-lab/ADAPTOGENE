@@ -273,6 +273,41 @@ load_method_sigsnps <- function(project, module = MOD_GEA, method, k, adjust) {
     }, error = function(e) data.table::data.table())
 }
 
+#' Load RDA diagnostics table (long key/value) as a named list.
+#' Returns list() on a missing/old project (no RDA method configured yet).
+#' @noRd
+load_rda_diagnostics <- function(project, module = MOD_GEA) {
+    hits <- Sys.glob(rda_diagnostics_path(project, module))
+    if (length(hits) == 0) return(list())
+    tryCatch({
+        dt <- data.table::fread(hits[[1]], sep = "\t", header = TRUE, colClasses = "character")
+        stats::setNames(as.list(dt$value), dt$key)
+    }, error = function(e) list())
+}
+
+#' Load RDA candidates side table (Mahalanobis/p/q/loadings/assigned predictor).
+#' @noRd
+load_rda_candidates <- function(project, module = MOD_GEA) {
+    hits <- Sys.glob(rda_candidates_path(project, module))
+    if (length(hits) == 0) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(hits[[1]], sep = "\t", header = TRUE,
+                          colClasses = c(chr = "character", SNPID = "character")),
+        error = function(e) data.table::data.table()
+    )
+}
+
+#' Load RDA anova table (full/by-axis/by-margin, long format with a status column).
+#' @noRd
+load_rda_anova <- function(project, module = MOD_GEA) {
+    hits <- Sys.glob(rda_anova_path(project, module))
+    if (length(hits) == 0) return(data.table::data.table())
+    tryCatch(
+        data.table::fread(hits[[1]], sep = "\t", header = TRUE),
+        error = function(e) data.table::data.table()
+    )
+}
+
 #' Load genes per region (collapsed)
 #' @noRd
 load_genes <- function(project, module = MOD_GEA) {

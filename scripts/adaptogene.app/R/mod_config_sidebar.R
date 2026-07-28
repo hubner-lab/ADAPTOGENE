@@ -334,7 +334,7 @@ render_config_field <- function(ns, entry, config, project = NULL) {
     help_el  <- if (!is.null(entry$help))
         htmltools::tags$small(class = "form-text text-muted config-help", entry$help)
     else NULL
-    input_el <- build_config_input(input_id, entry, value, project)
+    input_el <- build_config_input(input_id, entry, value, project, config)
     label_el <- if (!entry$type %in% c("checkbox", "checkbox_invert"))
         htmltools::tags$label(
             class = "form-label config-field-label",
@@ -361,7 +361,7 @@ render_config_field <- function(ns, entry, config, project = NULL) {
 
 #' Build the correct Shiny input widget for a schema entry
 #' @noRd
-build_config_input <- function(input_id, entry, value, project = NULL) {
+build_config_input <- function(input_id, entry, value, project = NULL, config = NULL) {
     type        <- entry$type
     display_val <- normalize_display_value(value, type)
 
@@ -395,7 +395,13 @@ build_config_input <- function(input_id, entry, value, project = NULL) {
             # input_id is already ns()-wrapped; extract the local id for textInput
             # by stripping the namespace prefix (everything up to and incl. last "-")
             local_id <- sub("^.*-", "", input_id)
-            render_method_editor(input_id, local_id, display_val)
+            # GEA.configs -> GEA_METHODS (includes RDA); GWAS.configs -> GWAS_METHODS
+            # (GEA_METHODS filtered to supports_phenotypes=True — excludes RDA).
+            registry <- if (identical(entry$key, "GWAS.configs")) gwas_method_registry()
+                        else gea_method_registry()
+            render_method_editor(input_id, local_id, display_val,
+                                registry = registry,
+                                k_best = config_k_best(config))
         },
         "snp_set_picker" = {
             # Render a placeholder uiOutput; actual checkboxGroupInput is rendered
@@ -535,25 +541,91 @@ config_values_equal <- function(a, b) {
     FALSE
 }
 
+#' Render one hyperparameter widget (label + input) for a method_table row.
+#' @param name param name (e.g. "condition_pcs")
+#' @param spec registry param spec: list(type=, default=, min=, max=, choices=, help=)
+#' @param value current resolved value to pre-fill
+#' @noRd
+render_param_widget <- function(name, spec, value) {
+    help_attr <- spec$help %||% ""
+    if (identical(spec$type, "enum")) {
+        opts <- paste(sapply(spec$choices %||% list(), function(ch) {
+            sel <- if (identical(as.character(ch), as.character(value))) " selected" else ""
+            sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
+        }), collapse = "")
+        htmltools::tags$label(
+            class = "method-param",
+            name,
+            htmltools::tags$select(
+                class = "form-select form-select-sm", `data-param` = name,
+                `data-param-type` = "enum", title = help_attr,
+                htmltools::HTML(opts)
+            )
+        )
+    } else if (identical(spec$type, "bool")) {
+        input_attrs <- list(type = "checkbox", `data-param` = name,
+                            `data-param-type` = "bool", title = help_attr)
+        if (isTRUE(value)) input_attrs$checked <- NA
+        htmltools::tags$label(
+            class = "method-param",
+            do.call(htmltools::tags$input, input_attrs),
+            name
+        )
+    } else {
+        input_type <- if (spec$type %in% c("int", "float")) "number" else "text"
+        step <- if (identical(spec$type, "int")) "1" else "any"
+        input_attrs <- list(
+            type = input_type, class = "form-control form-control-sm",
+            `data-param` = name, `data-param-type` = spec$type,
+            value = as.character(value %||% ""), step = step, title = help_attr
+        )
+        if (!is.null(spec$min)) input_attrs$min <- spec$min
+        if (!is.null(spec$max)) input_attrs$max <- spec$max
+        htmltools::tags$label(
+            class = "method-param",
+            name,
+            do.call(htmltools::tags$input, input_attrs)
+        )
+    }
+}
+
 #' Inline editable rows for association.configs method list
 #'
 #' Renders a compact editor: one row per method (method select, adjust select,
-#' threshold numeric, remove button), an "Add method" button, and a hidden
-#' textInput JSON bridge that Shiny observers watch.
+#' threshold numeric, remove button, collapsed per-method hyperparameter
+#' widgets), an "Add method" button, and a hidden textInput JSON bridge that
+#' Shiny observers watch.
+#'
+#' Registry-driven (registry = gea_method_registry(), read from
+#' workflow/methods/gea.py) — the method list AND each method's hyperparameter
+#' widgets come entirely from the registry, so adding a new GEA method needs
+#' no change here.
 #' @noRd
-render_method_editor <- function(input_id, local_id, configs_list) {
+render_method_editor <- function(input_id, local_id, configs_list,
+                                 registry = gea_method_registry(), k_best = NULL) {
     if (is.null(configs_list)) configs_list <- list()
 
-    METHOD_CHOICES <- c("EMMAX", "LFMM", "GLM", "MLM", "CMLM",
-                        "ECMLM", "SUPER", "MLMM", "FarmCPU", "BLINK")
+    METHOD_CHOICES <- names(registry)
     ADJUST_CHOICES <- c("bonf", "qval", "top")
 
-    # Normalise each entry
+    # Resolved defaults per method (registry default, sentinel-resolved against
+    # k_best) — used both for R-rendered rows and injected into JS for
+    # dynamically added/switched rows.
+    param_specs_resolved <- lapply(registry, function(cfg) {
+        lapply(cfg$params %||% list(), function(spec) {
+            spec$default <- gea_param_default(spec, k_best)
+            spec
+        })
+    })
+
+    # Normalise each entry — params merges registry defaults with any saved override.
     configs_norm <- lapply(configs_list, function(m) {
+        method <- m$method %||% m$METHOD %||% "EMMAX"
         list(
-            method    = m$method    %||% m$METHOD    %||% "EMMAX",
+            method    = method,
             adjust    = m$adjust    %||% m$ADJUST    %||% "bonf",
-            threshold = as.character(m$threshold %||% m$THRESHOLD %||% "0.05")
+            threshold = as.character(m$threshold %||% m$THRESHOLD %||% "0.05"),
+            params    = resolve_row_params(method, m$params %||% m$PARAMS, registry, k_best)
         )
     })
 
@@ -575,6 +647,16 @@ render_method_editor <- function(input_id, local_id, configs_list) {
             sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
         }), collapse = "")
 
+        spec_dict <- registry[[m$method]]$params %||% list()
+        params_body <- if (length(spec_dict) == 0) {
+            htmltools::tags$span(class = "text-muted small", "No parameters")
+        } else {
+            htmltools::tagList(lapply(names(spec_dict), function(pname) {
+                render_param_widget(pname, param_specs_resolved[[m$method]][[pname]],
+                                    m$params[[pname]])
+            }))
+        }
+
         htmltools::tags$div(
             class = "method-row",
             id    = row_id,
@@ -591,6 +673,11 @@ render_method_editor <- function(input_id, local_id, configs_list) {
                 type     = "button",
                 `data-role` = "remove",
                 bsicons::bs_icon("trash3", size = "0.85em")
+            ),
+            htmltools::tags$details(
+                class = "method-params",
+                htmltools::tags$summary("Params"),
+                htmltools::tags$div(class = "method-params-body", params_body)
             )
         )
     }
@@ -630,14 +717,69 @@ render_method_editor <- function(input_id, local_id, configs_list) {
 '(function() {
   var editorId  = "%s";
   var jsonInputId = "%s";
+  var PARAM_SPECS = %s;   // method -> {param_name -> {type, default, min, max, choices, help}}
+
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  }
+
+  function widgetHTML(name, spec, value) {
+    var help = spec.help ? (" title=\\"" + escapeAttr(spec.help) + "\\"") : "";
+    if (spec.type === "enum") {
+      var opts = (spec.choices || []).map(function(c) {
+        var sel = (String(c) === String(value)) ? " selected" : "";
+        return "<option value=\\"" + c + "\\"" + sel + ">" + c + "</option>";
+      }).join("");
+      return "<label class=\\"method-param\\">" + name +
+             "<select class=\\"form-select form-select-sm\\" data-param=\\"" + name +
+             "\\" data-param-type=\\"enum\\"" + help + ">" + opts + "</select></label>";
+    } else if (spec.type === "bool") {
+      var checked = value ? " checked" : "";
+      return "<label class=\\"method-param\\"><input type=\\"checkbox\\" data-param=\\"" + name +
+             "\\" data-param-type=\\"bool\\"" + checked + help + "> " + name + "</label>";
+    } else {
+      var inputType = (spec.type === "int" || spec.type === "float") ? "number" : "text";
+      var step = (spec.type === "int") ? "1" : "any";
+      var minmax = "";
+      if (spec.min !== undefined && spec.min !== null) minmax += " min=\\"" + spec.min + "\\"";
+      if (spec.max !== undefined && spec.max !== null) minmax += " max=\\"" + spec.max + "\\"";
+      var v = (value === undefined || value === null) ? "" : value;
+      return "<label class=\\"method-param\\">" + name +
+             "<input type=\\"" + inputType + "\\" class=\\"form-control form-control-sm\\" data-param=\\"" +
+             name + "\\" data-param-type=\\"" + spec.type + "\\" value=\\"" + v +
+             "\\" step=\\"" + step + "\\"" + minmax + help + "></label>";
+    }
+  }
+
+  function buildParamsHTML(method, values) {
+    var specs = PARAM_SPECS[method] || {};
+    var names = Object.keys(specs);
+    if (names.length === 0) return "<span class=\\"text-muted small\\">No parameters</span>";
+    return names.map(function(n) {
+      var v = (values && values[n] !== undefined) ? values[n] : specs[n].default;
+      return widgetHTML(n, specs[n], v);
+    }).join("");
+  }
 
   function collectRows(editor) {
     var rows = [];
     editor.querySelectorAll(".method-row").forEach(function(row) {
+      var params = {};
+      row.querySelectorAll("[data-param]").forEach(function(w) {
+        var name = w.dataset.param;
+        var type = w.dataset.paramType || "str";
+        var raw;
+        if (type === "bool") raw = w.checked;
+        else if (type === "int") raw = parseInt(w.value, 10);
+        else if (type === "float") raw = parseFloat(w.value);
+        else raw = w.value;
+        params[name] = raw;
+      });
       rows.push({
         method:    row.querySelector("[data-role=method]").value,
         adjust:    row.dataset.adjust    || "bonf",
-        threshold: row.dataset.threshold || "0.05"
+        threshold: row.dataset.threshold || "0.05",
+        params:    params
       });
     });
     return rows;
@@ -661,10 +803,10 @@ render_method_editor <- function(input_id, local_id, configs_list) {
     div.setAttribute("data-role-container", "row");
     div.dataset.adjust    = m ? (m.adjust    || "bonf")  : "bonf";
     div.dataset.threshold = m ? (m.threshold || "0.05") : "0.05";
+    var def = m ? m.method : METHOD_CHOICES[0];
     var sel = document.createElement("select");
     sel.className = "form-select form-select-sm method-select";
     sel.setAttribute("data-role", "method");
-    var def = m ? m.method : "EMMAX";
     METHOD_CHOICES.forEach(function(ch) {
       var opt = document.createElement("option");
       opt.value = ch; opt.text = ch;
@@ -677,6 +819,16 @@ render_method_editor <- function(input_id, local_id, configs_list) {
     btn.setAttribute("data-role", "remove");
     btn.innerHTML = "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"12\\" height=\\"12\\" fill=\\"currentColor\\" viewBox=\\"0 0 16 16\\"><path d=\\"M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z\\"/><path fill-rule=\\"evenodd\\" d=\\"M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z\\"/></svg>";
     div.appendChild(btn);
+    var details = document.createElement("details");
+    details.className = "method-params";
+    var summary = document.createElement("summary");
+    summary.textContent = "Params";
+    details.appendChild(summary);
+    var body = document.createElement("div");
+    body.className = "method-params-body";
+    body.innerHTML = buildParamsHTML(def, m ? m.params : null);
+    details.appendChild(body);
+    div.appendChild(details);
     return div;
   }
 
@@ -697,12 +849,24 @@ render_method_editor <- function(input_id, local_id, configs_list) {
   });
 
   editor.addEventListener("change", function(e) {
-    if (e.target.getAttribute("data-role") && e.target.getAttribute("data-role") !== "add" && e.target.getAttribute("data-role") !== "remove") {
+    // Method switch: rebuild the params block for THIS row using the new
+    // method defaults — a row switched RDA -> LFMM must not carry RDAs
+    // axes/condition_pcs params into an LFMM entry (those would be unknown
+    // params and rejected at Snakemake parse time, confusingly far from this UI).
+    if (e.target.matches("[data-role=method]")) {
+      var row = e.target.closest(".method-row");
+      var body = row.querySelector(".method-params-body");
+      if (body) body.innerHTML = buildParamsHTML(e.target.value, null);
+      pushToShiny(editor);
+      return;
+    }
+    if (e.target.getAttribute("data-role") || e.target.hasAttribute("data-param")) {
       pushToShiny(editor);
     }
   });
 
-  // Reset handler: overwrite editor contents from new JSON
+  // Reset handler: overwrite editor contents from new JSON (params included —
+  // makeRow() already builds the params block from each saved rows m.params).
   Shiny.addCustomMessageHandler("method_editor_reset", function(msg) {
     if (msg.input_id !== "%s") return;
     var editor = document.getElementById(editorId);
@@ -719,8 +883,9 @@ render_method_editor <- function(input_id, local_id, configs_list) {
 ',
             paste0(input_id, "_editor"),  # %s 1: editorId
             full_json_id,                 # %s 2: jsonInputId (DOM id, namespaced)
-            jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 3
-            full_json_id                  # %s 4: method_editor_reset id check
+            jsonlite::toJSON(param_specs_resolved, auto_unbox = TRUE),  # %s 3: PARAM_SPECS
+            jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 4
+            full_json_id                  # %s 5: method_editor_reset id check
         )))
     )
 }

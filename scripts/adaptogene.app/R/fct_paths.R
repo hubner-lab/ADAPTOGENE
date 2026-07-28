@@ -102,6 +102,35 @@ interactive_sigsnps_dir <- function(project, module = MOD_GEA) {
     mod_path(project, MOD_INTER, "interactive_sigsnps", module)
 }
 
+# ─── RDA (glob patterns — K isn't user-selectable on this tab, resolved via
+#     Sys.glob() in fct_data_loading.R, same convention as method_sigsnps_path) ─
+
+#' RDA candidates side table (glob pattern for discovery)
+#' @noRd
+rda_candidates_path <- function(project, module = MOD_GEA) {
+    mod_path(project, module, "tables", "methods", "RDA", "RDA_candidates_K*.tsv")
+}
+
+#' RDA diagnostics table (glob pattern for discovery)
+#' @noRd
+rda_diagnostics_path <- function(project, module = MOD_GEA) {
+    mod_path(project, module, "tables", "methods", "RDA", "RDA_diagnostics_K*.tsv")
+}
+
+#' RDA anova table (glob pattern for discovery)
+#' @noRd
+rda_anova_path <- function(project, module = MOD_GEA) {
+    mod_path(project, module, "tables", "methods", "RDA", "RDA_anova_K*.tsv")
+}
+
+#' RDA diagnostic plot path (screeplot | pvalue_histogram | loadings_biplot)
+#' @noRd
+rda_plot_path <- function(project, module = MOD_GEA, which) {
+    glob <- mod_path(project, module, "plots", "rda", paste0("rda_", which, "_K*.png"))
+    hits <- Sys.glob(glob)
+    if (length(hits) > 0) hits[[1]] else glob
+}
+
 #' QQ plot path (per-method)
 #' @noRd
 qq_plot_path <- function(project, module = MOD_GEA, method, trait, k, adjust) {

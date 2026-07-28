@@ -132,6 +132,18 @@ HELP_NOTES <- list(
         desc   = "Genome-wide GWAS associations for the selected method and trait, over the full SNP cloud.",
         config = "GWAS.configs"
     ),
+    rda_screeplot = list(
+        desc   = "Constrained RDA eigenvalues; retained axes (green) vs dropped (red), per-axis anova.cca(by=\"axis\") p annotated above each bar.",
+        config = "GEA.configs (RDA method params: axes, axis_alpha, condition_pcs)"
+    ),
+    rda_pval_hist = list(
+        desc   = "rdadapt p-value histogram — GIF lambda computed with genomic.control implicit in the robust-Mahalanobis calibration (not LFMM-style genomic control). Should be flat with a spike near 0; a U-shape or hump signals miscalibration (see docs/rda_research.md A4).",
+        config = "GEA.configs (RDA method params)"
+    ),
+    rda_biplot = list(
+        desc   = "SNP loadings on the first two constrained axes (binned density, not raw points — WGS-scale marker counts), with predictor biplot vectors and candidate SNPs colored by their most-correlated predictor.",
+        config = "GEA.configs (RDA method params: predictor_set)"
+    ),
     miami_plot = list(
         desc   = "GEA associations (upward) mirrored against GWAS associations (downward) to reveal loci shared by climate and phenotype.",
         config = "GEAxGWAS.pairwise.window_size, .min_snps"

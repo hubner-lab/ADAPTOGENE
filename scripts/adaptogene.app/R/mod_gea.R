@@ -46,6 +46,15 @@ mod_gea_ui <- function(id) {
                     mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
                     mod_image_card_ui(ns("qq_plot"))
                 )
+            ),
+
+            # RDA-specific diagnostics/candidates — content hides itself (renders
+            # nothing) on projects without RDA configured; see mod_rda_details.R.
+            bslib::accordion_panel(
+                "RDA Diagnostics & Candidates",
+                value = "rda",
+                icon  = bsicons::bs_icon("diagram-3"),
+                mod_rda_details_ui(ns("rda_details"))
             )
         ),
 
@@ -67,6 +76,11 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
 
         # ── Data loading ───────────────────────────────────────────────────────
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
+
+        # RDA-specific diagnostics/candidates panel — RDA is GEA-only (excluded
+        # from GWAS_METHODS via supports_phenotypes=False), so its content
+        # naturally renders nothing when this module instance is the GWAS tab.
+        mod_rda_details_server("rda_details", project_data = project_data, methods = methods)
 
         # Full p-value tables (all SNPs, all traits, wide format). Loaded once per
         # project switch and on every successful pipeline run (run_trigger dependency).
