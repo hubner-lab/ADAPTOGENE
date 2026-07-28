@@ -26,6 +26,17 @@ read_vcf_samples <- function(vcf_path) {
 # When samples_order_path + vcf_samples are provided and the PCA has more rows than the VCF,
 # rows are subset to the VCF samples (DROP mode for phenotype association).
 load_pca_covariates <- function(pca_path, k, samples_order_path = NULL, vcf_samples = NULL) {
+    # k <= 0 means "no PCA covariates" (e.g. EMMAX kinship-only reference panel in
+    # preGEA's #PC ladder). Must be checked BEFORE format autodetection below:
+    # the LEA branch (`1:k` -> `1:0` -> c(1,0)) errors on index 0, but the PLINK
+    # branch (`3:(2+k)` -> `3:2` -> c(3,2)) does NOT error — it silently selects
+    # the wrong two columns in reversed order, which is a far worse failure mode
+    # (plausible-looking wrong output instead of a crash).
+    if (k <= 0) {
+        message("INFO: k=0 — no PCA covariates (kinship-only model)")
+        return(NULL)
+    }
+
     cov_raw <- data.table::fread(pca_path, sep = ' ', header = FALSE)
 
     # Autodetect PLINK eigenvec format (FID + IID prefix columns)

@@ -191,6 +191,12 @@ GEA:
     - method: BLINK
       adjust: bonf
       threshold: '0.05'
+    - method: RDA
+      adjust: bonf
+      threshold: '0.01'
+      params:
+        condition_pcs: 3
+        axes: auto
   combine_gap: 200000
   region_distance: 2000000
   sig_snp_distance: 10000
@@ -201,7 +207,7 @@ GEA:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `GEA.configs` | List of `{method, adjust, threshold}` entries (see below) | — |
+| `GEA.configs` | List of `{method, adjust, threshold, params}` entries (see below) | — |
 | `GEA.combine_gap` | Gap (bp) for merging per-method SNP sets before region clustering | `200000` |
 | `GEA.region_distance` | Region merging distance: `auto_per_chromosome` (default, per-chr LD decay), `auto_genome_wide`, or fixed bp integer | `"auto_per_chromosome"` |
 | `GEA.region_r2_threshold` | r² level at which LD is considered background; Hill-Weir curve inverted at this value | `0.2` |
@@ -210,9 +216,16 @@ GEA:
 | `GEA.scattermore_threshold` | SNP count above which scattermore is used for Manhattan background rendering | `30000` |
 
 **configs format**: Each entry specifies:
-- `method`: `EMMAX`, `LFMM`, or any GAPIT3 model (`GLM`, `MLM`, `CMLM`, `ECMLM`, `SUPER`, `MLMM`, `FarmCPU`, `BLINK`)
+- `method`: `EMMAX`, `LFMM`, `RDA`, or any GAPIT3 model (`GLM`, `MLM`, `CMLM`, `ECMLM`, `SUPER`, `MLMM`, `FarmCPU`, `BLINK`)
 - `adjust`: p-value correction — `bonf` (Bonferroni), `qvalue` (FDR), or a numeric threshold (top-N selection)
 - `threshold`: significance threshold after correction
+- `params` (optional): per-method hyperparameters. Source of truth is the method registry (`workflow/methods/gea.py`), also surfaced in the Shiny GEA sidebar's method editor. Omit to use registry defaults (existing configs need no changes). Per-method keys:
+  - `EMMAX`: `n_pcs` (int, default = sNMF `k_best`), `kinship` (`BN`|`IBS`, default `BN`)
+  - `LFMM`: `K` (int, default = sNMF `k_best`)
+  - `GAPIT models`: `n_pcs` (int, default = sNMF `k_best`)
+  - `RDA`: `axes` (`auto` or int ≥2), `axis_alpha` (float, default `0.05`), `condition_pcs` (int, default = sNMF `k_best`), `predictor_set` (`auto` or comma-separated subset of `Climate.predictors`), `permutations` (int, default `999`), `fit_mode` (`auto`|`full`|`pruned` — `pruned` is an engineering fallback, not the literature default), `full_fit_max_snps`/`full_fit_max_gb` (size gate for `fit_mode: auto`), `seed` (int, default `42`)
+
+**RDA** is multivariate: it emits one p-value column (`climate_multivariate`, a pseudo-trait standing in for the whole predictor set) rather than one column per predictor, so the Bonferroni denominator stays the full marker count. Per-SNP diagnostics (Mahalanobis distance, q-value, axis loadings, per-predictor correlation, assigned predictor) live in a side table, `GEA/tables/methods/RDA/RDA_candidates_K{k}.tsv`. Model diagnostics (aliased terms, retained axis count, adj. R², GIF λ, marker-envelope status) are in `RDA_diagnostics_K{k}.tsv`; full/by-axis/by-margin ANOVA in `RDA_anova_K{k}.tsv`. Requires `Climate.enabled: yes` and ≥2 predictors.
 
 **Combine strategy** (set in Shiny, not config): `All` (union of all methods) or `MethodOverlap` (intersection).
 

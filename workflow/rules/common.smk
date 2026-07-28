@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Method registries — import before config parsing so GAPIT_MODELS can be derived
 sys.path.insert(0, os.path.join(workflow.basedir, "workflow"))
-from methods.gea import GEA_METHODS
+from methods.gea import GEA_METHODS, K_BEST_SENTINEL
 from methods.gwas import GWAS_METHODS
 from methods.maladaptation import MALADAPTATION_METHODS
 
@@ -333,18 +333,73 @@ def mala_spatial_tags(method):
         return ACTIVE_SPATIAL_TAGS
     return ['nospatial']
 
-def parse_association_configs(configs_list):
-    """Parse association configs list into method -> adjust_threshold dict."""
+def _resolve_param_default(default):
+    """K_BEST_SENTINEL -> K_BEST; everything else passes through unchanged.
+    This is the sole backward-compat mechanism for per-method hyperparameters:
+    every existing config (no 'params:' key) resolves LFMM K / EMMAX #PCs /
+    GAPIT PCA.total / RDA condition_pcs to today's K_BEST, byte-identical."""
+    return K_BEST if default == K_BEST_SENTINEL else default
+
+def _coerce_param(method, name, spec, raw):
+    """Cast a user-supplied param value to spec['type'] and enforce min/max/choices.
+    Raises with method+param named so a YAML typo is a parse-time error."""
+    ptype = spec["type"]
+    try:
+        if ptype == "int":
+            val = int(raw)
+        elif ptype == "float":
+            val = float(raw)
+        elif ptype == "bool":
+            val = raw if isinstance(raw, bool) else str(raw).strip().lower() not in ('false', 'f', '0', 'no', '')
+        else:  # "str" | "enum"
+            val = str(raw)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"GEA method '{method}' param '{name}': cannot cast {raw!r} to {ptype}: {e}")
+    if ptype == "enum" and val not in spec.get("choices", []):
+        raise ValueError(f"GEA method '{method}' param '{name}' must be one of "
+                         f"{spec.get('choices')}, got: {val!r}")
+    if ptype in ("int", "float"):
+        if "min" in spec and val < spec["min"]:
+            raise ValueError(f"GEA method '{method}' param '{name}'={val} is below min={spec['min']}")
+        if "max" in spec and val > spec["max"]:
+            raise ValueError(f"GEA method '{method}' param '{name}'={val} is above max={spec['max']}")
+    return val
+
+def resolve_method_params(method, registry, user_params):
+    """Registry defaults (sentinel-resolved) <- user YAML overrides <- validate.
+    Special-cases 'auto'/'@k_best'-style string sentinels for str-typed params
+    (e.g. RDA's axes/predictor_set/fit_mode) by passing them through unchanged —
+    only int/float/bool/enum params get type coercion; str params are free text
+    that downstream scripts interpret themselves."""
+    spec_dict = registry.get(method, {}).get("params", {})
+    resolved = {name: _resolve_param_default(spec["default"]) for name, spec in spec_dict.items()}
+    user_params = user_params or {}
+    unknown = set(user_params) - set(spec_dict)
+    if unknown:
+        raise ValueError(f"GEA method '{method}': unknown param(s) {sorted(unknown)}. "
+                         f"Valid params: {sorted(spec_dict.keys())}")
+    for name, raw in user_params.items():
+        spec = spec_dict[name]
+        resolved[name] = raw if spec["type"] == "str" else _coerce_param(method, name, spec, raw)
+    return resolved
+
+def parse_association_configs(configs_list, registry=None):
+    """Parse association configs list into method -> adjust_threshold dict.
+    When `registry` is given (the GEA_METHODS/GWAS_METHODS dict), also returns
+    a sibling method -> resolved-params dict as a second tuple element."""
     configs = {}
+    params = {}
     for cfg in (configs_list or []):
         method = cfg['method']
         adjust = f"{cfg['adjust']}_{cfg['threshold']}"
         if method in configs:
             raise ValueError(f"Method '{method}' appears multiple times in configs")
         configs[method] = adjust
-    return configs
+        if registry is not None:
+            params[method] = resolve_method_params(method, registry, cfg.get('params', {}) or {})
+    return configs, params
 
-GEA_CONFIGS = parse_association_configs(_assoc.get('configs', []))
+GEA_CONFIGS, GEA_PARAMS = parse_association_configs(_assoc.get('configs', []), GEA_METHODS)
 
 # GAPIT model detection — derived from registry (single source of truth)
 GAPIT_MODELS = {name for name, cfg in GEA_METHODS.items() if cfg["engine"] == "gapit"}
@@ -362,7 +417,7 @@ GEA_METHOD_REGEX = '|'.join(GEA_CONFIGS.keys()) if GEA_CONFIGS else 'EMMAX'
 
 # PHENOTYPE ASSOCIATION parameters (inherits from GEA.* by default)
 _pheno = config.get('GWAS', {})
-GWAS_CONFIGS = parse_association_configs(_pheno.get('configs', []))
+GWAS_CONFIGS, GWAS_PARAMS = parse_association_configs(_pheno.get('configs', []), GWAS_METHODS)
 GWAS_GAPIT_CONFIGS, GWAS_OTHER_CONFIGS = split_configs_by_engine(GWAS_CONFIGS)
 GWAS_METHOD_REGEX = '|'.join(GWAS_CONFIGS.keys()) if GWAS_CONFIGS else 'EMMAX'
 PHENO_MISSING = _pheno.get('missing_strategy', 'DROP')
@@ -382,6 +437,37 @@ if GEA_CONFIGS:
     _validate_methods_in_registry(GEA_CONFIGS, GEA_METHODS, "GEA.configs")
 if GWAS_CONFIGS:
     _validate_methods_in_registry(GWAS_CONFIGS, GWAS_METHODS, "GWAS.configs")
+
+def _validate_rda_semantics(configs, params):
+    """RDA-specific config validation, run at parse time so a bad setup fails
+    loudly before any expensive rule runs — not mid-run inside rda.R."""
+    for m in configs:
+        if GEA_METHODS[m]["engine"] != "rda":
+            continue
+        p = params[m]
+        if not CLIMATE_ENABLED:
+            raise ValueError(f"GEA method '{m}': RDA requires Climate.enabled: true")
+        preds_raw = p["predictor_set"] if p["predictor_set"] != "auto" else PREDICTORS_SELECTED
+        preds = [x.strip() for x in str(preds_raw).split(',') if x.strip()]
+        if len(preds) < 2:
+            raise ValueError(f"GEA method '{m}': RDA needs >=2 climate predictors, got {preds}")
+        if p["axes"] != "auto":
+            try:
+                axes_int = int(p["axes"])
+            except ValueError:
+                raise ValueError(f"GEA method '{m}': axes must be 'auto' or an integer, got {p['axes']!r}")
+            if axes_int < 2:
+                raise ValueError(f"GEA method '{m}': axes must be >= 2 (covRob needs >= 2 "
+                                 f"loading columns — verified empirically: K=1 crashes). Got {axes_int}.")
+        if p["fit_mode"] == "pruned":
+            print(
+                f"WARNING: GEA method '{m}': fit_mode='pruned' is an ENGINEERING FALLBACK, "
+                "not a scientific alternative. Capblancq & Forester (2021) explicitly chose "
+                "NOT to pre-prune (docs/rda_research.md A6) — results deviate from the "
+                "canonical method.", file=sys.stderr)
+
+if GEA_CONFIGS:
+    _validate_rda_semantics(GEA_CONFIGS, GEA_PARAMS)
 
 # Inherit from GEA.* with optional override
 PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
@@ -640,9 +726,19 @@ W['vcf_filt_climate']      = _ph('vcf_filt_climate')
 W['assoc_tped_climate']    = _ph('assoc_tped_climate')
 W['assoc_tfam_climate']    = _ph('assoc_tfam_climate')
 W['assoc_kinship_climate'] = _ph('assoc_kinship_climate')
+W['assoc_kinship_climate_ibs'] = _ph('assoc_kinship_climate_ibs')  # EMMAX kinship='IBS' flavor
 W['gapit_gd']             = _ph('gapit_gd')
 W['gapit_gm']             = _ph('gapit_gm')
 W['gapit_work']           = _ph('gapit_work')
+O['rda_candidates']       = _ph('rda_candidates')
+O['rda_diagnostics']      = _ph('rda_diagnostics')
+O['rda_anova']            = _ph('rda_anova')
+O['rda_screeplot']        = _ph('rda_screeplot')
+O['rda_screeplot_svg']    = _ph('rda_screeplot_svg')
+O['rda_pval_hist']        = _ph('rda_pval_hist')
+O['rda_pval_hist_svg']    = _ph('rda_pval_hist_svg')
+O['rda_biplot']           = _ph('rda_biplot')
+O['rda_biplot_svg']       = _ph('rda_biplot_svg')
 O['selected_snps']        = _ph('selected_snps')
 O['regions_per_trait']    = _ph('regions_per_trait')
 O['regions_combined']     = _ph('regions_combined')
@@ -758,11 +854,30 @@ def add_association_paths():
         W['assoc_tped_climate']    = f"{WORK_FILT}climate/emmax/{VCF_BASE}.tped"
         W['assoc_tfam_climate']    = f"{WORK_FILT}climate/emmax/{VCF_BASE}.tfam"
         W['assoc_kinship_climate'] = f"{WORK_FILT}climate/emmax/{VCF_BASE}.aBN.kinf"
+        # GAPIT always consumes the BN kinship above, regardless of EMMAX.kinship —
+        # only EMMAX's own kinship becomes flavor-keyed. IBS path is a SEPARATE
+        # file (never overwrites the BN one), built by a distinct rule in gea.smk.
+        # Default 'BN' -> assoc_kinship_climate is reused verbatim (byte-identical
+        # to today; no re-run of existing *_results/).
+        if GEA_PARAMS.get("EMMAX", {}).get("kinship") == "IBS":
+            W['assoc_kinship_climate_ibs'] = f"{WORK_FILT}climate/emmax/{VCF_BASE}.aIBS.kinf"
     if "gapit" in _assoc_engines:
         W['gapit_gd']   = f"{WORK_FILT}gapit/{VCF_BASE}_GD.tsv"
         W['gapit_gm']   = f"{WORK_FILT}gapit/{VCF_BASE}_GM.tsv"
         W['gapit_work'] = f"{INTER}gapit/gea/"
     # lfmm uses W['lfmm_imp'] / W['lfmm_imp_full'] from add_kbest_paths()
+    if "rda" in _assoc_engines:
+        _rda_tbl = f"{MOD_GEA}tables/methods/RDA/"
+        _rda_plt = f"{MOD_GEA}plots/rda/"
+        O['rda_candidates']    = f"{_rda_tbl}RDA_candidates_K{K_BEST}.tsv"
+        O['rda_diagnostics']   = f"{_rda_tbl}RDA_diagnostics_K{K_BEST}.tsv"
+        O['rda_anova']         = f"{_rda_tbl}RDA_anova_K{K_BEST}.tsv"
+        O['rda_screeplot']     = f"{_rda_plt}rda_screeplot_K{K_BEST}.png"
+        O['rda_screeplot_svg'] = f"{_rda_plt}rda_screeplot_K{K_BEST}.svg"
+        O['rda_pval_hist']     = f"{_rda_plt}rda_pvalue_histogram_K{K_BEST}.png"
+        O['rda_pval_hist_svg'] = f"{_rda_plt}rda_pvalue_histogram_K{K_BEST}.svg"
+        O['rda_biplot']        = f"{_rda_plt}rda_loadings_biplot_K{K_BEST}.png"
+        O['rda_biplot_svg']    = f"{_rda_plt}rda_loadings_biplot_K{K_BEST}.svg"
 
     # Combined outputs - association
     O['selected_snps'] = f"{MOD_GEA}tables/selected_snps.tsv"
@@ -981,6 +1096,15 @@ def piemap_notrait_points(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_p
 # Templates for association outputs
 def assoc_pvalues(method): return f"{MOD_GEA}tables/methods/{method}/{method}_pvalues_K{K_BEST}.tsv"
 def assoc_sigsnps(method, adjust): return f"{MOD_GEA}tables/methods/{method}/{method}_pvalues_K{K_BEST}_sig_snps_{adjust}.tsv"
+
+def emmax_kinship_climate_path():
+    """The kinship file the GEA EMMAX rule actually consumes — BN (default,
+    W['assoc_kinship_climate'], byte-identical to pre-hyperparameter-system
+    behavior) or IBS (W['assoc_kinship_climate_ibs'], a separate file, never
+    overwriting the BN one) per EMMAX.kinship."""
+    if GEA_PARAMS.get("EMMAX", {}).get("kinship") == "IBS":
+        return W['assoc_kinship_climate_ibs']
+    return W['assoc_kinship_climate']
 def manhattan_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png"
 def qq_plot(method, trait, adjust): return f"{MOD_GEA}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png"
 
@@ -1015,6 +1139,42 @@ def pheno_trait_pvalues(method, trait): return f"{MOD_GWAS}tables/methods/{metho
 # Keys match output directory names. "gea" and "gwas" will be set in Sub-step C.
 ASSOC_SOURCES = {}
 
+# --- Registry-derived helpers for multivariate ("pseudo-trait") methods like RDA ---
+RDA_MODELS = {n for n, c in GEA_METHODS.items() if c["engine"] == "rda"}
+
+def method_pseudo_trait(method):
+    """The single p-value column name a multivariate method emits, or None."""
+    return GEA_METHODS.get(method, {}).get("pseudo_trait")
+
+def method_traits(source, method):
+    """Trait/column list a given (source, method) actually emits in its wide
+    p-value table. Multivariate methods (RDA) emit exactly one pseudo-trait
+    column instead of one column per configured predictor — using the plain
+    predictor list for them would request e.g. manhattan_bio_1_* targets that
+    plot_manhattan.R hard-stops on ('Trait not found')."""
+    pt = method_pseudo_trait(method)
+    if pt:
+        return [pt]
+    return get_predictors_list() if source == "GEA" else PHENO_TRAITS
+
+def wza_methods(source):
+    """Methods (of a source) whose p-values should be fed through compute_wza.R."""
+    configs = GEA_CONFIGS if source == "GEA" else GWAS_CONFIGS
+    return [m for m in configs if GEA_METHODS.get(m, {}).get("supports_wza", True)]
+
+def combine_predictors(source):
+    """PREDICTORS_SELECTED (or PHENO_PREDICTORS) + the pseudo-traits of every
+    configured multivariate method for this source, comma-joined. Used ONLY as
+    the predictor-name argument threaded into combine_selected_snps.R and the
+    Manhattan plot scripts — without this, a multivariate method's pseudo-trait
+    (e.g. RDA's climate_multivariate) is invisible to trait-name filters that
+    otherwise assume every column name is a literal configured predictor."""
+    base_str = PREDICTORS_SELECTED if source == "GEA" else PHENO_PREDICTORS
+    base = [p.strip() for p in (base_str or '').split(',') if p.strip()]
+    configs = GEA_CONFIGS if source == "GEA" else GWAS_CONFIGS
+    extra = [pt for m in configs if (pt := method_pseudo_trait(m))]
+    return ",".join(base + extra)
+
 # WZA config parsing
 def _parse_wza_config(group_dict, defaults=None):
     """Parse WZA sub-config (window_size, fallback_window_bp)."""
@@ -1045,6 +1205,8 @@ if K_BEST is not None and GEA_CONFIGS:
         "method_regex":    GEA_METHOD_REGEX,
         "trait_regex":     r"bio_\d+",
         "predictors":      PREDICTORS_SELECTED,
+        "combine_predictors": combine_predictors("GEA"),
+        "params":          GEA_PARAMS,
         "clumping_distance":      CLUMPING_DISTANCE,
         "clumping_distance_mode": CLUMPING_DISTANCE_MODE,
         "clumping_r2_threshold":  CLUMPING_R2_THRESHOLD,
@@ -1066,6 +1228,8 @@ if K_BEST is not None and GWAS_CONFIGS:
         "method_regex":    GWAS_METHOD_REGEX,
         "trait_regex":     r"[a-zA-Z]\w*",
         "predictors":      PHENO_PREDICTORS,
+        "combine_predictors": combine_predictors("GWAS"),
+        "params":          GWAS_PARAMS,
         "clumping_distance":      PHENO_CLUMPING_DISTANCE,
         "clumping_distance_mode": PHENO_CLUMPING_DISTANCE_MODE,
         "clumping_r2_threshold":  PHENO_CLUMPING_R2_THRESHOLD,
@@ -1320,28 +1484,39 @@ def get_predictors_list():
 def _targets_for_assoc_source(source):
     """Build the shared downstream target list for a GEA or GWAS source."""
     src = ASSOC_SOURCES[source]
-    traits = get_predictors_list() if source == "GEA" else PHENO_TRAITS
     targets = []
     for method, adjust in src["configs"].items():
+        # Per-method trait/column list — multivariate methods (RDA) emit a single
+        # pseudo-trait column, not one column per configured predictor.
+        m_traits = method_traits(source, method)
         # Per-SNP outputs
         targets.append(src["pvalues_fn"](method))
         targets.append(src["sigsnps_fn"](method, adjust))
-        for trait in traits:
+        for trait in m_traits:
             targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_{trait}_K{K_BEST}_{adjust}.png")
             targets.append(f"{src['mod']}plots/manhattan/{method}/qq_{trait}_K{K_BEST}_{adjust}.png")
-        # WZA outputs
-        targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}.tsv")
-        targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}_sig_windows_{adjust}.tsv")
-        for trait in traits:
-            targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_wza_{trait}_K{K_BEST}_{adjust}.png")
-            targets.append(f"{src['mod']}plots/manhattan/{method}/qq_wza_{trait}_K{K_BEST}_{adjust}.png")
+        # WZA outputs — opt-out via the method's supports_wza registry flag
+        if GEA_METHODS.get(method, {}).get("supports_wza", True):
+            targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}.tsv")
+            targets.append(f"{OUTDIR}{source}/tables/methods/{method}/{method}_wza_K{K_BEST}_sig_windows_{adjust}.tsv")
+            for trait in m_traits:
+                targets.append(f"{src['mod']}plots/manhattan/{method}/manhattan_wza_{trait}_K{K_BEST}_{adjust}.png")
+                targets.append(f"{src['mod']}plots/manhattan/{method}/qq_wza_{trait}_K{K_BEST}_{adjust}.png")
+        # RDA-specific side outputs (diagnostics/candidates/anova/plots) — see
+        # add_association_paths()'s "rda" engine block for these O[] keys.
+        if method in RDA_MODELS:
+            targets += [O['rda_candidates'], O['rda_diagnostics'], O['rda_anova'],
+                        O['rda_screeplot'], O['rda_pval_hist'], O['rda_biplot']]
     for key in (
         "selected_snps", "regions_per_trait", "regions_combined",
         "genes_per_region", "genes_per_region_collapsed", "genes_combined",
         "manhattan_combined_png", "qq_combined_png",
-        "wza_combined_png", "wza_qq_combined_png",
     ):
         targets.append(assoc_out(source, key))
+    # Combined WZA targets only if at least one configured method supports WZA
+    if wza_methods(source):
+        targets.append(assoc_out(source, "wza_combined_png"))
+        targets.append(assoc_out(source, "wza_qq_combined_png"))
     return targets
 
 

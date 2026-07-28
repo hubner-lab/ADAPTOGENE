@@ -175,6 +175,7 @@ RUN Rscript -e "BiocManager::install('enrichplot', version = '3.22', ask = FALSE
 # CRAN packages used with Bioconductor workflows
 RUN Rscript -e " \
     remotes::install_version('vegan', version = '2.6-8'); \
+    remotes::install_version('robust', version = '0.7-5'); \
     remotes::install_version('SpatialPack', version = '0.4-1'); \
     remotes::install_version('vcfR', version = '1.15.0'); \
     remotes::install_version('adegenet', version = '2.1.10'); \
@@ -221,5 +222,8 @@ RUN Rscript -e " \
     stopifnot(requireNamespace('gradientForest', quietly = TRUE)); \
     stopifnot(requireNamespace('crosshap', quietly = TRUE)); \
     stopifnot(requireNamespace('GAPIT', quietly = TRUE)); \
+    library(robust); \
+    x <- matrix(rnorm(300), ncol = 3); \
+    stopifnot(length(covRob(x, distance = TRUE, na.action = na.omit, estim = 'pairwiseGK')\$dist) == 100); \
     cat('All package version checks passed.\n'); \
 "

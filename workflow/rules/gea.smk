@@ -1,7 +1,11 @@
 #=============================================================================
 # MODULE 4: ASSOCIATION (GEA)
-# Non-GAPIT methods are declared dynamically from GEA_METHODS registry.
-# GAPIT models are declared as a single multi-output rule (gapit_analysis).
+# Non-GAPIT methods (EMMAX, LFMM, RDA) are each a hand-written rule block
+# gated on `if "<METHOD>" in GEA_OTHER_CONFIGS:` — GEA_METHODS registry drives
+# config parsing/validation/params (see common.smk), not rule generation for
+# these three (contrast the registry-driven loop idiom in gwas.smk:207-240,
+# which fits N methods sharing one shell template; these three don't share one).
+# GAPIT models are declared as a single multi-output rule (gapit_gea_trait).
 #=============================================================================
 
 # Full dataset processing (non-LD pruned) - needed for LFMM
@@ -114,13 +118,30 @@ if "EMMAX" in GEA_OTHER_CONFIGS:
             """
 
     rule kinship_gea_climate:
-        """Compute BN kinship matrix for the coord-valid subset."""
+        """Compute BN kinship matrix for the coord-valid subset. Always built
+        (GAPIT consumes this one unconditionally, regardless of EMMAX.kinship)."""
         input: tped = W['assoc_tped_climate']
         output: W['assoc_kinship_climate']
         params: prefix = f"{WORK_FILT}climate/emmax/{VCF_BASE}"
         log: f"{LOGDIR}gea/kinship_gea_climate.log"
         shell:
             "/pipeline/scripts/emmax-kin-intel64 -v -d 10 -x {params.prefix} > {log} 2>&1"
+
+    # EMMAX.kinship='IBS' flavor — a SEPARATE file, never overwriting the BN one
+    # above. Only built when configured (GEA_PARAMS gate below), so a config
+    # that never sets kinship never adds this rule to the DAG.
+    if GEA_PARAMS.get("EMMAX", {}).get("kinship") == "IBS":
+
+        rule kinship_gea_climate_ibs:
+            """Compute IBS kinship matrix for the coord-valid subset (EMMAX.kinship='IBS').
+            emmax-kin-intel64 -s switches the estimator to IBS (default, no flag: BN) and
+            names its own output file [tped].[aBN|aIBS].kinf accordingly — no -o needed."""
+            input: tped = W['assoc_tped_climate']
+            output: W['assoc_kinship_climate_ibs']
+            params: prefix = f"{WORK_FILT}climate/emmax/{VCF_BASE}"
+            log: f"{LOGDIR}gea/kinship_gea_climate_ibs.log"
+            shell:
+                "/pipeline/scripts/emmax-kin-intel64 -v -s -d 10 -x {params.prefix} > {log} 2>&1"
 
 # =============================================================================
 # GEA Association rules — per-factor caching (Phase 2)
@@ -142,11 +163,13 @@ if "EMMAX" in GEA_OTHER_CONFIGS:
         Uses the climate-valid-subset VCF/TPED/kinship (see subset_vcf_gea_climate) since
         climate values (traits) exclude samples with missing lat/lon or NA-climate raster
         extraction; PCA covariates stay on the full cohort and are row-subset internally by
-        load_pca_covariates() via samples_order (see emmax.R)."""
+        load_pca_covariates() via samples_order (see emmax.R). Kinship file and #PCs are
+        both driven by EMMAX.kinship / EMMAX.n_pcs (default: BN / sNMF.k_best — byte-
+        identical to pre-hyperparameter-system behavior)."""
         input:
             vcf        = W['vcf_filt_climate'],
             tped       = W['assoc_tped_climate'],
-            kinship    = W['assoc_kinship_climate'],
+            kinship    = emmax_kinship_climate_path(),
             traits     = O['climate_site_scaled'],
             covariates = W['pca_projections'],
             metadata   = W['metadata_climate_valid'],
@@ -155,7 +178,7 @@ if "EMMAX" in GEA_OTHER_CONFIGS:
         wildcard_constraints:
             trait = r"bio_\d+"
         params:
-            k           = K_BEST,
+            k           = GEA_PARAMS.get("EMMAX", {}).get("n_pcs", K_BEST),
             inter_dir   = INTER,
             tped_prefix = f"{WORK_FILT}climate/emmax/{VCF_BASE}",
         log: f"{LOGDIR}gea/assoc_emmax_{{trait}}.log"
@@ -213,6 +236,65 @@ if "LFMM" in GEA_OTHER_CONFIGS:
         log: f"{LOGDIR}gea/assoc_lfmm_assemble.log"
         shell:
             "Rscript /pipeline/scripts/assemble_pvalues.R {params.traits_str} {output} > {log} 2>&1"
+
+# --- RDA (multivariate genome scan, Capblancq & Forester 2021 / rdadapt) ---
+# RDA fits ONE multivariate model across all predictors jointly and emits ONE
+# p-value column (the "climate_multivariate" pseudo-trait) — there is no
+# per-trait decomposition to cache, so unlike EMMAX/LFMM above this writes the
+# wide p-value table directly and has no per-trait + assemble_pvalues.R pair.
+if "RDA" in GEA_OTHER_CONFIGS:
+    _rda_p = GEA_PARAMS["RDA"]
+
+    rule assoc_rda_gea:
+        """Multivariate RDA genome scan. Fits a partial RDA (Condition(PC1..PCk)
+        from the LD-pruned LEA PCA) on the FULL marker set by default (literature
+        default per Capblancq & Forester 2021 — see docs/rda_research.md A6),
+        calls candidates via robust-Mahalanobis rdadapt (Capblancq et al. 2018),
+        and writes the wide pvalue table plus a candidates/diagnostics/anova side
+        table set and 3 diagnostic plots. See scripts/rda.R for the full algorithm."""
+        input:
+            lfmm_full     = W['lfmm_imp_full_climate'],
+            lfmm_pruned   = W['lfmm_imp_climate'],
+            climate       = O['climate_site_scaled'],
+            vcfsnp_full   = W['vcfsnp_full'],
+            vcfsnp_pruned = W['vcfsnp'],
+            pca           = W['pca_projections'],
+            samples_order = W['samples_order'],
+            climate_valid = W['climate_valid_samples'],
+        output:
+            pvalues       = assoc_pvalues("RDA"),
+            candidates    = O['rda_candidates'],
+            diagnostics   = O['rda_diagnostics'],
+            anova         = O['rda_anova'],
+            screeplot     = O['rda_screeplot'],     screeplot_svg = O['rda_screeplot_svg'],
+            pval_hist     = O['rda_pval_hist'],     pval_hist_svg = O['rda_pval_hist_svg'],
+            biplot        = O['rda_biplot'],        biplot_svg    = O['rda_biplot_svg'],
+        params:
+            predictors    = _rda_p["predictor_set"] if _rda_p["predictor_set"] != "auto" else PREDICTORS_SELECTED,
+            cond_pcs      = _rda_p["condition_pcs"],
+            axes          = _rda_p["axes"],
+            axis_alpha    = _rda_p["axis_alpha"],
+            perms         = _rda_p["permutations"],
+            fit_mode      = _rda_p["fit_mode"],
+            max_snps      = _rda_p["full_fit_max_snps"],
+            max_gb        = _rda_p["full_fit_max_gb"],
+            seed          = _rda_p["seed"],
+            plot_dir      = f"{MOD_GEA}plots/rda/",
+            k_best        = K_BEST,
+        threads: CPU
+        log: f"{LOGDIR}gea/assoc_rda.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/rda.R \
+                {input.lfmm_full} {input.lfmm_pruned} {input.climate} \
+                {input.vcfsnp_full} {input.vcfsnp_pruned} \
+                {input.pca} {input.samples_order} {input.climate_valid} \
+                {params.predictors} {params.cond_pcs} {params.axes} {params.axis_alpha} \
+                {params.perms} {params.fit_mode} {params.max_snps} {params.max_gb} \
+                {params.seed} {threads} {params.k_best} \
+                {output.pvalues} {output.candidates} {output.diagnostics} {output.anova} \
+                {params.plot_dir} > {log} 2>&1
+            """
 
 # VCF to GAPIT numeric (shared by GEA and GWAS GAPIT models)
 if GEA_GAPIT_CONFIGS or GWAS_GAPIT_CONFIGS:

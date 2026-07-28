@@ -2,9 +2,9 @@
 # Phase 4: unified GEA/GWAS downstream rules.
 #
 # Each rule is parameterized by the {source} wildcard whose value is the
-# output directory name ("association" or "phenotype_association"). Source-
-# specific config (module dir, predictors, distances, etc.) is looked up via
-# _src(wc.source, key) defined in common.smk.
+# output directory name ("GEA" or "GWAS"). Source-specific config (module dir,
+# predictors, distances, etc.) is looked up via _src(wc.source, key) defined
+# in common.smk.
 #
 # These seven rules replace the following per-source pairs that were deleted:
 #   GEA (association.smk)           GWAS (phenotype_assoc.smk)
@@ -63,7 +63,11 @@ if ASSOC_SOURCES:
             sigsnps_str   = lambda wc, input: " ".join(input.sigsnps),
             method        = lambda wc: _src(wc.source, "combine_method"),
             clumping_dist = lambda wc: _src(wc.source, "clumping_distance"),
-            predictors    = lambda wc: _src(wc.source, "predictors")
+            # combine_predictors (not the plain "predictors" key) so a multivariate
+            # method's pseudo-trait (e.g. RDA's climate_multivariate) isn't filtered
+            # out of selected_snps.tsv/regions_*/genes_* by combine_sigsnps.R's
+            # `trait %in% predictors` check.
+            predictors    = lambda wc: _src(wc.source, "combine_predictors")
         log:
             f"{LOGDIR}{{source}}/combine_selected_snps.log"
         shell:
@@ -171,7 +175,10 @@ if ASSOC_SOURCES:
         params:
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/{wc.method}/",
-            predictors = lambda wc: _src(wc.source, "predictors")
+            # combine_predictors so a multivariate method's pseudo-trait gets a
+            # stable, distinct color (positional in get_trait_colors()) instead
+            # of falling back to the same color as the first real predictor.
+            predictors = lambda wc: _src(wc.source, "combine_predictors")
         log:
             f"{LOGDIR}{{source}}/wza_manhattan_{{method}}_{{trait}}_{{adjust}}.log"
         shell:
@@ -182,11 +189,14 @@ if ASSOC_SOURCES:
             """
 
     rule assoc_wza_manhattan_combined:
-        """Combined WZA Manhattan for all traits/methods of a source."""
+        """Combined WZA Manhattan for all traits/methods of a source.
+        wza_methods(source) is the opt-out mechanism (registry supports_wza=False) —
+        a method excluded there never had its WZA table built, so it must also be
+        excluded here or Snakemake requests a target no rule produces."""
         input:
             wza_tables = lambda wc: [
                 f"{OUTDIR}{wc.source}/tables/methods/{m}/{m}_wza_K{K_BEST}.tsv"
-                for m in _src(wc.source, "configs")
+                for m in wza_methods(wc.source)
             ]
         output:
             simple_png  = f"{OUTDIR}{{source}}/plots/manhattan/combined/manhattan_wza_combined_K{K_BEST}.png",
@@ -199,10 +209,10 @@ if ASSOC_SOURCES:
             source = SOURCE_REGEX
         params:
             assoc_str  = lambda wc: ",".join([
-                f"{m}:{a}:{OUTDIR}{wc.source}/tables/methods/{m}/{m}_wza_K{K_BEST}.tsv"
-                for m, a in _src(wc.source, "configs").items()
+                f"{m}:{_src(wc.source, 'configs')[m]}:{OUTDIR}{wc.source}/tables/methods/{m}/{m}_wza_K{K_BEST}.tsv"
+                for m in wza_methods(wc.source)
             ]),
-            predictors = lambda wc: _src(wc.source, "predictors"),
+            predictors = lambda wc: _src(wc.source, "combine_predictors"),
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/combined/"
         log:
@@ -289,7 +299,7 @@ if ASSOC_SOURCES:
         params:
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/{wc.method}/",
-            predictors = lambda wc: _src(wc.source, "predictors")
+            predictors = lambda wc: _src(wc.source, "combine_predictors")
         log:
             f"{LOGDIR}{{source}}/manhattan_{{method}}_{{trait}}_{{adjust}}.log"
         shell:
@@ -320,7 +330,10 @@ if ASSOC_SOURCES:
                 f"{m}:{a}:{OUTDIR}{wc.source}/tables/methods/{m}/{m}_pvalues_K{K_BEST}.tsv"
                 for m, a in _src(wc.source, "configs").items()
             ]),
-            predictors = lambda wc: _src(wc.source, "predictors"),
+            # combine_predictors — without it, a multivariate method's pseudo-trait
+            # is absent from the traits list load_assoc_data() requests, so its
+            # signal never appears in the "all methods" combined view at all.
+            predictors = lambda wc: _src(wc.source, "combine_predictors"),
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/combined/"
         log:

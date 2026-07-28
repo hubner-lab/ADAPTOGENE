@@ -69,6 +69,12 @@ if (length(ok_thresholds) == 0) {
 }
 
 # Prepare manhattan data (using first trait for chromosome info)
+# ORDERING ASSUMPTION: this requires traits[1] to exist in names(assoc_info)[1]'s
+# table. Holds for every planned config (a multivariate method's pseudo-trait,
+# e.g. RDA's climate_multivariate, is appended AFTER real predictors by
+# combine_predictors() in common.smk, and RDA is never the sole/first configured
+# method) — if that ever changes, reference_data comes back empty and
+# prepare_manhattan_data() breaks on it.
 reference_data <- plot_data_all %>%
     dplyr::filter(trait == traits[1], method == names(assoc_info)[1]) %>%
     dplyr::select(SNPID, chr, pos, pvalue)
