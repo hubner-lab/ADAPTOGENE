@@ -248,15 +248,33 @@ threshold_value_valid_for_type <- function(type, value) {
 #' @param regime_value Logical: current WZA regime state
 #' @param threshold_type_value  Character: "bonf"/"qval"/"top"/"custom"
 #' @param threshold_value_value Numeric: current threshold value
+#' @param methods           Character vector of ALL configured method names —
+#'   drives the per-method rules table below the master bar. Empty (default)
+#'   omits the table entirely — callers that don't pass it get today's bar
+#'   unchanged (mod_gea_x_gwas.R's two calls compile as-is).
+#' @param overrides         Named list: METHOD -> list(type=,value=), the
+#'   subset of methods that deviate from the master (type, value) above.
+#' @param combo_thresholds  Named list "trait::method" -> resolved cutoff p —
+#'   used only to show a representative resolved cutoff per method row.
+#' @param config_rules      Named list: METHOD -> resolve_adjust() string
+#'   ("bonf_0.05") — the rule the PIPELINE files on disk were built with.
+#' @param registry_families Named list: METHOD -> significance_family, drives
+#'   the multivariate marker on methods (e.g. RDA) with one joint test/SNP.
 #' @return tagList
 #' @noRd
 build_threshold_bar_ui <- function(ns, input_prefix = "",
                                    regime_value          = FALSE,
                                    threshold_type_value  = "bonf",
                                    threshold_value_value = 0.05,
-                                   regime_context        = "gea") {
+                                   regime_context        = "gea",
+                                   methods               = character(0),
+                                   overrides             = list(),
+                                   combo_thresholds      = list(),
+                                   config_rules          = list(),
+                                   registry_families     = list()) {
     pid <- function(name) ns(paste0(input_prefix, name))
 
+    htmltools::tagList(
     htmltools::div(
         class = "threshold-bar mb-2",
         # Regime switch row
@@ -304,6 +322,211 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
             ),
             shiny::uiOutput(pid("threshold_hint"))
         )
+    ),
+    build_per_method_rules_ui(ns, input_prefix, methods, overrides,
+                              combo_thresholds, config_rules, registry_families)
+    )
+}
+
+#' Per-method significance-rule table — collapsed `<details>` under the
+#' master threshold bar. A method absent from `overrides` follows the master
+#' (type, value); a method present in `overrides` deviates.
+#'
+#' Raw HTML controls (not shiny::selectInput/numericInput) + one hidden JSON
+#' bridge textInput + one delegated JS listener, keyed off explicit DOM ids
+#' (not document.currentScript — Shiny's renderUI insertion timing makes that
+#' unreliable) — same idiom as mod_config_sidebar.R's render_method_editor():
+#' N Shiny inputs inside a renderUI would need N observeEvents for
+#' region_params.json persistence and would re-render the whole table on
+#' every keystroke.
+#' @noRd
+build_per_method_rules_ui <- function(ns, input_prefix, methods, overrides,
+                                      combo_thresholds, config_rules, registry_families) {
+    if (length(methods) == 0) return(NULL)
+    pid           <- function(name) ns(paste0(input_prefix, name))
+    json_id       <- pid("threshold_overrides_json")
+    container_id  <- pid("pm_rules")
+
+    n_overridden <- length(intersect(names(overrides), methods))
+    summary_content <- if (n_overridden > 0) {
+        htmltools::tagList(
+            "Per-method rules ",
+            htmltools::tags$span(class = "badge bg-warning text-dark",
+                                 sprintf("%d overridden", n_overridden))
+        )
+    } else {
+        htmltools::span(class = "text-muted",
+                        sprintf("Per-method rules · all %d method%s follow the master rule",
+                                length(methods), if (length(methods) == 1) "" else "s"))
+    }
+
+    resolved_cutoff_for <- function(m) {
+        keys <- Filter(function(k) endsWith(k, paste0("::", m)), names(combo_thresholds))
+        vals <- unlist(combo_thresholds[keys])
+        vals <- vals[!is.na(vals) & vals > 0]
+        if (length(vals) == 0) "—" else formatC(min(vals), format = "e", digits = 2)
+    }
+
+    adjust_opts_html <- function(selected) {
+        choices <- c("bonf", "qval", "top", "custom")
+        labels  <- c("Bonferroni", "FDR (qval)", "Top N", "Custom")
+        paste(sprintf('<option value="%s"%s>%s</option>', choices,
+                     ifelse(choices == selected, " selected", ""), labels), collapse = "")
+    }
+
+    make_row <- function(m) {
+        ov      <- overrides[[m]]
+        follows <- is.null(ov)
+        family  <- registry_families[[m]] %||% "univariate_pvalue"
+        cfg_rule <- config_rules[[m]] %||% ""
+        htmltools::tags$tr(
+            class = "pm-rule-row", `data-method` = m,
+            htmltools::tags$td(
+                m,
+                if (identical(family, "multivariate_pvalue"))
+                    htmltools::tags$sup(class = "text-muted ms-1",
+                        title = "Multivariate: one joint test per SNP, not one per trait.", "M")
+            ),
+            htmltools::tags$td(
+                htmltools::tags$input(type = "checkbox", `data-role` = "follow",
+                                      checked = if (follows) NA else NULL)
+            ),
+            htmltools::tags$td(
+                htmltools::tags$select(
+                    class = "form-select form-select-sm", `data-role` = "type",
+                    disabled = if (follows) NA else NULL,
+                    htmltools::HTML(adjust_opts_html(ov$type %||% "bonf"))
+                )
+            ),
+            htmltools::tags$td(
+                htmltools::tags$input(type = "text", inputmode = "decimal",
+                                      class = "form-control form-control-sm",
+                                      `data-role` = "value",
+                                      disabled = if (follows) NA else NULL,
+                                      value = if (is.null(ov$value)) "" else as.character(ov$value))
+            ),
+            htmltools::tags$td(class = "text-muted small", resolved_cutoff_for(m)),
+            htmltools::tags$td(
+                class = "text-muted small", title =
+                    if (nzchar(cfg_rule)) sprintf(
+                        "Pipeline files (QQ/Manhattan background) were built with %s.", cfg_rule)
+                    else "",
+                if (nzchar(cfg_rule)) cfg_rule
+            ),
+            htmltools::tags$td(
+                if (!follows) htmltools::tags$button(
+                    type = "button", class = "btn btn-link btn-sm p-0 pm-revert",
+                    title = "Revert to master rule", "↩"
+                )
+            )
+        )
+    }
+
+    htmltools::tags$details(
+        id    = container_id,
+        class = "pm-rules mt-1",
+        htmltools::tags$summary(class = "small", summary_content),
+        htmltools::div(
+            class = "d-flex justify-content-end mb-1",
+            htmltools::tags$button(
+                type = "button", class = "btn btn-link btn-sm text-muted pm-reset-all",
+                "Reset all to master"
+            )
+        ),
+        htmltools::tags$table(
+            class = "pm-rules-table table table-sm mb-0",
+            htmltools::tags$thead(htmltools::tags$tr(
+                lapply(c("Method", "⇄", "Rule", "Value", "cutoff p", "config", ""),
+                      htmltools::tags$th)
+            )),
+            htmltools::tags$tbody(lapply(methods, make_row))
+        ),
+        shiny::textInput(json_id, label = NULL,
+                         value = jsonlite::toJSON(overrides, auto_unbox = TRUE)) |>
+            shinyjs::hidden(),
+        htmltools::tags$script(htmltools::HTML(sprintf(
+'(function() {
+  var containerId = "%s";
+  var jsonInputId = "%s";
+
+  function collect(container) {
+    var out = {};
+    container.querySelectorAll(".pm-rule-row").forEach(function(row) {
+      var follow = row.querySelector("[data-role=follow]");
+      if (follow && follow.checked) return;   // omitted key = follow master
+      var m = row.dataset.method;
+      var t = row.querySelector("[data-role=type]");
+      var v = row.querySelector("[data-role=value]");
+      if (!m || !t || !v) return;
+      var raw = String(v.value).trim();
+      var ok = raw.length > 0 && !/[_\\s]/.test(raw) && isFinite(Number(raw)) && Number(raw) > 0;
+      v.classList.toggle("is-invalid", !ok);
+      if (!ok) return;
+      out[m] = {type: t.value, value: Number(raw)};
+    });
+    return out;
+  }
+
+  function push() {
+    var container = document.getElementById(containerId);
+    var el = document.getElementById(jsonInputId);
+    if (!container || !el) return;
+    var json = JSON.stringify(collect(container));
+    el.value = json;
+    Shiny.setInputValue(jsonInputId, json, {priority: "event"});
+  }
+
+  function wire() {
+    var container = document.getElementById(containerId);
+    if (!container || container.dataset.pmWired) return;
+    container.dataset.pmWired = "1";
+
+    container.addEventListener("change", function(e) {
+      var row = e.target.closest(".pm-rule-row");
+      if (!row) return;
+      if (e.target.matches("[data-role=follow]")) {
+        var disable = e.target.checked;
+        row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
+          el.disabled = disable;
+        });
+      }
+      push();
+    });
+
+    container.addEventListener("click", function(e) {
+      if (e.target.matches(".pm-revert")) {
+        var row = e.target.closest(".pm-rule-row");
+        var follow = row.querySelector("[data-role=follow]");
+        follow.checked = true;
+        row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
+          el.disabled = true;
+        });
+        push();
+      }
+    });
+
+    var resetBtn = container.querySelector(".pm-reset-all");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", function() {
+        container.querySelectorAll(".pm-rule-row").forEach(function(row) {
+          var follow = row.querySelector("[data-role=follow]");
+          follow.checked = true;
+          row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
+            el.disabled = true;
+          });
+        });
+        push();
+      });
+    }
+  }
+
+  // The <details> and its <script> are inserted together by renderUI; wiring
+  // synchronously here is safe (script tags execute in DOM order on insert).
+  wire();
+})();
+',
+            container_id, json_id
+        )))
     )
 }
 

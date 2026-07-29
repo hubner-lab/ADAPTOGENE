@@ -41,12 +41,19 @@ mod_rda_details_server <- function(id, project_data, methods) {
             if (is.null(v) || identical(v, "")) default else v
         }
 
+        # Numeric formatter for small p-values / thresholds — used across the
+        # value boxes, provenance card, and the biplot note below.
+        fmt_sci <- function(x) {
+            v <- suppressWarnings(as.numeric(x))
+            if (is.na(v)) "?" else formatC(v, format = "e", digits = 2)
+        }
+
         # ── Value-box summary row ───────────────────────────────────────────
         output$value_boxes <- shiny::renderUI({
             shiny::req(has_rda())
             fit_mode <- d("fit_mode", "unknown")
             bslib::layout_column_wrap(
-                width = 1 / 5, heights_equal = "row",
+                width = 1 / 3, heights_equal = "row",
                 bslib::value_box(
                     title = "Fit mode", value = fit_mode,
                     theme = if (identical(fit_mode, "pruned")) "danger" else "success",
@@ -76,6 +83,111 @@ mod_rda_details_server <- function(id, project_data, methods) {
                     theme = if (!is.na(suppressWarnings(as.numeric(d("gif_lambda", NA)))) &&
                                abs(as.numeric(d("gif_lambda")) - 1) > 0.2) "warning" else "success",
                     showcase = bsicons::bs_icon("rulers")
+                ),
+                bslib::value_box(
+                    title = "Candidates",
+                    value = d("n_candidates_total", "?"),
+                    htmltools::p(class = "small mb-0", d("candidate_rule", "?"),
+                                sprintf(" (p < %s)", fmt_sci(d("candidate_threshold", NA)))),
+                    theme = if (identical(d("candidate_threshold_status", "ok"), "ok"))
+                                "info" else "warning",
+                    showcase = bsicons::bs_icon("crosshair")
+                )
+            )
+        })
+
+        # ── Provenance card: full parameter record + applied significance rule ─
+        .kv_table <- function(title, keys) {
+            keys_present <- keys[vapply(keys, function(k) !is.na(d(k, NA)), logical(1))]
+            if (length(keys_present) == 0) return(NULL)
+            htmltools::div(
+                htmltools::tags$h6(class = "small text-muted mb-1", title),
+                htmltools::tags$table(
+                    class = "table table-sm mb-2",
+                    htmltools::tags$tbody(lapply(keys_present, function(k) htmltools::tags$tr(
+                        htmltools::tags$td(class = "text-muted", style = "width:55%", k),
+                        htmltools::tags$td(as.character(d(k, "?")))
+                    )))
+                )
+            )
+        }
+
+        .ladder_table <- function() {
+            rule <- d("candidate_rule", NA)
+            rows <- list(
+                list(label = "bonf 0.01/m", key = "n_candidates_bonf_0.01", tag = "bonf_0.01",
+                    note = "Capblancq & Forester 2021"),
+                list(label = "bonf 0.05/m", key = "n_candidates_bonf_0.05", tag = "bonf_0.05",
+                    note = "univariate default"),
+                list(label = "q < 0.05",    key = "n_candidates_q_0.05",   tag = "qval_0.05", note = ""),
+                list(label = "q < 0.10",    key = "n_candidates_q_0.10",   tag = "qval_0.1",   note = "Capblancq et al. 2018")
+            )
+            applied_matched <- any(vapply(rows, function(r) identical(r$tag, rule), logical(1)))
+            htmltools::div(
+                htmltools::tags$h6(class = "small text-muted mb-1",
+                                   "Sensitivity ladder — what each published rule would give"),
+                htmltools::tags$table(
+                    class = "table table-sm mb-1",
+                    htmltools::tags$tbody(lapply(rows, function(r) {
+                        is_applied <- identical(r$tag, rule)
+                        htmltools::tags$tr(
+                            htmltools::tags$td(r$label),
+                            htmltools::tags$td(d(r$key, "?")),
+                            htmltools::tags$td(
+                                if (is_applied) htmltools::tags$span(class = "badge bg-primary", "APPLIED"),
+                                htmltools::span(class = "text-muted small ms-1", r$note)
+                            )
+                        )
+                    }))
+                ),
+                if (!applied_matched && !is.na(rule)) htmltools::p(
+                    class = "small text-muted mb-1",
+                    sprintf("Applied rule (%s) is outside this ladder — top/custom rules are not a published RDA convention.", rule)),
+                htmltools::p(class = "small text-muted mb-0", d("sensitivity_ladder_note", ""))
+            )
+        }
+
+        output$provenance_card <- shiny::renderUI({
+            shiny::req(has_rda())
+            cfg_rule <- resolve_adjust(project_data()$config, "RDA", "GEA")   # utils_helpers.R
+            run_rule <- d("candidate_rule", NA)
+            drift <- !is.na(run_rule) && !is.null(cfg_rule) && !identical(run_rule, cfg_rule)
+            bslib::card(
+                class = if (drift) "border-warning" else NULL,
+                bslib::card_header(
+                    bsicons::bs_icon("fingerprint"), " Run parameters & significance rule",
+                    if (drift) htmltools::span(class = "badge bg-warning ms-2", "stale vs config")
+                ),
+                bslib::card_body(
+                    if (drift) htmltools::div(class = "alert alert-warning small py-1",
+                        sprintf(paste0(
+                            "These artifacts were produced with rule '%s'. GEA.configs now says ",
+                            "'%s'. Re-run GEA to regenerate the candidates table, sig_snps file, ",
+                            "QQ and background plots."), run_rule, cfg_rule)),
+                    bslib::layout_column_wrap(
+                        width = 1 / 2,
+                        .kv_table("Model & fit", c(
+                            "predictors", "n_predictors", "n_samples", "condition_pcs",
+                            "structure_proxy", "fit_mode_requested", "fit_mode",
+                            "full_fit_max_snps", "full_fit_max_gb",
+                            "n_markers_available", "n_markers_fitted",
+                            "n_zero_variance_dropped", "adj_r_squared", "max_vif",
+                            "vif_flagged_predictors", "aliased_terms",
+                            "axes_requested", "axis_alpha", "rda_axes", "rda_axes_max",
+                            "K_selection", "K_floored", "permutations", "seed",
+                            "k_best", "cpu", "marker_envelope_status")),
+                        htmltools::tagList(
+                            .kv_table("Applied significance rule", c(
+                                "candidate_rule", "candidate_adjust",
+                                "candidate_threshold_value", "candidate_threshold",
+                                "candidate_threshold_status", "candidate_n_tested",
+                                "candidate_n_na_dropped", "n_candidates_total",
+                                "n_candidates_written", "gif_lambda",
+                                "qvalue_method", "candidate_qvalue_engine",
+                                "pval_hist_flatness_chisq")),
+                            .ladder_table()
+                        )
+                    )
                 )
             )
         })
@@ -141,8 +253,16 @@ mod_rda_details_server <- function(id, project_data, methods) {
                 title = shiny::reactive("RDA Loadings Biplot"),
                 dl_name = shiny::reactive("rda_loadings_biplot"),
                 suggestion = shiny::reactive("Run GEA with RDA in GEA.configs"),
-                note = shiny::reactive(help_note("rda_biplot", results = sprintf(
-                    "%s candidate(s) at bonf 0.05 / q 0.1", d("n_candidates_total", "?"))))
+                note = shiny::reactive(help_note("rda_biplot", results = {
+                    st <- d("candidate_threshold_status", "ok")
+                    if (!identical(st, "ok"))
+                        sprintf("No candidates — threshold unavailable (%s) for rule %s",
+                               st, d("candidate_rule", "?"))
+                    else
+                        sprintf("%s candidate(s) at %s (raw p < %s)",
+                               d("n_candidates_total", "?"), d("candidate_rule", "?"),
+                               fmt_sci(d("candidate_threshold", NA)))
+                }))
             )
         })
 
@@ -157,11 +277,19 @@ mod_rda_details_server <- function(id, project_data, methods) {
             )
         }, server = TRUE)
 
+        # ── Candidates card header — states the rule that produced the table ──
+        output$candidates_card_header <- shiny::renderUI({
+            shiny::req(has_rda())
+            sprintf("Candidates at %s — LD-unclumped (see Region Explorer below for clumped regions)",
+                   d("candidate_rule", "?"))
+        })
+
         # ── Panel shell — hidden entirely when RDA isn't configured ──────────
         output$panel <- shiny::renderUI({
             if (!has_rda()) return(NULL)
             htmltools::tagList(
                 shiny::uiOutput(ns("value_boxes")),
+                shiny::uiOutput(ns("provenance_card")),
                 shiny::uiOutput(ns("warning_card")),
                 bslib::layout_column_wrap(
                     width = 1 / 3,
@@ -174,7 +302,7 @@ mod_rda_details_server <- function(id, project_data, methods) {
                     DT::DTOutput(ns("anova_table"))
                 ),
                 bslib::card(
-                    bslib::card_header("Candidates (LD-unclumped — see Region Explorer below for clumped regions)"),
+                    bslib::card_header(shiny::uiOutput(ns("candidates_card_header"), inline = TRUE)),
                     DT::DTOutput(ns("candidates_table"))
                 )
             )

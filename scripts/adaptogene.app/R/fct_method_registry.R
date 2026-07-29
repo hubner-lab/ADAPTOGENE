@@ -146,3 +146,17 @@ resolve_row_params <- function(method, row_params, registry, k_best = NULL) {
     }
     resolved
 }
+
+#' method -> list(adjust=, threshold=, family=) from the registry's
+#' significance fields (adjust_default/threshold_default/significance_family,
+#' workflow/methods/gea.py). Falls back to bonf/0.05/univariate_pvalue per
+#' method for a degraded-mode registry (gea_method_registry() python failure,
+#' :52-62 above) where those keys are absent entirely.
+#' @noRd
+gea_method_significance_defaults <- function(registry) {
+    stats::setNames(lapply(registry, function(cfg) list(
+        adjust    = cfg$adjust_default      %||% "bonf",
+        threshold = as.character(cfg$threshold_default %||% "0.05"),
+        family    = cfg$significance_family %||% "univariate_pvalue"
+    )), names(registry))
+}

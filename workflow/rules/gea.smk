@@ -281,6 +281,15 @@ if "RDA" in GEA_OTHER_CONFIGS:
             seed          = _rda_p["seed"],
             plot_dir      = f"{MOD_GEA}plots/rda/",
             k_best        = K_BEST,
+            # GEA_CONFIGS["RDA"] is the fused "{adjust}_{threshold}" token built
+            # at common.smk's parse_association_configs(). Splitting it here
+            # (rather than plumbing cfg['adjust']/cfg['threshold'] separately)
+            # keeps that function's return shape untouched and guarantees these
+            # two args reconstruct exactly the string that names the sig_snps
+            # file downstream — unambiguous under the widened adjust grammar
+            # since neither field may contain '_'.
+            cand_adjust    = GEA_CONFIGS["RDA"].split("_", 1)[0],
+            cand_threshold = GEA_CONFIGS["RDA"].split("_", 1)[1],
         threads: CPU
         log: f"{LOGDIR}gea/assoc_rda.log"
         shell:
@@ -293,7 +302,7 @@ if "RDA" in GEA_OTHER_CONFIGS:
                 {params.perms} {params.fit_mode} {params.max_snps} {params.max_gb} \
                 {params.seed} {threads} {params.k_best} \
                 {output.pvalues} {output.candidates} {output.diagnostics} {output.anova} \
-                {params.plot_dir} > {log} 2>&1
+                {params.plot_dir} {params.cand_adjust} {params.cand_threshold} > {log} 2>&1
             """
 
 # VCF to GAPIT numeric (shared by GEA and GWAS GAPIT models)

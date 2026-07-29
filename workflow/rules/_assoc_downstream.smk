@@ -35,7 +35,12 @@ if ASSOC_SOURCES:
         wildcard_constraints:
             source = SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
-            adjust = r"\w+_[\d.]+"
+            # Alphabetic rule name + numeric value admitting scientific notation
+            # (e.g. custom_1e-05 — R's as.character(1e-5)). \w+ was widened to
+            # [A-Za-z]+ so digits/underscores can never ambiguously bleed into
+            # the name half; find_sig_snps.R still splits on the single '_' into
+            # exactly two fields since -/e/E/+ are not '_'.
+            adjust = r"[A-Za-z]+_[0-9.eE+-]+"
         params:
             clumping_dist = lambda wc: _src(wc.source, "clumping_distance")
         log:
@@ -144,7 +149,7 @@ if ASSOC_SOURCES:
         wildcard_constraints:
             source = SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
-            adjust = r"\w+_[\d.]+"
+            adjust = r"[A-Za-z]+_[0-9.eE+-]+"
         params:
             clumping_dist = lambda wc: _src(wc.source, "clumping_distance")
         log:
@@ -171,7 +176,7 @@ if ASSOC_SOURCES:
             source = SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
             trait  = TRAIT_REGEX_ANY,
-            adjust = r"\w+_[\d.]+"
+            adjust = r"[A-Za-z]+_[0-9.eE+-]+"
         params:
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/{wc.method}/",
@@ -295,7 +300,7 @@ if ASSOC_SOURCES:
             source = SOURCE_REGEX,
             method = _ALL_ASSOC_METHODS_REGEX,
             trait  = TRAIT_REGEX_ANY,
-            adjust = r"\w+_[\d.]+"
+            adjust = r"[A-Za-z]+_[0-9.eE+-]+"
         params:
             k          = K_BEST,
             plot_dir   = lambda wc: f"{_src(wc.source, 'mod')}plots/manhattan/{wc.method}/",

@@ -14,6 +14,21 @@
 #                      (a pseudo-trait), not one column per predictor
 # pseudo_trait:        the single column name when multivariate=True, else None
 # supports_wza:        method's p-values can be fed through compute_wza.R
+# adjust_default:      default significance rule name for this method's
+#                      GEA.configs row ("bonf"|"qval"|"top"|"custom"). Seeds
+#                      the Shiny config sidebar's method editor and the GEA
+#                      tab's per-method threshold table.
+# threshold_default:   default value paired with adjust_default, as a STRING —
+#                      the config YAML stores thresholds as strings and the
+#                      value is a filename/wildcard component (see
+#                      _assoc_downstream.smk's `adjust` wildcard constraint).
+# significance_family: what the method's p-value column MEANS.
+#                      "univariate_pvalue" = one test per (SNP, trait).
+#                      "multivariate_pvalue" = one joint test per SNP over the
+#                      whole predictor set (RDA's rdadapt). A future
+#                      Bayes-factor method (e.g. BayPass) would declare
+#                      "bayes_factor" here so the threshold layer can dispatch
+#                      on family instead of special-casing the method name.
 # params:              declarative per-method hyperparameters, surfaced in the
 #                      Shiny GEA sidebar's method editor and resolved at
 #                      config-parse time by resolve_method_params() in common.smk.
@@ -43,6 +58,9 @@ def _gapit(model):
         "multivariate": False,
         "pseudo_trait": None,
         "supports_wza": True,
+        "adjust_default": "bonf",
+        "threshold_default": "0.05",
+        "significance_family": "univariate_pvalue",
         "params": {
             "n_pcs": P("int", K_BEST_SENTINEL, min=0, max=20,
                        help="PCA.total passed to GAPIT. Default: sNMF k_best."),
@@ -59,6 +77,9 @@ GEA_METHODS = {
         "multivariate": False,
         "pseudo_trait": None,
         "supports_wza": True,
+        "adjust_default": "bonf",
+        "threshold_default": "0.05",
+        "significance_family": "univariate_pvalue",
         "params": {
             "n_pcs": P("int", K_BEST_SENTINEL, min=0, max=20,
                        help="Number of PCA covariates used as fixed effects. "
@@ -76,6 +97,9 @@ GEA_METHODS = {
         "multivariate": False,
         "pseudo_trait": None,
         "supports_wza": True,
+        "adjust_default": "bonf",
+        "threshold_default": "0.05",
+        "significance_family": "univariate_pvalue",
         "params": {
             "K": P("int", K_BEST_SENTINEL, min=1, max=20,
                    help="Number of latent factors in lfmm2(). Default: sNMF "
@@ -92,6 +116,17 @@ GEA_METHODS = {
         "multivariate": True,
         "pseudo_trait": "climate_multivariate",
         "supports_wza": True,
+        "adjust_default": "bonf",
+        # Capblancq & Forester 2021 (MEE 12:2298-2309) apply Bonferroni 0.01/m
+        # on the full marker count — docs/rda_research.md A.0/A.6. NOT 0.05:
+        # rdadapt emits ONE joint test per SNP, so the univariate 0.05
+        # convention has no standing here. The 2018 companion paper (Capblancq
+        # et al.) uses q<0.1 instead; the disagreement between the two papers
+        # is unresolved in the literature (rda_research.md A.4 item 1) — rda.R
+        # keeps a 4-rule sensitivity ladder in its diagnostics table so both
+        # published rules stay visible alongside whichever one is applied.
+        "threshold_default": "0.01",
+        "significance_family": "multivariate_pvalue",
         "params": {
             "axes": P("str", "auto",
                       help="K = retained constrained axes. 'auto' = axes with "

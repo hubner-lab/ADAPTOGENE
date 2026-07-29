@@ -32,6 +32,8 @@ library(scattermore)
 
 source("/pipeline/scripts/R/utils/theme_adaptogene.R")
 source("/pipeline/scripts/R/utils/emmax_core.R")  # load_pca_covariates()
+source("/pipeline/scripts/R/utils/pval_threshold.R")  # compute_pval_threshold()
+source("/pipeline/scripts/R/lib/rdadapt.R")  # rdadapt() — shared with preGEA's RDA-setup block
 
 args <- commandArgs(trailingOnly = TRUE)
 ################################################################################
@@ -62,7 +64,23 @@ OUT_CANDIDATES <- args[21]
 OUT_DIAGNOSTICS<- args[22]
 OUT_ANOVA      <- args[23]
 PLOT_DIR       <- args[24]
+# Appended after the outputs (positions 25-26) deliberately: rda.R takes
+# positional args with no schema check, so inserting mid-list would silently
+# shift OUT_PVALUES..PLOT_DIR. The out-of-group position is the cost of that
+# safety. Single caller: workflow/rules/gea.smk. These carry the candidate
+# significance rule (GEA.configs[RDA].adjust/threshold) — linking the
+# candidates table to the same rule find_sig_snps.R applies downstream.
+CAND_ADJUST    <- args[25]                   # "bonf" | "qval" | "top" | "custom"
+CAND_VALUE     <- suppressWarnings(as.numeric(args[26]))
 ################################################################################
+
+if (!CAND_ADJUST %in% c("bonf", "qval", "top", "custom")) {
+    stop("RDA: unknown adjust '", CAND_ADJUST, "' — expected bonf|qval|top|custom. ",
+         "This must match GEA.configs[RDA].adjust; see workflow/methods/gea.py.")
+}
+if (is.na(CAND_VALUE) || CAND_VALUE <= 0) {
+    stop("RDA: candidate threshold value '", args[26], "' is not a positive number.")
+}
 
 # Candidate-table cap — not a CLI arg (an internal safety valve, not a
 # scientific parameter). At WGS density with a heavy-tailed null the raw
@@ -90,6 +108,19 @@ predictor_names <- str_split(PREDICTORS, ',')[[1]] %>% str_trim()
 add_diag("predictors", paste(predictor_names, collapse = ","))
 add_diag("n_predictors", length(predictor_names))
 add_diag("condition_pcs", N_COND_PCS)
+
+# Provenance rows — every CLI parameter that isn't otherwise recorded below,
+# so the diagnostics table alone answers "what was this run actually run
+# with" without cross-referencing the Snakemake shell command or config YAML.
+add_diag("axes_requested",     AXES)
+add_diag("axis_alpha",         AXIS_ALPHA)
+add_diag("permutations",       PERMUTATIONS)
+add_diag("seed",               SEED)
+add_diag("fit_mode_requested", FIT_MODE)
+add_diag("full_fit_max_snps",  MAX_SNPS_FULL)
+add_diag("full_fit_max_gb",    MAX_GB)
+add_diag("k_best",             K_BEST)
+add_diag("cpu",                CPU)
 
 ################################################################################
 # 1. Climate predictors
@@ -343,31 +374,11 @@ add_diag("K_selection", K_selection)
 add_diag("K_floored", K_floored)
 
 ################################################################################
-# 13. rdadapt — verbatim port from Capblancq/RDA-genome-scan/Script_RDA.R,
-#     one deviation: drop=FALSE on the loadings subset (behavior-preserving
-#     given the K>=2 floor above; guards against silent vector coercion if
-#     the floor is ever relaxed).
+# 13. rdadapt — extracted to scripts/R/lib/rdadapt.R so preGEA's RDA-setup
+#     block (Block 3) can share the exact same candidate-calling math instead
+#     of duplicating it. Verbatim port from Capblancq/RDA-genome-scan/
+#     Script_RDA.R (see that file's header for the drop=FALSE deviation note).
 ################################################################################
-rdadapt <- function(rda_obj, K) {
-    loadings    <- rda_obj$CCA$v[, 1:as.numeric(K), drop = FALSE]
-    resscale    <- apply(loadings, 2, scale)
-    resmaha     <- covRob(resscale, distance = TRUE, na.action = na.omit,
-                          estim = "pairwiseGK")$dist
-    lambda      <- median(resmaha) / qchisq(0.5, df = K)
-    reschi2test <- pchisq(resmaha / lambda, K, lower.tail = FALSE)
-    # 14. qvalue fallback chain — storey -> qvalue(lambda=0) -> BH.
-    qval_result <- tryCatch(
-        list(qvalues = qvalue(reschi2test)$qvalues, method = "storey"),
-        error = function(e) tryCatch(
-            list(qvalues = qvalue(reschi2test, lambda = 0)$qvalues, method = "storey_lambda0"),
-            error = function(e2) list(qvalues = p.adjust(reschi2test, "BH"), method = "BH")
-        )
-    )
-    list(p.values = reschi2test, q.values = qval_result$qvalues,
-         gif_lambda = lambda, qvalue_method = qval_result$method,
-         distance = resmaha)  # returned so candidate reporting doesn't recompute covRob (Rule 1)
-}
-
 message("INFO: Running rdadapt (robust Mahalanobis distance over retained axes)")
 rdadapt_res <- rdadapt(RDA_env, K_sel)
 add_diag("gif_lambda", rdadapt_res$gif_lambda)
@@ -409,8 +420,66 @@ expected_per_bin <- length(rdadapt_res$p.values) / 100
 flatness_chisq <- sum((hist_counts[-1] - expected_per_bin)^2 / expected_per_bin)
 add_diag("pval_hist_flatness_chisq", flatness_chisq)
 
-is_candidate <- (rdadapt_res$p.values < bonf_thresh_005) | (rdadapt_res$q.values < 0.1)
-n_candidates_total <- sum(is_candidate, na.rm = TRUE)
+################################################################################
+# 16b. Sensitivity ladder (DIAGNOSTIC ONLY — not the applied rule).
+#      docs/rda_research.md A.4(1) records the literature as unresolved:
+#      Capblancq et al. 2018 use q<0.1; Capblancq & Forester 2021 use 0.01/m.
+#      These four counts say "what each published rule would give on this run";
+#      the rule actually applied is candidate_rule below.
+################################################################################
+n_qval_010 <- sum(rdadapt_res$q.values < 0.10, na.rm = TRUE)
+add_diag("n_candidates_q_0.10", n_qval_010)
+add_diag("sensitivity_ladder_note",
+         paste0("n_candidates_bonf_* / n_candidates_q_* are DIAGNOSTIC counts under ",
+                "published alternative rules, NOT the applied rule. Applied rule = ",
+                "candidate_rule. Literature is unresolved (2018: q<0.1; 2021: ",
+                "Bonferroni 0.01/m) — docs/rda_research.md A.4(1)."))
+
+################################################################################
+# 16c. Applied candidate rule — SHARED with find_sig_snps.R.
+#      compute_pval_threshold() is the same function find_sig_snps.R calls on
+#      OUT_PVALUES, so the candidates table and *_sig_snps_{adjust}.tsv are the
+#      same SNP set by construction. That equality rests on one invariant:
+#      section 18 below re-expands variance-dropped SNPs as NA, and
+#      compute_pval_threshold() NA-drops before counting, so its n_tested equals
+#      m here. Never write 0 instead of NA in section 18.
+################################################################################
+cand_res <- compute_pval_threshold(rdadapt_res$p.values, CAND_ADJUST, CAND_VALUE)
+
+add_diag("candidate_adjust",           CAND_ADJUST)
+add_diag("candidate_threshold_value",  CAND_VALUE)
+add_diag("candidate_rule",             paste0(CAND_ADJUST, "_", CAND_VALUE))
+add_diag("candidate_threshold",        cand_res$threshold)
+add_diag("candidate_threshold_status", cand_res$status)
+add_diag("candidate_n_tested",         cand_res$n_tested)
+add_diag("candidate_n_na_dropped",     cand_res$n_na_dropped)
+
+# The q-value COLUMN in the candidates table comes from rdadapt()'s own
+# storey -> lambda=0 -> BH fallback chain (step 14 above), NOT from
+# pval_threshold.R's bare qvalue() (max_pvalue_fdr, no fallback). Under
+# adjust="qval" the applied cutoff is computed via the shared function (so it
+# agrees with find_sig_snps.R), but it can be a DIFFERENT estimate than the
+# q_value column whenever the fallback chain fires — record the divergence
+# rather than silently reconciling it. See docs/rda_research.md A.4.
+add_diag("candidate_qvalue_engine",
+         if (identical(CAND_ADJUST, "qval"))
+             paste0("pval_threshold::max_pvalue_fdr — bare qvalue(), NO fallback chain. ",
+                    "The q_value COLUMN in the candidates table is rdadapt's (method=",
+                    rdadapt_res$qvalue_method, ") and may use a different estimator.")
+         else "n/a (adjust != qval)")
+
+if (!identical(cand_res$status, "ok")) {
+    message("WARNING: RDA candidate threshold unavailable (status=", cand_res$status,
+            ") for rule ", CAND_ADJUST, " ", CAND_VALUE,
+            " on ", cand_res$n_tested, " tests. Writing header-only candidates table. ",
+            "find_sig_snps.R will reach the same conclusion on the same p-values.")
+    is_candidate <- rep(FALSE, length(rdadapt_res$p.values))
+} else {
+    # Strict '<' and NA->FALSE, byte-identical to sig_snps.R:58-59.
+    is_candidate <- rdadapt_res$p.values < cand_res$threshold
+    is_candidate[is.na(is_candidate)] <- FALSE
+}
+n_candidates_total <- sum(is_candidate)
 add_diag("n_candidates_total", n_candidates_total)
 
 # SNP identifiers, in the SAME order as Y's original columns (before the
@@ -452,9 +521,10 @@ if (length(candidate_idx) > 0) {
     assigned_cor <- cor_mat[cbind(seq_len(nrow(cor_mat)), apply(abs(cor_mat), 1, which.max))]
 
     candidates_dt <- data.table(vcfsnp_kept[candidate_idx, ],
-                                mahalanobis = rdadapt_res$distance[candidate_idx],
-                                p_value = rdadapt_res$p.values[candidate_idx],
-                                q_value = rdadapt_res$q.values[candidate_idx])
+                                mahalanobis    = rdadapt_res$distance[candidate_idx],
+                                p_value        = rdadapt_res$p.values[candidate_idx],
+                                q_value        = rdadapt_res$q.values[candidate_idx],
+                                pval_threshold = cand_res$threshold)
     candidates_dt <- cbind(candidates_dt, as.data.table(cand_loadings), as.data.table(cor_mat))
     candidates_dt[, assigned_predictor := assigned_predictor]
     candidates_dt[, assigned_cor := assigned_cor]
@@ -464,10 +534,13 @@ if (length(candidate_idx) > 0) {
         candidates_dt <- candidates_dt[seq_len(MAX_CANDIDATES_WRITTEN)]
     }
 } else {
-    message("INFO: No candidate SNPs at bonf_0.05/q_0.1 — writing header-only candidates table")
+    message("INFO: No candidate SNPs at ", CAND_ADJUST, " ", CAND_VALUE,
+            " (raw p cutoff ", format(cand_res$threshold, digits = 3),
+            ", status=", cand_res$status, ") — writing header-only candidates table")
     candidates_dt <- data.table(
         SNPID = character(), chr = character(), pos = integer(),
-        mahalanobis = numeric(), p_value = numeric(), q_value = numeric()
+        mahalanobis = numeric(), p_value = numeric(), q_value = numeric(),
+        pval_threshold = numeric()
     )
     for (i in seq_len(K_sel)) candidates_dt[[paste0("RDA", i)]] <- numeric()
     for (p in predictor_names) candidates_dt[[paste0("cor_", p)]] <- numeric()
@@ -588,5 +661,8 @@ ggsave(sub("\\.png$", ".svg", O_biplot), g_biplot, width = 7, height = 6,
        device = svglite::svglite, bg = "transparent")
 
 message("INFO: RDA genome scan complete.")
-message(paste0("INFO: m=", m, " K=", K_sel, " (max=", K_max, ") gif=", round(rdadapt_res$gif_lambda, 4),
-               " n_bonf0.01=", n_bonf_001, " n_bonf0.05=", n_bonf_005, " n_qval0.05=", n_qval_005))
+message(paste0("INFO: m=", m, " K=", K_sel, " (max=", K_max, ") gif=",
+               round(rdadapt_res$gif_lambda, 4),
+               " | APPLIED ", CAND_ADJUST, "_", CAND_VALUE, " -> ", n_candidates_total,
+               " candidates | ladder: bonf0.01=", n_bonf_001, " bonf0.05=", n_bonf_005,
+               " q0.05=", n_qval_005, " q0.10=", n_qval_010))
