@@ -531,7 +531,31 @@ config_schema <- function() {
         s("Maladaptation.methods.geometric_offset.scale",
           "Scale environment",  "maladaptation","Geometric Offset",
           "checkbox", FALSE,
-          help = "Standardise climate predictors before fitting LFMM2 (recommended).")
+          help = "Standardise climate predictors before fitting LFMM2 (recommended)."),
+        s("Maladaptation.methods.rda_offset.axes",
+          "RDA axes (K)",       "maladaptation","RDA Offset",
+          "text", FALSE,
+          help = "'auto' (anova by-axis at axis_alpha, floored at 2) or an integer >= 2."),
+        s("Maladaptation.methods.rda_offset.axis_alpha",
+          "Axis alpha",         "maladaptation","RDA Offset",
+          "numeric", FALSE,
+          min = 0, max = 1, step = 0.01,
+          help = "Significance threshold for anova.cca(by=\"axis\") when axes='auto'."),
+        s("Maladaptation.methods.rda_offset.permutations",
+          "Permutations",       "maladaptation","RDA Offset",
+          "numeric", FALSE,
+          min = 99, step = 100,
+          help = "Permutations for the by-axis anova.cca significance test."),
+        s("Maladaptation.methods.rda_offset.condition_pcs",
+          "Condition PCs",      "maladaptation","RDA Offset",
+          "numeric", FALSE,
+          min = 0, step = 1,
+          help = "0 = canonical offset RDA (no structure conditioning, docs/rda_research.md B7). >0 is a documented deviation."),
+        s("Maladaptation.methods.rda_offset.seed",
+          "Random seed",        "maladaptation","RDA Offset",
+          "numeric", FALSE,
+          min = 1, step = 1,
+          help = "Seed for the by-axis permutation test.")
     )
 }
 

@@ -208,6 +208,15 @@ Maladaptation:
       cor_threshold: '0.5'
       spatial_correction: 'with'       # Include spatial variables: with/without
       random_model: true               # Also build neutral model for comparison
+    geometric_offset:
+      scale: true                      # Standardise climate predictors before fitting LFMM2
+      k: ''                            # Number of LFMM2 latent factors; blank = sNMF k_best
+    rda_offset:
+      axes: auto            # 'auto' (anova by-axis at axis_alpha) or an integer >= 2
+      axis_alpha: 0.05
+      permutations: 999
+      condition_pcs: 0      # 0 = canonical (no structure conditioning); >0 is a documented deviation
+      seed: 42
   snp_sets: 'all'                      # SNP set(s) to run maladaptation on — 'all' or a list of
                                         # names saved from the GEA tab's "Save SNP set" action
 

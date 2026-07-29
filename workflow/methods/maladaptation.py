@@ -38,4 +38,15 @@ MALADAPTATION_METHODS = {
         "builds_model": False,              # one-call: model + offset in single script
         "supports_cumulative_importance": False,
     },
+    "rda_offset": {
+        "engine": "rda_offset",
+        "model_script": None,
+        "offset_script": "scripts/rda_offset.R",
+        "cumimp_script": None,
+        "importance_script": None,          # single-call script writes overall_importance.png itself
+        "supports_spatial": False,          # B7 (docs/rda_research.md) — offset RDA drops Condition() by default
+        "supports_random_model": False,
+        "builds_model": False,              # one-call: second RDA fit + offset in single script
+        "supports_cumulative_importance": False,
+    },
 }

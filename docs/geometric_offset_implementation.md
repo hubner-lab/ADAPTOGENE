@@ -283,14 +283,20 @@ Maladaptation:
 5. Shiny: method selector switches GF ↔ geometric_offset piemaps; cumulative-importance card hidden for
    geometric_offset.
 
-## 11. Future improvement — RDA Offset `[design]` + `[literature]`
+## 11. RDA Offset — implemented (2026-07-29 correction) `[design]` + `[literature]`
 
-**Contingent on RDA being implemented in GEA first.** RDA-based genomic offset (Capblancq & Forester 2021,
-*Methods Ecol. Evol.* 12:2298, DOI 10.1111/2041-210X.13722) projects present and future climate into the
-RDA-constrained adaptive space and measures Euclidean distance between them per site/cell. Unlike Geometric GO
-it needs human judgment (which RDA axes are adaptive, structure correction), so it is **Shiny-driven**, not a
-batch maladaptation method. See the RDA-offset analysis already sketched in `docs/maladaptation_methods.md`;
-do not re-research. Prerequisite chain: RDA GEA method → adaptive-axis selection UI → offset projection.
+**Correction, dated 2026-07-29:** this section originally said RDA offset was contingent on RDA-GEA
+landing first and would be Shiny-driven, not a batch method. Both premises changed: RDA-GEA landed
+(`scripts/rda.R`), and RDA offset shipped as a **standard batch maladaptation method**
+(`workflow/methods/maladaptation.py` → `rda_offset`, `scripts/rda_offset.R`) — the human-judgment
+steps (which axes, structure correction) are resolved once via config (`Maladaptation.methods.rda_offset.axes`
+/ `.condition_pcs`) plus the existing curated-SNP-set mechanism shared with `geometric_offset`, not through
+a bespoke interactive UI. RDA-based genomic offset (Capblancq & Forester 2021, *Methods Ecol. Evol.*
+12(12):2298–2309, DOI 10.1111/2041-210X.13722) projects present and future climate into the RDA-constrained
+adaptive space (via `method="loadings"`, never `predict()` — broken in the published source) and measures
+eigenvalue-weighted Euclidean distance between them per site/cell. Full decision table, gotchas, and
+citations: `docs/rda_research.md` Part B; condensed summary: `docs/maladaptation_methods.md`'s RDA Genetic
+Offset section. Do not re-research — Part B is the primary spec.
 
 ## 12. Sources
 - LEA man page `genetic_gap.Rd` — `github.com/bcm-uga/LEA` (branch `devel`, `man/genetic_gap.Rd`); pinned **LEA

@@ -9,7 +9,7 @@
 wildcard_constraints:
     run_label   = r"[A-Za-z0-9_.-]+",
     spatial_tag = r"spatial|nospatial",
-    method      = r"gradient_forest|geometric_offset"
+    method      = r"gradient_forest|geometric_offset|rda_offset"
 
 if CLIMATE_SOURCE == 'worldclim':
     # Per-model future climate download (runs in parallel via Snakemake)
@@ -219,6 +219,64 @@ rule geometric_offset:
             {params.predictors} {params.k} {params.scale} \
             {output.site_values} {output.map_values} \
             {output.raster} {output.importance} > {log} 2>&1
+        """
+
+# RDA Genetic Offset (Capblancq & Forester 2021) — single-call rule.
+# Second, independent RDA fit vs. the GEA-scan RDA (scripts/rda.R): candidate
+# SNPs only (the curated {run_label} set), no Condition() by default (B7).
+# "Compute once, reuse downstream" does NOT apply here — see docs/rda_research.md
+# Part B.0. Nospatial-only: this construction never carries structure covariates.
+rule rda_offset:
+    """Compute RDA genetic offset (second RDA fit on candidate SNPs, no structure
+    conditioning by default) — see scripts/rda_offset.R and docs/rda_research.md Part B."""
+    input:
+        lfmm_full     = W['lfmm_imp_full_climate'],
+        vcfsnp        = W['vcfsnp_full'],
+        removed       = W['removed_full'],
+        sigsnps       = lambda wc: snp_set_file(wc.run_label),
+        env_site_pres = O['climate_site'],
+        env_site_fut  = O['climate_future_site'],
+        env_all_pres  = O['climate_all'],
+        env_all_fut   = O['climate_future_all'],
+        pres_raster   = W['climate_raster'],
+        samples       = W['metadata_climate_valid'],
+        pca           = W['pca_projections'],
+        samples_order = W['samples_order'],
+        climate_valid = W['climate_valid_samples']
+    output:
+        site_values = mala_offset_site_values('rda_offset', '{run_label}', '{spatial_tag}'),
+        map_values  = mala_offset_map_values('rda_offset', '{run_label}', '{spatial_tag}'),
+        raster      = mala_offset_raster('rda_offset', '{run_label}', '{spatial_tag}'),
+        importance  = mala_importance('rda_offset', '{run_label}', '{spatial_tag}'),
+        diagnostics = f"{mala_table_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_offset_diagnostics.tsv",
+        screeplot     = f"{mala_plot_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.png",
+        screeplot_svg = f"{mala_plot_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.svg"
+    wildcard_constraints:
+        spatial_tag = r"nospatial"   # rda_offset is nospatial-only (B7 — no Condition() by default)
+    params:
+        predictors   = PREDICTORS_SELECTED,
+        axes         = RDO_AXES,
+        axis_alpha   = RDO_AXIS_ALPHA,
+        permutations = RDO_PERMUTATIONS,
+        condition_pcs = RDO_CONDITION_PCS,
+        seed         = RDO_SEED,
+        plot_dir     = lambda wc: mala_plot_dir('rda_offset', wc.run_label, wc.spatial_tag)
+    threads: CPU
+    log: f"{LOGDIR}maladaptation/rda_offset_{{run_label}}_{{spatial_tag}}.log"
+    shell:
+        """
+        Rscript /pipeline/scripts/rda_offset.R \
+            {input.lfmm_full} {input.vcfsnp} {input.removed} {input.sigsnps} \
+            {input.env_site_pres} {input.env_site_fut} \
+            {input.env_all_pres} {input.env_all_fut} \
+            {input.pres_raster} {input.samples} \
+            {params.predictors} {params.axes} {params.axis_alpha} \
+            {params.permutations} {params.condition_pcs} \
+            {input.pca} {input.samples_order} {input.climate_valid} \
+            {params.seed} {threads} \
+            {output.site_values} {output.map_values} \
+            {output.raster} {output.importance} \
+            {output.diagnostics} {params.plot_dir} > {log} 2>&1
         """
 
 # Cumulative importance plot

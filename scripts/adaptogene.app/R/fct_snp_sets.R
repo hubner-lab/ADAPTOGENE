@@ -109,7 +109,7 @@ delete_snp_set <- function(project, name, remove_gf_results = TRUE) {
                       paste0(name, "_spatial"),
                       paste0(name, "_nospatial"))
         # Remove results for all registered maladaptation methods
-        all_methods <- c("gradient_forest", "geometric_offset")
+        all_methods <- c("gradient_forest", "geometric_offset", "rda_offset")
         for (method in all_methods) {
             for (base in c(
                 mod_path(project, MOD_MALAD, "plots",  method),

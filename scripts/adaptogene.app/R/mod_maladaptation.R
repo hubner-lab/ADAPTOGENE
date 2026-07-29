@@ -331,6 +331,19 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                     config_badge("scale", if (isTRUE(scale)) "yes" else "no"),
                     config_badge("spatial", "no (nospatial only)")
                 )
+            } else if (method == "rda_offset") {
+                axes    <- config_get(cfg, "Maladaptation", "methods", "rda_offset",
+                                      "axes", default = "auto")
+                perms   <- config_get(cfg, "Maladaptation", "methods", "rda_offset",
+                                      "permutations", default = 999L)
+                cond    <- config_get(cfg, "Maladaptation", "methods", "rda_offset",
+                                      "condition_pcs", default = 0L)
+                badges <- list(
+                    config_badge("axes", axes),
+                    config_badge("permutations", perms),
+                    config_badge("condition PCs", cond),
+                    config_badge("spatial", "no (nospatial only)")
+                )
             } else {
                 badges <- list()
             }
@@ -480,7 +493,13 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                                                   if (selected_points()) "points" else selected_variant(),
                                                   "_", selected_suffix() %||% "gf")),
             placeholder = shiny::reactive("Run mode=maladaptation to generate offset results"),
-            note        = shiny::reactive(help_note("offset_piemap"))
+            note        = shiny::reactive(help_note("offset_piemap",
+                extra = if (identical(selected_method(), "rda_offset"))
+                    paste0("RDA offset: report as a RELATIVE SITE RANKING only, not an ",
+                           "absolute magnitude — eigenvalue weighting + candidate-set size ",
+                           "make the raw number non-comparable across runs/datasets. ",
+                           "Unvalidated absent common-garden data (docs/rda_research.md B20–B21).")
+                else NULL))
         )
 
         # ── Site table ─────────────────────────────────────────────────────────

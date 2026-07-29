@@ -64,35 +64,40 @@ All current genomic offset methods share a core assumption that cannot be fully 
 
 ### RDA Genetic Offset — Redundancy Analysis
 
-**Principle.** Constrained ordination (RDA) of the genotype matrix on environmental predictors (with optional correction for population structure). The RDA scores in "adaptive genetic space" are predicted for present and future environments using the fitted RDA coefficients; offset = Euclidean distance between predicted present and future scores in RDA space. **[literature]** (Capblancq & Forester 2021, DOI: 10.1111/2041-210X.13722)
+**Status: implemented** as a batch maladaptation method (`workflow/methods/maladaptation.py`, `scripts/rda_offset.R`). Full decision table, gotchas, and citations: `docs/rda_research.md` Part B (row IDs B1–B22 referenced below). This section is a condensed summary reconciled against that primary spec — read Part B before modifying `rda_offset.R`.
 
-Two variants exist:
-- **RDA-uncorrected** — RDA of genotype matrix on environment only.
-- **RDA-corrected (partial RDA)** — RDA of genotype matrix on environment, conditioned on population structure (PCA or Q-matrix as covariates) to remove neutral demographic signal.
+**Principle.** A *second* constrained ordination (RDA), independent of the GEA-scan RDA (`scripts/rda.R`) — "compute once, reuse downstream" does not apply here (B0): the two fits differ on both the SNP set (candidate-only vs. all) and the conditioning term (none vs. partial) simultaneously. The offset RDA fits `rda(candidate_SNPs ~ climate)` with **no** `Condition()` by default (B7 — canonical construction). Present and future RDA scores are projected via `method="loadings"` (`Σ_v z_v × CCA$biplot[v,i]`, B4) — **never** `predict(type="lc")`, which is broken in both of Capblancq & Forester's own shipped source files (gotcha G1). Offset = eigenvalue-weighted Euclidean distance between predicted present and future scores, weights applied to the scores *before* squaring in `dist()` (B2, B3). (Capblancq & Forester 2021, DOI: 10.1111/2041-210X.13722)
 
-An unverified-source result from the harness reported "GFoffset and RDA-uncorrected generally outperform RDA-corrected, LFMM2, and RONA, but no single method outperforms the others across all situations" (source DOI: 10.1111/1755-0998.14008; could not be fully fetched/verified by harness). **[unverified — treat as indicative only]**
+Two variants exist in the literature — ADAPTOGENE implements the uncorrected form by default, with the corrected form available as a documented deviation:
+- **RDA-uncorrected** (default, `condition_pcs: 0`) — canonical construction per B7: conditioning removes exactly the climate-correlated structure variance the adaptive index needs to project.
+- **RDA-corrected (partial RDA)** — `condition_pcs > 0`; a labeled deviation from the canonical method, retained as a config option because Lind et al. 2025 treat corrected/uncorrected as two distinct implementations with no declared winner overall (B.6 open disagreement #2).
 
-The Gain et al. 2023 theoretical framework shows that under certain assumptions, RDA offset and geometric GO are equivalent — both are linear quadratic distances in environmental space weighted by genetic-effect sizes. **[literature, partial — harness killed the exact formula claim]** (Gain et al. 2023, DOI: 10.1093/molbev/msad140)
+Lind & Lotterhos 2025 (*Mol Ecol Resour* 25(4):e14008, >4.8M simulation evaluations) find performance driven mainly by degree of local adaptation, not method choice — adaptive (candidate) marker sets give only a **minimal** advantage over whole-genome panels (median <3% gain), least prevalent under climate novelty, the exact condition where offset is applied. This directly informs the candidate-set-only design here (B5) and the general caution against over-interpreting marker-set choice.
 
-Gain et al. 2023 also demonstrated that linear methods (geometric GO, RDA) achieve a better bias-variance trade-off than machine-learning methods such as GF, proposed as an explanation for cases where linear methods outperform GF at limited sample sizes. **[verified, medium — paper uses hedged language "An explanation may be..."]**
+Gain et al. 2023 prove RDA offset ≡ geometric offset **when RDA includes latent (structure) predictors alongside environment**. Since ADAPTOGENE's offset RDA omits latent predictors by default (B7), the two methods are expected to differ on real data — by how much is an empirically testable, currently unquantified question (B15). The pipeline's `compare_offsets.R` / Shiny cross-model comparison tab (Spearman ρ, Jaccard top-K overlap, ExDet novelty stratification) measures this directly, with no extra code required once a method is registered.
 
-**Inputs required.** Genotype matrix (samples × SNPs); per-sample present climate table; RDA scores projected to future climate via `predict()`. Both whole-genome and candidate-SNP sets are valid inputs (RDA-uncorrected benefits from full genome; RDA-corrected benefits from GEA candidates). **[literature]**
+Gain et al. 2023 also found linear methods (geometric GO, RDA) achieve a better bias-variance trade-off than machine-learning methods such as GF, an explanation for cases where linear methods outperform GF at limited sample sizes. **[verified, medium — paper uses hedged language "An explanation may be..."]**
 
-**Extrapolation.** Linear extrapolation of RDA coefficients to novel climates — simpler than GF (no tree-flattening) but linear extrapolation assumptions may be more optimistic under climate novelty than nonparametric methods. **[literature]**
+**Inputs required.** Full imputed genotype matrix (`W['lfmm_imp_full_climate']`), subset internally to the curated `{run_label}` candidate-SNP set (`snp_set_file`, same mechanism as `geometric_offset`); present/future climate at sample sites and raster cells (`O['climate_site']`, `O['climate_future_site']`, `O['climate_all']`, `O['climate_future_all']`). All already produced by the pipeline — **no pipeline gap**.
 
-**Simulation benchmarks.** Limited direct benchmark from verified sources. Gain et al. 2023 compared geometric GO and RDA favourably against GF and squared Euclidean distance under Gaussian stabilizing selection. The Lind & Lotterhos 2025 large-simulation study compared GF, RDA, LFMM2, and RONA but surviving verified claims covered only the adaptive-marker finding, not the per-method ranking. **[partially verified]**
+**Extrapolation.** Linear extrapolation of RDA loadings to novel climates — same failure class as the geometric offset (unbounded, no plateauing the way GF's tree-based construction has). **[literature]** (B16)
 
-**Note on interactivity.** RDA offset requires user judgment at several steps: choice of predictors, decision to partial out structure (and which structure variables), choice of which RDA axes to retain for offset computation. For this reason, RDA offset is planned as an **interactive / Shiny-driven method** rather than a fully automated pipeline rule — implementation is more complex than GF or GDM. This is a future goal, not the next implementation priority.
+**Simulation benchmarks.** Gain et al. 2023 compared geometric GO and RDA favourably against GF and squared Euclidean distance under Gaussian stabilizing selection. Lind & Lotterhos 2025's large-simulation study covered GF, RDA, LFMM2, and RONA; the adaptive-marker finding above is its most directly applicable result to this implementation. Archambeau et al. 2026 (*Am Nat* 207(3):389–414, maritime pine, 5 common gardens) found substantial cross-method variability — best-validated methods gave *differing* geographic patterns, motivating multi-method concordance (B19) over trust in any single map.
 
-**Pros.** Linear, interpretable, theoretically grounded (Gain et al. 2023 unification). Fast. Directly reuses VCF genotype matrix + climate tables already in the pipeline. Naturally provides population-structure control via partial RDA.
+**Interactivity, resolved.** The original plan deferred RDA offset to a fully interactive, Shiny-driven flow because axis selection and the structure-conditioning choice need human judgment. As implemented, that judgment is exercised **once, upstream**, through the existing curated-SNP-set mechanism (the GEA tab's "Save SNP set" action, shared with `geometric_offset`) plus config-level `axes`/`condition_pcs` — not per-run in the maladaptation module itself. Axis count defaults to `"auto"` (anova by-axis at `axis_alpha`, floored at 2 constrained axes — a 1-axis offset degenerates to a single scaled climate distance, the "genomics added nothing" case B.5 warns against).
 
-**Cons.** Linear extrapolation assumption. Requires user judgment (not fully automatable). Capblancq & Forester 2021 code available on GitHub but not as a formal R package with offset functions at the time of writing.
+**Pros.** Linear, interpretable, theoretically grounded (Gain et al. 2023 unification). Fast — a second fit on a small candidate-SNP matrix, not the full-marker-set scale problem the GEA scan has (A5/A6). Directly reuses inputs already in the pipeline. Registered as a standard batch maladaptation method — same fan-out over SNP sets as GF/GeoOff, `nospatial`-only (B7).
 
-**R package / functions.** `vegan::rda()`, `vegan::predict.rda()`; offset computation from Capblancq & Forester 2021 GitHub scripts.
+**Cons.** Linear extrapolation assumption (B16). Candidate-set choice (B5, B6) is a documented deviation from the canonical partial∩unconstrained intersection — ADAPTOGENE uses the curated `run_label` set instead, justified by Lind et al. 2025's marker-set-barely-matters finding. Offset should be reported as a **relative site ranking only**, never an absolute magnitude (B20) — eigenvalue weighting is an implementation convention, not derived from an explicit fitness model (contrast the geometric offset's Gaussian-selection derivation). Unvalidated absent common-garden data (B21).
+
+**R package / functions.** `vegan::rda()`, `vegan::anova.cca()`; offset projection ported from Capblancq & Forester 2021's `genomic_offset.R` (`scripts/rda_offset.R`, `terra`-based).
 
 **Key citations.**
-- Capblancq T & Forester BR (2021) *Methods in Ecology and Evolution* 12:579–590. DOI: 10.1111/2041-210X.13722
+- Capblancq T & Forester BR (2021) Redundancy analysis: A Swiss Army Knife for landscape genomics. *Methods in Ecology and Evolution* 12(12):2298–2309. DOI: 10.1111/2041-210X.13722
 - Capblancq T, Fitzpatrick MC, Bay RA, Exposito-Alonso M & Keller SR (2020) Genomic prediction of (mal)adaptation across current and future climatic landscapes. *Annual Review of Ecology, Evolution, and Systematics* 51: 245–269. DOI: 10.1146/annurev-ecolsys-020720-042553
+- Gain C, Rhoné B, Cubry P, Salazar I, Forbes F, Vigouroux Y, Jay F & François O (2023) *Molecular Biology and Evolution* 40(6):msad140. DOI: 10.1093/molbev/msad140
+- Lind BM & Lotterhos KE (2025) *Molecular Ecology Resources* 25(4):e14008. DOI: 10.1111/1755-0998.14008
+- Archambeau et al. (2026) *American Naturalist* 207(3):389–414. DOI: 10.1086/739045
 
 ---
 
@@ -148,7 +153,7 @@ Summary of evidence from simulation studies and common garden experiments. Blank
 |--------|---------------------|--------------------|-----------------|-----------------|-----------------------------|---------------|---------|---------|
 | **Gradient Forest** | Láruson et al. 2022 (SLiM) | Broadly correlated [V] | Yes [V] | Drift (deme size), nonlinear env, demography [V] | Degrades with novelty [V] | Red spruce p<0.001 [V] | `gradientForest` | Production |
 | **Geometric GO (LEA)** | Gain et al. 2023 (forward sim) | r²≈78% vs. fitness [V] | — | Equilibrium / Gaussian stab-sel assumption [L] | Linear extrapolation [L] | Pearl millet r²≈61% [L] | `LEA::genetic.gap()` | Mature |
-| **RDA offset** | Unverified comparison [UV] | — | — | Linearity; structure correction choice [L] | Linear extrapolation [L] | Not available from verified sources | `vegan` + custom | Research |
+| **RDA offset** | Gain et al. 2023, Lind & Lotterhos 2025 (4.85M evals) | — | — | Linearity; structure correction choice [L] | Linear extrapolation [L] | Not available from verified sources | `vegan` + custom (`scripts/rda_offset.R`) | **Implemented** |
 | **GDM offset** | Fitzpatrick & Keller 2015 [V-med] | — | — | Requires per-site allele freq [L] | I-spline extrapolation [L] | Not available from verified sources | `gdm` | Mature |
 | **RONA** | Lind & Lotterhos 2025 (4.85M evals) | Lower than GF/RDA [UV] | No [UV] | Single-locus; linear out-of-range [L] | Breaks at climate novelty [L] | — | Custom | Deferred |
 
@@ -162,11 +167,11 @@ Summary of evidence from simulation studies and common garden experiments. Blank
 
 ### Priority order for implementation
 
-1. **Geometric Genetic Offset (`LEA::genetic.gap()`)** — highest priority. Cleanest data contract: LFMM input format (`W['lfmm_full']`), `O['climate_site']`, and future climate tables are all already produced. Single function call. Strong theoretical grounding (Gain et al. 2023). LFMM is already a GEA method in the pipeline; adding offset is a natural extension. **Recommended first addition.**
+1. **Geometric Genetic Offset (`LEA::genetic.gap()`)** — **implemented** (`scripts/geometric_offset.R`). Cleanest data contract: LFMM input format (`W['lfmm_full']`), `O['climate_site']`, and future climate tables are all already produced. Single function call. Strong theoretical grounding (Gain et al. 2023).
 
-2. **RDA Offset** — medium priority, but deferred pending the RDA GEA implementation. Requires vegan RDA on genotype matrix (inputs exist), then predict to future climate. The interactivity requirement (axis selection, structure-conditioning choice) makes this a Shiny-driven method rather than a fully automated pipeline rule. Implement after RDA GEA.
+2. **RDA Offset** — **implemented** (`scripts/rda_offset.R`, `workflow/methods/maladaptation.py`), after RDA GEA (`scripts/rda.R`) landed. A second, candidate-SNP-only, uncorrected-by-default RDA fit — see the RDA Genetic Offset section above and `docs/rda_research.md` Part B for the full design. Registered as a standard batch method (fan-out over curated SNP sets, `nospatial`-only), not a fully bespoke interactive flow — the axis-selection / structure-conditioning judgment calls are exercised once via config (`axes`, `condition_pcs`), reusing the same curated-SNP-set mechanism as `geometric_offset`.
 
-3. **GDM Offset** — lower priority. Requires a new pipeline intermediate: per-site allele-frequency table (currently not produced). GDM is already in algatr's GEA layer, so the upstream step exists conceptually; the offset projection would be new. Worth implementing after geometric GO and RDA to complete the benchmark triangle (nonparametric GDM vs. nonparametric GF vs. linear geometric GO vs. linear RDA).
+3. **GDM Offset** — lower priority, not yet implemented. Requires a new pipeline intermediate: per-site allele-frequency table (currently not produced). GDM is already in algatr's GEA layer, so the upstream step exists conceptually; the offset projection would be new. Would complete the benchmark triangle (nonparametric GDM vs. nonparametric GF vs. linear geometric GO vs. linear RDA).
 
 ### Comparing and combining offset estimates
 
@@ -181,7 +186,7 @@ Summary of evidence from simulation studies and common garden experiments. Blank
 |--------|----------------|---------------|----------------|---------------------|--------------|
 | GF (existing) | `O['climate_all']` | `O['climate_future_all']` | `W['lfmm_full']` + `W['vcfsnp_full']` | Not needed | None |
 | Geometric GO | `O['climate_site']` | `O['climate_future_site']` | `W['lfmm_full']` | Not needed | **None** — ready |
-| RDA offset | `O['climate_site']` | `O['climate_future_site']` | `W['lfmm_full']` or `W['geno_full']` | Not needed | Depends on RDA GEA impl |
+| RDA offset | `O['climate_site']` | `O['climate_future_site']` | `W['lfmm_imp_full_climate']` (subset to candidate SNPs) | Not needed | **None** — ready (implemented) |
 | GDM offset | `O['climate_site']` | `O['climate_future_site']` | Derived from `W['lfmm_full']` | **Required — not produced** | New rule: allele-freq-per-site |
 
 ---

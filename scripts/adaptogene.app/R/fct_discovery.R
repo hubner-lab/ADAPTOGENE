@@ -74,7 +74,7 @@ find_gf_suffixes <- function(project, method = "gradient_forest") {
 #' Returns a named character vector: names = display labels, values = "method:::suffix".
 #' @noRd
 find_mala_models <- function(project) {
-    known_methods <- c("gradient_forest", "geometric_offset")
+    known_methods <- c("gradient_forest", "geometric_offset", "rda_offset")
     out_vals  <- character(0)
     out_names <- character(0)
     for (m in known_methods) {
@@ -83,6 +83,7 @@ find_mala_models <- function(project) {
         method_label <- switch(m,
             gradient_forest  = "GF",
             geometric_offset = "GeoOff",
+            rda_offset       = "RDAoff",
             m
         )
         vals  <- paste0(m, ":::", suffs)

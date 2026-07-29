@@ -312,6 +312,15 @@ _go_k = _go.get('k', '')
 GO_K = str(_go_k) if _go_k != '' else ''   # '' → use K_BEST at rule time
 GO_SCALE = str(_go.get('scale', True)).upper()  # 'TRUE'/'FALSE' for R
 
+# RDA OFFSET parameters (docs/rda_research.md Part B — second, candidate-only,
+# uncorrected-by-default RDA fit; NOT a reuse of the GEA-scan RDA object)
+_rdo = _mala_cfg.get('methods', {}).get('rda_offset', {})
+RDO_AXES = str(_rdo.get('axes', 'auto'))              # 'auto' | integer >= 2
+RDO_AXIS_ALPHA = float(_rdo.get('axis_alpha', 0.05))
+RDO_PERMUTATIONS = int(_rdo.get('permutations', 999))
+RDO_CONDITION_PCS = int(_rdo.get('condition_pcs', 0))  # 0 = canonical (B7); >0 = documented deviation
+RDO_SEED = int(_rdo.get('seed', 42))
+
 # Raw SNP-sets config (cheap parse — actual glob/validate happens only inside get_targets)
 SNP_SETS_CFG = _mala_cfg.get('snp_sets', 'all')
 
