@@ -105,6 +105,58 @@ GEA:
   promoter_length: 10000           # Promoter region length for SNP annotation
 
 #-----------------------------------------------------------------------------
+# PREGEA: GEA hyperparameter exploration (mode=pregea, LD-pruned dataset only)
+#-----------------------------------------------------------------------------
+PreGEA:
+  seed: 42
+  LFMM:
+    enabled: yes
+    k_offset_low: -1          # K sweep = [k_best + low, k_best + high]
+    k_offset_high: 2
+    k_min: 1                  # hard floor (lfmm2 requires K >= 1)
+    predictors: auto          # 'auto' = Climate.predictors; or a comma-separated subset
+    genomic_control: no       # FALSE so lambda IS informative; the production GEA run uses TRUE
+    fdr: 0.1                  # hit-count-vs-K panel (qvalue)
+    bonf_alpha: 0.05          # second hit-count series
+  EMMAX:
+    enabled: yes
+    n_pcs_min: 0               # 0 = kinship-only reference panel
+    n_pcs_max: 10
+    kinship: BN                # BN | IBS (matches GEA.EMMAX.kinship semantics)
+    predictors: auto
+    fdr: 0.1
+    bonf_alpha: 0.05
+    lambda_tol: 0.15           # |lambda-1| tolerance for the "knee" recommendation
+    deflation_floor: 0.90      # reference line; lambda below this = over-correction flag
+  RDA:
+    enabled: yes
+    condition_pcs_min: 0
+    condition_pcs_max: 6
+    collinearity_r: 0.7        # |r| pre-screen
+    vif_max: 10.0               # post-fit vif.cca cutoff
+    min_predictors: 2          # never pre-screen below this (RDA + covRob both need >=2)
+    axis_alpha: 0.05
+    permutations: 999
+  Varpart:
+    enabled: yes
+    response: pcs               # 'pcs' = documented scalability adaptation | 'snps'
+    response_var_cutoff: 0.8    # cumulative variance of LEA PCs retained as Y
+    response_max_pcs: 20
+    response_min_pcs: 2         # floor so varpart always has a multivariate Y
+    structure_table: qmatrix    # 'qmatrix' (sNMF Q at k_best, last column dropped) | 'none'
+    spatial_level: auto         # auto | site | sample
+    min_sites: 6                 # below this -> dbMEM writes a skip record, no crash
+    ordir2step_pin: 0.01         # Blanchet double stopping rule
+    ordir2step_permutations: 999
+    r2_permutations: 1000        # Peres-Neto et al. 2006 R2permutations
+    varpart_permutations: 999    # anova.cca per testable fraction
+    confounding_flag: yes       # auto-flag when shared > max(unique) fraction
+  TransferGuard:
+    enabled: no                 # OFF by default: pulls the FULL-set imputation chain into a pruned-only mode
+    lfmm_k: auto                # 'auto' resolves from pregea_recommendations.tsv inside the script
+    emmax_n_pcs: auto
+
+#-----------------------------------------------------------------------------
 # GWAS: Phenotype association settings
 #-----------------------------------------------------------------------------
 GWAS:
