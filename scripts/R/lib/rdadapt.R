@@ -11,6 +11,29 @@
 # enforce; guards against silent vector coercion if that floor is ever
 # relaxed).
 
+#' qvalue fallback chain — storey -> qvalue(lambda=0) -> BH.
+#'
+#' Extracted out of rdadapt() so callers combining p-values from more than one
+#' rdadapt() call (e.g. rda.R's B6 partial+unconstrained intersection: q-values
+#' recomputed on pmax(p_partial, p_unconstrained), which is not itself a
+#' rdadapt() output) can reuse the exact same fallback logic instead of
+#' duplicating the 3-branch tryCatch (CLAUDE.md Rule 1: compute once, reuse
+#' downstream). rdadapt() below calls this internally — no change to its
+#' return shape or its two existing callers (rda.R, pregea_rda_setup.R).
+#'
+#' @param p Numeric vector of p-values.
+#' @return list(qvalues, method) — method is one of "storey", "storey_lambda0", "BH".
+#' @noRd
+qvalue_with_fallback <- function(p) {
+    tryCatch(
+        list(qvalues = qvalue(p)$qvalues, method = "storey"),
+        error = function(e) tryCatch(
+            list(qvalues = qvalue(p, lambda = 0)$qvalues, method = "storey_lambda0"),
+            error = function(e2) list(qvalues = p.adjust(p, "BH"), method = "BH")
+        )
+    )
+}
+
 #' Robust-Mahalanobis RDA candidate test.
 #'
 #' @param rda_obj A fitted vegan::rda() (or partial RDA) object.
@@ -28,14 +51,7 @@ rdadapt <- function(rda_obj, K) {
                           estim = "pairwiseGK")$dist
     lambda      <- median(resmaha) / qchisq(0.5, df = K)
     reschi2test <- pchisq(resmaha / lambda, K, lower.tail = FALSE)
-    # qvalue fallback chain — storey -> qvalue(lambda=0) -> BH.
-    qval_result <- tryCatch(
-        list(qvalues = qvalue(reschi2test)$qvalues, method = "storey"),
-        error = function(e) tryCatch(
-            list(qvalues = qvalue(reschi2test, lambda = 0)$qvalues, method = "storey_lambda0"),
-            error = function(e2) list(qvalues = p.adjust(reschi2test, "BH"), method = "BH")
-        )
-    )
+    qval_result <- qvalue_with_fallback(reschi2test)
     list(p.values = reschi2test, q.values = qval_result$qvalues,
          gif_lambda = lambda, qvalue_method = qval_result$method,
          distance = resmaha)
