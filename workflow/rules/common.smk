@@ -856,6 +856,14 @@ O['climate_future_site']  = _ph('climate_future_site')
 O['climate_future_na_excluded'] = _ph('climate_future_na_excluded')
 O['density_future']       = _ph('density_future')
 # --- from add_pregea_paths() ---
+# W[...] keys (not O[...]) — must be pre-seeded too, same reason as the O loop
+# below: pregea.smk is included unconditionally (Snakefile) and Block 0
+# dereferences these at parse time whenever PREGEA_EMMAX_ENABLED (default
+# True), even in modes where K_BEST is None (e.g. processing on a fresh
+# project with no sNMF.k_best set yet). Sentinel values are never read as
+# real paths — rules using them only enter the DAG once K_BEST is set.
+for _k in ('vcf_ld_climate', 'pregea_tped', 'pregea_tfam', 'pregea_kinship', 'pregea_kinship_ibs'):
+    W[_k] = _ph(_k)
 for _k in ('pregea_screeplot', 'pregea_screeplot_svg', 'pregea_screeplot_tsv',
            'pregea_lfmm_ladder', 'pregea_lfmm_hist', 'pregea_lfmm_qq',
            'pregea_lfmm_lambda', 'pregea_lfmm_hits',
