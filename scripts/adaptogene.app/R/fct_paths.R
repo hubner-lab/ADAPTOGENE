@@ -1,6 +1,7 @@
 # Module path constants — match workflow/rules/common.smk MOD_* values
 MOD_PROC      <- "Processing"
 MOD_PRESTRUCT <- "PreStructure"
+MOD_PREGEA    <- "PreGEA"
 MOD_STRUCT    <- "Structure"
 MOD_CLIMATE   <- "climate"
 MOD_GEA       <- "GEA"
@@ -387,6 +388,29 @@ ld_decay_path <- function(project, per_chr = FALSE) {
 #' @noRd
 ld_decay_table_path <- function(project) {
     mod_path(project, MOD_STRUCT, "tables", "ld_decay_half_distances.tsv")
+}
+
+# ─── PreGEA (hyperparameter-exploration mode) ─────────────────────────────────
+# Every artifact is grid-level only — plot_pregea_ladder.R emits one histogram
+# grid / QQ grid / lambda-vs-rung / hits-vs-rung PNG per engine, never one file
+# per K or #PC rung — so unlike PreStructure/Structure there is no per-rung
+# selector to build; the ladder tables (below) carry the per-rung numbers.
+# Two generic helpers (not one function per artifact, unlike the rest of this
+# file) because every PreGEA output is a uniform {subdir}/{stem}.{ext} — see
+# mod_pregea.R for the concrete subdir/stem values actually used.
+
+#' Generic PreGEA plot path: PreGEA/plots/{subdir}/{stem}.png
+#' @noRd
+pregea_plot_path <- function(project, subdir, stem) {
+    mod_path(project, MOD_PREGEA, "plots", subdir, paste0(stem, ".png"))
+}
+
+#' Generic PreGEA table path: PreGEA/tables/{subdir}/{stem}.tsv
+#' subdir = "" resolves to PreGEA/tables/{stem}.tsv (recommendations, transfer guard)
+#' @noRd
+pregea_table_path <- function(project, subdir, stem) {
+    if (nzchar(subdir)) mod_path(project, MOD_PREGEA, "tables", subdir, paste0(stem, ".tsv"))
+    else mod_path(project, MOD_PREGEA, "tables", paste0(stem, ".tsv"))
 }
 
 # ─── Maladaptation ───────────────────────────────────────────────────────────

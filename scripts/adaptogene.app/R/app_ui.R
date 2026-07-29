@@ -96,6 +96,18 @@ app_ui <- function(request) {
             )
         ),
 
+        bslib::nav_panel("PreGEA",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_pregea", "PreGEA Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_pregea",
+                                                       btn_label = "Run PreGEA")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_pregea_ui("pregea")
+            )
+        ),
+
         bslib::nav_panel("GEA",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(

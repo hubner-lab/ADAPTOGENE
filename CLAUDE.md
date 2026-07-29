@@ -100,7 +100,9 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
   snakemake -n -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
 ```
 
-**Pipeline modes**: `processing`, `prestructure`, `structure`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+**Pipeline modes**: `processing`, `prestructure`, `structure`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+
+*`pregea` (optional, added alongside RDA integration) — LD-pruned-only hyperparameter exploration: LFMM-K / EMMAX-#PC / RDA Condition()-PC ladders + shared spatial variance-partitioning (dbMEM/varpart), before committing to the expensive full-SNP `gea` run. Writes `PreGEA/tables/pregea_recommendations.tsv`, one row per (method, param); the Shiny GEA tab's method editor reads it for pre-fill/Apply badges. See `docs/rda_research.md` Part C for the design rationale.*
 
 *`haplotype_scan` / `haplotype` modes removed in Phase 3 — haplotype analysis now runs interactively in the Shiny app (Region Explorer → Run Haplotype Scan / Run Haplotype Viz).*
 
@@ -167,6 +169,11 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
 │   ├── plots/pop_stats/                   # mantel_test, amova (optional)
 │   └── tables/pop_stats/                  # tajima_d_by_pop, pi_diversity_by_pop, ibd_*, amova
+├── PreGEA/                                # optional, mode=pregea — grid-level plots only, no per-rung files
+│   ├── plots/{structure,lfmm,emmax,rda,spatial,varpart,transfer}/
+│   ├── tables/{structure,lfmm,emmax,rda,spatial,varpart}/
+│   ├── tables/pregea_recommendations.tsv  # one row per (method, param); read by GEA tab's method editor
+│   └── tables/pregea_transfer_guard.tsv   # opt-in (PreGEA.TransferGuard.enabled)
 ├── GEA/
 │   ├── GAPIT_native_output/{model}/       # raw GAPIT output files
 │   ├── plots/manhattan/
@@ -198,7 +205,7 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 
 ### Workflow Dependencies
 
-**Pipeline flow**: Processing → Structure → Structure K → Association/Phenotype → Overlapping → Maladaptation
+**Pipeline flow**: Processing → PreStructure → Structure → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
 
 Each mode is run separately via `--config mode=<MODE>`.
 
@@ -213,10 +220,10 @@ Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand
 | | **SIMDATA** |
 |---|---|
 | **Config** | `config_SIMDATA.yaml` |
-| **Size** | 10 samples, ~400 SNPs, 3 chr |
-| **Speed** | Seconds to ~1 min |
+| **Size** | 51 samples / 9 sites raw (47 samples after filtering), 354 SNPs, 5 chr |
+| **Speed** | Seconds to ~2 min |
 | **Purpose** | Primary testing dataset — all routine development |
-| **Features** | 3 pops, missing data test, climate-associated SNPs, GO terms |
+| **Features** | 3 original pops (Negev/TelAviv/Galilee) + 6 preGEA sites added by `scripts/add_pregea_sites.R` (spatially IDW-interpolated genotypes/phenotypes, inside the original coordinate bounding box so `Climate.climate_extent: auto` reuses the cached WorldClim raster), missing data test, climate-associated SNPs, GO terms, relatedness-test duplicate samples (`*_DUP`, `scripts/add_related_samples.R`) |
 
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
@@ -326,7 +333,7 @@ GAPIT models are auto-detected from config method names and routed through `gapi
 ### Path Management
 - `W` - Working files (`_work/`, `_intermediate/`)
 - `O` - Organized outputs (module-based: `GEA/plots/`, `PreStructure/tables/`, etc.)
-- Module path constants: `MOD_PROCESSING`, `MOD_PRESTRUCT`, `MOD_CLIMATE`, `MOD_STRUCT`, `MOD_GEA`, `MOD_GWAS`, `MOD_GEAXGWAS`, `MOD_MALAD`
+- Module path constants: `MOD_PROCESSING`, `MOD_PRESTRUCT`, `MOD_CLIMATE`, `MOD_STRUCT`, `MOD_PREGEA`, `MOD_GEA`, `MOD_GWAS`, `MOD_GEAXGWAS`, `MOD_MALAD`
 - Paths expand dynamically based on config parameters
 
 ## Snakefile Internals

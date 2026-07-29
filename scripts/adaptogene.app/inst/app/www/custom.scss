@@ -178,6 +178,48 @@
     border-color: rgba(255, 255, 255, 0.10);
 }
 
+// The threshold bar's master "Significance threshold" selectInput is a
+// selectize.js widget and lives inside mod_manhattan_overlay's bslib::card()
+// (overflow: hidden by default — the same card-clipping hazard .control-bar
+// exists to avoid). Cheap, defensive: matches .control-bar's intent.
+.threshold-bar { overflow: visible; }
+
+// ── Per-method significance-rule table (collapsed <details> under the
+//    master threshold bar) ────────────────────────────────────────────────
+.pm-rules {
+    font-size: 0.78rem;
+
+    summary {
+        cursor: pointer;
+        user-select: none;
+        color: var(--bs-secondary-color);
+
+        &:hover { color: $primary; }
+    }
+}
+
+.pm-rules-table {
+    font-size: 0.75rem;
+
+    th, td { padding: 0.15rem 0.35rem; vertical-align: middle; }
+
+    select, input[type="text"] {
+        height: 24px;
+        font-size: 0.72rem;
+        padding: 0.05rem 0.25rem;
+    }
+
+    input[type="text"].is-invalid {
+        border-color: var(--bs-danger);
+        background: rgba(192, 57, 43, 0.06);
+    }
+
+    .pm-revert {
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+}
+
 // ── Manhattan interactive filter bar ─────────────────────────────────────────
 // Compact bar with trait x method matrix + strategy radios.
 .manhattan-filter-bar {
@@ -890,7 +932,14 @@
         flex-shrink: 0;
     }
 
-    .method-select   { flex: 1; min-width: 80px; }
+    .method-select    { flex: 1 1 84px; min-width: 84px; }
+    .adjust-select    { flex: 0 0 74px; }
+    .threshold-input  { flex: 0 0 66px; text-align: right; }
+
+    .threshold-input.is-invalid {
+        border-color: var(--bs-danger);
+        background: rgba(192, 57, 43, 0.06);
+    }
 
     .method-remove-btn {
         margin-left: auto;
@@ -946,6 +995,30 @@
             padding: 0.05rem 0.25rem;
             width: auto;
             min-width: 60px;
+        }
+    }
+
+    // PreGEA recommendation pre-fill/Apply — see render_recommendation_badge()
+    // (R) / recommendationBadgeHTML() (JS) in mod_config_sidebar.R.
+    .pregea-match-badge {
+        font-size: 0.65rem;
+        color: var(--bs-success);
+    }
+
+    .pregea-apply-btn {
+        font-size: 0.65rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        border: 1px solid var(--bs-warning);
+        border-radius: 0.2rem;
+        background: transparent;
+        color: var(--bs-warning);
+        cursor: pointer;
+        width: fit-content;
+
+        &:hover {
+            background: var(--bs-warning);
+            color: var(--bs-dark);
         }
     }
 }

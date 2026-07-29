@@ -30,24 +30,20 @@ mod_structure_ui <- function(id) {
             mod_image_card_ui(ns("pca_structure_k"))
         ),
 
-        # Climate, LD decay, pop stats, tables in accordion
+        # Climate correlation/density plots moved to the PreGEA tab (display
+        # only — producers stay in structure.smk, zero DAG/path change).
+        htmltools::div(
+            class = "d-flex align-items-center gap-2 text-muted small mb-2",
+            bsicons::bs_icon("thermometer-half"),
+            "Climate correlation, density, and the invariant-predictor warning moved to the ",
+            htmltools::tags$strong("PreGEA"), " tab (Climate & Predictors panel)."
+        ),
+
+        # LD decay, pop stats, tables in accordion
         bslib::accordion(
             id       = ns("sk_sections"),
-            open     = c("climate", "ld_decay"),
+            open     = c("ld_decay"),
             multiple = TRUE,
-
-            bslib::accordion_panel(
-                "Climate Plots",
-                value = "climate",
-                icon  = bsicons::bs_icon("thermometer-half"),
-                shiny::uiOutput(ns("climate_invariant_warning")),
-                mod_image_card_ui(ns("climate_heatmap")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("climate_density")),
-                    mod_image_card_ui(ns("phenotype_density"))
-                )
-            ),
 
             bslib::accordion_panel(
                 "LD Decay",
@@ -171,29 +167,6 @@ mod_structure_server <- function(id, project_data) {
             )
         })
 
-        # ── Climate images ─────────────────────────────────────────────────────
-        shiny::observe({
-            pd <- project_data()
-            mod_image_card_server("climate_heatmap",
-                path    = shiny::reactive(climate_heatmap_path(pd$name)),
-                title   = shiny::reactive("Climate Correlation Heatmap"),
-                dl_name = shiny::reactive("climate_heatmap"),
-                note    = shiny::reactive(help_note("climate_heatmap"))
-            )
-            mod_image_card_server("climate_density",
-                path    = shiny::reactive(climate_density_path(pd$name)),
-                title   = shiny::reactive("Climate Density (Present)"),
-                dl_name = shiny::reactive("climate_density_present"),
-                note    = shiny::reactive(help_note("climate_density"))
-            )
-            mod_image_card_server("phenotype_density",
-                path    = shiny::reactive(phenotype_density_path(pd$name)),
-                title   = shiny::reactive("Phenotype Density"),
-                dl_name = shiny::reactive("phenotype_density"),
-                note    = shiny::reactive(help_note("phenotype_density"))
-            )
-        })
-
         # ── Population stats images ────────────────────────────────────────────
         shiny::observe({
             pd       <- project_data()
@@ -214,40 +187,6 @@ mod_structure_server <- function(id, project_data) {
                 dl_name = shiny::reactive("amova"),
                 note    = shiny::reactive(help_note("amova"))
             )
-            # I3: Climate invariant predictors warning
-            output$climate_invariant_warning <- shiny::renderUI({
-                p <- climate_invariant_path(pd$name)
-                if (!file.exists(p)) return(NULL)
-                dt <- tryCatch(
-                    data.table::fread(p, sep = "\t", header = TRUE),
-                    error = function(e) data.table::data.table()
-                )
-                if (nrow(dt) == 0 || !"predictor" %in% names(dt)) return(NULL)
-                preds <- dt$predictor
-                items <- lapply(preds, function(pr) {
-                    reason <- if ("reason" %in% names(dt)) {
-                        r <- dt[dt$predictor == pr, ]$reason
-                        if (length(r) > 0) paste0(" \u2014 ", r[1]) else ""
-                    } else ""
-                    htmltools::tags$li(htmltools::tags$code(pr), reason)
-                })
-                htmltools::div(
-                    class = "d-flex justify-content-end mb-2",
-                    filter_note(
-                        paste0(length(preds), " excluded"),
-                        htmltools::p(
-                            htmltools::tags$strong(length(preds),
-                                if (length(preds) == 1) "climate predictor" else "climate predictors",
-                                "excluded due to zero variance at sample sites"),
-                            " \u2014 not used in GEA or Gradient Forest analyses. ",
-                            "Consider removing from ", htmltools::tags$code("Climate.predictors"), ".",
-                            htmltools::tags$ul(class = "mb-0 mt-1", items)
-                        ),
-                        class = "bg-warning text-dark"
-                    )
-                )
-            })
-
             # C3: Population statistics sample counts
             output$pop_stats_info <- shiny::renderUI({
                 k <- pd$k_best

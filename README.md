@@ -75,12 +75,15 @@ Run modes sequentially. Each mode is invoked via `--config mode=<MODE>`.
 | 1 | `processing` | Filter VCF, LD prune, normalize | `Filter.*`, `LD.*` | Filtered VCF, LEA formats |
 | 2 | `prestructure` | PCA, sNMF ancestry (K range) | `sNMF.k_start`, `sNMF.k_end` | PCA plots, cross-entropy, Q-matrices |
 | 3 | `structure` | Impute, climate download, piemaps | `sNMF.k_best`, `Map.*` | Piemaps, climate tables, pop stats, LD decay |
-| 4 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
-| 5 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
-| 6 | `gea_x_gwas` | GEA + GWAS overlap analysis | `GEAxGWAS.*` | Miami plot, pairwise overlap tables |
-| 7 | `maladaptation` | Gradient Forest → genetic offset | `Maladaptation.*`, `Future.*` | Offset maps, importance plots, site scores |
+| 4 | `pregea` | Hyperparameter exploration (LD-pruned): LFMM-K/EMMAX-#PC/RDA-Condition() ladders + spatial varpart | `PreGEA.*` | Ladder grids, RDA setup, varpart fractions, one recommendation per (method, param) |
+| 5 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
+| 6 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
+| 7 | `gea_x_gwas` | GEA + GWAS overlap analysis | `GEAxGWAS.*` | Miami plot, pairwise overlap tables |
+| 8 | `maladaptation` | Gradient Forest → genetic offset | `Maladaptation.*`, `Future.*` | Offset maps, importance plots, site scores |
 
 > **After mode 2**: inspect the cross-entropy plot and set `sNMF.k_best` in `config.yaml` before continuing.
+
+> **Mode 4 (`pregea`) is optional but recommended** before mode 5: it sweeps LFMM-K, EMMAX-#PC, and RDA Condition()-PC on the cheap LD-pruned dataset and writes one recommended value per (method, hyperparameter), surfaced with pre-fill/Apply badges in the GEA tab's method editor — read it before committing to the expensive full-SNP `gea` run.
 
 > **Regionplot, GO enrichment, haplotype scanning, and haplotype visualization** are computed on-demand in the Shiny dashboard rather than as pipeline modes.
 
@@ -91,6 +94,7 @@ flowchart TB
     classDef input fill:#FFFDE7,stroke:#F9A825,color:#333
     classDef preproc fill:#E3F2FD,stroke:#1565C0,color:#333
     classDef struct fill:#E8F5E9,stroke:#2E7D32,color:#333
+    classDef pregea fill:#EDE7F6,stroke:#5E35B1,color:#333,stroke-dasharray:3 3
     classDef assoc fill:#FFF3E0,stroke:#E65100,color:#333
     classDef malad fill:#FFEBEE,stroke:#C62828,color:#333
 
@@ -101,13 +105,16 @@ flowchart TB
     proc["1 · processing\nFilter, LD prune, normalize"]:::preproc
     prestruct["2 · prestructure\nPCA, sNMF (K range)"]:::struct
     struct["3 · structure\nImpute, climate, piemaps"]:::struct
-    gea["4 · gea\nGEA → regions → genes"]:::assoc
-    gwas["5 · gwas\nGWAS → regions → genes"]:::assoc
-    geaxgwas["6 · gea_x_gwas\nGEA ∩ GWAS → Miami + overlap"]:::assoc
-    malad["7 · maladaptation\nGradient Forest → offset"]:::malad
+    pregea["4 · pregea (optional)\nLFMM-K/EMMAX-#PC/RDA ladders + varpart"]:::pregea
+    gea["5 · gea\nGEA → regions → genes"]:::assoc
+    gwas["6 · gwas\nGWAS → regions → genes"]:::assoc
+    geaxgwas["7 · gea_x_gwas\nGEA ∩ GWAS → Miami + overlap"]:::assoc
+    malad["8 · maladaptation\nGradient Forest → offset"]:::malad
 
     VCF & META & GFF --> proc --> prestruct
     prestruct -. "Set sNMF.k_best" .-> struct
+    struct -.-> pregea
+    pregea -. "Recommended hyperparameters" .-> gea
     struct --> gea & gwas
     gea --> malad
     gea & gwas --> geaxgwas
@@ -235,6 +242,64 @@ Purple nodes = optional (`Population.calc_stats: true`).
 - `Structure/plots/piemap/piemap_{bio}.png/svg` + `zoom/`
 - `Structure/tables/pop_stats/tajima_d_by_pop.tsv`, `pi_diversity_by_pop.tsv`
 - `Structure/plots/ld_decay/ld_decay_genome_wide.png/svg`
+</details>
+
+<details>
+<summary><b>PreGEA Mode</b> (optional) — LD-pruned hyperparameter exploration before the full GEA run</summary>
+
+```mermaid
+flowchart TB
+    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
+    classDef optional fill:#F3E5F5,stroke:#9C27B0,color:#333,stroke-dasharray:3 3
+
+    VCF_LD[/"LD-pruned VCF"/]:::data
+    LFMM_LD[/".lfmm (LD-pruned, imputed)"/]:::data
+    CLIMATE[/"Climate (scaled)"/]:::data
+    PCA[/"PCA projections + eigenvalues"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
+    META[/"Aligned Metadata"/]:::data
+
+    subset["subset_vcf_pruned_climate\nLD-pruned VCF -> climate-valid subset"]
+    tped["tped_pruned\nVCF -> TPED/TFAM"]
+    kinship["kinship_pruned\nBN kinship, fixed across the EMMAX ladder"]
+    screeplot["pca_screeplot\nBroken-stick null + LFMM K band"]
+
+    lfmm_rung["lfmm_rung ×K×trait\nLFMM per K (genomic_control=FALSE)"]
+    lfmm_ladder["lfmm_ladder\nlambda_GC, hit counts, histogram shape -> plot grid"]
+
+    emmax_rung["emmax_rung ×n_pcs×trait\nEMMAX per #PCs (kinship held fixed)"]
+    emmax_ladder["emmax_ladder\nlambda_GC, hit counts -> plot grid"]
+
+    rda_setup["rda_setup\nCollinearity screen + Condition()-PC ladder + ordiR2step path"]
+
+    dbmem["dbmem\nadespatial::dbmem, MST-truncated geodesic distance"]
+    varpart["varpart\n2-/3-table variance partition + Px (Lasky et al. 2012)"]
+
+    recommend["pregea_recommend\nOne row per (method, param): rule + evidence"]
+    guard["transfer_guard\nFull-set lambda re-check at recommended hyperparameters"]:::optional
+    summary["write_summary"]
+
+    VCF_LD --> subset --> tped --> kinship
+    META --> subset
+    PCA --> screeplot
+    kinship & tped & CLIMATE & PCA & META --> emmax_rung --> emmax_ladder
+    LFMM_LD & CLIMATE --> lfmm_rung --> lfmm_ladder
+    CLIMATE & PCA & CLUST --> rda_setup
+    META --> dbmem
+    PCA & CLUST & CLIMATE & dbmem --> varpart
+    lfmm_ladder & emmax_ladder & rda_setup & varpart --> recommend
+    recommend & LFMM_LD & CLIMATE & kinship & tped --> guard
+    recommend & lfmm_ladder & emmax_ladder & rda_setup & varpart --> summary
+```
+
+Purple node = opt-in (`PreGEA.TransferGuard.enabled: true`) — the one PreGEA rule that pulls the full-set imputation chain into this otherwise LD-pruned-only mode. `lambda_GC` is deliberately fit with `genomic_control=FALSE` for the LFMM ladder — with it on, `lfmm2.test`'s recalibration forces lambda toward 1 regardless of whether K is correct, so K selection uses p-value-histogram flatness instead.
+
+**Key outputs**:
+- `PreGEA/tables/{lfmm,emmax}/{lfmm,emmax}_ladder.tsv` + `PreGEA/plots/{lfmm,emmax}/*_histogram_grid.png`, `*_qq_grid.png`, `*_lambda_vs_*.png`, `*_hits_vs_*.png`
+- `PreGEA/tables/rda/rda_condition_ladder.tsv`, `rda_predictor_collinearity.tsv`, `rda_ordir2step_path.tsv`
+- `PreGEA/tables/varpart/varpart_fractions.tsv`, `px_per_variable.tsv`; `PreGEA/tables/spatial/dbmem_diagnostics.tsv`
+- `PreGEA/tables/pregea_recommendations.tsv` — read by the GEA tab's method editor for pre-fill/Apply badges
+- `PreGEA/tables/pregea_transfer_guard.tsv` (opt-in only)
 </details>
 
 <details>

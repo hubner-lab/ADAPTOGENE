@@ -18,6 +18,31 @@ load_filtering_summary <- function(project) {
     )
 }
 
+#' Load PreGEA recommendations as a method -> param -> list(value=, evidence=) lookup.
+#' Feeds the GEA config sidebar's method-param editor (pre-fill/Apply badges) —
+#' recommendation keys (method, param) match the gea.py registry's own params
+#' spec names 1:1 (LFMM.K, EMMAX.n_pcs, RDA.condition_pcs/axes/predictor_set),
+#' since pregea_recommend.R was written against that same registry vocabulary.
+#' @noRd
+pregea_recommendations_lookup <- function(project) {
+    p <- pregea_table_path(project, "", "pregea_recommendations")
+    if (!file_ok(p)) return(list())
+    dt <- tryCatch(data.table::fread(p, sep = "\t", header = TRUE),
+                   error = function(e) data.table::data.table())
+    if (nrow(dt) == 0 || !all(c("method", "param", "recommended_value") %in% names(dt))) return(list())
+    out <- list()
+    for (i in seq_len(nrow(dt))) {
+        m <- dt$method[i]; pr <- dt$param[i]
+        if (is.null(out[[m]])) out[[m]] <- list()
+        out[[m]][[pr]] <- list(
+            value    = dt$recommended_value[i],
+            evidence = if ("evidence_metric" %in% names(dt))
+                paste0(dt$evidence_metric[i], "=", dt$evidence_value[i]) else NULL
+        )
+    }
+    out
+}
+
 #' Load LD decay half-distance summary table (half-decay bp, r2=0.2 bp, per group/scope)
 #' @noRd
 load_ld_decay_table <- function(project) {
@@ -796,12 +821,16 @@ pairwise_file_fingerprint <- function(project) {
 #' @param regime Character: "snp" or "wza"
 #' @param project Project name (for cache dir)
 #' @param module  Pipeline module (for cache dir)
+#' @param overrides Named list: METHOD -> list(type=, value=) for methods that
+#'   deviate from the master (type, value). A method absent from this map
+#'   follows master. Default list() is byte-identical to the pre-rework
+#'   single-global behaviour (see R/fct_threshold_rules.R).
 #' @return Named list (method → data.table with SNPID/chr/pos/pvalue/method/trait),
 #'   same shape as load_all_method_sigsnps().
 #' @noRd
 compute_method_sigsnps_cached <- function(pvalues_list, type, value,
                                            k, regime, project, module,
-                                           cutoffs = NULL) {
+                                           cutoffs = NULL, overrides = list()) {
     if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
 
     # Validate that compute_pval_threshold is available (sourced above)
@@ -810,12 +839,15 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
         return(list())
     }
 
-    # Disk-cache key: (module, k, regime, type, value) + source file fingerprint.
-    # The fingerprint (md5 of mtime+size of source pvalue files) ensures that when the
-    # pipeline regenerates files with a new trait set, the stale cache entry is bypassed.
+    # Disk-cache key: (module, k, regime, type, value, overrides) + source file
+    # fingerprint. The fingerprint (md5 of mtime+size of source pvalue files)
+    # ensures that when the pipeline regenerates files with a new trait set,
+    # the stale cache entry is bypassed. Old-shape cache files (pre-overrides)
+    # simply hash differently and are never hit again — no migration needed.
     fp <- pvalues_file_fingerprint(project, module, k, regime)
     cache_key  <- list(module = module, k = k, regime = regime,
-                       type = type, value = as.numeric(value), fp = fp)
+                       type = type, value = as.numeric(value),
+                       ovr = threshold_overrides_key(overrides), fp = fp)
     cache_hash <- digest::digest(cache_key, algo = "md5")
     cache_dir  <- interactive_sigsnps_dir(project, module)
     cache_file <- file.path(cache_dir, paste0(cache_hash, ".tsv"))
@@ -845,6 +877,13 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
         trait_cols <- setdiff(names(pv_dt), c(fixed_cols, "n_snps", "mean_maf"))
         if (length(trait_cols) == 0) next
 
+        # Resolved rule for THIS method (master unless overridden) — hoisted
+        # above the trait loop so the NA-cutoff fallback below recomputes with
+        # the method's OWN rule, not the master. With overrides = list() (the
+        # default) this is always (type, value), so behaviour is unchanged
+        # from before per-method rules existed.
+        rule <- effective_rule_for(m, overrides, type, value)
+
         for (tr in trait_cols) {
             if (!(tr %in% names(pv_dt))) next
             pvec <- pv_dt[[tr]]
@@ -857,7 +896,7 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
                 list(status = "ok", threshold = precomp_thr)
             } else {
                 tryCatch(
-                    compute_pval_threshold(pvec, type, as.numeric(value)),
+                    compute_pval_threshold(pvec, rule$type, rule$value),
                     error = function(e) list(status = "error", threshold = NA_real_)
                 )
             }
@@ -911,9 +950,13 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
 #' @param pvalues_list Named list: method -> data.table with SNPID/chr/pos + trait cols
 #' @param type         Adjustment type: "bonf", "qval", "top"
 #' @param value        Significance level / FDR / top-N (numeric or character)
+#' @param overrides    Named list: METHOD -> list(type=, value=) for methods
+#'   that deviate from master. Default list() = identical output to before
+#'   per-method rules existed — protects mod_gwas.R/mod_gea_x_gwas.R, which
+#'   call this without the new argument.
 #' @return Named numeric vector "trait::method" -> threshold (NA if unavailable)
 #' @noRd
-compute_method_thresholds <- function(pvalues_list, type, value) {
+compute_method_thresholds <- function(pvalues_list, type, value, overrides = list()) {
     if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
     fixed_cols <- c("SNPID", "chr", "pos", "n_snps", "mean_maf")
     out <- list()
@@ -922,10 +965,11 @@ compute_method_thresholds <- function(pvalues_list, type, value) {
         if (is.null(pv_dt) || nrow(pv_dt) == 0) next
         trait_cols <- setdiff(names(pv_dt), fixed_cols)
         if (length(trait_cols) == 0) next
+        rule <- effective_rule_for(m, overrides, type, value)
         for (tr in trait_cols) {
             pvec <- pv_dt[[tr]]
             result <- tryCatch(
-                compute_pval_threshold(pvec, type, as.numeric(value)),
+                compute_pval_threshold(pvec, rule$type, rule$value),
                 error = function(e) list(status = "error", threshold = NA_real_)
             )
             key <- paste0(tr, "::", m)

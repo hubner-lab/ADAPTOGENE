@@ -145,6 +145,7 @@ check_module_status <- function(project, summary_dt = NULL) {
         processing    = "processing",
         prestructure  = "prestructure",
         structure     = "structure",
+        pregea        = "pregea",
         gea           = "gea",
         gwas          = "gwas",
         gea_x_gwas    = "gea_x_gwas",

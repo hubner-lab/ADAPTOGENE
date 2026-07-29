@@ -397,11 +397,17 @@ build_config_input <- function(input_id, entry, value, project = NULL, config = 
             local_id <- sub("^.*-", "", input_id)
             # GEA.configs -> GEA_METHODS (includes RDA); GWAS.configs -> GWAS_METHODS
             # (GEA_METHODS filtered to supports_phenotypes=True — excludes RDA).
+            is_gea_configs <- identical(entry$key, "GEA.configs")
             registry <- if (identical(entry$key, "GWAS.configs")) gwas_method_registry()
                         else gea_method_registry()
             render_method_editor(input_id, local_id, display_val,
                                 registry = registry,
-                                k_best = config_k_best(config))
+                                k_best = config_k_best(config),
+                                # PreGEA only explores climate/GEA traits — its
+                                # recommendations don't apply to GWAS's phenotype
+                                # method editor, so only wire the project (and
+                                # hence the recs lookup) in for GEA.configs.
+                                project = if (is_gea_configs) project else NULL)
         },
         "snp_set_picker" = {
             # Render a placeholder uiOutput; actual checkboxGroupInput is rendered
@@ -541,13 +547,36 @@ config_values_equal <- function(a, b) {
     FALSE
 }
 
+#' Recommendation badge/apply-button for a param widget, shared by the R and
+#' JS renderers (kept as one function so the two stay in sync by construction).
+#' NULL when there is nothing to show (no PreGEA recommendation for this param).
+#' @noRd
+render_recommendation_badge <- function(spec, value) {
+    if (is.null(spec$recommended)) return(NULL)
+    matches <- identical(as.character(spec$recommended), as.character(value))
+    title <- if (!is.null(spec$evidence)) paste0("PreGEA recommends ", spec$recommended, " (", spec$evidence, ")")
+             else paste0("PreGEA recommends ", spec$recommended)
+    if (matches) {
+        htmltools::tags$span(class = "pregea-match-badge", title = title, "✓ preGEA")
+    } else {
+        htmltools::tags$button(
+            type = "button", class = "pregea-apply-btn", `data-role` = "apply-recommendation",
+            `data-apply-value` = as.character(spec$recommended), title = title,
+            paste0("→ ", spec$recommended)
+        )
+    }
+}
+
 #' Render one hyperparameter widget (label + input) for a method_table row.
 #' @param name param name (e.g. "condition_pcs")
-#' @param spec registry param spec: list(type=, default=, min=, max=, choices=, help=)
+#' @param spec registry param spec: list(type=, default=, min=, max=, choices=, help=,
+#'   recommended=, evidence= — the last two set only when PreGEA has a matching
+#'   recommendation, see render_method_editor())
 #' @param value current resolved value to pre-fill
 #' @noRd
 render_param_widget <- function(name, spec, value) {
     help_attr <- spec$help %||% ""
+    badge <- render_recommendation_badge(spec, value)
     if (identical(spec$type, "enum")) {
         opts <- paste(sapply(spec$choices %||% list(), function(ch) {
             sel <- if (identical(as.character(ch), as.character(value))) " selected" else ""
@@ -560,7 +589,8 @@ render_param_widget <- function(name, spec, value) {
                 class = "form-select form-select-sm", `data-param` = name,
                 `data-param-type` = "enum", title = help_attr,
                 htmltools::HTML(opts)
-            )
+            ),
+            badge
         )
     } else if (identical(spec$type, "bool")) {
         input_attrs <- list(type = "checkbox", `data-param` = name,
@@ -569,7 +599,8 @@ render_param_widget <- function(name, spec, value) {
         htmltools::tags$label(
             class = "method-param",
             do.call(htmltools::tags$input, input_attrs),
-            name
+            name,
+            badge
         )
     } else {
         input_type <- if (spec$type %in% c("int", "float")) "number" else "text"
@@ -584,7 +615,8 @@ render_param_widget <- function(name, spec, value) {
         htmltools::tags$label(
             class = "method-param",
             name,
-            do.call(htmltools::tags$input, input_attrs)
+            do.call(htmltools::tags$input, input_attrs),
+            badge
         )
     }
 }
@@ -602,29 +634,53 @@ render_param_widget <- function(name, spec, value) {
 #' no change here.
 #' @noRd
 render_method_editor <- function(input_id, local_id, configs_list,
-                                 registry = gea_method_registry(), k_best = NULL) {
+                                 registry = gea_method_registry(), k_best = NULL,
+                                 project = NULL) {
     if (is.null(configs_list)) configs_list <- list()
 
     METHOD_CHOICES <- names(registry)
-    ADJUST_CHOICES <- c("bonf", "qval", "top")
+    # "custom" is legal only because _assoc_downstream.smk's `adjust` wildcard
+    # was widened to admit scientific notation ([0-9.eE+-]+) — see
+    # workflow/rules/_assoc_downstream.smk. Adding it here without that
+    # widening would let a user pick a rule whose sig_snps target no rule can
+    # build.
+    ADJUST_CHOICES <- c("bonf", "qval", "top", "custom")
+
+    # PreGEA's recommended value per (method, param) — same registry param
+    # names (LFMM.K, EMMAX.n_pcs, RDA.condition_pcs/axes/predictor_set), since
+    # pregea_recommend.R writes against this vocabulary. Merged into the specs
+    # below so BOTH the R-rendered rows and the JS-templated (dynamically
+    # added/switched) rows show the same pre-fill/Apply badge for free.
+    pregea_recs <- if (!is.null(project)) pregea_recommendations_lookup(project) else list()
 
     # Resolved defaults per method (registry default, sentinel-resolved against
     # k_best) — used both for R-rendered rows and injected into JS for
     # dynamically added/switched rows.
-    param_specs_resolved <- lapply(registry, function(cfg) {
-        lapply(cfg$params %||% list(), function(spec) {
+    param_specs_resolved <- Map(function(method, cfg) {
+        Map(function(pname, spec) {
             spec$default <- gea_param_default(spec, k_best)
+            rec <- pregea_recs[[method]][[pname]]
+            if (!is.null(rec)) {
+                spec$recommended <- rec$value
+                spec$evidence    <- rec$evidence
+            }
             spec
-        })
-    })
+        }, names(cfg$params %||% list()), cfg$params %||% list())
+    }, names(registry), registry)
+
+    # method -> list(adjust=, threshold=, family=) from the registry's
+    # adjust_default/threshold_default/significance_family fields — RDA seeds
+    # bonf/0.01, everything else bonf/0.05 (workflow/methods/gea.py).
+    sig_defaults <- gea_method_significance_defaults(registry)
 
     # Normalise each entry — params merges registry defaults with any saved override.
     configs_norm <- lapply(configs_list, function(m) {
         method <- m$method %||% m$METHOD %||% "EMMAX"
+        sd     <- sig_defaults[[method]] %||% list(adjust = "bonf", threshold = "0.05")
         list(
             method    = method,
-            adjust    = m$adjust    %||% m$ADJUST    %||% "bonf",
-            threshold = as.character(m$threshold %||% m$THRESHOLD %||% "0.05"),
+            adjust    = m$adjust    %||% m$ADJUST    %||% sd$adjust,
+            threshold = as.character(m$threshold %||% m$THRESHOLD %||% sd$threshold),
             params    = resolve_row_params(method, m$params %||% m$PARAMS, registry, k_best)
         )
     })
@@ -660,13 +716,24 @@ render_method_editor <- function(input_id, local_id, configs_list,
         htmltools::tags$div(
             class = "method-row",
             id    = row_id,
-            `data-idx`       = idx,
-            `data-adjust`    = m$adjust,
-            `data-threshold` = m$threshold,
+            `data-idx` = idx,
             htmltools::tags$select(
                 class    = "form-select form-select-sm method-select",
                 `data-role` = "method",
                 htmltools::HTML(method_opts)
+            ),
+            htmltools::tags$select(
+                class = "form-select form-select-sm adjust-select",
+                `data-role` = "adjust",
+                title = "Significance rule. Becomes the {adjust} filename component and Snakemake wildcard.",
+                htmltools::HTML(adjust_opts)
+            ),
+            htmltools::tags$input(
+                type = "text", inputmode = "decimal",
+                class = "form-control form-control-sm threshold-input",
+                `data-role` = "threshold",
+                value = m$threshold,
+                title = "Threshold value. Must not contain '_' or whitespace — it is a filename component split on '_'."
             ),
             htmltools::tags$button(
                 class    = "method-remove-btn",
@@ -712,8 +779,13 @@ render_method_editor <- function(input_id, local_id, configs_list,
             )
         ),
 
-        # JS: wire up delegated event handlers for this editor
-        htmltools::tags$script(htmltools::HTML(sprintf(
+        # JS: wire up delegated event handlers for this editor.
+        # Split into two sprintf() calls concatenated below — sprintf()'s fmt
+        # argument has an 8192-char hard limit (R docs), and this one IIFE
+        # body (still ONE function scope — the split does not close it, just
+        # breaks the R-side string literal) crossed that after the PreGEA
+        # recommendation badge/apply-button JS was added.
+        htmltools::tags$script(htmltools::HTML(paste0(sprintf(
 '(function() {
   var editorId  = "%s";
   var jsonInputId = "%s";
@@ -723,8 +795,23 @@ render_method_editor <- function(input_id, local_id, configs_list,
     return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   }
 
+  // Mirrors render_recommendation_badge() (R side) so both renderers agree.
+  function recommendationBadgeHTML(spec, value) {
+    if (spec.recommended === undefined || spec.recommended === null) return "";
+    var matches = (String(spec.recommended) === String(value));
+    var title = spec.evidence
+      ? ("PreGEA recommends " + spec.recommended + " (" + spec.evidence + ")")
+      : ("PreGEA recommends " + spec.recommended);
+    if (matches) {
+      return "<span class=\\"pregea-match-badge\\" title=\\"" + escapeAttr(title) + "\\">\\u2713 preGEA</span>";
+    }
+    return "<button type=\\"button\\" class=\\"pregea-apply-btn\\" data-role=\\"apply-recommendation\\" data-apply-value=\\"" +
+           escapeAttr(spec.recommended) + "\\" title=\\"" + escapeAttr(title) + "\\">\\u2192 " + spec.recommended + "</button>";
+  }
+
   function widgetHTML(name, spec, value) {
     var help = spec.help ? (" title=\\"" + escapeAttr(spec.help) + "\\"") : "";
+    var badge = recommendationBadgeHTML(spec, value);
     if (spec.type === "enum") {
       var opts = (spec.choices || []).map(function(c) {
         var sel = (String(c) === String(value)) ? " selected" : "";
@@ -732,11 +819,11 @@ render_method_editor <- function(input_id, local_id, configs_list,
       }).join("");
       return "<label class=\\"method-param\\">" + name +
              "<select class=\\"form-select form-select-sm\\" data-param=\\"" + name +
-             "\\" data-param-type=\\"enum\\"" + help + ">" + opts + "</select></label>";
+             "\\" data-param-type=\\"enum\\"" + help + ">" + opts + "</select>" + badge + "</label>";
     } else if (spec.type === "bool") {
       var checked = value ? " checked" : "";
       return "<label class=\\"method-param\\"><input type=\\"checkbox\\" data-param=\\"" + name +
-             "\\" data-param-type=\\"bool\\"" + checked + help + "> " + name + "</label>";
+             "\\" data-param-type=\\"bool\\"" + checked + help + "> " + name + badge + "</label>";
     } else {
       var inputType = (spec.type === "int" || spec.type === "float") ? "number" : "text";
       var step = (spec.type === "int") ? "1" : "any";
@@ -747,7 +834,7 @@ render_method_editor <- function(input_id, local_id, configs_list,
       return "<label class=\\"method-param\\">" + name +
              "<input type=\\"" + inputType + "\\" class=\\"form-control form-control-sm\\" data-param=\\"" +
              name + "\\" data-param-type=\\"" + spec.type + "\\" value=\\"" + v +
-             "\\" step=\\"" + step + "\\"" + minmax + help + "></label>";
+             "\\" step=\\"" + step + "\\"" + minmax + help + ">" + badge + "</label>";
     }
   }
 
@@ -759,6 +846,29 @@ render_method_editor <- function(input_id, local_id, configs_list,
       var v = (values && values[n] !== undefined) ? values[n] : specs[n].default;
       return widgetHTML(n, specs[n], v);
     }).join("");
+  }
+',
+            paste0(input_id, "_editor"),  # %s 1: editorId
+            full_json_id,                 # %s 2: jsonInputId (DOM id, namespaced)
+            jsonlite::toJSON(param_specs_resolved, auto_unbox = TRUE)  # %s 3: PARAM_SPECS
+        ), sprintf(
+'
+  var ADJUST_CHOICES = ["bonf", "qval", "top", "custom"];
+
+  // The one character-class guard the widened Snakemake wildcard depends on:
+  // underscore and whitespace are the only characters that break
+  // find_sig_snps.R str_split(ADJUST, underscore)[[1]][1]/[2]. Everything
+  // else (digits, dot, e, E, plus, minus) is admitted by [0-9.eE+-]+.
+  function thresholdValid(row) {
+    var t = row.querySelector("[data-role=threshold]");
+    var a = row.querySelector("[data-role=adjust]");
+    if (!t || !a) return true;
+    var v = String(t.value).trim();
+    var ok = v.length > 0 && !/[_\\s]/.test(v) && isFinite(Number(v)) && Number(v) > 0;
+    if (ok && a.value === "top") ok = Number.isInteger(Number(v)) && Number(v) >= 1;
+    if (ok && (a.value === "bonf" || a.value === "qval")) ok = Number(v) <= 1;
+    t.classList.toggle("is-invalid", !ok);
+    return ok;
   }
 
   function collectRows(editor) {
@@ -775,10 +885,12 @@ render_method_editor <- function(input_id, local_id, configs_list,
         else raw = w.value;
         params[name] = raw;
       });
+      var adjEl = row.querySelector("[data-role=adjust]");
+      var thrEl = row.querySelector("[data-role=threshold]");
       rows.push({
         method:    row.querySelector("[data-role=method]").value,
-        adjust:    row.dataset.adjust    || "bonf",
-        threshold: row.dataset.threshold || "0.05",
+        adjust:    adjEl ? adjEl.value : "bonf",
+        threshold: thrEl ? String(thrEl.value).trim() : "0.05",
         params:    params
       });
     });
@@ -786,6 +898,14 @@ render_method_editor <- function(input_id, local_id, configs_list,
   }
 
   function pushToShiny(editor) {
+    // Bail out (leaving the last valid JSON in the bridge) if any row fails
+    // threshold validation — Shiny never sees a config Snakemake would
+    // reject with a MissingInputException far from this UI.
+    var allValid = true;
+    editor.querySelectorAll(".method-row").forEach(function(row) {
+      if (!thresholdValid(row)) allValid = false;
+    });
+    if (!allValid) return;
     var json = JSON.stringify(collectRows(editor));
     var el = document.getElementById(jsonInputId);
     if (el) {
@@ -796,13 +916,32 @@ render_method_editor <- function(input_id, local_id, configs_list,
   }
 
   var METHOD_CHOICES = %s;
+  var SIG_DEFAULTS   = %s;   // method -> {adjust, threshold, family}
+
+  function sigDefault(method) {
+    return SIG_DEFAULTS[method] || {adjust: "bonf", threshold: "0.05"};
+  }
+',
+            jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 1: METHOD_CHOICES
+            jsonlite::toJSON(sig_defaults, auto_unbox = TRUE)  # %s 2: SIG_DEFAULTS
+        ), sprintf(
+'
+  function makeAdjustSelect(v) {
+    var sel = document.createElement("select");
+    sel.className = "form-select form-select-sm adjust-select";
+    sel.setAttribute("data-role", "adjust");
+    ADJUST_CHOICES.forEach(function(c) {
+      var o = document.createElement("option");
+      o.value = c; o.text = c; if (c === v) o.selected = true;
+      sel.appendChild(o);
+    });
+    return sel;
+  }
 
   function makeRow(m) {
     var div = document.createElement("div");
     div.className = "method-row";
     div.setAttribute("data-role-container", "row");
-    div.dataset.adjust    = m ? (m.adjust    || "bonf")  : "bonf";
-    div.dataset.threshold = m ? (m.threshold || "0.05") : "0.05";
     var def = m ? m.method : METHOD_CHOICES[0];
     var sel = document.createElement("select");
     sel.className = "form-select form-select-sm method-select";
@@ -814,6 +953,14 @@ render_method_editor <- function(input_id, local_id, configs_list,
       sel.appendChild(opt);
     });
     div.appendChild(sel);
+    var sd = sigDefault(def);
+    div.appendChild(makeAdjustSelect(m && m.adjust ? m.adjust : sd.adjust));
+    var thr = document.createElement("input");
+    thr.type = "text"; thr.inputMode = "decimal";
+    thr.className = "form-control form-control-sm threshold-input";
+    thr.setAttribute("data-role", "threshold");
+    thr.value = (m && m.threshold != null) ? m.threshold : sd.threshold;
+    div.appendChild(thr);
     var btn = document.createElement("button");
     btn.type = "button"; btn.className = "method-remove-btn";
     btn.setAttribute("data-role", "remove");
@@ -845,6 +992,21 @@ render_method_editor <- function(input_id, local_id, configs_list,
       var addBtn = editor.querySelector("[data-role=add]");
       editor.insertBefore(makeRow(null), addBtn);
       pushToShiny(editor);
+    } else if (role.getAttribute("data-role") === "apply-recommendation") {
+      // Copy the PreGEA-recommended value into the own input for this param,
+      // then drop the button — nothing left to apply once it matches. A
+      // stale checkmark badge is not worth re-deriving here; the input value
+      // is now the source of truth (visible + persisted via pushToShiny below).
+      var label = role.closest(".method-param");
+      var input = label ? label.querySelector("[data-param]") : null;
+      if (input) {
+        var v = role.getAttribute("data-apply-value");
+        if (input.tagName === "SELECT") input.value = v;
+        else if (input.type === "checkbox") input.checked = (v === "true" || v === "1");
+        else input.value = v;
+      }
+      role.remove();
+      pushToShiny(editor);
     }
   });
 
@@ -857,6 +1019,15 @@ render_method_editor <- function(input_id, local_id, configs_list,
       var row = e.target.closest(".method-row");
       var body = row.querySelector(".method-params-body");
       if (body) body.innerHTML = buildParamsHTML(e.target.value, null);
+      // Same reasoning as the params rebuild above: a row switched RDA -> LFMM
+      // must not carry RDA default bonf/0.01 into an LFMM entry that expects
+      // bonf/0.05 — reset adjust/threshold to the new methods registry
+      // defaults too.
+      var sd2 = sigDefault(e.target.value);
+      var a2 = row.querySelector("[data-role=adjust]");
+      var t2 = row.querySelector("[data-role=threshold]");
+      if (a2) a2.value = sd2.adjust;
+      if (t2) t2.value = sd2.threshold;
       pushToShiny(editor);
       return;
     }
@@ -881,12 +1052,8 @@ render_method_editor <- function(input_id, local_id, configs_list,
   });
 })();
 ',
-            paste0(input_id, "_editor"),  # %s 1: editorId
-            full_json_id,                 # %s 2: jsonInputId (DOM id, namespaced)
-            jsonlite::toJSON(param_specs_resolved, auto_unbox = TRUE),  # %s 3: PARAM_SPECS
-            jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 4
-            full_json_id                  # %s 5: method_editor_reset id check
-        )))
+            full_json_id                  # %s: method_editor_reset id check
+        ))))
     )
 }
 

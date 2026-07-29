@@ -175,6 +175,84 @@ HELP_NOTES <- list(
     compare_nway = list(
         desc   = "Kendall's W concordance across all offset models — a single 0-1 agreement statistic over site rankings.",
         config = NULL
+    ),
+
+    # ── PreGEA (hyperparameter-exploration mode) ───────────────────────────
+    pregea_screeplot = list(
+        desc   = "LD-pruned genotype PCA screeplot (eigenvalue bars + broken-stick null) with the swept LFMM K band marked. Anchors the K range — the structure-axis count is an UPPER BOUND on K, not a target.",
+        config = "sNMF.k_best, PreGEA.LFMM.k_offset_low, .k_offset_high"
+    ),
+    pregea_lfmm_hist = list(
+        desc   = "P-value histogram per swept K — flat is well-calibrated, U-shaped/peaked at 0 signals residual structure or overcorrection.",
+        config = "PreGEA.LFMM.k_offset_low, .k_offset_high, .genomic_control"
+    ),
+    pregea_lfmm_qq = list(
+        desc   = "Observed vs expected -log10(p) quantiles per swept K — deviation from the diagonal at the same K as the histogram check.",
+        config = "PreGEA.LFMM.k_offset_low, .k_offset_high"
+    ),
+    pregea_lfmm_lambda = list(
+        desc   = "Genomic inflation factor (lambda_GC) vs K, fit with genomic_control OFF so lambda is actually informative. Recommended K picks the flattest p-value histogram, NOT the lambda closest to 1 — see the note on the histogram panel.",
+        config = "PreGEA.LFMM.genomic_control"
+    ),
+    pregea_lfmm_hits = list(
+        desc   = "Significant-hit count vs K at two thresholds (qvalue FDR and Bonferroni) — a secondary cross-check against the flatness-based K recommendation.",
+        config = "PreGEA.LFMM.fdr, .bonf_alpha"
+    ),
+    pregea_emmax_hist = list(
+        desc   = "P-value histogram per swept #PCs (kinship matrix held fixed) — flat is well-calibrated.",
+        config = "PreGEA.EMMAX.n_pcs_min, .n_pcs_max, .kinship"
+    ),
+    pregea_emmax_qq = list(
+        desc   = "Observed vs expected -log10(p) quantiles per swept #PCs.",
+        config = "PreGEA.EMMAX.n_pcs_min, .n_pcs_max"
+    ),
+    pregea_emmax_lambda = list(
+        desc   = "Genomic inflation factor (lambda_GC) vs #PCs — the recommended rung is the smallest #PCs landing inside the lambda tolerance band, i.e. the cheapest covariate count that still calibrates.",
+        config = "PreGEA.EMMAX.lambda_tol, .deflation_floor"
+    ),
+    pregea_emmax_hits = list(
+        desc   = "Significant-hit count vs #PCs at two thresholds — cross-check against the lambda-based recommendation.",
+        config = "PreGEA.EMMAX.fdr, .bonf_alpha"
+    ),
+    pregea_rda_collinearity = list(
+        desc   = "Predictor-pair |r| pre-screen and post-fit VIF — which climate predictors were dropped before the RDA fit, and why.",
+        config = "PreGEA.RDA.collinearity_r, .vif_max, .min_predictors"
+    ),
+    pregea_rda_screeplot = list(
+        desc   = "Constrained-axis eigenvalue screeplot at the recommended Condition()-PC rung.",
+        config = "PreGEA.RDA.axis_alpha"
+    ),
+    pregea_rda_condition_ladder = list(
+        desc   = "R2adj and rdadapt() candidate-SNP count vs number of population-structure PCs partialled out via Condition() — more PCs partialled out trades sensitivity for lower false-positive risk from shared ancestry.",
+        config = "PreGEA.RDA.condition_pcs_min, .condition_pcs_max"
+    ),
+    pregea_rda_ordir2step = list(
+        desc   = "ordiR2step forward-selection path (Blanchet double stopping rule) — which predictors entered the model, in order, and the cumulative R2adj at each step vs the full-model ceiling.",
+        config = "PreGEA.Varpart.ordir2step_pin, .ordir2step_permutations, .r2_permutations"
+    ),
+    pregea_rda_biplot = list(
+        desc   = "RDA ordination biplot at the recommended Condition()-PC rung — sample scores, predictor arrows, and candidate SNP loadings.",
+        config = "PreGEA.RDA.condition_pcs_min, .condition_pcs_max"
+    ),
+    pregea_dbmem_screeplot = list(
+        desc   = "dbMEM spatial eigenvector screeplot (Moran's I per MEM) — positive-autocorrelation MEMs are kept as the spatial predictor set for varpart.",
+        config = "PreGEA.Varpart.spatial_level, .min_sites"
+    ),
+    pregea_dbmem_selection_path = list(
+        desc   = "Forward-selected MEM path (Blanchet double stopping rule) — which spatial eigenvectors entered the varpart geography term, in order.",
+        config = "PreGEA.Varpart.ordir2step_pin, .ordir2step_permutations, .r2_permutations"
+    ),
+    pregea_varpart_venn = list(
+        desc   = "Climate / population-structure / geography variance-partition Venn (adjusted R2 per fraction) against the genomic-PC response matrix.",
+        config = "PreGEA.Varpart.response, .structure_table, .confounding_flag"
+    ),
+    pregea_px_barplot = list(
+        desc   = "Lasky et al. 2012 Px metric per climate predictor — each predictor's share of the RDA-explained variance, ranked, for the unconditional and geography-partialled models.",
+        config = "PreGEA.Varpart.response"
+    ),
+    pregea_transfer_guard = list(
+        desc   = "LFMM/EMMAX lambda re-estimated on the FULL marker set at the recommended hyperparameters, compared against the LD-pruned ladder value. Only the TREND is expected to transfer — lambda is not scale-free (Yang et al. 2011), so a large jump does not necessarily mean the recommended hyperparameter is wrong.",
+        config = "PreGEA.TransferGuard.enabled, .lfmm_k, .emmax_n_pcs"
     )
 )
 
