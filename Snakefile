@@ -8,6 +8,7 @@
 include: "workflow/rules/common.smk"
 include: "workflow/rules/processing.smk"
 include: "workflow/rules/prestructure.smk"
+include: "workflow/rules/pregea.smk"
 include: "workflow/rules/structure.smk"
 include: "workflow/rules/gea.smk"
 if GWAS_CONFIGS:

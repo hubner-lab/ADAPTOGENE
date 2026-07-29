@@ -179,6 +179,99 @@ if (MODE == 'processing') {
         row('prestructure',  'K_range', paste0(K_START, '-', K_END))
     )
 
+} else if (MODE == 'pregea') {
+    # args: MODE OUTPUT recs_path lfmm_path emmax_path rda_path collin_path
+    #       dbmem_diag_path varpart_path px_path guard_path
+    # Every path may be the literal string 'NULL' when that block was disabled.
+    RECS_PATH    = args[3]
+    LFMM_PATH    = args[4]
+    EMMAX_PATH   = args[5]
+    RDA_PATH     = args[6]
+    COLLIN_PATH  = args[7]
+    DBMEM_PATH   = args[8]
+    VARPART_PATH = args[9]
+    PX_PATH      = args[10]
+    GUARD_PATH   = args[11]
+
+    read_opt <- function(path) if (identical(path, 'NULL') || !file.exists(path)) NULL else fread(path, sep = '\t', header = TRUE)
+
+    new_rows <- list()
+    add <- function(metric, value) new_rows[[length(new_rows) + 1]] <<- row('pregea', metric, value)
+
+    recs <- read_opt(RECS_PATH)
+    if (!is.null(recs) && nrow(recs) > 0) {
+        for (m in c('LFMM', 'EMMAX', 'RDA')) {
+            mrows <- recs[method == m]
+            for (i in seq_len(nrow(mrows))) {
+                add(sprintf('%s_%s_recommended', m, mrows$param[i]), mrows$recommended_value[i])
+                add(sprintf('%s_%s_evidence', m, mrows$param[i]),
+                   sprintf('%s=%s', mrows$evidence_metric[i], mrows$evidence_value[i]))
+            }
+        }
+    }
+
+    lfmm <- read_opt(LFMM_PATH)
+    if (!is.null(lfmm)) {
+        pooled <- lfmm[trait == '__pooled__']
+        add('LFMM_K_range', paste(sort(unique(pooled$rung_value_num)), collapse = ','))
+        if (nrow(pooled) > 0) add('LFMM_hist_flatness_best', min(pooled$hist_flatness_ks, na.rm = TRUE))
+    }
+
+    emmax <- read_opt(EMMAX_PATH)
+    if (!is.null(emmax)) {
+        pooled <- emmax[trait == '__pooled__']
+        add('EMMAX_n_pcs_range', paste(sort(unique(pooled$rung_value_num)), collapse = ','))
+        z <- pooled[rung_value_num == 0]
+        if (nrow(z) > 0) add('EMMAX_lambda_at_zero_pcs', z$lambda_gc[1])
+        add('EMMAX_n_rungs_deflated', sum(pooled$lambda_gc < 1, na.rm = TRUE))
+    }
+
+    rda <- read_opt(RDA_PATH)
+    if (!is.null(rda)) {
+        ok <- rda[status == 'ok']
+        if (nrow(ok) > 0) add('RDA_condition_pcs_range', paste(sort(unique(ok$condition_pcs)), collapse = ','))
+    }
+    collin <- read_opt(COLLIN_PATH)
+    if (!is.null(collin)) {
+        add('RDA_predictors_input', nrow(collin))
+        add('RDA_predictors_retained', sum(collin$action == 'kept'))
+        add('RDA_predictors_dropped_collinear', sum(collin$action == 'dropped'))
+    }
+
+    dbmem <- read_opt(DBMEM_PATH)
+    if (!is.null(dbmem)) {
+        dv <- setNames(dbmem$value, dbmem$key)
+        for (k in c('spatial_level', 'n_unique_coords', 'mst_threshold_km', 'n_mem_positive', 'status'))
+            if (k %in% names(dv)) add(paste0('dbMEM_', k), dv[[k]])
+    }
+
+    varpart <- read_opt(VARPART_PATH)
+    if (!is.null(varpart) && nrow(varpart) > 0) {
+        add('varpart_status', unique(varpart$status)[1])
+        conf <- varpart[fraction == 'confounding_flag']
+        if (nrow(conf) > 0) add('varpart_confounding_flag', as.logical(conf$adj_r2[1]))
+        for (fr in c('climate_unique', 'geo_unique', 'structure_unique', 'shared')) {
+            v <- varpart[fraction == fr | fraction == paste0('[', substr(fr, 1, 1), ']')]
+            if (nrow(v) > 0) add(paste0('varpart_', fr, '_R2adj'), v$adj_r2[1])
+        }
+    }
+
+    px <- read_opt(PX_PATH)
+    if (!is.null(px) && nrow(px) > 0) {
+        top <- px[order(-Px)][1]
+        add('Px_top_variable', top$variable)
+        add('Px_top_value', top$Px)
+    }
+
+    guard <- read_opt(GUARD_PATH)
+    if (!is.null(guard) && nrow(guard) > 0) {
+        add('transfer_guard_status', 'ok')
+    } else {
+        add('transfer_guard_status', 'disabled')
+    }
+
+    new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())
+
 } else if (MODE == 'structure') {
     # args: MODE OUTPUT K_BEST climate_site predictors ld_decay_path ld_decay_group_by ld_decay_scope
     #       climate_na_excluded

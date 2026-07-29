@@ -18,6 +18,13 @@ Kbest = args[4] %>% as.numeric
 TRAIT = args[5]          # Single trait column name (e.g. "bio_1")
 VCFSNP = args[6]         # SNP positions
 OUT_FILE = args[7]       # Exact output path for per-trait pvalue TSV
+# Optional arg 8 (preGEA only) — "TRUE"|"FALSE", default TRUE keeps every
+# existing GEA call byte-identical. preGEA's K ladder passes FALSE so lambda
+# stays informative and the p-value histogram isn't pre-flattened by LEA's
+# own genomic-control recalibration (docs/rda_research.md C.0) — with
+# genomic.control=TRUE, lambda is forced toward 1 by construction and a
+# lambda-vs-K sweep would be flat regardless of whether K is correct.
+GENOMIC_CONTROL = if (length(args) >= 8) toupper(args[8]) == "TRUE" else TRUE
 #################################
 
 message('INFO: Starting LFMM analysis (single-trait mode)')
@@ -61,10 +68,11 @@ lfmm.model <- lfmm2(lfmm_ld_imp,
                     K = Kbest)
 message(lfmm.model %>% str)
 
-message('INFO: Extract p-values from the model')
+message('INFO: Extract p-values from the model (genomic.control=', GENOMIC_CONTROL, ')')
 lfmm.res <- lfmm2.test(lfmm.model,
                        input = lfmm_imp,
-                       env = predictors[, ..TRAIT])
+                       env = predictors[, ..TRAIT],
+                       genomic.control = GENOMIC_CONTROL)
 message(lfmm.res %>% str)
 
 # Build per-trait result table

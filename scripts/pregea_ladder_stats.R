@@ -1,0 +1,133 @@
+#!/usr/bin/env Rscript
+# pregea_ladder_stats.R — per-rung calibration diagnostics for ANY preGEA
+# ladder engine (LFMM K sweep, EMMAX #PC sweep). One script, two engines —
+# the wide p-value table shape (SNPID/chr/pos/<trait...>) is identical, so
+# the diagnostics computation is engine-agnostic; only the genomic-control
+# handling differs (see APPLY_GC below).
+#
+# Nothing else in the pipeline computes lambda_GC today
+# (docs/methods_review_suboptimal.md S2) — this is the first place it exists.
+
+suppressPackageStartupMessages({
+    library(data.table)
+    library(qvalue)
+})
+
+source("/pipeline/scripts/R/utils/pval_threshold.R")
+source("/pipeline/scripts/R/utils/io_pvalues.R")
+
+args <- commandArgs(trailingOnly = TRUE)
+################################################################################
+PVALUES_TSV  <- args[1]
+ENGINE       <- args[2]                      # "lfmm" | "emmax"
+RUNG_PARAM   <- args[3]                      # "K" | "n_pcs"
+RUNG_VALUE   <- args[4]
+FDR          <- as.numeric(args[5])
+BONF_ALPHA   <- as.numeric(args[6])
+# APPLY_GC: LFMM's rung table is fit with genomic.control=FALSE (preGEA arg 8
+# to lfmm.R) precisely so the RAW p-values here are informative for
+# lambda/histogram diagnosis. To make the reported hit counts reflect what the
+# production genomic.control=TRUE GEA run would actually produce, GC
+# recalibration is applied HERE, downstream of the raw diagnostics, exactly
+# mirroring LEA's own lfmm2.test(genomic.control=TRUE) formula. EMMAX passes
+# FALSE — EMMAX has no equivalent recalibration step in the production run.
+APPLY_GC     <- toupper(args[7]) == "TRUE"
+OUT_STATS_TSV<- args[8]
+################################################################################
+
+dir.create(dirname(OUT_STATS_TSV), recursive = TRUE, showWarnings = FALSE)
+
+message("INFO: preGEA ladder stats — engine=", ENGINE, " ", RUNG_PARAM, "=", RUNG_VALUE,
+       " apply_gc=", APPLY_GC)
+
+pvals_dt <- read_pvalues_tsv(PVALUES_TSV)
+fixed_cols <- c("SNPID", "chr", "pos", "n_snps", "mean_maf")
+trait_cols <- setdiff(names(pvals_dt), fixed_cols)
+
+# hist_shape classification thresholds — a pragmatic diagnostic heuristic
+# (not a formal test): compares 20-bin histogram density in the first bin
+# (near p=0), last bin (near p=1), and the mean of the interior bins against
+# the uniform-null expectation (ratio 1.0 = matches null exactly).
+classify_shape <- function(first_ratio, last_ratio, mid_ratio) {
+    if (first_ratio > 1.3 && last_ratio < 1.3 && mid_ratio > 0.7 && mid_ratio < 1.3) {
+        "flat_spike"     # good: excess near 0 (signal), flat elsewhere (well-calibrated null)
+    } else if (first_ratio > 1.3 && last_ratio > 1.3) {
+        "u_shape"        # excess at both tails: anti-conservative / miscalibrated
+    } else if (mid_ratio > 1.3 && first_ratio < 1.3) {
+        "hump"           # excess in the middle: under-dispersion
+    } else if (first_ratio < 0.7) {
+        "depleted"       # no spike near 0: over-correction (K/PCs too high)
+    } else {
+        "flat_spike"
+    }
+}
+
+stats_one_trait <- function(pvec, trait_name) {
+    n_total  <- length(pvec)
+    pvec_nona <- pvec[!is.na(pvec)]
+    n_tests  <- length(pvec_nona)
+
+    if (n_tests < 3) {
+        return(data.table(trait = trait_name,
+                          metric = c("n_tests", "hist_shape"),
+                          value  = c(as.character(n_tests), "degenerate")))
+    }
+
+    # lambda_GC — the standard genomic-inflation-factor formula: median chi-sq
+    # (1 df) statistic over the median of the null chi-sq(1) distribution.
+    chisq1 <- suppressWarnings(qchisq(pvec_nona, df = 1, lower.tail = FALSE))
+    lambda <- stats::median(chisq1, na.rm = TRUE) / qchisq(0.5, df = 1)
+
+    if (APPLY_GC) {
+        lambda_use <- max(lambda, 1)   # never artificially deflate further
+        p_for_hits <- pchisq(chisq1 / lambda_use, df = 1, lower.tail = FALSE)
+    } else {
+        p_for_hits <- pvec_nona
+    }
+
+    bonf_res <- tryCatch(compute_pval_threshold(p_for_hits, "bonf", BONF_ALPHA),
+                         error = function(e) list(status = "error"))
+    qval_res <- tryCatch(compute_pval_threshold(p_for_hits, "qval", FDR),
+                         error = function(e) list(status = "error"))
+    hits_bonf <- if (identical(bonf_res$status, "ok")) sum(p_for_hits < bonf_res$threshold, na.rm = TRUE) else NA_integer_
+    hits_qval <- if (identical(qval_res$status, "ok")) sum(p_for_hits < qval_res$threshold, na.rm = TRUE) else NA_integer_
+
+    # Histogram shape — computed on RAW p (not GC-corrected): the point is
+    # diagnosing the rung's null behavior, which GC-correction would mask.
+    ks <- suppressWarnings(stats::ks.test(pvec_nona, "punif"))
+    hist_flatness_ks <- unname(ks$statistic)
+
+    n_bins <- 20
+    breaks <- seq(0, 1, length.out = n_bins + 1)
+    counts <- hist(pvec_nona, breaks = breaks, plot = FALSE)$counts
+    expected_per_bin <- n_tests / n_bins
+    first_ratio <- counts[1] / expected_per_bin
+    last_ratio  <- counts[n_bins] / expected_per_bin
+    mid_ratio   <- mean(counts[2:(n_bins - 1)]) / expected_per_bin
+    frac_p_gt_half <- mean(pvec_nona > 0.5)
+    hist_shape <- classify_shape(first_ratio, last_ratio, mid_ratio)
+
+    data.table(
+        trait  = trait_name,
+        metric = c("n_tests", "lambda_gc", "hits_bonf", "hits_qval",
+                  "hist_flatness_ks", "hist_spike0", "frac_p_gt_half", "hist_shape"),
+        value  = c(as.character(n_tests), as.character(lambda),
+                  as.character(hits_bonf), as.character(hits_qval),
+                  as.character(hist_flatness_ks), as.character(first_ratio > 1.3),
+                  as.character(frac_p_gt_half), hist_shape)
+    )
+}
+
+per_trait <- rbindlist(lapply(trait_cols, function(tr) stats_one_trait(pvals_dt[[tr]], tr)))
+
+# Pooled row — all traits' p-values stacked into one vector. Useful for a
+# single ladder-summary number per rung when there are many traits.
+pooled_pvec <- unlist(lapply(trait_cols, function(tr) pvals_dt[[tr]]))
+pooled <- stats_one_trait(pooled_pvec, "__pooled__")
+
+out <- rbind(per_trait, pooled)
+out[, `:=`(engine = ENGINE, rung_param = RUNG_PARAM, rung_value = RUNG_VALUE)]
+setcolorder(out, c("engine", "rung_param", "rung_value", "trait", "metric", "value"))
+
+fwrite(out, OUT_STATS_TSV, sep = "\t", quote = FALSE)
+message("INFO: Wrote ladder rung stats: ", OUT_STATS_TSV, " (", nrow(out), " rows)")

@@ -183,6 +183,16 @@ RUN Rscript -e " \
     remotes::install_version('ggraph', version = '2.2.1'); \
 "
 
+# Spatial eigenvector analysis (dbMEM/MEM) — preGEA varpart block + the SHARED
+# spatial-vector artifact reused by RDA, varpart and Gradient Forest
+# (docs/rda_research.md C4/A20). Deliberately a SEPARATE RUN layer: adespatial
+# pulls a large dependency chain (ade4, adegraphics, adephylo, sp, spdep) and a
+# failure here should not invalidate the vegan/robust layer above. Installed
+# AFTER vegan 2.6-8 with upgrade='never' so it resolves against the PINNED
+# vegan rather than silently pulling a newer one.
+# System deps already present: libgdal-dev/libgeos-dev/libproj-dev/libudunits2-dev.
+RUN Rscript -e "remotes::install_version('adespatial', version = '0.3-29', upgrade = 'never')"
+
 # Haplotype analysis packages
 RUN Rscript -e "remotes::install_version('crosshap', version = '1.4.0')"
 
@@ -214,6 +224,20 @@ RUN git clone --depth 1 https://github.com/r-forge/gradientforest.git /tmp/gf &&
     Rscript -e "install.packages('/tmp/gf/pkg/gradientForest', repos = NULL, type = 'source')" && \
     rm -rf /tmp/gf
 
+# Re-pin vegan to 2.6-8 as the LAST package-installation step. adespatial's
+# and crosshap's OWN dependency resolvers each silently pulled vegan up to a
+# newer CRAN-current release (2.7-3) despite upgrade='never' on their own
+# install calls — 'never' governs whether an ALREADY-SATISFIED dependency is
+# upgraded for THAT package's install, not whether a LATER, unrelated
+# package's install pass re-resolves "old packages" globally (verified:
+# crosshap's dependency install logged "Old packages: poppr, vcfR, vegan" and
+# upgraded vegan again after an earlier re-pin placed right after adespatial).
+# Placing this after every other package install (nothing installs anything
+# afterward) is what actually makes the pin stick. Caught by the
+# packageVersion('vegan') canary in the verification RUN below — that check
+# is exactly what caught both silent upgrades during development.
+RUN Rscript -e "remotes::install_version('vegan', version = '2.6-8', upgrade = 'never')"
+
 # Verify critical package versions
 RUN Rscript -e " \
     stopifnot(packageVersion('topr') >= '2.0.0'); \
@@ -225,5 +249,11 @@ RUN Rscript -e " \
     library(robust); \
     x <- matrix(rnorm(300), ncol = 3); \
     stopifnot(length(covRob(x, distance = TRUE, na.action = na.omit, estim = 'pairwiseGK')\$dist) == 100); \
+    stopifnot(packageVersion('vegan') == '2.6.8'); \
+    library(adespatial); \
+    set.seed(1); xy <- cbind(runif(12), runif(12)); \
+    .d <- dist(xy); .th <- max(vegan::spantree(.d)\$dist); \
+    .m <- dbmem(.d, thresh = .th, MEM.autocor = 'positive', silent = TRUE); \
+    stopifnot(ncol(as.data.frame(.m)) >= 1); \
     cat('All package version checks passed.\n'); \
 "

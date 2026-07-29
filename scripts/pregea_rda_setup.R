@@ -1,0 +1,409 @@
+#!/usr/bin/env Rscript
+# pregea_rda_setup.R — RDA exploratory setup on the LD-pruned set (preGEA
+# Block 3). Diagnostics only (CLAUDE.md Rule 5) — does NOT call
+# find_sig_snps.R, write a p-value table, or touch any GEA output.
+#
+# Deliberately NOT a wildcard fan-out: every Condition()-PC rung refits the
+# SAME Y (the LD-pruned imputed matrix) with a different Condition() PC
+# count — a fan-out would re-read the genotype matrix N times for no
+# caching benefit, and the deliverable is a single comparison table.
+#
+# Four analyses:
+#   A. Predictor collinearity pre-screen (|r| < collinearity_r) + post-fit
+#      VIF (A16). NEVER drops below MIN_PREDICTORS — keeps the least-
+#      correlated pair and records the deviation.
+#   B. Condition()-PC ladder: for each condition_pcs in [cmin, cmax], fit a
+#      partial RDA, run anova.cca (full/by-axis/by-term), call candidates via
+#      the SAME scripts/R/lib/rdadapt.R the GEA-mode RDA scan uses.
+#   C. Plain-vs-partial candidate-count comparison (one uncorrected fit vs
+#      every partial rung).
+#   D. ordiR2step forward-selection path — cumulative adjusted R2 per step,
+#      not just the final variable set (A17).
+
+library(data.table)
+library(dplyr)
+library(vegan)
+library(robust)
+library(qvalue)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(scattermore)
+
+source("/pipeline/scripts/R/utils/theme_adaptogene.R")
+source("/pipeline/scripts/R/utils/emmax_core.R")   # load_pca_covariates()
+source("/pipeline/scripts/R/lib/rdadapt.R")         # rdadapt() — shared with rda.R
+
+args <- commandArgs(trailingOnly = TRUE)
+################################################################################
+LFMM_PRUNED     <- args[1]
+VCFSNP_PRUNED   <- args[2]
+CLIMATE         <- args[3]
+PCA             <- args[4]
+SAMPLES_ORDER   <- args[5]
+CLIMATE_VALID   <- args[6]
+PREDICTORS      <- args[7]
+COND_PCS_MIN    <- as.integer(args[8])
+COND_PCS_MAX    <- as.integer(args[9])
+COLLIN_R        <- as.numeric(args[10])
+VIF_MAX         <- as.numeric(args[11])
+MIN_PREDICTORS  <- as.integer(args[12])
+AXIS_ALPHA      <- as.numeric(args[13])
+PERMUTATIONS    <- as.numeric(args[14])
+ORDIR2STEP_PIN  <- as.numeric(args[15])
+R2_PERMUTATIONS <- as.numeric(args[16])
+SEED            <- as.numeric(args[17])
+CPU             <- as.numeric(args[18])
+OUT_COLLIN_TSV  <- args[19]
+OUT_LADDER_TSV  <- args[20]
+OUT_AXIS_TSV    <- args[21]
+OUT_FWD_TSV     <- args[22]
+PLOT_DIR        <- args[23]
+INTER_DIR       <- args[24]
+################################################################################
+
+for (d in c(dirname(OUT_COLLIN_TSV), dirname(OUT_LADDER_TSV), PLOT_DIR, INTER_DIR))
+    dir.create(d, recursive = TRUE, showWarnings = FALSE)
+
+message("INFO: preGEA RDA setup — condition_pcs range [", COND_PCS_MIN, ",", COND_PCS_MAX, "]")
+
+predictor_names <- str_split(PREDICTORS, ',')[[1]] %>% str_trim()
+
+################################################################################
+# 1. Load data — same shape as rda.R
+################################################################################
+climate_dt <- fread(CLIMATE, sep = '\t', header = TRUE)
+missing_preds <- setdiff(predictor_names, colnames(climate_dt))
+if (length(missing_preds) > 0) stop("preGEA RDA setup: predictor(s) not found: ", paste(missing_preds, collapse = ", "))
+Env <- as.data.frame(climate_dt[, ..predictor_names])  # data.frame, not data.table:
+                                                        # Env[, active, drop=FALSE] below needs
+                                                        # base-R `[` semantics for a variable
+                                                        # column-name vector (data.table's `[`
+                                                        # requires the `..active` NSE prefix instead)
+n_samples <- nrow(Env)
+
+Y_full <- fread(LFMM_PRUNED, sep = ' ', header = FALSE) %>% as.matrix()
+if (nrow(Y_full) != n_samples) stop("preGEA RDA setup: genotype/climate row mismatch (", nrow(Y_full), " vs ", n_samples, ")")
+col_sds <- apply(Y_full, 2, sd, na.rm = TRUE)
+kept_idx <- which(col_sds > 0 & !is.na(col_sds))
+Y <- Y_full[, kept_idx, drop = FALSE]
+m <- ncol(Y)
+message("INFO: m=", m, " markers (LD-pruned, ", length(col_sds) - m, " zero-variance dropped), n=", n_samples, " samples")
+
+climate_valid_ids <- fread(CLIMATE_VALID, header = FALSE, colClasses = "character")$V2
+
+################################################################################
+# 2. Predictor collinearity pre-screen (A16) — never below MIN_PREDICTORS
+################################################################################
+cor_mat <- cor(as.data.frame(Env), use = "pairwise.complete.obs")
+active <- predictor_names
+collin_rows <- list()
+repeat {
+    if (length(active) <= MIN_PREDICTORS) break
+    sub <- cor_mat[active, active, drop = FALSE]
+    diag(sub) <- 0
+    worst <- which(abs(sub) == max(abs(sub)), arr.ind = TRUE)[1, ]
+    r_worst <- sub[worst[1], worst[2]]
+    if (abs(r_worst) < COLLIN_R) break
+    p1 <- rownames(sub)[worst[1]]; p2 <- colnames(sub)[worst[2]]
+    # Drop whichever of the pair is, on average, more correlated with the
+    # REST of the active set (keeps the more "independent" predictor).
+    mean_r <- function(p) mean(abs(sub[p, setdiff(active, p)]))
+    drop_p <- if (mean_r(p1) >= mean_r(p2)) p1 else p2
+    collin_rows[[length(collin_rows) + 1]] <- data.table(
+        predictor = drop_p, action = "dropped",
+        reason = sprintf("|r|=%.3f with %s (>= collinearity_r=%.2f)", r_worst,
+                         setdiff(c(p1, p2), drop_p), COLLIN_R))
+    active <- setdiff(active, drop_p)
+}
+if (length(active) < MIN_PREDICTORS) {
+    # Should not happen given the MIN_PREDICTORS floor above, but never let a
+    # collinearity screen silently produce an unfittable RDA (_validate_rda_semantics
+    # already enforces >=2 at the GEA-config level; preGEA must not contradict it).
+    stop("preGEA RDA setup: collinearity screen left ", length(active),
+        " predictor(s), below MIN_PREDICTORS=", MIN_PREDICTORS,
+        " — widen collinearity_r or reduce min_predictors.")
+}
+for (p in active) collin_rows[[length(collin_rows) + 1]] <- data.table(predictor = p, action = "kept", reason = "")
+collin_dt <- rbindlist(collin_rows)
+message("INFO: collinearity screen kept ", length(active), "/", length(predictor_names), " predictors: ",
+       paste(active, collapse = ","))
+
+################################################################################
+# 3. Structure-correction PCs (shared helper — k<=0 = no Condition())
+################################################################################
+get_covariates <- function(k) load_pca_covariates(PCA, k, SAMPLES_ORDER, climate_valid_ids)
+
+fit_partial_rda <- function(cond_pcs) {
+    covariates <- if (cond_pcs > 0) get_covariates(cond_pcs) else NULL
+    Variables <- as.data.frame(Env[, active, drop = FALSE])
+    rhs_terms <- active
+    if (!is.null(covariates)) {
+        Variables <- cbind(Variables, as.data.frame(covariates))
+        rhs_terms <- c(rhs_terms, paste0("Condition(", paste(colnames(covariates), collapse = "+"), ")"))
+    }
+    f <- as.formula(paste("Y ~", paste(rhs_terms, collapse = " + ")))
+    list(fit = rda(f, data = Variables, scale = TRUE), variables = Variables)
+}
+
+################################################################################
+# 4. Condition()-PC ladder (Block 3B) — refit once per rung
+################################################################################
+axis_rows   <- list()
+ladder_rows <- list()
+
+# Diagnostic candidate rule for THIS exploratory table only (NOT the applied
+# GEA rule — that lives in GEA.configs and is applied by rda.R itself).
+# Fixed Bonferroni-on-m, matching rda.R's own sensitivity-ladder convention.
+diagnostic_bonf <- function(pvals, mm) sum(pvals < 0.05 / mm, na.rm = TRUE)
+
+for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
+    message("INFO: rung condition_pcs=", cond_pcs)
+    fitted <- tryCatch(fit_partial_rda(cond_pcs), error = function(e) {
+        message("WARNING: rung condition_pcs=", cond_pcs, " fit failed: ", e$message); NULL
+    })
+    if (is.null(fitted)) {
+        ladder_rows[[length(ladder_rows) + 1]] <- data.table(
+            condition_pcs = cond_pcs, status = "fit_failed", note = "rda() fit raised an error")
+        next
+    }
+    fit <- fitted$fit
+    aliased <- fit$CCA$alias
+    n_aliased <- if (is.null(aliased)) 0L else length(aliased)
+    K_max <- fit$CCA$rank
+    r2adj <- suppressWarnings(RsquareAdj(fit)$adj.r.squared)
+    vif_vals <- tryCatch(vif.cca(fit), error = function(e) NA_real_)
+    max_vif  <- suppressWarnings(max(vif_vals, na.rm = TRUE))
+    mean_vif <- suppressWarnings(mean(vif_vals, na.rm = TRUE))
+
+    if (K_max < 2) {
+        ladder_rows[[length(ladder_rows) + 1]] <- data.table(
+            condition_pcs = cond_pcs, n_predictors = length(active),
+            predictors = paste(active, collapse = ","), r2 = NA_real_, r2_adj = r2adj,
+            max_vif = max_vif, mean_vif = mean_vif, n_aliased = n_aliased, rank = K_max,
+            n_axes_sig = NA_integer_, anova_full_F = NA_real_, anova_full_p = NA_real_,
+            term_min_p = NA_real_, term_max_p = NA_real_,
+            n_candidates_plain = NA_integer_, n_candidates_partial = NA_integer_,
+            gif_lambda = NA_real_, status = "rank_lt_2",
+            note = "rank<2: covRob requires >=2 loading columns (verified empirically in rda.R)")
+        next
+    }
+
+    set.seed(SEED)
+    anova_full <- tryCatch(anova.cca(fit, permutations = PERMUTATIONS, parallel = max(1, CPU)),
+                           error = function(e) NULL)
+    set.seed(SEED)
+    anova_axis <- tryCatch(anova.cca(fit, by = "axis", permutations = PERMUTATIONS), error = function(e) NULL)
+    set.seed(SEED)
+    anova_term <- tryCatch(anova.cca(fit, by = "terms", permutations = PERMUTATIONS), error = function(e) NULL)
+
+    anova_full_F <- if (!is.null(anova_full)) as.data.frame(anova_full)[["F"]][1] else NA_real_
+    anova_full_p <- if (!is.null(anova_full)) as.data.frame(anova_full)[["Pr(>F)"]][1] else NA_real_
+
+    axis_pvals <- if (!is.null(anova_axis)) as.data.frame(anova_axis)[["Pr(>F)"]][seq_len(K_max)] else rep(NA_real_, K_max)
+    axis_eigs  <- if (!is.null(anova_axis)) as.data.frame(anova_axis)[["Variance"]][seq_len(K_max)] else rep(NA_real_, K_max)
+    for (a in seq_len(K_max)) {
+        axis_rows[[length(axis_rows) + 1]] <- data.table(
+            condition_pcs = cond_pcs, axis = a, axis_eig = axis_eigs[a], axis_p = axis_pvals[a])
+    }
+    n_axes_sig <- sum(axis_pvals < AXIS_ALPHA, na.rm = TRUE)
+
+    term_p <- if (!is.null(anova_term)) {
+        tp <- as.data.frame(anova_term)[["Pr(>F)"]]
+        tp[is.finite(tp)]
+    } else numeric(0)
+    term_min_p <- if (length(term_p) > 0) min(term_p) else NA_real_
+    term_max_p <- if (length(term_p) > 0) max(term_p) else NA_real_
+
+    # K for candidate calling — same rule rda.R uses: floor at 2, cap at K_max.
+    K_sel <- max(2, min(n_axes_sig, K_max))
+    rd <- tryCatch(rdadapt(fit, K_sel), error = function(e) {
+        message("WARNING: rdadapt failed for condition_pcs=", cond_pcs, ": ", e$message); NULL
+    })
+    n_cand_partial <- if (!is.null(rd)) diagnostic_bonf(rd$p.values, m) else NA_integer_
+    gif_lambda     <- if (!is.null(rd)) rd$gif_lambda else NA_real_
+
+    ladder_rows[[length(ladder_rows) + 1]] <- data.table(
+        condition_pcs = cond_pcs, n_predictors = length(active),
+        predictors = paste(active, collapse = ","), r2 = suppressWarnings(RsquareAdj(fit)$r.squared),
+        r2_adj = r2adj, max_vif = max_vif, mean_vif = mean_vif, n_aliased = n_aliased, rank = K_max,
+        n_axes_sig = n_axes_sig, anova_full_F = anova_full_F, anova_full_p = anova_full_p,
+        term_min_p = term_min_p, term_max_p = term_max_p,
+        n_candidates_plain = NA_integer_,  # filled in after the plain (cond_pcs=0) reference fit below
+        n_candidates_partial = n_cand_partial, gif_lambda = gif_lambda, status = "ok", note = "")
+}
+
+ladder_dt <- rbindlist(ladder_rows, fill = TRUE)
+axis_dt   <- rbindlist(axis_rows,  fill = TRUE)
+
+# Plain (uncorrected, condition_pcs=0) reference candidate count — computed
+# ONCE, not per rung, and back-filled into every ladder row for the
+# plain-vs-partial comparison column (Block 3C).
+plain_fitted <- tryCatch(fit_partial_rda(0), error = function(e) NULL)
+n_cand_plain <- NA_integer_
+if (!is.null(plain_fitted) && plain_fitted$fit$CCA$rank >= 2) {
+    K_plain <- min(2, plain_fitted$fit$CCA$rank)
+    rd_plain <- tryCatch(rdadapt(plain_fitted$fit, K_plain), error = function(e) NULL)
+    if (!is.null(rd_plain)) n_cand_plain <- diagnostic_bonf(rd_plain$p.values, m)
+}
+if (nrow(ladder_dt) > 0) ladder_dt[, n_candidates_plain := n_cand_plain]
+
+fwrite(collin_dt, OUT_COLLIN_TSV, sep = "\t", quote = FALSE)
+fwrite(ladder_dt, OUT_LADDER_TSV, sep = "\t", quote = FALSE)
+fwrite(axis_dt,   OUT_AXIS_TSV,   sep = "\t", quote = FALSE)
+message("INFO: Wrote collinearity (", nrow(collin_dt), " rows), ladder (", nrow(ladder_dt),
+       " rows), axis (", nrow(axis_dt), " rows) tables")
+
+################################################################################
+# 5. ordiR2step forward-selection path (A17) — cumulative R2adj per step,
+#    not just the final variable set. Unconditioned (no Condition() term),
+#    matching Capblancq & Forester 2021's reference code (A.3).
+################################################################################
+fwd_dt <- data.table(step = integer(), variable = character(),
+                     r2_adj_cumulative = numeric(), r2_adj_full_ceiling = numeric(),
+                     df = numeric(), F = numeric(), p = numeric())
+Variables_full <- as.data.frame(Env[, active, drop = FALSE])
+mod0 <- tryCatch(rda(Y ~ 1, data = Variables_full), error = function(e) NULL)
+modfull <- tryCatch(rda(as.formula(paste("Y ~", paste(active, collapse = " + "))),
+                        data = Variables_full, scale = TRUE), error = function(e) NULL)
+full_ceiling <- if (!is.null(modfull)) suppressWarnings(RsquareAdj(modfull)$adj.r.squared) else NA_real_
+
+if (!is.null(mod0) && !is.null(modfull)) {
+    step_res <- tryCatch(
+        vegan::ordiR2step(mod0, scope = formula(modfull), Pin = ORDIR2STEP_PIN,
+                          R2scope = TRUE, R2permutations = R2_PERMUTATIONS, trace = FALSE),
+        error = function(e) { message("WARNING: ordiR2step failed: ", e$message); NULL }
+    )
+    if (!is.null(step_res)) {
+        selected_terms <- attr(terms(step_res), "term.labels")
+        # Re-fit incrementally so cumulative R2adj is computed directly from
+        # the model, not parsed out of ordiR2step's internal $anova table
+        # (whose exact column shape varies across vegan versions).
+        cum_terms <- character(0)
+        for (i in seq_along(selected_terms)) {
+            cum_terms <- c(cum_terms, selected_terms[i])
+            step_fit <- tryCatch(
+                rda(as.formula(paste("Y ~", paste(cum_terms, collapse = " + "))),
+                   data = Variables_full, scale = TRUE),
+                error = function(e) NULL)
+            if (is.null(step_fit)) next
+            r2adj_cum <- suppressWarnings(RsquareAdj(step_fit)$adj.r.squared)
+            av <- tryCatch(anova.cca(step_fit, permutations = R2_PERMUTATIONS), error = function(e) NULL)
+            fwd_dt <- rbind(fwd_dt, data.table(
+                step = i, variable = selected_terms[i], r2_adj_cumulative = r2adj_cum,
+                r2_adj_full_ceiling = full_ceiling,
+                df = if (!is.null(av)) as.data.frame(av)$Df[1] else NA_real_,
+                F  = if (!is.null(av)) as.data.frame(av)[["F"]][1] else NA_real_,
+                p  = if (!is.null(av)) as.data.frame(av)[["Pr(>F)"]][1] else NA_real_))
+        }
+    }
+}
+fwrite(fwd_dt, OUT_FWD_TSV, sep = "\t", quote = FALSE)
+message("INFO: Wrote ordiR2step forward-selection path (", nrow(fwd_dt), " steps)")
+
+################################################################################
+# 6. Plots
+################################################################################
+# -- Predictor collinearity: |r| heatmap + flag ---------------------------
+cor_long <- as.data.table(as.table(cor_mat))
+setnames(cor_long, c("Var1", "Var2", "r"))
+g_collin <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = r)) +
+    geom_tile() +
+    geom_text(aes(label = sprintf("%.2f", r)), size = 3, color = ADAPT_COL$fg) +
+    scale_fill_gradient2(low = ADAPT_REMOVED, mid = "white", high = ADAPT_RETAINED,
+                         midpoint = 0, limits = c(-1, 1)) +
+    labs(title = "Predictor correlation matrix",
+        subtitle = sprintf("collinearity_r=%.2f | kept: %s", COLLIN_R, paste(active, collapse = ", "))) +
+    theme_adaptogene() + theme(axis.title = element_blank())
+ggsave(file.path(PLOT_DIR, "rda_predictor_collinearity.png"), g_collin, width = 6, height = 5, dpi = 300)
+ggsave(file.path(PLOT_DIR, "rda_predictor_collinearity.svg"), g_collin, width = 6, height = 5,
+      device = svglite::svglite, bg = "transparent")
+
+# -- Axis screeplot: pick the rung closest to the ladder's best R2adj -----
+ok_rows <- ladder_dt[status == "ok"]
+best_rung <- if (nrow(ok_rows) > 0) ok_rows[which.max(r2_adj)]$condition_pcs else NA_integer_
+axis_best <- axis_dt[condition_pcs == best_rung]
+if (nrow(axis_best) > 0) {
+    g_scree <- ggplot(axis_best, aes(x = factor(axis), y = axis_eig, fill = axis_p < AXIS_ALPHA)) +
+        geom_col() +
+        scale_fill_manual(values = c(`TRUE` = ADAPT_RETAINED, `FALSE` = ADAPT_NEUTRAL), guide = "none") +
+        labs(x = "Constrained axis", y = "Eigenvalue",
+            title = "RDA constrained-axis screeplot (best rung by R2adj)",
+            subtitle = sprintf("condition_pcs=%s", best_rung)) +
+        theme_adaptogene()
+    ggsave(file.path(PLOT_DIR, "rda_axis_screeplot.png"), g_scree, width = 7, height = 5, dpi = 300)
+    ggsave(file.path(PLOT_DIR, "rda_axis_screeplot.svg"), g_scree, width = 7, height = 5,
+          device = svglite::svglite, bg = "transparent")
+} else {
+    file.create(file.path(PLOT_DIR, "rda_axis_screeplot.png"))
+    file.create(file.path(PLOT_DIR, "rda_axis_screeplot.svg"))
+}
+
+# -- Condition() ladder: R2adj + max_vif vs condition_pcs ------------------
+g_ladder <- ggplot(ok_rows, aes(x = condition_pcs)) +
+    geom_col(aes(y = r2_adj), fill = ADAPT_NEUTRAL) +
+    geom_line(aes(y = pmin(max_vif, VIF_MAX * 2) / (VIF_MAX * 2) * max(ok_rows$r2_adj, 0.01)),
+             color = ADAPT_THRESHOLD, linewidth = 0.8) +
+    geom_hline(yintercept = 0, color = "transparent") +
+    labs(x = "Condition() PC count", y = "Adjusted R2 (bars); scaled max VIF (line)",
+        title = "RDA condition-PC ladder") +
+    theme_adaptogene()
+ggsave(file.path(PLOT_DIR, "rda_condition_ladder.png"), g_ladder, width = 7, height = 5, dpi = 300)
+ggsave(file.path(PLOT_DIR, "rda_condition_ladder.svg"), g_ladder, width = 7, height = 5,
+      device = svglite::svglite, bg = "transparent")
+
+# -- ordiR2step path: cumulative R2adj per step + full-model ceiling ------
+if (nrow(fwd_dt) > 0) {
+    g_fwd <- ggplot(fwd_dt, aes(x = step, y = r2_adj_cumulative)) +
+        geom_hline(aes(yintercept = r2_adj_full_ceiling), color = ADAPT_THRESHOLD, linetype = "dashed") +
+        geom_line(color = ADAPT_NEUTRAL) + geom_point(color = ADAPT_NEUTRAL, size = 2) +
+        ggrepel::geom_text_repel(aes(label = variable), size = 3, color = ADAPT_COL$fg) +
+        labs(x = "Forward-selection step", y = "Cumulative adjusted R2",
+            title = "ordiR2step forward-selection path",
+            subtitle = sprintf("Pin=%.3g | dashed = full-model ceiling (%.4f)", ORDIR2STEP_PIN, full_ceiling)) +
+        theme_adaptogene()
+    ggsave(file.path(PLOT_DIR, "rda_ordir2step_path.png"), g_fwd, width = 7, height = 5, dpi = 300)
+    ggsave(file.path(PLOT_DIR, "rda_ordir2step_path.svg"), g_fwd, width = 7, height = 5,
+          device = svglite::svglite, bg = "transparent")
+} else {
+    file.create(file.path(PLOT_DIR, "rda_ordir2step_path.png"))
+    file.create(file.path(PLOT_DIR, "rda_ordir2step_path.svg"))
+}
+
+# -- Biplot (site/sample scores) at the best rung — PLAIN scatter is fine:
+#    N = samples, not SNPs (Rule 6 does not apply here, C.2 states this
+#    explicitly — this is not the SNP-loadings cloud rda.R's biplot shows).
+if (!is.null(plain_fitted) && exists("best_rung") && !is.na(best_rung)) {
+    best_fit <- tryCatch(fit_partial_rda(best_rung)$fit, error = function(e) NULL)
+    if (!is.null(best_fit) && best_fit$CCA$rank >= 2) {
+        site_scores <- as.data.frame(scores(best_fit, display = "sites", choices = 1:2))
+        colnames(site_scores) <- c("RDA1", "RDA2")
+        biplot_scores <- as.data.frame(best_fit$CCA$biplot[, 1:2, drop = FALSE])
+        colnames(biplot_scores) <- c("RDA1", "RDA2")
+        biplot_scores$predictor <- rownames(best_fit$CCA$biplot)
+        arrow_scale <- 0.8 * max(abs(site_scores$RDA1), abs(site_scores$RDA2)) /
+            max(abs(biplot_scores$RDA1), abs(biplot_scores$RDA2), 1e-6)
+        g_biplot <- ggplot(site_scores, aes(x = RDA1, y = RDA2)) +
+            geom_point(color = ADAPT_NEUTRAL, size = 2) +
+            geom_segment(data = biplot_scores,
+                        aes(x = 0, y = 0, xend = RDA1 * arrow_scale, yend = RDA2 * arrow_scale),
+                        inherit.aes = FALSE, color = ADAPT_THRESHOLD, arrow = arrow(length = unit(0.2, "cm"))) +
+            ggrepel::geom_text_repel(data = biplot_scores,
+                                     aes(x = RDA1 * arrow_scale, y = RDA2 * arrow_scale, label = predictor),
+                                     inherit.aes = FALSE, color = ADAPT_THRESHOLD, size = 3) +
+            labs(x = "RDA1", y = "RDA2", title = "RDA site scores biplot (best rung)",
+                subtitle = sprintf("condition_pcs=%s", best_rung)) +
+            theme_adaptogene()
+        ggsave(file.path(PLOT_DIR, "rda_biplot_best.png"), g_biplot, width = 7, height = 6, dpi = 300)
+        ggsave(file.path(PLOT_DIR, "rda_biplot_best.svg"), g_biplot, width = 7, height = 6,
+              device = svglite::svglite, bg = "transparent")
+    } else {
+        file.create(file.path(PLOT_DIR, "rda_biplot_best.png"))
+        file.create(file.path(PLOT_DIR, "rda_biplot_best.svg"))
+    }
+} else {
+    file.create(file.path(PLOT_DIR, "rda_biplot_best.png"))
+    file.create(file.path(PLOT_DIR, "rda_biplot_best.svg"))
+}
+
+message("INFO: preGEA RDA setup complete.")
