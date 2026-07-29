@@ -96,6 +96,18 @@ app_ui <- function(request) {
             )
         ),
 
+        bslib::nav_panel("Climate",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_climate", "Climate Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_climate",
+                                                       btn_label = "Run Climate")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_climate_ui("climate")
+            )
+        ),
+
         bslib::nav_panel("PreGEA",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(

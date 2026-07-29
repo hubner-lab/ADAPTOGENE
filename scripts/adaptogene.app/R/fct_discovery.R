@@ -145,6 +145,7 @@ check_module_status <- function(project, summary_dt = NULL) {
     module_steps <- c(
         processing    = "processing",
         prestructure  = "prestructure",
+        climate       = "climate",
         structure     = "structure",
         pregea        = "pregea",
         gea           = "gea",
@@ -162,6 +163,19 @@ find_gf_zooms <- function(project, suffix, method = "gradient_forest") {
     if (!dir.exists(zoom_dir)) return(character(0))
     files <- list.files(zoom_dir, pattern = "\\.png$")
     gsub("\\.png$", "", files)
+}
+
+#' Find swept condition_pcs values that have per-model RDA artifacts
+#' (PreGEA/plots/rda/models/pc{n}/). Backs the RDA tab's model selector —
+#' one biplot/screeplot/anova set per value pregea_rda_setup.R swept.
+#' Returns an integer vector sorted ascending, or empty if RDA hasn't run yet.
+#' @noRd
+find_rda_models <- function(project) {
+    models_dir <- mod_path(project, MOD_PREGEA, "plots", "rda", "models")
+    if (!dir.exists(models_dir)) return(integer(0))
+    dirs <- list.dirs(models_dir, full.names = FALSE, recursive = FALSE)
+    ns <- suppressWarnings(as.integer(sub("^pc", "", dirs)))
+    sort(ns[!is.na(ns)])
 }
 
 #' Find haplotype regions for a tag

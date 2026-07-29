@@ -82,9 +82,10 @@ samples <- fread(SAMPLES,
 # Load climate predictors
 env.bio <- fread(CLIM_PRESENT_SITE) %>% dplyr::select(!!PREDICTORS_SELECTED)
 
-# Build input matrix and predictor list. Spatial covariates are preGEA's
-# forward-selected dbMEM vectors (adespatial::dbmem() + ordiR2step, Block 4 —
-# scripts/pregea_dbmem.R + scripts/pregea_varpart.R), NOT the old ad hoc
+# Build input matrix and predictor list. Spatial covariates are the climate
+# module's forward-selected dbMEM vectors (adespatial::dbmem() + ordiR2step,
+# climate.smk Block 2 — scripts/pregea_dbmem.R + scripts/pregea_varpart.R,
+# moved out of PreGEA in the module split), NOT the old ad hoc
 # vegan::pcnm(dist(raw lon/lat)) + "keep half the positive eigenvalues"
 # heuristic this replaces. "Keep all positive MEMs" was considered and
 # rejected: docs/rda_research.md's A20/C4 rows always pair dbMEM WITH forward

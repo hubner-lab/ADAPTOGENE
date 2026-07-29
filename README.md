@@ -75,17 +75,40 @@ Run modes sequentially. Each mode is invoked via `--config mode=<MODE>`.
 | 1 | `processing` | Filter VCF, LD prune, normalize | `Filter.*`, `LD.*` | Filtered VCF, LEA formats |
 | 2 | `prestructure` | PCA, sNMF ancestry (K range) | `sNMF.k_start`, `sNMF.k_end` | PCA plots, cross-entropy, Q-matrices |
 | 3 | `structure` | Impute, climate download, piemaps | `sNMF.k_best`, `Map.*` | Piemaps, climate tables, pop stats, LD decay |
-| 4 | `pregea` | Hyperparameter exploration (LD-pruned): LFMM-K/EMMAX-#PC/RDA-Condition() ladders + spatial varpart | `PreGEA.*` | Ladder grids, RDA setup, varpart fractions, one recommendation per (method, param) |
-| 5 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
-| 6 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
-| 7 | `gea_x_gwas` | GEA + GWAS overlap analysis | `GEAxGWAS.*` | Miami plot, pairwise overlap tables |
-| 8 | `maladaptation` | Gradient Forest → genetic offset | `Maladaptation.*`, `Future.*` | Offset maps, importance plots, site scores |
+| 4 | `climate` | Predictor characterization: correlation/density, invariant-predictor detection, dbMEM + variance partitioning | `Climate.*`, `Climate.Varpart.*`, `Climate.dbMEM.*` | Correlation heatmap, density plots, dbMEM eigenvectors, varpart fractions |
+| 5 | `pregea` | Hyperparameter exploration (LD-pruned): LFMM-K / EMMAX-#PC / RDA-Condition()-PC ladders (one shared PC range) | `PreGEA.*` | Ladder grids, RDA per-model artifacts, one recommendation per (method, param) |
+| 6 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
+| 7 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
+| 8 | `gea_x_gwas` | GEA + GWAS overlap analysis | `GEAxGWAS.*` | Miami plot, pairwise overlap tables |
+| 9 | `maladaptation` | Gradient Forest → genetic offset | `Maladaptation.*`, `Future.*` | Offset maps, importance plots, site scores |
 
 > **After mode 2**: inspect the cross-entropy plot and set `sNMF.k_best` in `config.yaml` before continuing.
 
-> **Mode 4 (`pregea`) is optional but recommended** before mode 5: it sweeps LFMM-K, EMMAX-#PC, and RDA Condition()-PC on the cheap LD-pruned dataset and writes one recommended value per (method, hyperparameter), surfaced with pre-fill/Apply badges in the GEA tab's method editor — read it before committing to the expensive full-SNP `gea` run.
+> **Mode 4 (`climate`)** characterizes the environmental predictors (correlation/density curves, invariant-predictor detection) and computes the shared spatial artifacts — dbMEM eigenvectors and climate/structure/geography variance partitioning — reused by both `pregea` and the spatial Gradient Forest.
+
+> **Mode 5 (`pregea`) is optional but recommended** before mode 6: it sweeps LFMM-K, EMMAX-#PC, and RDA Condition()-PC (one shared PC range) on the cheap LD-pruned dataset and writes one recommended value per (method, hyperparameter), surfaced with pre-fill/Apply badges in the GEA tab's method editor — read it before committing to the expensive full-SNP `gea` run.
+
+> **Run `mode=climate` before requesting a spatial (or `both`) Gradient Forest** in `mode=maladaptation`: the GF spatial variant reads `climate/tables/{spatial,varpart}/` (dbMEM vectors + forward-selection mask). This ordering is no longer enforced by a config-time guard — a missing `climate` run surfaces only as a Snakemake missing-input error.
 
 > **Regionplot, GO enrichment, haplotype scanning, and haplotype visualization** are computed on-demand in the Shiny dashboard rather than as pipeline modes.
+
+### Fixed constants (PreGEA / Climate)
+
+The preGEA/climate split slimmed `PreGEA.*` from ~30 fields to ~10. The following values are now fixed in code (`workflow/rules/common.smk`) rather than exposed as config keys:
+
+| Constant | Value | Why |
+|----------|-------|-----|
+| PreGEA random seed | `42` | Reproducible ladders; no longer a `PreGEA.seed` key |
+| EMMAX/GAPIT kinship | `BN` | EMMAX and GAPIT share the one BN matrix from `emmax-kin`; the old `EMMAX.kinship` IBS alternative was never exercised |
+| PreGEA LFMM `genomic_control` | `FALSE` | Keeps λ_GC informative for K selection (GC forces λ≈1). The production run has its own switch, `GEA.configs[LFMM].params.genomic_control`, default `TRUE` |
+| LFMM/EMMAX hit-count FDR | `0.1` | Hit-count vs K/#PC is a trend read, not a threshold decision. Bonferroni is still computed into the ladder TSV but no longer plotted |
+| EMMAX minimum #PCs | `0` | `n_pcs=0` is the kinship-only reference panel at the bottom of the #PC ladder |
+| RDA minimum predictors | `2` | RDA cannot fit with fewer than 2 predictors — a hard requirement, not a preference |
+| Recommender λ tolerance | `0.15` | Width of the recommender's λ calibration band; the user reads the actual λ plot to decide |
+| Recommender deflation floor | `0.90` | Lower λ bound the recommender flags as over-correction |
+| `ordiR2step` `Pin` / `R2permutations` | `0.01` / `999` | Blanchet double-stopping-rule standard for forward selection (Climate varpart + RDA setup) |
+
+Removed switches and consolidations (no longer config keys anywhere): LFMM/EMMAX/RDA have no per-block `enabled` switches — they always run together in one `mode=pregea` pass; `Varpart` likewise has no switch (it moved into `mode=climate` and runs unconditionally). `LFMM.k_offset_low`/`k_offset_high`/`k_min` consolidated into a single `PreGEA.k_offset` (sweep = `sNMF.k_best ± k_offset`); `RDA.condition_pcs_min`/`condition_pcs_max` consolidated into the shared `PreGEA.n_pcs_max` (EMMAX #PCs and RDA Condition()-PCs now sweep the identical `0..n_pcs_max` range). `LFMM.fdr`/`bonf_alpha`, `EMMAX.fdr`/`bonf_alpha`, `EMMAX.lambda_tol`/`deflation_floor`, and `EMMAX.n_pcs_min` are dropped per the fixed values above.
 
 ### Pipeline Flow
 
@@ -94,6 +117,7 @@ flowchart TB
     classDef input fill:#FFFDE7,stroke:#F9A825,color:#333
     classDef preproc fill:#E3F2FD,stroke:#1565C0,color:#333
     classDef struct fill:#E8F5E9,stroke:#2E7D32,color:#333
+    classDef climate fill:#E0F7FA,stroke:#00838F,color:#333
     classDef pregea fill:#EDE7F6,stroke:#5E35B1,color:#333,stroke-dasharray:3 3
     classDef assoc fill:#FFF3E0,stroke:#E65100,color:#333
     classDef malad fill:#FFEBEE,stroke:#C62828,color:#333
@@ -105,15 +129,18 @@ flowchart TB
     proc["1 · processing\nFilter, LD prune, normalize"]:::preproc
     prestruct["2 · prestructure\nPCA, sNMF (K range)"]:::struct
     struct["3 · structure\nImpute, climate, piemaps"]:::struct
-    pregea["4 · pregea (optional)\nLFMM-K/EMMAX-#PC/RDA ladders + varpart"]:::pregea
-    gea["5 · gea\nGEA → regions → genes"]:::assoc
-    gwas["6 · gwas\nGWAS → regions → genes"]:::assoc
-    geaxgwas["7 · gea_x_gwas\nGEA ∩ GWAS → Miami + overlap"]:::assoc
-    malad["8 · maladaptation\nGradient Forest → offset"]:::malad
+    climate["4 · climate\nPredictor characterization + spatial varpart"]:::climate
+    pregea["5 · pregea (optional)\nLFMM-K/EMMAX-#PC/RDA ladders"]:::pregea
+    gea["6 · gea\nGEA → regions → genes"]:::assoc
+    gwas["7 · gwas\nGWAS → regions → genes"]:::assoc
+    geaxgwas["8 · gea_x_gwas\nGEA ∩ GWAS → Miami + overlap"]:::assoc
+    malad["9 · maladaptation\nGradient Forest → offset"]:::malad
 
     VCF & META & GFF --> proc --> prestruct
     prestruct -. "Set sNMF.k_best" .-> struct
+    struct -.-> climate
     struct -.-> pregea
+    climate -. "dbMEM / varpart" .-> malad
     pregea -. "Recommended hyperparameters" .-> gea
     struct --> gea & gwas
     gea --> malad
@@ -207,9 +234,6 @@ flowchart TB
     impute_ld["impute_ld\nImpute LD-pruned (sNMF Q)"]
     lfmm2vcf["lfmm2vcf_ld\nImputed LFMM → VCF"]
     dl_climate["download_climate_present\nWorldClim bioclim rasters"]
-    check_variance["check_climate_variance\nDetect invariant predictors"]
-    density["density_plot\nClimate density curves"]
-    corr_heat["correlation_heatmap\nClimate × trait correlations"]
     piemap_s["piemap_simple ×bio\nPieMaps (uniform pie size)"]
 
     tajima["tajima_d\nTajima D per population"]:::optional
@@ -226,8 +250,8 @@ flowchart TB
     impute_ld --> lfmm2vcf
     VCF_LD --> lfmm2vcf
     META --> dl_climate
-    dl_climate --> check_variance & density & corr_heat & piemap_s & piemap_t & mantel & summary
-    META --> corr_heat & tajima & pi_div & ibd_rule
+    dl_climate --> piemap_s & piemap_t & mantel & summary
+    META --> tajima & pi_div & ibd_rule
     CLUST --> piemap_s & piemap_t & ibd_rule & mantel
     VCF_FILT --> tajima & pi_div & ld_decay
     tajima & pi_div --> piemap_t
@@ -238,10 +262,49 @@ flowchart TB
 Purple nodes = optional (`Population.calc_stats: true`).
 
 **Key outputs**:
-- `climate/rasters/present/`, `climate/tables/present/`
+- `climate/rasters/present/`, `climate/tables/present/climate_present_{all,site,site_scaled}.tsv` (predictor characterization tables are produced by `mode=climate`)
 - `Structure/plots/piemap/piemap_{bio}.png/svg` + `zoom/`
 - `Structure/tables/pop_stats/tajima_d_by_pop.tsv`, `pi_diversity_by_pop.tsv`
 - `Structure/plots/ld_decay/ld_decay_genome_wide.png/svg`
+</details>
+
+<details>
+<summary><b>Climate Mode</b> — Predictor characterization and shared spatial artifacts</summary>
+
+```mermaid
+flowchart TB
+    classDef data fill:#FFFDE7,stroke:#F9A825,color:#333,stroke-dasharray:5 5
+    classDef optional fill:#F3E5F5,stroke:#9C27B0,color:#333,stroke-dasharray:3 3
+
+    CLIM_SITE[/"Climate site (present)"/]:::data
+    CLIM_SCALED[/"Climate site (scaled)"/]:::data
+    META[/"Aligned Metadata"/]:::data
+    PCA[/"PCA projections + eigenvalues"/]:::data
+    CLUST[/"Clusters (k_best)"/]:::data
+
+    check_variance["check_climate_variance\nInvariant-predictor detection"]
+    density["density_plot\nPredictor density curves"]
+    density_pheno["density_plot_phenotypes\nPhenotype density curves"]:::optional
+    corr_heat["correlation_heatmap\nPredictor × trait correlations"]
+    dbmem["climate_dbmem\nadespatial::dbmem, MST-truncated geodesic distance"]
+    varpart["climate_varpart\nclimate/structure/geography varpart + Px (Lasky et al. 2012)"]
+    summary["write_summary"]
+
+    CLIM_SITE --> check_variance & density & corr_heat
+    META --> corr_heat & density_pheno & dbmem
+    PCA & CLIM_SCALED & CLUST --> varpart
+    dbmem --> varpart
+    check_variance & corr_heat & varpart --> summary
+```
+
+Purple node = optional (`density_plot_phenotypes` needs trait columns in the metadata). The dbMEM + varpart artifacts are the shared spatial products reused by the spatial Gradient Forest (`mode=maladaptation`).
+
+**Key outputs**:
+- `climate/plots/correlation_heatmap.png`, `density_plot_present.png`, `density_plot_phenotypes.png`
+- `climate/tables/present/climate_invariant_predictors.tsv`
+- `climate/tables/spatial/dbmem_vectors.tsv`, `dbmem_diagnostics.tsv` + `climate/plots/spatial/dbmem_screeplot.png/svg`
+- `climate/tables/varpart/varpart_fractions.tsv`, `varpart_anova.tsv`, `px_per_variable.tsv`, `dbmem_selected.tsv`
+- `climate/plots/varpart/varpart_venn.png`, `varpart_fractions_bar.png`, `px_barplot.png`, `dbmem_selection_path.png`
 </details>
 
 <details>
@@ -256,7 +319,6 @@ flowchart TB
     LFMM_LD[/".lfmm (LD-pruned, imputed)"/]:::data
     CLIMATE[/"Climate (scaled)"/]:::data
     PCA[/"PCA projections + eigenvalues"/]:::data
-    CLUST[/"Clusters (k_best)"/]:::data
     META[/"Aligned Metadata"/]:::data
 
     subset["subset_vcf_pruned_climate\nLD-pruned VCF -> climate-valid subset"]
@@ -270,10 +332,8 @@ flowchart TB
     emmax_rung["emmax_rung ×n_pcs×trait\nEMMAX per #PCs (kinship held fixed)"]
     emmax_ladder["emmax_ladder\nlambda_GC, hit counts -> plot grid"]
 
-    rda_setup["rda_setup\nCollinearity screen + Condition()-PC ladder + ordiR2step path"]
-
-    dbmem["dbmem\nadespatial::dbmem, MST-truncated geodesic distance"]
-    varpart["varpart\n2-/3-table variance partition + Px (Lasky et al. 2012)"]
+    rda_setup["rda_setup\nCollinearity screen + Condition()-PC model ladder + model comparison + ordiR2step path"]
+    rda_models[/"rda/models/pc{n}/\nbiplot + axis screeplot + axis anova (per Condition()-PC)"/]:::data
 
     recommend["pregea_recommend\nOne row per (method, param): rule + evidence"]
     guard["transfer_guard\nFull-set lambda re-check at recommended hyperparameters"]:::optional
@@ -284,20 +344,18 @@ flowchart TB
     PCA --> screeplot
     kinship & tped & CLIMATE & PCA & META --> emmax_rung --> emmax_ladder
     LFMM_LD & CLIMATE --> lfmm_rung --> lfmm_ladder
-    CLIMATE & PCA & CLUST --> rda_setup
-    META --> dbmem
-    PCA & CLUST & CLIMATE & dbmem --> varpart
-    lfmm_ladder & emmax_ladder & rda_setup & varpart --> recommend
+    LFMM_LD & CLIMATE & PCA --> rda_setup --> rda_models
+    lfmm_ladder & emmax_ladder & rda_setup --> recommend
     recommend & LFMM_LD & CLIMATE & kinship & tped --> guard
-    recommend & lfmm_ladder & emmax_ladder & rda_setup & varpart --> summary
+    recommend & lfmm_ladder & emmax_ladder & rda_setup --> summary
 ```
 
 Purple node = opt-in (`PreGEA.TransferGuard.enabled: true`) — the one PreGEA rule that pulls the full-set imputation chain into this otherwise LD-pruned-only mode. `lambda_GC` is deliberately fit with `genomic_control=FALSE` for the LFMM ladder — with it on, `lfmm2.test`'s recalibration forces lambda toward 1 regardless of whether K is correct, so K selection uses p-value-histogram flatness instead.
 
 **Key outputs**:
 - `PreGEA/tables/{lfmm,emmax}/{lfmm,emmax}_ladder.tsv` + `PreGEA/plots/{lfmm,emmax}/*_histogram_grid.png`, `*_qq_grid.png`, `*_lambda_vs_*.png`, `*_hits_vs_*.png`
-- `PreGEA/tables/rda/rda_condition_ladder.tsv`, `rda_predictor_collinearity.tsv`, `rda_ordir2step_path.tsv`
-- `PreGEA/tables/varpart/varpart_fractions.tsv`, `px_per_variable.tsv`; `PreGEA/tables/spatial/dbmem_diagnostics.tsv`
+- `PreGEA/tables/rda/rda_condition_ladder.tsv`, `rda_predictor_collinearity.tsv`, `rda_ordir2step_path.tsv` + `PreGEA/plots/rda/rda_model_comparison.png`, `rda_ordir2step_path.png`
+- `PreGEA/plots/rda/models/pc{n}/biplot.png/svg`, `axis_screeplot.png/svg` + `PreGEA/tables/rda/models/pc{n}/axis_anova.tsv` — one set per Condition()-PC value, selectable in the Shiny RDA tab
 - `PreGEA/tables/pregea_recommendations.tsv` — read by the GEA tab's method editor for pre-fill/Apply badges
 - `PreGEA/tables/pregea_transfer_guard.tsv` (opt-in only)
 </details>

@@ -104,6 +104,12 @@ GEA_METHODS = {
             "K": P("int", K_BEST_SENTINEL, min=1, max=20,
                    help="Number of latent factors in lfmm2(). Default: sNMF "
                         "k_best. Read the preGEA K-ladder before overriding."),
+            "genomic_control": P("bool", True,
+                   help="lfmm2.test(genomic.control=...). Default TRUE — "
+                        "matches production behavior. PreGEA's own K-ladder "
+                        "always fits with this OFF so lambda_GC stays "
+                        "informative (docs/rda_research.md C.0); this "
+                        "switch only affects the production GEA run."),
         },
     },
     "RDA": {

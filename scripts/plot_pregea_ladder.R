@@ -39,6 +39,12 @@ dir.create(INTER_DIR, recursive = TRUE, showWarnings = FALSE)
 
 deflation_floor <- if (identical(DEFLATION_FLOOR, "NULL")) NA_real_ else as.numeric(DEFLATION_FLOOR)
 
+# Display labels — user-facing text only; ENGINE/RUNG_PARAM stay as the raw
+# wildcard values everywhere else (paths, TSV columns) so nothing downstream
+# (pregea_recommend.R, write_summary.R) needs to change.
+ENGINE_LABEL <- c(lfmm = "LFMM", emmax = "EMMAX / GAPIT")[[ENGINE]]
+RUNG_LABEL   <- c(K = "K", n_pcs = "#PCs")[[RUNG_PARAM]]
+
 stats_paths  <- strsplit(trimws(RUNG_STATS_STR), "\\s+")[[1]]
 pvals_paths  <- strsplit(trimws(PVALUES_STR), "\\s+")[[1]]
 rung_values  <- strsplit(RUNG_VALUES_STR, ",")[[1]]
@@ -78,7 +84,7 @@ pval_long <- rbindlist(pval_long_list)
 pval_long[, rung_value_num := suppressWarnings(as.numeric(rung_value))]
 pval_long <- pval_long[!is.na(pvalue)]
 
-rung_lab <- function(v) paste0(RUNG_PARAM, "=", v)
+rung_lab <- function(v) paste0(RUNG_LABEL, "=", v)
 pval_long[, rung_label := factor(rung_lab(rung_value_num), levels = rung_lab(sort(unique(rung_value_num))))]
 
 ################################################################################
@@ -88,9 +94,9 @@ g_hist <- ggplot(pval_long, aes(x = pvalue)) +
     geom_histogram(breaks = seq(0, 1, length.out = 41), fill = ADAPT_NEUTRAL, color = NA) +
     facet_grid(rung_label ~ trait) +
     labs(x = "p-value", y = "Count",
-        title = paste0(toupper(ENGINE), " candidate p-value histogram grid"),
+        title = paste0(ENGINE_LABEL, " candidate p-value histogram grid"),
         subtitle = "Read the SHAPE per panel: flat + spike near 0 is the target; not lambda") +
-    theme_adaptogene(base_size = 9)
+    theme_adaptogene_grid()
 ggsave(file.path(PLOT_DIR, paste0(ENGINE, "_pvalue_histogram_grid.png")), g_hist,
       width = 2.2 * uniqueN(pval_long$trait) + 2, height = 1.6 * uniqueN(pval_long$rung_value) + 1.5,
       dpi = 200, limitsize = FALSE)
@@ -109,8 +115,8 @@ g_qq <- ggplot(pval_long, aes(x = expected, y = observed)) +
     geom_scattermore(color = ADAPT_NEUTRAL, pointsize = 3, pixels = c(600, 600)) +
     facet_grid(rung_label ~ trait) +
     labs(x = expression(-log[10](expected)), y = expression(-log[10](observed)),
-        title = paste0(toupper(ENGINE), " QQ grid")) +
-    theme_adaptogene(base_size = 9)
+        title = paste0(ENGINE_LABEL, " QQ grid")) +
+    theme_adaptogene_grid()
 ggsave(file.path(PLOT_DIR, paste0(ENGINE, "_qq_grid.png")), g_qq,
       width = 2.2 * uniqueN(pval_long$trait) + 2, height = 1.6 * uniqueN(pval_long$rung_value) + 1.5,
       dpi = 200, limitsize = FALSE)
@@ -129,8 +135,8 @@ if (!is.na(deflation_floor)) {
 }
 g_lambda <- g_lambda +
     geom_line(color = ADAPT_NEUTRAL) + geom_point(color = ADAPT_NEUTRAL, size = 2) +
-    labs(x = RUNG_PARAM, y = expression(lambda[GC]),
-        title = paste0(toupper(ENGINE), " genomic inflation factor vs ", RUNG_PARAM)) +
+    labs(x = RUNG_LABEL, y = expression(lambda[GC]),
+        title = paste0(ENGINE_LABEL, " genomic inflation factor vs ", RUNG_LABEL)) +
     theme_adaptogene()
 ggsave(file.path(PLOT_DIR, paste0(ENGINE, "_lambda_vs_", RUNG_PARAM, ".png")), g_lambda,
       width = 7, height = 4.5, dpi = 300)
@@ -138,12 +144,18 @@ ggsave(file.path(PLOT_DIR, paste0(ENGINE, "_lambda_vs_", RUNG_PARAM, ".svg")), g
       width = 7, height = 4.5, device = svglite::svglite, bg = "transparent")
 
 ################################################################################
-# 6. hit-count-vs-rung at fixed FDR (pooled only, per C.2:315/321)
+# 6. hit-count vs K/#PCs at fixed FDR (pooled only, per C.2:315/321) — an
+# OVER-CORRECTION detector, not a power measure: read the TREND, not the
+# height. A steep DROP as K/#PCs rises means the model is absorbing real
+# signal (over-correction onset); a stable plateau means the correction is
+# doing its job. On small test datasets (e.g. SIMDATA) this line is often
+# flat at 1 hit across the whole range — the metric needs WGS-scale SNP
+# density to separate values; that is not a bug (see fct_help_notes.R).
 ################################################################################
 g_hits <- ggplot(pooled, aes(x = rung_value_num, y = hits_qval)) +
     geom_line(color = ADAPT_NEUTRAL) + geom_point(color = ADAPT_NEUTRAL, size = 2) +
-    labs(x = RUNG_PARAM, y = sprintf("Hits at FDR=%.2g", FDR),
-        title = paste0(toupper(ENGINE), " significant-hit count vs ", RUNG_PARAM)) +
+    labs(x = RUNG_LABEL, y = sprintf("Significant SNPs (FDR %.2g)", FDR),
+        title = paste0(ENGINE_LABEL, " significant-hit count vs ", RUNG_LABEL)) +
     theme_adaptogene()
 ggsave(file.path(PLOT_DIR, paste0(ENGINE, "_hits_vs_", RUNG_PARAM, ".png")), g_hits,
       width = 7, height = 4.5, dpi = 300)

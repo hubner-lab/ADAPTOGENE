@@ -64,15 +64,35 @@ adapt_cluster_palette <- function(n) {
 theme_adaptogene <- function(base_size = 11) {
     ggplot2::theme_classic(base_size = base_size) +
     ggplot2::theme(
-        plot.title      = ggplot2::element_text(size = base_size, face = "bold", color = ADAPT_COL$fg),
+        plot.title      = ggplot2::element_text(size = base_size + 2, face = "bold", color = ADAPT_COL$fg),
         plot.subtitle   = ggplot2::element_text(size = base_size - 2, color = ADAPT_COL$muted),
-        axis.title      = ggplot2::element_text(size = base_size - 1, color = ADAPT_COL$fg),
+        axis.title      = ggplot2::element_text(size = base_size, face = "bold", color = ADAPT_COL$fg),
         axis.text       = ggplot2::element_text(color = ADAPT_COL$secondary),
         axis.line       = ggplot2::element_line(color = ADAPT_COL$secondary, linewidth = 0.4),
         axis.ticks      = ggplot2::element_line(color = ADAPT_COL$secondary, linewidth = 0.4),
         legend.position = "bottom",
         legend.title    = ggplot2::element_text(size = base_size - 1, color = ADAPT_COL$fg),
         legend.text     = ggplot2::element_text(size = base_size - 2, color = ADAPT_COL$secondary)
+    )
+}
+
+#' Shared ggplot2 theme for FACETED GRIDS (PreGEA ladder histogram/QQ grids
+#' and similar multi-panel diagnostics). theme_adaptogene() alone leaves
+#' facet panels borderless on a plain white background — hard to tell where
+#' one rung/trait panel ends and the next begins. This adds a visible panel
+#' border, a shaded+bold strip label (reads as a header, not stray text), and
+#' breathing room between panels. Canvas size for these grids is already
+#' computed by the caller (e.g. plot_pregea_ladder.R's 2.2*n_traits+2 width),
+#' so bumping base_size from the old 9 to the default 11 here is safe.
+#' @noRd
+theme_adaptogene_grid <- function(base_size = 11) {
+    theme_adaptogene(base_size = base_size) +
+    ggplot2::theme(
+        panel.border     = ggplot2::element_rect(colour = ADAPT_COL$secondary, fill = NA, linewidth = 0.5),
+        axis.line        = ggplot2::element_blank(),
+        strip.background = ggplot2::element_rect(fill = "#EDF2F7", colour = ADAPT_COL$secondary),
+        strip.text       = ggplot2::element_text(face = "bold", size = base_size, color = ADAPT_COL$fg),
+        panel.spacing    = grid::unit(0.6, "lines")
     )
 }
 
@@ -85,4 +105,26 @@ scale_color_adaptogene <- function(...) {
 #' @noRd
 scale_fill_adaptogene <- function(...) {
     ggplot2::scale_fill_manual(values = ADAPT_CATEGORICAL, ...)
+}
+
+#' Save a ggplot as both PNG and SVG with one call — the pair every
+#' pipeline plot script writes. Hoisted out of pregea_varpart.R (the only
+#' script that had it) so pregea_rda_setup.R's 5 duplicated ggsave() pairs
+#' can use the same helper (CLAUDE.md: avoid redundancy aggressively).
+#' @noRd
+adapt_save_both <- function(path_stem, plot, w = 7, h = 5, dpi = 300) {
+    ggplot2::ggsave(paste0(path_stem, ".png"), plot, width = w, height = h, dpi = dpi)
+    ggplot2::ggsave(paste0(path_stem, ".svg"), plot, width = w, height = h,
+                    device = svglite::svglite, bg = "transparent")
+}
+
+#' Placeholder plot for an empty/skipped analysis state — explains WHY there
+#' is nothing to show instead of leaving a blank or (worse) a 0-byte file.
+#' Bare file.create() stubs (the old pregea_rda_setup.R pattern) produce
+#' 0-byte PNGs that render as broken images, not empty-but-informative ones.
+#' @noRd
+adapt_empty_plot <- function(msg) {
+    ggplot2::ggplot() +
+        ggplot2::annotate("text", x = 0, y = 0, label = msg, color = ADAPT_COL$muted, size = 4) +
+        ggplot2::theme_void()
 }

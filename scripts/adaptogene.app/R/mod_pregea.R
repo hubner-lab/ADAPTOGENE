@@ -1,12 +1,18 @@
 #' PreGEA tab UI
 #'
-#' Hyperparameter-exploration mode (LD-pruned only): sweeps LFMM-K,
-#' EMMAX-#PC, and RDA Condition()-PC ladders + a shared spatial
-#' variance-partitioning panel, before committing to the expensive
-#' full-SNP GEA run. Every plot here is grid-level (histogram grid, QQ
-#' grid, lambda-vs-rung, hits-vs-rung) — plot_pregea_ladder.R never emits
-#' one file per K/#PC rung, so unlike PreStructure/Structure there is no
-#' per-rung selector to build; the ladder tables carry the per-rung numbers.
+#' Focused hyperparameter-choice module: "how many K / how many PCs" for
+#' LFMM/EMMAX/GAPIT, plus RDA's Condition()-PC setup — sweeps LFMM-K,
+#' EMMAX-#PC, and RDA Condition()-PC ladders (one shared PC range for the
+#' latter two) before committing to the expensive full-SNP GEA run.
+#' Predictor characterization (correlations, densities, varpart, dbMEM) lives
+#' on the Climate tab (mod_climate.R) — see that file's header for the
+#' module-split rationale.
+#'
+#' LFMM/EMMAX plots are grid-level only (one histogram grid / QQ grid /
+#' lambda-vs-K-or-#PCs / hits-vs-K-or-#PCs PNG per engine, never one file per
+#' rung) — the ladder tables carry the per-value numbers. RDA IS per-model:
+#' one biplot/screeplot/axis-anova set per swept Condition()-PC value, picked
+#' with the selector below the model-comparison plot.
 #'
 #' @param id module namespace id
 #' @noRd
@@ -30,16 +36,6 @@ mod_pregea_ui <- function(id) {
         bslib::navset_card_tab(
             id = ns("pregea_tabs"),
 
-            bslib::nav_panel("Climate & Predictors",
-                shiny::uiOutput(ns("climate_invariant_warning")),
-                mod_image_card_ui(ns("climate_heatmap")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("climate_density")),
-                    mod_image_card_ui(ns("phenotype_density"))
-                )
-            ),
-
             bslib::nav_panel("LFMM K ladder",
                 mod_image_card_ui(ns("lfmm_screeplot")),
                 bslib::layout_column_wrap(
@@ -49,11 +45,15 @@ mod_pregea_ui <- function(id) {
                     mod_image_card_ui(ns("lfmm_lambda")),
                     mod_image_card_ui(ns("lfmm_hits"))
                 ),
-                htmltools::h6("Ladder Table", class = "mt-3"),
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mt-3",
+                    htmltools::h6("Ladder Table", class = "mb-0"),
+                    shiny::uiOutput(ns("lfmm_table_note"), inline = TRUE)
+                ),
                 DT::DTOutput(ns("lfmm_table"))
             ),
 
-            bslib::nav_panel("EMMAX #PC ladder",
+            bslib::nav_panel("EMMAX / GAPIT #PC ladder",
                 bslib::layout_column_wrap(
                     width = 1 / 2,
                     mod_image_card_ui(ns("emmax_hist")),
@@ -61,53 +61,36 @@ mod_pregea_ui <- function(id) {
                     mod_image_card_ui(ns("emmax_lambda")),
                     mod_image_card_ui(ns("emmax_hits"))
                 ),
-                htmltools::h6("Ladder Table", class = "mt-3"),
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mt-3",
+                    htmltools::h6("Ladder Table", class = "mb-0"),
+                    shiny::uiOutput(ns("emmax_table_note"), inline = TRUE)
+                ),
                 DT::DTOutput(ns("emmax_table"))
             ),
 
             bslib::nav_panel("RDA setup",
-                bslib::layout_column_wrap(
-                    width = 1 / 3,
-                    mod_image_card_ui(ns("rda_collinearity")),
-                    mod_image_card_ui(ns("rda_screeplot")),
-                    mod_image_card_ui(ns("rda_condition_ladder"))
+                mod_image_card_ui(ns("rda_comparison")),
+                htmltools::div(
+                    class = "control-bar mt-3",
+                    shiny::uiOutput(ns("rda_model_selector"))
                 ),
                 bslib::layout_column_wrap(
                     width = 1 / 2,
-                    mod_image_card_ui(ns("rda_ordir2step")),
-                    mod_image_card_ui(ns("rda_biplot"))
+                    mod_image_card_ui(ns("rda_biplot")),
+                    mod_image_card_ui(ns("rda_screeplot"))
                 ),
                 htmltools::h6("Tables", class = "mt-3"),
                 bslib::accordion(
                     open = FALSE, multiple = TRUE,
-                    bslib::accordion_panel("Condition-PC ladder",
+                    bslib::accordion_panel("Selected model — axis anova",
+                        DT::DTOutput(ns("rda_model_axis_table"))),
+                    bslib::accordion_panel("Condition-PC comparison (all models)",
                         DT::DTOutput(ns("rda_ladder_table"))),
                     bslib::accordion_panel("Predictor collinearity",
                         DT::DTOutput(ns("rda_collinearity_table"))),
                     bslib::accordion_panel("ordiR2step selection path",
                         DT::DTOutput(ns("rda_ordir2step_table")))
-                )
-            ),
-
-            bslib::nav_panel("Varpart & spatial (dbMEM)",
-                bslib::layout_column_wrap(
-                    width = 1 / 3,
-                    mod_image_card_ui(ns("dbmem_screeplot")),
-                    mod_image_card_ui(ns("dbmem_selection_path")),
-                    mod_image_card_ui(ns("varpart_venn"))
-                ),
-                mod_image_card_ui(ns("px_barplot")),
-                htmltools::h6("Tables", class = "mt-3"),
-                bslib::accordion(
-                    open = FALSE, multiple = TRUE,
-                    bslib::accordion_panel("Variance-partition fractions",
-                        DT::DTOutput(ns("varpart_fractions_table"))),
-                    bslib::accordion_panel("Testable-fraction significance",
-                        DT::DTOutput(ns("varpart_anova_table"))),
-                    bslib::accordion_panel("Px per variable",
-                        DT::DTOutput(ns("px_table"))),
-                    bslib::accordion_panel("dbMEM diagnostics",
-                        DT::DTOutput(ns("dbmem_diagnostics_table")))
                 )
             )
         ),
@@ -142,8 +125,19 @@ mod_pregea_server <- function(id, project_data) {
             tryCatch(data.table::fread(path, sep = "\t", header = TRUE),
                      error = function(e) data.table::data.table())
         }
-        render_tsv_table <- function(path) {
-            safe_datatable(as.data.frame(load_tsv_dt(path)),
+        render_tsv_table <- function(path, columns = NULL, colnames = NULL) {
+            dt <- load_tsv_dt(path)
+            if (!is.null(columns) && nrow(dt) > 0) {
+                keep <- intersect(columns, names(dt))
+                dt <- dt[, ..keep]
+                if (!is.null(colnames) && length(colnames) == length(columns)) {
+                    # Rename by matching against the ORIGINAL columns list
+                    # (not `keep`) so a column missing from this particular
+                    # TSV doesn't shift every later header off by one.
+                    names(dt) <- colnames[match(names(dt), columns)]
+                }
+            }
+            safe_datatable(as.data.frame(dt),
                            options = list(dom = "t", scrollX = TRUE, pageLength = -1),
                            rownames = FALSE)
         }
@@ -154,70 +148,19 @@ mod_pregea_server <- function(id, project_data) {
             render_tsv_table(pregea_table_path(pd$name, "", "pregea_recommendations"))
         })
 
-        # ── Climate & Predictors (display moved from Structure tab; producers
-        #    stay in structure.smk — zero DAG/path change) ─────────────────────
-        shiny::observe({
-            pd <- project_data()
-            mod_image_card_server("climate_heatmap",
-                path    = shiny::reactive(climate_heatmap_path(pd$name)),
-                title   = shiny::reactive("Climate Correlation Heatmap"),
-                dl_name = shiny::reactive("climate_heatmap"),
-                note    = shiny::reactive(help_note("climate_heatmap"))
-            )
-            mod_image_card_server("climate_density",
-                path    = shiny::reactive(climate_density_path(pd$name)),
-                title   = shiny::reactive("Climate Density (Present)"),
-                dl_name = shiny::reactive("climate_density_present"),
-                note    = shiny::reactive(help_note("climate_density"))
-            )
-            mod_image_card_server("phenotype_density",
-                path    = shiny::reactive(phenotype_density_path(pd$name)),
-                title   = shiny::reactive("Phenotype Density"),
-                dl_name = shiny::reactive("phenotype_density"),
-                note    = shiny::reactive(help_note("phenotype_density"))
-            )
-
-            # I3: Climate invariant predictors warning (moved verbatim from
-            # mod_structure.R — was nested inside its pop-stats observe(), not
-            # the climate one, despite belonging to the climate section).
-            output$climate_invariant_warning <- shiny::renderUI({
-                p <- climate_invariant_path(pd$name)
-                if (!file.exists(p)) return(NULL)
-                dt <- tryCatch(
-                    data.table::fread(p, sep = "\t", header = TRUE),
-                    error = function(e) data.table::data.table()
-                )
-                if (nrow(dt) == 0 || !"predictor" %in% names(dt)) return(NULL)
-                preds <- dt$predictor
-                items <- lapply(preds, function(pr) {
-                    reason <- if ("reason" %in% names(dt)) {
-                        r <- dt[dt$predictor == pr, ]$reason
-                        if (length(r) > 0) paste0(" — ", r[1]) else ""
-                    } else ""
-                    htmltools::tags$li(htmltools::tags$code(pr), reason)
-                })
-                htmltools::div(
-                    class = "d-flex justify-content-end mb-2",
-                    filter_note(
-                        paste0(length(preds), " excluded"),
-                        htmltools::p(
-                            htmltools::tags$strong(length(preds),
-                                if (length(preds) == 1) "climate predictor" else "climate predictors",
-                                "excluded due to zero variance at sample sites"),
-                            " — not used in GEA or Gradient Forest analyses. ",
-                            "Consider removing from ", htmltools::tags$code("Climate.predictors"), ".",
-                            htmltools::tags$ul(class = "mb-0 mt-1", items)
-                        ),
-                        class = "bg-warning text-dark"
-                    )
-                )
-            })
-        })
-
         # ── LFMM K ladder ────────────────────────────────────────────────────
+        # Ladder table trimmed to the 6 columns that actually decide K — see
+        # help_note("pregea_ladder_table") for how to read them together.
+        # Hidden (still on disk in the full TSV): engine, rung_param (constant
+        # per table), frac_p_gt_half (redundant w/ flatness), hist_spike0
+        # (already encoded in hist_shape), hits_bonf (never plotted), n_tests,
+        # rung_value_num (dcast artifact).
+        LADDER_COLS <- c("trait", "rung_value", "hist_shape", "hist_flatness_ks", "hits_qval", "lambda_gc")
+        LADDER_COLNAMES <- c("Trait", "Value", "Histogram shape", "Flatness (KS)", "Hits (FDR 0.1)", "lambda_GC")
+
         shiny::observe({
             pd <- project_data()
-            suggestion <- shiny::reactive("Enable PreGEA.LFMM.enabled and re-run PreGEA.")
+            suggestion <- shiny::reactive("Run PreGEA.")
 
             mod_image_card_server("lfmm_screeplot",
                 path       = shiny::reactive(pregea_plot_path(pd$name, "structure", "pruned_pca_screeplot")),
@@ -255,15 +198,17 @@ mod_pregea_server <- function(id, project_data) {
                 note       = shiny::reactive(help_note("pregea_lfmm_hits"))
             )
         })
+        output$lfmm_table_note <- shiny::renderUI(help_note("pregea_ladder_table"))
         output$lfmm_table <- DT::renderDataTable({
             pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "lfmm", "lfmm_ladder"))
+            render_tsv_table(pregea_table_path(pd$name, "lfmm", "lfmm_ladder"),
+                             columns = LADDER_COLS, colnames = LADDER_COLNAMES)
         })
 
-        # ── EMMAX #PC ladder ─────────────────────────────────────────────────
+        # ── EMMAX / GAPIT #PC ladder ─────────────────────────────────────────
         shiny::observe({
             pd <- project_data()
-            suggestion <- shiny::reactive("Enable PreGEA.EMMAX.enabled and re-run PreGEA.")
+            suggestion <- shiny::reactive("Run PreGEA.")
 
             mod_image_card_server("emmax_hist",
                 path       = shiny::reactive(pregea_plot_path(pd$name, "emmax", "emmax_pvalue_histogram_grid")),
@@ -294,52 +239,75 @@ mod_pregea_server <- function(id, project_data) {
                 note       = shiny::reactive(help_note("pregea_emmax_hits"))
             )
         })
+        output$emmax_table_note <- shiny::renderUI(help_note("pregea_ladder_table"))
         output$emmax_table <- DT::renderDataTable({
             pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "emmax", "emmax_ladder"))
+            render_tsv_table(pregea_table_path(pd$name, "emmax", "emmax_ladder"),
+                             columns = LADDER_COLS, colnames = LADDER_COLNAMES)
         })
 
         # ── RDA setup ────────────────────────────────────────────────────────
         shiny::observe({
             pd <- project_data()
-            suggestion <- shiny::reactive("Enable PreGEA.RDA.enabled and re-run PreGEA.")
-
-            mod_image_card_server("rda_collinearity",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_predictor_collinearity")),
-                title      = shiny::reactive("Predictor Collinearity"),
-                dl_name    = shiny::reactive("rda_predictor_collinearity"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_rda_collinearity"))
-            )
-            mod_image_card_server("rda_screeplot",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_axis_screeplot")),
-                title      = shiny::reactive("Constrained-axis Screeplot"),
-                dl_name    = shiny::reactive("rda_axis_screeplot"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_rda_screeplot"))
-            )
-            mod_image_card_server("rda_condition_ladder",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_condition_ladder")),
-                title      = shiny::reactive("Condition-PC Ladder"),
-                dl_name    = shiny::reactive("rda_condition_ladder"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_rda_condition_ladder"))
-            )
-            mod_image_card_server("rda_ordir2step",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_ordir2step_path")),
-                title      = shiny::reactive("ordiR2step Selection Path"),
-                dl_name    = shiny::reactive("rda_ordir2step_path"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_rda_ordir2step"))
-            )
-            mod_image_card_server("rda_biplot",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_biplot_best")),
-                title      = shiny::reactive("RDA Biplot (recommended rung)"),
-                dl_name    = shiny::reactive("rda_biplot_best"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_rda_biplot"))
+            mod_image_card_server("rda_comparison",
+                path       = shiny::reactive(pregea_plot_path(pd$name, "rda", "rda_model_comparison")),
+                title      = shiny::reactive("Model Comparison (all Condition()-PC values)"),
+                dl_name    = shiny::reactive("rda_model_comparison"),
+                suggestion = shiny::reactive("Run PreGEA."),
+                note       = shiny::reactive(help_note("pregea_rda_model_comparison"))
             )
         })
+
+        # Model selector — one biplot/screeplot/axis-anova set per swept
+        # Condition()-PC value (pregea_rda_setup.R writes them all in one
+        # rule's internal loop, no Snakemake fan-out — see that rule's header).
+        # Defaults to the recommended condition_pcs when available.
+        rda_selected_pc <- shiny::reactiveVal(NULL)
+        output$rda_model_selector <- shiny::renderUI({
+            pd <- project_data()
+            models <- find_rda_models(pd$name)
+            if (length(models) == 0) {
+                return(htmltools::p(class = "text-muted small mb-0",
+                    "No RDA models yet — run PreGEA."))
+            }
+            recs <- pregea_recommendations_lookup(pd$name)
+            recommended <- suppressWarnings(as.integer(recs$RDA$condition_pcs$value))
+            default_sel <- if (!is.null(rda_selected_pc()) && rda_selected_pc() %in% models) {
+                rda_selected_pc()
+            } else if (!is.na(recommended) && recommended %in% models) {
+                recommended
+            } else {
+                models[1]
+            }
+            choices <- setNames(models, paste0("Condition PCs = ", models,
+                                               ifelse(models == recommended, " (recommended)", "")))
+            shiny::selectInput(ns("rda_model_pc"), "RDA model", choices = choices, selected = default_sel, width = "300px")
+        })
+        shiny::observeEvent(input$rda_model_pc, rda_selected_pc(input$rda_model_pc), ignoreInit = TRUE)
+
+        shiny::observe({
+            pd <- project_data()
+            pc <- input$rda_model_pc
+            shiny::req(pc)
+            mod_image_card_server("rda_biplot",
+                path       = shiny::reactive(rda_model_biplot_path(pd$name, pc)),
+                title      = shiny::reactive(paste0("Site-scores Biplot (Condition PCs = ", pc, ")")),
+                dl_name    = shiny::reactive(paste0("rda_biplot_pc", pc)),
+                suggestion = shiny::reactive("Run PreGEA."),
+                note       = shiny::reactive(help_note("pregea_rda_model_biplot"))
+            )
+            mod_image_card_server("rda_screeplot",
+                path       = shiny::reactive(rda_model_screeplot_path(pd$name, pc)),
+                title      = shiny::reactive(paste0("Axis Screeplot (Condition PCs = ", pc, ")")),
+                dl_name    = shiny::reactive(paste0("rda_screeplot_pc", pc)),
+                suggestion = shiny::reactive("Run PreGEA."),
+                note       = shiny::reactive(help_note("pregea_rda_model_screeplot"))
+            )
+            output$rda_model_axis_table <- DT::renderDataTable({
+                render_tsv_table(rda_model_axis_anova_path(pd$name, pc))
+            })
+        })
+
         output$rda_ladder_table <- DT::renderDataTable({
             pd <- project_data()
             render_tsv_table(pregea_table_path(pd$name, "rda", "rda_condition_ladder"))
@@ -351,57 +319,6 @@ mod_pregea_server <- function(id, project_data) {
         output$rda_ordir2step_table <- DT::renderDataTable({
             pd <- project_data()
             render_tsv_table(pregea_table_path(pd$name, "rda", "rda_ordir2step_path"))
-        })
-
-        # ── Varpart & spatial (dbMEM) ────────────────────────────────────────
-        shiny::observe({
-            pd <- project_data()
-            suggestion <- shiny::reactive("Enable PreGEA.Varpart.enabled and re-run PreGEA.")
-
-            mod_image_card_server("dbmem_screeplot",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "spatial", "dbmem_screeplot")),
-                title      = shiny::reactive("dbMEM Screeplot"),
-                dl_name    = shiny::reactive("dbmem_screeplot"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_dbmem_screeplot"))
-            )
-            mod_image_card_server("dbmem_selection_path",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "varpart", "dbmem_selection_path")),
-                title      = shiny::reactive("dbMEM Forward-selection Path"),
-                dl_name    = shiny::reactive("dbmem_selection_path"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_dbmem_selection_path"))
-            )
-            mod_image_card_server("varpart_venn",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "varpart", "varpart_venn")),
-                title      = shiny::reactive("Variance-partition Venn"),
-                dl_name    = shiny::reactive("varpart_venn"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_varpart_venn"))
-            )
-            mod_image_card_server("px_barplot",
-                path       = shiny::reactive(pregea_plot_path(pd$name, "varpart", "px_barplot")),
-                title      = shiny::reactive("Px per Predictor (Lasky et al. 2012)"),
-                dl_name    = shiny::reactive("px_barplot"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("pregea_px_barplot"))
-            )
-        })
-        output$varpart_fractions_table <- DT::renderDataTable({
-            pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "varpart", "varpart_fractions"))
-        })
-        output$varpart_anova_table <- DT::renderDataTable({
-            pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "varpart", "varpart_anova"))
-        })
-        output$px_table <- DT::renderDataTable({
-            pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "varpart", "px_per_variable"))
-        })
-        output$dbmem_diagnostics_table <- DT::renderDataTable({
-            pd <- project_data()
-            render_tsv_table(pregea_table_path(pd$name, "spatial", "dbmem_diagnostics"))
         })
 
         # ── Transfer guard (opt-in) ──────────────────────────────────────────

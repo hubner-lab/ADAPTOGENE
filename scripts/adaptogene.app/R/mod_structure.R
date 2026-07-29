@@ -30,13 +30,13 @@ mod_structure_ui <- function(id) {
             mod_image_card_ui(ns("pca_structure_k"))
         ),
 
-        # Climate correlation/density plots moved to the PreGEA tab (display
+        # Climate correlation/density plots moved to the Climate tab (display
         # only — producers stay in structure.smk, zero DAG/path change).
         htmltools::div(
             class = "d-flex align-items-center gap-2 text-muted small mb-2",
             bsicons::bs_icon("thermometer-half"),
             "Climate correlation, density, and the invariant-predictor warning moved to the ",
-            htmltools::tags$strong("PreGEA"), " tab (Climate & Predictors panel)."
+            htmltools::tags$strong("Climate"), " tab (Predictors panel)."
         ),
 
         # LD decay, pop stats, tables in accordion

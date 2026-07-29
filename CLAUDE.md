@@ -100,9 +100,11 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
   snakemake -n -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
 ```
 
-**Pipeline modes**: `processing`, `prestructure`, `structure`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+**Pipeline modes**: `processing`, `prestructure`, `structure`, `climate`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
 
-*`pregea` (optional, added alongside RDA integration) — LD-pruned-only hyperparameter exploration: LFMM-K / EMMAX-#PC / RDA Condition()-PC ladders + shared spatial variance-partitioning (dbMEM/varpart), before committing to the expensive full-SNP `gea` run. Writes `PreGEA/tables/pregea_recommendations.tsv`, one row per (method, param); the Shiny GEA tab's method editor reads it for pre-fill/Apply badges. See `docs/rda_research.md` Part C for the design rationale.*
+*`climate` — predictor characterization: correlation heatmap, density plots, invariant-predictor detection, plus the shared spatial artifacts — dbMEM eigenvectors + climate/structure/geography variance partitioning (`climate/{plots,tables}/{spatial,varpart}/`). The dbMEM/varpart products are reused by the spatial Gradient Forest, so **run `mode=climate` before requesting a spatial (or `both`) Gradient Forest in `mode=maladaptation`** — there is no config-time guard for this ordering anymore (varpart is now unconditional inside `mode=climate`, no `enabled` switch). WorldClim download / custom-climate staging stays in `mode=structure` (climate_site feeds Structure's own piemaps); the climate/structure boundary is "predictor characterization" vs "raw data acquisition".*
+
+*`pregea` (optional, added alongside RDA integration) — LD-pruned-only hyperparameter exploration: LFMM-K / EMMAX-#PC / RDA Condition()-PC ladders, now ONE decision (LFMM/EMMAX/RDA always run together, no per-block switches). EMMAX #PCs and RDA Condition()-PCs sweep ONE shared range (`PreGEA.n_pcs_max`). Predictor characterization + dbMEM/varpart moved out to `mode=climate`. Writes `PreGEA/tables/pregea_recommendations.tsv`, one row per (method, param); the Shiny GEA tab's method editor reads it for pre-fill/Apply badges. See `docs/rda_research.md` Part C for the design rationale.*
 
 *`haplotype_scan` / `haplotype` modes removed in Phase 3 — haplotype analysis now runs interactively in the Shiny app (Region Explorer → Run Haplotype Scan / Run Haplotype Viz).*
 
@@ -159,9 +161,12 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   │   └── K{k}/                          # structure_K{k}.png, pca_structure_K{k}.png, pop_diff_K{k}.png
 │   └── tables/
 │       └── K{k}/                          # clusters_K{k}.tsv (Q-matrices)
-├── climate/
+├── climate/                               # mode=climate owns predictor characterization + spatial/varpart
 │   ├── plots/                             # density_plot_present, correlation_heatmap, density_plot_future_*
-│   ├── tables/present/                    # climate_present_all.tsv, _site.tsv, _site_scaled.tsv
+│   ├── plots/{spatial,varpart}/           # dbmem_screeplot, varpart_venn/fractions_bar, px_barplot, dbmem_selection_path
+│   ├── tables/present/                    # climate_present_all.tsv, _site.tsv, _site_scaled.tsv, climate_invariant_predictors.tsv
+│   ├── tables/spatial/                    # dbmem_vectors.tsv, dbmem_diagnostics.tsv
+│   ├── tables/varpart/                    # varpart_fractions, varpart_anova, px_per_variable, dbmem_selected, dbmem_selection_path
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
 ├── Structure/
@@ -169,9 +174,11 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
 │   ├── plots/pop_stats/                   # mantel_test, amova (optional)
 │   └── tables/pop_stats/                  # tajima_d_by_pop, pi_diversity_by_pop, ibd_*, amova
-├── PreGEA/                                # optional, mode=pregea — grid-level plots only, no per-rung files
-│   ├── plots/{structure,lfmm,emmax,rda,spatial,varpart,transfer}/
-│   ├── tables/{structure,lfmm,emmax,rda,spatial,varpart}/
+├── PreGEA/                                # optional, mode=pregea — grid-level plots only, no per-rung files (EXCEPT RDA per-model artifacts below)
+│   ├── plots/{structure,lfmm,emmax,rda,transfer}/
+│   ├── plots/rda/models/pc{n}/            # per-Condition()-PC: biplot.png/svg, axis_screeplot.png/svg (Shiny RDA tab selector)
+│   ├── tables/{structure,lfmm,emmax,rda}/
+│   ├── tables/rda/models/pc{n}/           # per-Condition()-PC: axis_anova.tsv
 │   ├── tables/pregea_recommendations.tsv  # one row per (method, param); read by GEA tab's method editor
 │   └── tables/pregea_transfer_guard.tsv   # opt-in (PreGEA.TransferGuard.enabled)
 ├── GEA/
@@ -205,7 +212,9 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 
 ### Workflow Dependencies
 
-**Pipeline flow**: Processing → PreStructure → Structure → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
+**Pipeline flow**: Processing → PreStructure → Structure → Climate → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
+
+(Climate and PreGEA are both siblings off Structure — neither is a hard input to the other; the spatial Gradient Forest in Maladaptation depends on Climate's dbMEM/varpart outputs.)
 
 Each mode is run separately via `--config mode=<MODE>`.
 

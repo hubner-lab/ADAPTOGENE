@@ -218,13 +218,14 @@ if "LFMM" in GEA_OTHER_CONFIGS:
             trait = r"bio_\d+"
         params:
             k = K_BEST,
+            gc = "TRUE" if GEA_PARAMS.get('LFMM', {}).get('genomic_control', True) else "FALSE",
         log: f"{LOGDIR}gea/assoc_lfmm_{{trait}}.log"
         shell:
             """
             Rscript /pipeline/scripts/lfmm.R \
                 {input.lfmm_ld} {input.lfmm_full} {input.climate} \
                 {params.k} {wildcards.trait} {input.vcfsnp} \
-                {output} > {log} 2>&1
+                {output} {params.gc} > {log} 2>&1
             """
 
     rule assoc_lfmm_gea_assemble:

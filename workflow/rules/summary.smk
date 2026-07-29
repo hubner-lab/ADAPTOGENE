@@ -63,37 +63,47 @@ elif MODE == 'prestructure':
 elif MODE == 'pregea':
     rule write_summary:
         """Write pregea mode summary. A mode cannot complete without
-        W['summary_done'], so this is what makes 'pregea' a real mode."""
+        W['summary_done'], so this is what makes 'pregea' a real mode.
+        Varpart/dbMEM metrics moved to the 'climate' mode summary branch
+        below (module split — PreGEA no longer produces those artifacts)."""
         input:
-            recs       = O['pregea_recommendations'],
-            lfmm       = O['pregea_lfmm_ladder']  if PREGEA_LFMM_ENABLED  else [],
-            emmax      = O['pregea_emmax_ladder'] if PREGEA_EMMAX_ENABLED else [],
-            rda        = O['pregea_rda_ladder']   if PREGEA_RDA_ENABLED   else [],
-            collin     = O['pregea_rda_collin']   if PREGEA_RDA_ENABLED   else [],
-            dbmem_diag = O['pregea_dbmem_diag']   if PREGEA_VP_ENABLED    else [],
-            varpart    = O['pregea_vp_fractions'] if PREGEA_VP_ENABLED    else [],
-            px         = O['pregea_vp_px']        if PREGEA_VP_ENABLED    else [],
-            guard      = O['pregea_transfer_guard'] if PREGEA_TRANSFER_GUARD else [],
+            recs   = O['pregea_recommendations'],
+            lfmm   = O['pregea_lfmm_ladder'],
+            emmax  = O['pregea_emmax_ladder'],
+            rda    = O['pregea_rda_ladder'],
+            collin = O['pregea_rda_collin'],
+            guard  = O['pregea_transfer_guard'] if PREGEA_TRANSFER_GUARD else [],
         output: W['summary_done']
         params:
             summary_tsv = O['summary'],
-            recs_p    = O['pregea_recommendations'],
-            lfmm_p    = O['pregea_lfmm_ladder']    if PREGEA_LFMM_ENABLED  else 'NULL',
-            emmax_p   = O['pregea_emmax_ladder']   if PREGEA_EMMAX_ENABLED else 'NULL',
-            rda_p     = O['pregea_rda_ladder']     if PREGEA_RDA_ENABLED   else 'NULL',
-            collin_p  = O['pregea_rda_collin']     if PREGEA_RDA_ENABLED   else 'NULL',
-            dbmem_p   = O['pregea_dbmem_diag']     if PREGEA_VP_ENABLED    else 'NULL',
-            varpart_p = O['pregea_vp_fractions']   if PREGEA_VP_ENABLED    else 'NULL',
-            px_p      = O['pregea_vp_px']          if PREGEA_VP_ENABLED    else 'NULL',
-            guard_p   = O['pregea_transfer_guard'] if PREGEA_TRANSFER_GUARD else 'NULL',
+            guard_p     = O['pregea_transfer_guard'] if PREGEA_TRANSFER_GUARD else 'NULL',
         log: f"{LOGDIR}pregea/write_summary.log"
         shell:
             """
             Rscript /pipeline/scripts/write_summary.R \
                 pregea {params.summary_tsv} \
-                {params.recs_p} {params.lfmm_p} {params.emmax_p} {params.rda_p} \
-                {params.collin_p} {params.dbmem_p} {params.varpart_p} {params.px_p} \
-                {params.guard_p} > {log} 2>&1
+                {input.recs} {input.lfmm} {input.emmax} {input.rda} \
+                {input.collin} {params.guard_p} > {log} 2>&1
+            touch {output}
+            """
+
+elif MODE == 'climate':
+    rule write_summary:
+        """Write climate mode summary. A mode cannot complete without
+        W['summary_done'], so this is what makes 'climate' a real mode."""
+        input:
+            invariant = O['climate_invariant'],
+            dbmem_diag = O['climate_dbmem_diag'],
+            varpart    = O['climate_vp_fractions'],
+            px         = O['climate_vp_px'],
+        output: W['summary_done']
+        params: summary_tsv = O['summary']
+        log: f"{LOGDIR}climate/write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                climate {params.summary_tsv} \
+                {input.invariant} {input.dbmem_diag} {input.varpart} {input.px} > {log} 2>&1
             touch {output}
             """
 

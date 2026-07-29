@@ -8,7 +8,7 @@ library(stringr)
 
 args = commandArgs(trailingOnly=TRUE)
 ################
-MODE = args[1]           # Pipeline mode: processing, prestructure, structure, gea, gwas, gea_x_gwas, maladaptation
+MODE = args[1]           # Pipeline mode: processing, prestructure, climate, pregea, structure, gea, gwas, gea_x_gwas, maladaptation
 OUTPUT = args[2]         # Pipeline_summary.tsv path
 # Remaining args are mode-specific input files
 ################
@@ -180,18 +180,21 @@ if (MODE == 'processing') {
     )
 
 } else if (MODE == 'pregea') {
-    # args: MODE OUTPUT recs_path lfmm_path emmax_path rda_path collin_path
-    #       dbmem_diag_path varpart_path px_path guard_path
-    # Every path may be the literal string 'NULL' when that block was disabled.
+    # args: MODE OUTPUT recs_path lfmm_path emmax_path rda_path collin_path guard_path
+    # varpart/dbMEM metrics moved to the 'climate' branch below (module split —
+    # PreGEA no longer produces those artifacts). guard_path may be 'NULL'
+    # when PreGEA.TransferGuard.enabled is off.
     RECS_PATH    = args[3]
     LFMM_PATH    = args[4]
     EMMAX_PATH   = args[5]
     RDA_PATH     = args[6]
     COLLIN_PATH  = args[7]
-    DBMEM_PATH   = args[8]
-    VARPART_PATH = args[9]
-    PX_PATH      = args[10]
-    GUARD_PATH   = args[11]
+    GUARD_PATH   = args[8]
+    # DEFLATION_FLOOR mirrors PreGEA's fixed constant (common.smk PREGEA_DEFLATION_FLOOR,
+    # not user-configurable) — a rung counts as "deflated" only below the floor
+    # the recommender itself uses, not against a raw lambda_gc < 1 cutoff (that
+    # flagged even the recommended EMMAX rung, e.g. lambda_gc=0.93 > 0.90 floor).
+    DEFLATION_FLOOR = 0.90
 
     read_opt <- function(path) if (identical(path, 'NULL') || !file.exists(path)) NULL else fread(path, sep = '\t', header = TRUE)
 
@@ -223,7 +226,7 @@ if (MODE == 'processing') {
         add('EMMAX_n_pcs_range', paste(sort(unique(pooled$rung_value_num)), collapse = ','))
         z <- pooled[rung_value_num == 0]
         if (nrow(z) > 0) add('EMMAX_lambda_at_zero_pcs', z$lambda_gc[1])
-        add('EMMAX_n_rungs_deflated', sum(pooled$lambda_gc < 1, na.rm = TRUE))
+        add('EMMAX_n_rungs_deflated', sum(pooled$lambda_gc < DEFLATION_FLOOR, na.rm = TRUE))
     }
 
     rda <- read_opt(RDA_PATH)
@@ -237,6 +240,30 @@ if (MODE == 'processing') {
         add('RDA_predictors_retained', sum(collin$action == 'kept'))
         add('RDA_predictors_dropped_collinear', sum(collin$action == 'dropped'))
     }
+
+    guard <- read_opt(GUARD_PATH)
+    if (!is.null(guard) && nrow(guard) > 0) {
+        add('transfer_guard_status', 'ok')
+    } else {
+        add('transfer_guard_status', 'disabled')
+    }
+
+    new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())
+
+} else if (MODE == 'climate') {
+    # args: MODE OUTPUT invariant_path dbmem_diag_path varpart_path px_path
+    INVARIANT_PATH = args[3]
+    DBMEM_PATH     = args[4]
+    VARPART_PATH   = args[5]
+    PX_PATH        = args[6]
+
+    read_opt <- function(path) if (identical(path, 'NULL') || !file.exists(path)) NULL else fread(path, sep = '\t', header = TRUE)
+
+    new_rows <- list()
+    add <- function(metric, value) new_rows[[length(new_rows) + 1]] <<- row('climate', metric, value)
+
+    invariant <- read_opt(INVARIANT_PATH)
+    if (!is.null(invariant)) add('n_invariant_predictors', nrow(invariant))
 
     dbmem <- read_opt(DBMEM_PATH)
     if (!is.null(dbmem)) {
@@ -261,13 +288,6 @@ if (MODE == 'processing') {
         top <- px[order(-Px)][1]
         add('Px_top_variable', top$variable)
         add('Px_top_value', top$Px)
-    }
-
-    guard <- read_opt(GUARD_PATH)
-    if (!is.null(guard) && nrow(guard) > 0) {
-        add('transfer_guard_status', 'ok')
-    } else {
-        add('transfer_guard_status', 'disabled')
     }
 
     new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())

@@ -50,19 +50,22 @@ RESPONSE_MAX_PCS <- as.integer(args[11])
 RESPONSE_MIN_PCS <- as.integer(args[12])
 LFMM_PRUNED      <- args[13]                 # "NULL" when RESPONSE="pcs"
 ORDIR2STEP_PIN   <- as.numeric(args[14])
-R2_PERMUTATIONS  <- as.numeric(args[15])
-SEL_PERMUTATIONS <- as.numeric(args[16])
-VARPART_PERMS    <- as.numeric(args[17])
-CONFOUND_FLAG    <- toupper(args[18]) == "TRUE"
-SEED             <- as.numeric(args[19])
-OUT_SELECTION_TSV<- args[20]
-OUT_SELECTED_TSV <- args[21]
-OUT_FRACTIONS_TSV<- args[22]
-OUT_ANOVA_TSV    <- args[23]
-OUT_PX_TSV       <- args[24]
-PLOT_DIR         <- args[25]
-INTER_DIR        <- args[26]
+R2_PERMUTATIONS  <- as.numeric(args[15])     # ordiR2step's internal R2permutations (fixed constant, Climate.Varpart layer)
+VARPART_PERMS    <- as.numeric(args[16])     # the one surviving Varpart permutations knob (varpart anova test)
+CONFOUND_FLAG    <- toupper(args[17]) == "TRUE"
+SEED             <- as.numeric(args[18])
+OUT_SELECTION_TSV<- args[19]
+OUT_SELECTED_TSV <- args[20]
+OUT_FRACTIONS_TSV<- args[21]
+OUT_ANOVA_TSV    <- args[22]
+OUT_PX_TSV       <- args[23]
+PLOT_DIR         <- args[24]
+INTER_DIR        <- args[25]
 ################################################################################
+# NOTE: SEL_PERMUTATIONS (old arg 16, "ordir2step_permutations" config key) was
+# dropped here — it was assigned but never referenced (ordiR2step's own
+# R2permutations control comes from R2_PERMUTATIONS above, arg 15). Removed
+# together with the config key (module split cleanup) rather than left dead.
 
 for (d in c(dirname(OUT_SELECTION_TSV), PLOT_DIR, INTER_DIR)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
@@ -319,12 +322,11 @@ message("INFO: Wrote varpart fractions (", nrow(fractions_dt), " rows, status=",
 #    (Rule 6 does not apply). No on-plot commentary (Rule 8) — the
 #    "shared can be negative / untestable" caveat lives in the Shiny note.
 ################################################################################
-save_both <- function(name, g, w = 7, h = 5) {
-    ggsave(file.path(PLOT_DIR, paste0(name, ".png")), g, width = w, height = h, dpi = 300)
-    ggsave(file.path(PLOT_DIR, paste0(name, ".svg")), g, width = w, height = h,
-          device = svglite::svglite, bg = "transparent")
-}
-empty_plot <- function(msg) ggplot() + annotate("text", x = 0, y = 0, label = msg) + theme_void()
+# save_both()/empty_plot() now thin wrappers over the shared
+# adapt_save_both()/adapt_empty_plot() helpers (theme_adaptogene.R) — hoisted
+# there so pregea_rda_setup.R's duplicated ggsave() pairs can reuse them too.
+save_both <- function(name, g, w = 7, h = 5) adapt_save_both(file.path(PLOT_DIR, name), g, w, h)
+empty_plot <- adapt_empty_plot
 
 if (nrow(selection_dt) > 0) {
     g_path <- ggplot(selection_dt, aes(x = step, y = r2_adj_cumulative)) +

@@ -92,6 +92,7 @@ tab_to_mode <- function(tab) {
     switch(tab,
         processing    = "processing",
         prestructure  = "prestructure",
+        climate       = "climate",
         pregea        = "pregea",
         structure     = "structure",
         gea           = "gea",

@@ -98,46 +98,6 @@ else:
                 {output.raster} {output.all_vals} {output.site} {output.site_scaled} > {log} 2>&1
             """
 
-rule check_climate_variance:
-    """Detect invariant (zero-variance or all-NA) bioclimatic predictors at sample sites."""
-    input:  site = O['climate_site']
-    output: O['climate_invariant']
-    log:    f"{LOGDIR}structure/check_climate_variance.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/check_climate_variance.R \
-            {input.site} {output} > {log} 2>&1
-        """
-
-rule density_plot:
-    """Generate combined density plot for all climate predictors (all BIO columns)."""
-    input:  climate = O['climate_site']
-    output: DENSITY_PLOT_COMBINED
-    params:
-        predictors = "all",
-        inter_dir = INTER
-    log:    f"{LOGDIR}structure/density_plot.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_density.R \
-            {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
-        """
-
-if META_HAS_PHENO:
-    rule density_plot_phenotypes:
-        """Generate combined density plot for phenotype traits (metadata columns 5+)."""
-        input:  meta = O['metadata']
-        output: DENSITY_PLOT_PHENOTYPES
-        params:
-            predictors = "all",
-            inter_dir = INTER
-        log:    f"{LOGDIR}structure/density_plot_phenotypes.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/plot_density.R \
-                {input.meta} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
-            """
-
 rule tajima_d:
     """Calculate Tajima's D per population."""
     input:  vcf = W['vcf_filt'], meta = O['metadata']
@@ -178,23 +138,6 @@ rule ibd:
         """
         Rscript /pipeline/scripts/ibd.R \
             {input.clusters} {input.meta} {threads} {params.tables_dir} > {log} 2>&1
-        """
-
-rule correlation_heatmap:
-    """Generate correlation heatmap of climate variables and traits.
-    Uses metadata_climate_valid.tsv (climate-valid samples) -- plot_correlation_heatmap.R
-    cbind()s climate values to trait columns positionally, so meta must have the same row
-    count/order as climate (bonus fix: was O['metadata'], the full cohort, which silently
-    misaligned whenever any sample had missing coordinates -- a pre-existing bug independent
-    of the climate-NA warn-and-exclude feature this rule is now consistent with)."""
-    input:  climate = O['climate_site'], meta = W['metadata_climate_valid']
-    output: O['corr_heatmap']
-    params: inter_dir = INTER
-    log:    f"{LOGDIR}structure/correlation_heatmap.log"
-    shell:
-        """
-        Rscript /pipeline/scripts/plot_correlation_heatmap.R \
-            {input.climate} {input.meta} {output} {params.inter_dir} > {log} 2>&1
         """
 
 rule mantel_test:

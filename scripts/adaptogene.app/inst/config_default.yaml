@@ -55,11 +55,22 @@ Map:
   zoom_extent: "NULL"              # Optional zoom: "xmin,xmax,ymin,ymax" or "NULL"
 
 #-----------------------------------------------------------------------------
-# CLIMATE: Bioclimatic variables
+# CLIMATE: Bioclimatic variables + predictor characterization (mode=climate)
 #-----------------------------------------------------------------------------
 Climate:
   enabled: true                    # Set false to skip all climate-dependent analyses
   predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
+  Varpart:
+    response: pcs                  # 'pcs' (documented scalability adaptation) | 'snps'
+    response_var_cutoff: 0.8       # cumulative variance of LEA PCs retained as Y
+    response_max_pcs: 20
+    response_min_pcs: 2            # floor so varpart always has a multivariate Y
+    structure_table: qmatrix       # 'qmatrix' (sNMF Q at k_best, last column dropped) | 'none'
+    confounding_flag: yes          # auto-flag when shared > max(unique) fraction
+    permutations: 199              # anova.cca permutations per testable fraction (production default 999)
+  dbMEM:
+    spatial_level: auto            # auto | site | sample
+    min_sites: 6                   # below this -> dbMEM writes a skip record, no crash
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS
@@ -106,51 +117,23 @@ GEA:
 
 #-----------------------------------------------------------------------------
 # PREGEA: GEA hyperparameter exploration (mode=pregea, LD-pruned dataset only)
+# Focused module: "how many K / how many PCs". Predictor characterization
+# lives under Climate above. Fixed constants (not configurable — see
+# README "Fixed constants"): seed=42, LFMM/EMMAX/RDA always run together,
+# kinship=BN always (GAPIT uses the same matrix), genomic_control=FALSE
+# always in PreGEA (GEA.configs[LFMM].params.genomic_control is the only
+# place this toggles), FDR=0.1, RDA.min_predictors=2, lambda_tol=0.15,
+# deflation_floor=0.90, ordiR2step's Pin/R2permutations.
 #-----------------------------------------------------------------------------
 PreGEA:
-  seed: 42
-  LFMM:
-    enabled: yes
-    k_offset_low: -1          # K sweep = [k_best + low, k_best + high]
-    k_offset_high: 2
-    k_min: 1                  # hard floor (lfmm2 requires K >= 1)
-    predictors: auto          # 'auto' = Climate.predictors; or a comma-separated subset
-    genomic_control: no       # FALSE so lambda IS informative; the production GEA run uses TRUE
-    fdr: 0.1                  # hit-count-vs-K panel (qvalue)
-    bonf_alpha: 0.05          # second hit-count series
-  EMMAX:
-    enabled: yes
-    n_pcs_min: 0               # 0 = kinship-only reference panel
-    n_pcs_max: 10
-    kinship: BN                # BN | IBS (matches GEA.EMMAX.kinship semantics)
-    predictors: auto
-    fdr: 0.1
-    bonf_alpha: 0.05
-    lambda_tol: 0.15           # |lambda-1| tolerance for the "knee" recommendation
-    deflation_floor: 0.90      # reference line; lambda below this = over-correction flag
-  RDA:
-    enabled: yes
-    condition_pcs_min: 0
-    condition_pcs_max: 6
-    collinearity_r: 0.7        # |r| pre-screen
-    vif_max: 10.0               # post-fit vif.cca cutoff
-    min_predictors: 2          # never pre-screen below this (RDA + covRob both need >=2)
-    axis_alpha: 0.05
-    permutations: 999
-  Varpart:
-    enabled: yes
-    response: pcs               # 'pcs' = documented scalability adaptation | 'snps'
-    response_var_cutoff: 0.8    # cumulative variance of LEA PCs retained as Y
-    response_max_pcs: 20
-    response_min_pcs: 2         # floor so varpart always has a multivariate Y
-    structure_table: qmatrix    # 'qmatrix' (sNMF Q at k_best, last column dropped) | 'none'
-    spatial_level: auto         # auto | site | sample
-    min_sites: 6                 # below this -> dbMEM writes a skip record, no crash
-    ordir2step_pin: 0.01         # Blanchet double stopping rule
-    ordir2step_permutations: 999
-    r2_permutations: 1000        # Peres-Neto et al. 2006 R2permutations
-    varpart_permutations: 999    # anova.cca per testable fraction
-    confounding_flag: yes       # auto-flag when shared > max(unique) fraction
+  predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"  # falls back to Climate.predictors when unset
+  k_offset: 2                # LFMM K sweep = sNMF.k_best +/- this
+  n_pcs_max: 10               # shared ceiling: EMMAX/GAPIT #PCs AND RDA Condition() PCs, both 0..this
+  Advanced:
+    collinearity_r: 0.7       # |r| pre-screen before the RDA fit
+    vif_max: 10.0             # post-fit vif.cca cutoff (real gate, see rda_setup)
+    axis_alpha: 0.05          # RDA constrained-axis significance
+    permutations: 999         # anova.cca permutations
   TransferGuard:
     enabled: no                 # OFF by default: pulls the FULL-set imputation chain into a pruned-only mode
     lfmm_k: auto                # 'auto' resolves from pregea_recommendations.tsv inside the script

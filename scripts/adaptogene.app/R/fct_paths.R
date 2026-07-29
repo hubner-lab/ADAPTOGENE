@@ -391,13 +391,17 @@ ld_decay_table_path <- function(project) {
 }
 
 # ─── PreGEA (hyperparameter-exploration mode) ─────────────────────────────────
-# Every artifact is grid-level only — plot_pregea_ladder.R emits one histogram
-# grid / QQ grid / lambda-vs-rung / hits-vs-rung PNG per engine, never one file
-# per K or #PC rung — so unlike PreStructure/Structure there is no per-rung
-# selector to build; the ladder tables (below) carry the per-rung numbers.
-# Two generic helpers (not one function per artifact, unlike the rest of this
-# file) because every PreGEA output is a uniform {subdir}/{stem}.{ext} — see
-# mod_pregea.R for the concrete subdir/stem values actually used.
+# LFMM/EMMAX artifacts are grid-level only — plot_pregea_ladder.R emits one
+# histogram grid / QQ grid / lambda-vs-K/#PCs / hits-vs-K/#PCs PNG per engine,
+# never one file per K or #PC rung — so there is no per-rung selector for
+# those two ladders; the ladder tables (below) carry the per-rung numbers.
+# EXCEPTION: RDA IS per-model (one biplot/screeplot/axis-anova set per swept
+# condition_pcs value, see rda_model_*_path() above) — the Shiny RDA panel
+# selects between them (module-split follow-up: predictor characterization
+# moved to the Climate tab, and RDA's model comparison gained per-rung detail).
+# Two generic helpers below (not one function per artifact, unlike the rest of
+# this file) because every other PreGEA output is a uniform {subdir}/{stem}.{ext}
+# — see mod_pregea.R for the concrete subdir/stem values actually used.
 
 #' Generic PreGEA plot path: PreGEA/plots/{subdir}/{stem}.png
 #' @noRd
@@ -411,6 +415,40 @@ pregea_plot_path <- function(project, subdir, stem) {
 pregea_table_path <- function(project, subdir, stem) {
     if (nzchar(subdir)) mod_path(project, MOD_PREGEA, "tables", subdir, paste0(stem, ".tsv"))
     else mod_path(project, MOD_PREGEA, "tables", paste0(stem, ".tsv"))
+}
+
+#' RDA per-model artifact paths — one set per condition_pcs value the PreGEA
+#' RDA ladder swept (pregea_rda_setup.R writes these inside one rule's
+#' internal loop, not a Snakemake fan-out — see that rule's header). Mirrors
+#' common.smk's rda_model_biplot()/rda_model_screeplot()/rda_model_axis_anova()
+#' Python helpers exactly: PreGEA/{plots,tables}/rda/models/pc{n}/...
+#' @noRd
+rda_model_biplot_path <- function(project, n) {
+    mod_path(project, MOD_PREGEA, "plots", "rda", "models", paste0("pc", n), "biplot.png")
+}
+rda_model_screeplot_path <- function(project, n) {
+    mod_path(project, MOD_PREGEA, "plots", "rda", "models", paste0("pc", n), "axis_screeplot.png")
+}
+rda_model_axis_anova_path <- function(project, n) {
+    mod_path(project, MOD_PREGEA, "tables", "rda", "models", paste0("pc", n), "axis_anova.tsv")
+}
+
+# ─── Climate (predictor characterization + spatial/varpart — mode=climate) ───
+# Two generic helpers, same convention as pregea_plot_path()/pregea_table_path()
+# above — every Climate output is a uniform {subdir}/{stem}.{ext}.
+
+#' Generic Climate plot path: climate/plots/{subdir}/{stem}.png
+#' subdir = "" resolves to climate/plots/{stem}.png (correlation_heatmap, density plots)
+#' @noRd
+climate_plot_path <- function(project, subdir, stem) {
+    if (nzchar(subdir)) mod_path(project, MOD_CLIMATE, "plots", subdir, paste0(stem, ".png"))
+    else mod_path(project, MOD_CLIMATE, "plots", paste0(stem, ".png"))
+}
+
+#' Generic Climate table path: climate/tables/{subdir}/{stem}.tsv
+#' @noRd
+climate_table_path <- function(project, subdir, stem) {
+    mod_path(project, MOD_CLIMATE, "tables", subdir, paste0(stem, ".tsv"))
 }
 
 # ─── Maladaptation ───────────────────────────────────────────────────────────

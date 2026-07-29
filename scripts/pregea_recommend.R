@@ -17,17 +17,20 @@ suppressPackageStartupMessages(library(data.table))
 
 args <- commandArgs(trailingOnly = TRUE)
 ################################################################################
-LFMM_LADDER_TSV  <- args[1]                  # "NULL" if block off
+LFMM_LADDER_TSV  <- args[1]
 EMMAX_LADDER_TSV <- args[2]
 RDA_LADDER_TSV   <- args[3]
 RDA_COLLIN_TSV   <- args[4]
-RDA_AXIS_TSV     <- args[5]
-VARPART_FRACTIONS<- args[6]
-K_BEST           <- args[7]
-LAMBDA_TOL       <- as.numeric(args[8])
-DEFLATION_FLOOR  <- as.numeric(args[9])
-OUT_TSV          <- args[10]
+RDA_AXIS_TSV     <- args[5]                  # per-axis-per-rung detail table (condition_pcs, axis, axis_eig, axis_p)
+K_BEST           <- args[6]
+LAMBDA_TOL       <- as.numeric(args[7])
+DEFLATION_FLOOR  <- as.numeric(args[8])
+VIF_MAX          <- as.numeric(args[9])      # real config value now (was hardcoded 10.0 below)
+AXIS_ALPHA       <- as.numeric(args[10])     # real config value now (was hardcoded 0.05 below)
+OUT_TSV          <- args[11]
 ################################################################################
+# VARPART_FRACTIONS (old arg 6) dropped — varpart moved to the climate module
+# in the split; the recommender must not depend on a climate-mode artifact.
 
 dir.create(dirname(OUT_TSV), recursive = TRUE, showWarnings = FALSE)
 
@@ -104,15 +107,15 @@ if (!is.null(emmax)) {
 # n_aliased==0, anova_full_p<axis_alpha, R2adj within 1 SE of ladder max.
 ################################################################################
 rda_ladder <- read_or_null(RDA_LADDER_TSV)
-vif_max_default <- 10.0; axis_alpha_default <- 0.05   # mirror registry defaults (workflow/methods/gea.py RDA params)
+rda_axis   <- read_or_null(RDA_AXIS_TSV)
 if (!is.null(rda_ladder)) {
     ok_rows <- rda_ladder[status == "ok"]
     if (nrow(ok_rows) > 0) {
         r2_sd <- stats::sd(ok_rows$r2_adj, na.rm = TRUE)
         r2_max <- max(ok_rows$r2_adj, na.rm = TRUE)
         se <- if (is.na(r2_sd) || nrow(ok_rows) < 2) 0 else r2_sd / sqrt(nrow(ok_rows))
-        qualifying <- ok_rows[max_vif < vif_max_default & n_aliased == 0 &
-                              !is.na(anova_full_p) & anova_full_p < axis_alpha_default &
+        qualifying <- ok_rows[max_vif < VIF_MAX & n_aliased == 0 &
+                              !is.na(anova_full_p) & anova_full_p < AXIS_ALPHA &
                               r2_adj >= r2_max - se]
         if (nrow(qualifying) == 0) qualifying <- ok_rows[order(-r2_adj)][1]
         qualifying <- qualifying[order(condition_pcs)]
@@ -122,12 +125,21 @@ if (!is.null(rda_ladder)) {
                "r2_adj", best$r2_adj,
                alternatives = paste(ok_rows$condition_pcs, collapse = ","),
                ladder_table = "PreGEA/tables/rda/rda_condition_ladder.tsv",
-               ladder_plot = "PreGEA/plots/rda/rda_condition_ladder.png")
+               ladder_plot = "PreGEA/plots/rda/rda_model_comparison.png")
+        # axis_p_str: per-axis p-values at the recommended rung, from the
+        # detailed axis table (RDA_AXIS_TSV) — richer evidence than just the
+        # n_axes_sig count already carried by the ladder table itself.
+        axis_p_str <- ""
+        if (!is.null(rda_axis)) {
+            rows_here <- rda_axis[condition_pcs == best$condition_pcs][order(axis)]
+            if (nrow(rows_here) > 0) axis_p_str <- paste(sprintf("%.4g", rows_here$axis_p), collapse = ",")
+        }
         add_rec("RDA", "axes", max(2, best$n_axes_sig), "int", "n_axes_sig at the recommended condition_pcs rung, floored at 2",
                "n_axes_sig", best$n_axes_sig,
-               ladder_table = "PreGEA/tables/rda/rda_axis_anova.tsv",
-               ladder_plot = "PreGEA/plots/rda/rda_axis_screeplot.png",
-               note = "floored at 2 -- covRob's pairwiseGK estimator needs >= 2 loading columns (verified empirically in rda.R).")
+               alternatives = axis_p_str,
+               ladder_table = sprintf("PreGEA/tables/rda/models/pc%d/axis_anova.tsv", best$condition_pcs),
+               ladder_plot = sprintf("PreGEA/plots/rda/models/pc%d/axis_screeplot.png", best$condition_pcs),
+               note = "floored at 2 -- covRob's pairwiseGK estimator needs >= 2 loading columns (verified empirically in rda.R). alternatives column holds the per-axis p-values at this rung.")
     }
 }
 

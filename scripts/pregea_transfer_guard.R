@@ -33,7 +33,9 @@ CLIMATE         <- args[4]
 PREDICTORS      <- args[5]
 LFMM_K_ARG      <- args[6]                   # "auto" or int
 RECOMMENDATIONS <- args[7]
-EMMAX_VCF_PRUNED       <- args[8]            # "NULL" when PreGEA.EMMAX.enabled is off
+EMMAX_VCF_PRUNED       <- args[8]            # always a real path now (PreGEA runs LFMM+EMMAX+RDA
+                                              # together, no per-block enabled switch) — the "NULL"
+                                              # skip branch below is a vestigial safety net
 EMMAX_TPED_PREFIX_PRUNED <- args[9]
 EMMAX_KINSHIP_PRUNED   <- args[10]
 EMMAX_VCF_FULL         <- args[11]           # "NULL" when EMMAX not in GEA.configs
@@ -114,11 +116,11 @@ add_row("LFMM", "K", lfmm_k, "full", "lambda_gc", lambda_full, delta_lfmm, verdi
 message("INFO: LFMM lambda pruned=", round(lambda_pruned, 3), " full=", round(lambda_full, 3), " verdict=", verdict_lfmm)
 
 ################################################################################
-# EMMAX — pruned vs full lambda at the recommended #PCs. The two arms are
-# independently gated: pruned needs PreGEA.EMMAX.enabled (Block 0's own
-# LD-pruned TPED/kinship), full needs 'EMMAX' configured in GEA.configs
-# (gea.smk's full-set TPED/kinship chain). Either, both, or neither may be
-# available — mirrors the LFMM block's pruned-vs-full comparison above.
+# EMMAX — pruned vs full lambda at the recommended #PCs. The pruned arm
+# (Block 0's own LD-pruned TPED/kinship) is always available now — PreGEA
+# runs LFMM+EMMAX+RDA together, no per-block enabled switch. The full arm
+# needs 'EMMAX' configured in GEA.configs (gea.smk's full-set TPED/kinship
+# chain), so only that one may still be unavailable.
 ################################################################################
 emmax_npcs <- resolve_auto(EMMAX_NPCS_ARG, "EMMAX", "n_pcs", 3)
 message("INFO: Transfer guard — EMMAX n_pcs=", emmax_npcs)
@@ -145,8 +147,10 @@ emmax_arm_available <- function(vcf) !identical(vcf, "NULL") && file.exists(vcf)
 
 lambda_pruned_e <- NA_real_
 if (!emmax_arm_available(EMMAX_VCF_PRUNED)) {
-    add_row("EMMAX", "n_pcs", emmax_npcs, "pruned", "status", NA_real_, NA_real_, "unavailable_pregea_emmax_disabled")
-    message("INFO: EMMAX pruned arm skipped — PreGEA.EMMAX.enabled is off")
+    # Vestigial safety net — the pruned arm is always available now
+    # (PreGEA runs LFMM+EMMAX+RDA together), so this branch should never fire.
+    add_row("EMMAX", "n_pcs", emmax_npcs, "pruned", "status", NA_real_, NA_real_, "unavailable")
+    message("INFO: EMMAX pruned arm skipped — input path missing")
 } else {
     lambda_pruned_e <- tryCatch(
         emmax_lambda_for(EMMAX_VCF_PRUNED, EMMAX_TPED_PREFIX_PRUNED, EMMAX_KINSHIP_PRUNED,

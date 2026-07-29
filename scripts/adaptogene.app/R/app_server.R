@@ -80,6 +80,7 @@ app_server <- function(input, output, session) {
     mod_config_sidebar_server("config_processing",    config_state, "processing")
     mod_config_sidebar_server("config_prestructure",  config_state, "prestructure")
     mod_config_sidebar_server("config_structure",     config_state, "structure")
+    mod_config_sidebar_server("config_climate",       config_state, "climate")
     mod_config_sidebar_server("config_pregea",        config_state, "pregea")
     mod_config_sidebar_server("config_gea",           config_state, "gea")
     mod_config_sidebar_server("config_gwas",          config_state, "gwas")
@@ -107,6 +108,8 @@ app_server <- function(input, output, session) {
                                 project_data_trigger, tab_name = "prestructure")
     mod_pipeline_runner_server("runner_structure",     config_state, pipeline_running,
                                 project_data_trigger, tab_name = "structure")
+    mod_pipeline_runner_server("runner_climate",       config_state, pipeline_running,
+                                project_data_trigger, tab_name = "climate")
     mod_pipeline_runner_server("runner_pregea",        config_state, pipeline_running,
                                 project_data_trigger, tab_name = "pregea")
     mod_pipeline_runner_server("runner_gea",           config_state, pipeline_running,
@@ -124,6 +127,7 @@ app_server <- function(input, output, session) {
     mod_processing_server("processing",        project_data = project_data)
     mod_prestructure_server("prestructure",    project_data = project_data)
     mod_structure_server("structure",          project_data = project_data)
+    mod_climate_server("climate",              project_data = project_data)
     mod_pregea_server("pregea",                project_data = project_data)
     mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger,
                    snp_sets_trigger = snp_sets_trigger)

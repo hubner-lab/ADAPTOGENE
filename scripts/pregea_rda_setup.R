@@ -10,11 +10,19 @@
 #
 # Four analyses:
 #   A. Predictor collinearity pre-screen (|r| < collinearity_r) + post-fit
-#      VIF (A16). NEVER drops below MIN_PREDICTORS — keeps the least-
-#      correlated pair and records the deviation.
+#      VIF (A16, a REAL gate now — a rung whose max_vif >= vif_max is
+#      flagged status="vif_exceeded" and excluded from "ok" rows used
+#      downstream, not just cosmetically rescaled into a plot line).
+#      NEVER drops below MIN_PREDICTORS — keeps the least-correlated pair
+#      and records the deviation.
 #   B. Condition()-PC ladder: for each condition_pcs in [cmin, cmax], fit a
 #      partial RDA, run anova.cca (full/by-axis/by-term), call candidates via
-#      the SAME scripts/R/lib/rdadapt.R the GEA-mode RDA scan uses.
+#      the SAME scripts/R/lib/rdadapt.R the GEA-mode RDA scan uses. EVERY
+#      rung also gets its own biplot + axis screeplot + axis anova table
+#      (models/pc{n}/...) so the Shiny RDA tab can let the user inspect any
+#      swept value, not just a single "best rung" (module-split follow-up —
+#      the old single best-rung-only rda_biplot_best.png/rda_axis_screeplot.png
+#      are retired in favor of this).
 #   C. Plain-vs-partial candidate-count comparison (one uncorrected fit vs
 #      every partial rung).
 #   D. ordiR2step forward-selection path — cumulative adjusted R2 per step,
@@ -59,10 +67,19 @@ OUT_LADDER_TSV  <- args[20]
 OUT_AXIS_TSV    <- args[21]
 OUT_FWD_TSV     <- args[22]
 PLOT_DIR        <- args[23]
-INTER_DIR       <- args[24]
+TABLE_DIR       <- args[24]
+INTER_DIR       <- args[25]
 ################################################################################
 
-for (d in c(dirname(OUT_COLLIN_TSV), dirname(OUT_LADDER_TSV), PLOT_DIR, INTER_DIR))
+# Per-model artifact paths — one set per condition_pcs value, mirroring
+# common.smk's rda_model_dir()/rda_model_biplot()/rda_model_screeplot()/
+# rda_model_axis_anova() Python helpers exactly (same PLOT_DIR/TABLE_DIR
+# convention: models/pc{n}/...). Any drift here breaks Snakemake's declared
+# rule outputs, not just a cosmetic mismatch.
+rda_model_plot_dir  <- function(n) file.path(PLOT_DIR, "models", paste0("pc", n))
+rda_model_table_dir <- function(n) file.path(TABLE_DIR, "models", paste0("pc", n))
+
+for (d in c(dirname(OUT_COLLIN_TSV), dirname(OUT_LADDER_TSV), PLOT_DIR, TABLE_DIR, INTER_DIR))
     dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
 message("INFO: preGEA RDA setup — condition_pcs range [", COND_PCS_MIN, ",", COND_PCS_MAX, "]")
@@ -157,6 +174,69 @@ ladder_rows <- list()
 # Fixed Bonferroni-on-m, matching rda.R's own sensitivity-ladder convention.
 diagnostic_bonf <- function(pvals, mm) sum(pvals < 0.05 / mm, na.rm = TRUE)
 
+# Per-rung model artifacts (biplot + axis screeplot + axis anova table) —
+# written for EVERY swept condition_pcs value, not just a single "best rung"
+# (module-split follow-up: the Shiny RDA tab now lets the user pick which
+# model to inspect). `fit`/`axis_pvals`/`axis_eigs` are NULL/empty for rungs
+# that failed to fit or reach rank>=2 — the empty-state placeholders explain
+# why rather than leaving a 0-byte file.
+write_model_artifacts <- function(cond_pcs, fit = NULL, axis_pvals = NULL, axis_eigs = NULL, reason = NULL) {
+    p_dir <- rda_model_plot_dir(cond_pcs); t_dir <- rda_model_table_dir(cond_pcs)
+    dir.create(p_dir, recursive = TRUE, showWarnings = FALSE)
+    dir.create(t_dir, recursive = TRUE, showWarnings = FALSE)
+
+    # Axis anova table
+    if (!is.null(axis_pvals) && length(axis_pvals) > 0) {
+        axis_here <- data.table(condition_pcs = cond_pcs, axis = seq_along(axis_pvals),
+                                axis_eig = axis_eigs, axis_p = axis_pvals)
+    } else {
+        axis_here <- data.table(condition_pcs = cond_pcs, axis = NA_integer_,
+                                axis_eig = NA_real_, axis_p = NA_real_)
+    }
+    fwrite(axis_here, file.path(t_dir, "axis_anova.tsv"), sep = "\t", quote = FALSE)
+
+    # Axis screeplot
+    if (!is.null(axis_pvals) && length(axis_pvals) > 0) {
+        g_scree <- ggplot(axis_here, aes(x = factor(axis), y = axis_eig, fill = axis_p < AXIS_ALPHA)) +
+            geom_col() +
+            scale_fill_manual(values = c(`TRUE` = ADAPT_RETAINED, `FALSE` = ADAPT_THRESHOLD), guide = "none") +
+            labs(x = "Constrained axis", y = "Eigenvalue",
+                title = "RDA constrained-axis screeplot",
+                subtitle = sprintf("condition_pcs=%d", cond_pcs)) +
+            theme_adaptogene()
+    } else {
+        g_scree <- adapt_empty_plot(reason %||% "No constrained axes available")
+    }
+    adapt_save_both(file.path(p_dir, "axis_screeplot"), g_scree, w = 7, h = 5)
+
+    # Site-scores biplot — plain scatter is correct here (site/sample scores,
+    # N=samples not SNPs; Rule 6 does not apply, see docs/rda_research.md C.2).
+    if (!is.null(fit) && fit$CCA$rank >= 2) {
+        site_scores <- as.data.frame(scores(fit, display = "sites", choices = 1:2))
+        colnames(site_scores) <- c("RDA1", "RDA2")
+        biplot_scores <- as.data.frame(fit$CCA$biplot[, 1:2, drop = FALSE])
+        colnames(biplot_scores) <- c("RDA1", "RDA2")
+        biplot_scores$predictor <- rownames(fit$CCA$biplot)
+        arrow_scale <- 0.8 * max(abs(site_scores$RDA1), abs(site_scores$RDA2)) /
+            max(abs(biplot_scores$RDA1), abs(biplot_scores$RDA2), 1e-6)
+        g_biplot <- ggplot(site_scores, aes(x = RDA1, y = RDA2)) +
+            geom_point(color = ADAPT_NEUTRAL, size = 2) +
+            geom_segment(data = biplot_scores,
+                        aes(x = 0, y = 0, xend = RDA1 * arrow_scale, yend = RDA2 * arrow_scale),
+                        inherit.aes = FALSE, color = ADAPT_THRESHOLD, arrow = arrow(length = unit(0.2, "cm"))) +
+            ggrepel::geom_text_repel(data = biplot_scores,
+                                     aes(x = RDA1 * arrow_scale, y = RDA2 * arrow_scale, label = predictor),
+                                     inherit.aes = FALSE, color = ADAPT_THRESHOLD, size = 3) +
+            labs(x = "RDA1", y = "RDA2", title = "RDA site scores biplot",
+                subtitle = sprintf("condition_pcs=%d", cond_pcs)) +
+            theme_adaptogene()
+    } else {
+        g_biplot <- adapt_empty_plot(reason %||% "rank<2: no biplot available")
+    }
+    adapt_save_both(file.path(p_dir, "biplot"), g_biplot, w = 7, h = 6)
+}
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
 for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
     message("INFO: rung condition_pcs=", cond_pcs)
     fitted <- tryCatch(fit_partial_rda(cond_pcs), error = function(e) {
@@ -165,6 +245,7 @@ for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
     if (is.null(fitted)) {
         ladder_rows[[length(ladder_rows) + 1]] <- data.table(
             condition_pcs = cond_pcs, status = "fit_failed", note = "rda() fit raised an error")
+        write_model_artifacts(cond_pcs, reason = "rda() fit failed at this condition_pcs value")
         next
     }
     fit <- fitted$fit
@@ -186,6 +267,7 @@ for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
             n_candidates_plain = NA_integer_, n_candidates_partial = NA_integer_,
             gif_lambda = NA_real_, status = "rank_lt_2",
             note = "rank<2: covRob requires >=2 loading columns (verified empirically in rda.R)")
+        write_model_artifacts(cond_pcs, fit = fit, reason = "rank<2: no constrained axes to show")
         next
     }
 
@@ -223,6 +305,14 @@ for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
     n_cand_partial <- if (!is.null(rd)) diagnostic_bonf(rd$p.values, m) else NA_integer_
     gif_lambda     <- if (!is.null(rd)) rd$gif_lambda else NA_real_
 
+    # VIF as a REAL gate (Phase 4 fix): a rung whose max_vif reaches vif_max
+    # is flagged and excluded from "ok" rows used by the recommender and the
+    # best-rung selection below — previously vif_max only rescaled a plot
+    # line and never filtered anything.
+    vif_ok <- is.na(max_vif) || max_vif < VIF_MAX
+    status <- if (vif_ok) "ok" else "vif_exceeded"
+    note   <- if (vif_ok) "" else sprintf("max_vif=%.2f exceeds vif_max=%.2f", max_vif, VIF_MAX)
+
     ladder_rows[[length(ladder_rows) + 1]] <- data.table(
         condition_pcs = cond_pcs, n_predictors = length(active),
         predictors = paste(active, collapse = ","), r2 = suppressWarnings(RsquareAdj(fit)$r.squared),
@@ -230,7 +320,8 @@ for (cond_pcs in COND_PCS_MIN:COND_PCS_MAX) {
         n_axes_sig = n_axes_sig, anova_full_F = anova_full_F, anova_full_p = anova_full_p,
         term_min_p = term_min_p, term_max_p = term_max_p,
         n_candidates_plain = NA_integer_,  # filled in after the plain (cond_pcs=0) reference fit below
-        n_candidates_partial = n_cand_partial, gif_lambda = gif_lambda, status = "ok", note = "")
+        n_candidates_partial = n_cand_partial, gif_lambda = gif_lambda, status = status, note = note)
+    write_model_artifacts(cond_pcs, fit = fit, axis_pvals = axis_pvals, axis_eigs = axis_eigs)
 }
 
 ladder_dt <- rbindlist(ladder_rows, fill = TRUE)
@@ -304,53 +395,43 @@ message("INFO: Wrote ordiR2step forward-selection path (", nrow(fwd_dt), " steps
 ################################################################################
 # 6. Plots
 ################################################################################
-# -- Predictor collinearity: |r| heatmap + flag ---------------------------
-cor_long <- as.data.table(as.table(cor_mat))
-setnames(cor_long, c("Var1", "Var2", "r"))
-g_collin <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = r)) +
-    geom_tile() +
-    geom_text(aes(label = sprintf("%.2f", r)), size = 3, color = ADAPT_COL$fg) +
-    scale_fill_gradient2(low = ADAPT_REMOVED, mid = "white", high = ADAPT_RETAINED,
-                         midpoint = 0, limits = c(-1, 1)) +
-    labs(title = "Predictor correlation matrix",
-        subtitle = sprintf("collinearity_r=%.2f | kept: %s", COLLIN_R, paste(active, collapse = ", "))) +
-    theme_adaptogene() + theme(axis.title = element_blank())
-ggsave(file.path(PLOT_DIR, "rda_predictor_collinearity.png"), g_collin, width = 6, height = 5, dpi = 300)
-ggsave(file.path(PLOT_DIR, "rda_predictor_collinearity.svg"), g_collin, width = 6, height = 5,
-      device = svglite::svglite, bg = "transparent")
-
-# -- Axis screeplot: pick the rung closest to the ladder's best R2adj -----
+# NOTE: the old top-level "best rung only" collinearity heatmap, axis
+# screeplot, and biplot are RETIRED — every rung already got its own
+# biplot/screeplot/axis-anova table inside the main loop above (module split:
+# the Shiny RDA tab now selects between them). The predictor collinearity
+# heatmap itself is redundant with climate/plots/correlation_heatmap.png —
+# which predictors got dropped for collinearity is still fully recorded in
+# OUT_COLLIN_TSV (predictor, action, reason).
 ok_rows <- ladder_dt[status == "ok"]
 best_rung <- if (nrow(ok_rows) > 0) ok_rows[which.max(r2_adj)]$condition_pcs else NA_integer_
-axis_best <- axis_dt[condition_pcs == best_rung]
-if (nrow(axis_best) > 0) {
-    g_scree <- ggplot(axis_best, aes(x = factor(axis), y = axis_eig, fill = axis_p < AXIS_ALPHA)) +
-        geom_col() +
-        scale_fill_manual(values = c(`TRUE` = ADAPT_RETAINED, `FALSE` = ADAPT_NEUTRAL), guide = "none") +
-        labs(x = "Constrained axis", y = "Eigenvalue",
-            title = "RDA constrained-axis screeplot (best rung by R2adj)",
-            subtitle = sprintf("condition_pcs=%s", best_rung)) +
-        theme_adaptogene()
-    ggsave(file.path(PLOT_DIR, "rda_axis_screeplot.png"), g_scree, width = 7, height = 5, dpi = 300)
-    ggsave(file.path(PLOT_DIR, "rda_axis_screeplot.svg"), g_scree, width = 7, height = 5,
-          device = svglite::svglite, bg = "transparent")
-} else {
-    file.create(file.path(PLOT_DIR, "rda_axis_screeplot.png"))
-    file.create(file.path(PLOT_DIR, "rda_axis_screeplot.svg"))
-}
 
-# -- Condition() ladder: R2adj + max_vif vs condition_pcs ------------------
-g_ladder <- ggplot(ok_rows, aes(x = condition_pcs)) +
-    geom_col(aes(y = r2_adj), fill = ADAPT_NEUTRAL) +
-    geom_line(aes(y = pmin(max_vif, VIF_MAX * 2) / (VIF_MAX * 2) * max(ok_rows$r2_adj, 0.01)),
-             color = ADAPT_THRESHOLD, linewidth = 0.8) +
-    geom_hline(yintercept = 0, color = "transparent") +
-    labs(x = "Condition() PC count", y = "Adjusted R2 (bars); scaled max VIF (line)",
-        title = "RDA condition-PC ladder") +
-    theme_adaptogene()
-ggsave(file.path(PLOT_DIR, "rda_condition_ladder.png"), g_ladder, width = 7, height = 5, dpi = 300)
-ggsave(file.path(PLOT_DIR, "rda_condition_ladder.svg"), g_ladder, width = 7, height = 5,
-      device = svglite::svglite, bg = "transparent")
+# -- Model comparison panel: r2_adj / max_vif / n_axes_sig / anova_full_p
+#    across the whole condition_pcs ladder, each on its own facet with its
+#    own y-scale + threshold reference line. Replaces the old
+#    rda_condition_ladder.png dual-axis-by-rescaling hack (a VIF line with no
+#    readable scale).
+if (nrow(ladder_dt) > 0) {
+    cmp_long <- rbindlist(list(
+        ladder_dt[, .(condition_pcs, metric = "r2_adj", value = r2_adj, threshold = NA_real_)],
+        ladder_dt[, .(condition_pcs, metric = "max_vif", value = max_vif, threshold = VIF_MAX)],
+        ladder_dt[, .(condition_pcs, metric = "n_axes_sig", value = as.numeric(n_axes_sig), threshold = NA_real_)],
+        ladder_dt[, .(condition_pcs, metric = "anova_full_p", value = anova_full_p, threshold = AXIS_ALPHA)]
+    ))
+    cmp_long[, metric := factor(metric, levels = c("r2_adj", "max_vif", "n_axes_sig", "anova_full_p"))]
+    g_cmp <- ggplot(cmp_long, aes(x = condition_pcs, y = value)) +
+        geom_line(color = ADAPT_NEUTRAL) + geom_point(color = ADAPT_NEUTRAL, size = 2) +
+        geom_hline(aes(yintercept = threshold), color = ADAPT_THRESHOLD, linetype = "dashed", na.rm = TRUE) +
+        facet_wrap(~ metric, scales = "free_y",
+                  labeller = as_labeller(c(r2_adj = "Adjusted R2", max_vif = "Max VIF",
+                                          n_axes_sig = "# significant axes", anova_full_p = "Full-model p"))) +
+        labs(x = "Condition() PC count", y = NULL, title = "RDA model comparison across the Condition()-PC ladder",
+            subtitle = sprintf("dashed lines: vif_max=%.1f, axis_alpha=%.2g", VIF_MAX, AXIS_ALPHA)) +
+        theme_adaptogene_grid()
+    adapt_save_both(file.path(PLOT_DIR, "rda_model_comparison"), g_cmp, w = 9, h = 6)
+} else {
+    adapt_save_both(file.path(PLOT_DIR, "rda_model_comparison"),
+                    adapt_empty_plot("No condition_pcs rung fit successfully"), w = 9, h = 6)
+}
 
 # -- ordiR2step path: cumulative R2adj per step + full-model ceiling ------
 if (nrow(fwd_dt) > 0) {
@@ -362,48 +443,12 @@ if (nrow(fwd_dt) > 0) {
             title = "ordiR2step forward-selection path",
             subtitle = sprintf("Pin=%.3g | dashed = full-model ceiling (%.4f)", ORDIR2STEP_PIN, full_ceiling)) +
         theme_adaptogene()
-    ggsave(file.path(PLOT_DIR, "rda_ordir2step_path.png"), g_fwd, width = 7, height = 5, dpi = 300)
-    ggsave(file.path(PLOT_DIR, "rda_ordir2step_path.svg"), g_fwd, width = 7, height = 5,
-          device = svglite::svglite, bg = "transparent")
+    adapt_save_both(file.path(PLOT_DIR, "rda_ordir2step_path"), g_fwd, w = 7, h = 5)
 } else {
-    file.create(file.path(PLOT_DIR, "rda_ordir2step_path.png"))
-    file.create(file.path(PLOT_DIR, "rda_ordir2step_path.svg"))
+    adapt_save_both(file.path(PLOT_DIR, "rda_ordir2step_path"),
+                    adapt_empty_plot(sprintf("No variable passed Pin=%.3g (full-model R2adj=%.4f)",
+                                             ORDIR2STEP_PIN, if (is.na(full_ceiling)) 0 else full_ceiling)),
+                    w = 7, h = 5)
 }
 
-# -- Biplot (site/sample scores) at the best rung — PLAIN scatter is fine:
-#    N = samples, not SNPs (Rule 6 does not apply here, C.2 states this
-#    explicitly — this is not the SNP-loadings cloud rda.R's biplot shows).
-if (!is.null(plain_fitted) && exists("best_rung") && !is.na(best_rung)) {
-    best_fit <- tryCatch(fit_partial_rda(best_rung)$fit, error = function(e) NULL)
-    if (!is.null(best_fit) && best_fit$CCA$rank >= 2) {
-        site_scores <- as.data.frame(scores(best_fit, display = "sites", choices = 1:2))
-        colnames(site_scores) <- c("RDA1", "RDA2")
-        biplot_scores <- as.data.frame(best_fit$CCA$biplot[, 1:2, drop = FALSE])
-        colnames(biplot_scores) <- c("RDA1", "RDA2")
-        biplot_scores$predictor <- rownames(best_fit$CCA$biplot)
-        arrow_scale <- 0.8 * max(abs(site_scores$RDA1), abs(site_scores$RDA2)) /
-            max(abs(biplot_scores$RDA1), abs(biplot_scores$RDA2), 1e-6)
-        g_biplot <- ggplot(site_scores, aes(x = RDA1, y = RDA2)) +
-            geom_point(color = ADAPT_NEUTRAL, size = 2) +
-            geom_segment(data = biplot_scores,
-                        aes(x = 0, y = 0, xend = RDA1 * arrow_scale, yend = RDA2 * arrow_scale),
-                        inherit.aes = FALSE, color = ADAPT_THRESHOLD, arrow = arrow(length = unit(0.2, "cm"))) +
-            ggrepel::geom_text_repel(data = biplot_scores,
-                                     aes(x = RDA1 * arrow_scale, y = RDA2 * arrow_scale, label = predictor),
-                                     inherit.aes = FALSE, color = ADAPT_THRESHOLD, size = 3) +
-            labs(x = "RDA1", y = "RDA2", title = "RDA site scores biplot (best rung)",
-                subtitle = sprintf("condition_pcs=%s", best_rung)) +
-            theme_adaptogene()
-        ggsave(file.path(PLOT_DIR, "rda_biplot_best.png"), g_biplot, width = 7, height = 6, dpi = 300)
-        ggsave(file.path(PLOT_DIR, "rda_biplot_best.svg"), g_biplot, width = 7, height = 6,
-              device = svglite::svglite, bg = "transparent")
-    } else {
-        file.create(file.path(PLOT_DIR, "rda_biplot_best.png"))
-        file.create(file.path(PLOT_DIR, "rda_biplot_best.svg"))
-    }
-} else {
-    file.create(file.path(PLOT_DIR, "rda_biplot_best.png"))
-    file.create(file.path(PLOT_DIR, "rda_biplot_best.svg"))
-}
-
-message("INFO: preGEA RDA setup complete.")
+message("INFO: preGEA RDA setup complete. Best rung by R2adj: condition_pcs=", best_rung)

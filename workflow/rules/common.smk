@@ -560,90 +560,82 @@ if GWAS_CONFIGS:
     PHENO_PREDICTORS = ','.join(PHENO_TRAITS)
 
 #=============================================================================
+# CLIMATE parameters (predictor characterization + spatial/varpart — mode=climate)
+#=============================================================================
+_climate_vp = config.get('Climate', {}).get('Varpart', {})
+CLIMATE_VP_RESPONSE = _climate_vp.get('response', 'pcs')
+check_in_list(CLIMATE_VP_RESPONSE, ['pcs', 'snps'], 'Climate.Varpart.response')
+CLIMATE_VP_STRUCT = _climate_vp.get('structure_table', 'qmatrix')
+check_in_list(CLIMATE_VP_STRUCT, ['qmatrix', 'none'], 'Climate.Varpart.structure_table')
+CLIMATE_VP_VAR_CUTOFF = float(_climate_vp.get('response_var_cutoff', 0.8))
+CLIMATE_VP_MAX_PCS    = int(_climate_vp.get('response_max_pcs', 20))
+CLIMATE_VP_MIN_PCS    = int(_climate_vp.get('response_min_pcs', 2))
+CLIMATE_VP_CONFOUND   = _climate_vp.get('confounding_flag', True)
+# The one surviving Varpart permutation knob — gates the varpart anova
+# significance test itself. NOT the same as CLIMATE_VP_R2PERMS below (that
+# one is ordiR2step's internal R2permutations, now a fixed constant).
+CLIMATE_VP_PERMS      = int(_climate_vp.get('permutations', 199))
+
+_climate_dbmem = config.get('Climate', {}).get('dbMEM', {})
+CLIMATE_DBMEM_LEVEL     = _climate_dbmem.get('spatial_level', 'auto')
+check_in_list(CLIMATE_DBMEM_LEVEL, ['auto', 'site', 'sample'], 'Climate.dbMEM.spatial_level')
+CLIMATE_DBMEM_MIN_SITES = int(_climate_dbmem.get('min_sites', 6))
+
+# Fixed constants (Blanchet double-stopping-rule standard — A17; not
+# user-configurable, see README "Fixed constants"). Shared by climate_varpart's
+# ordiR2step call (scripts/pregea_varpart.R) AND PreGEA RDA's own ordiR2step
+# call (scripts/pregea_rda_setup.R) — both cite the same rule.
+CLIMATE_VP_PIN     = 0.01
+CLIMATE_VP_R2PERMS = 999
+
+#=============================================================================
 # PREGEA parameters (hyperparameter exploration mode — LD-pruned only)
 #=============================================================================
-_pregea = config.get('PreGEA', {})
-PREGEA_SEED = _pregea.get('seed', 42)
+# Fixed constants — not user-configurable (see README "Fixed constants" for why):
+# reproducibility only (seed); genomic_control must stay OFF so lambda_GC stays
+# informative (docs/rda_research.md C.0) — the GEA-side switcher (workflow/methods/gea.py)
+# is the only place this toggles; FDR is a trend-read, not a threshold decision;
+# RDA needs >=2 predictors to fit at all, not a user preference.
+PREGEA_SEED            = 42
+PREGEA_LFMM_GC         = False
+PREGEA_FDR             = 0.1
+PREGEA_LAMBDA_TOL      = 0.15
+PREGEA_DEFLATION_FLOOR = 0.90
+PREGEA_RDA_MIN_PREDS   = 2
 
-_pg_lfmm  = _pregea.get('LFMM', {})
-PREGEA_LFMM_ENABLED = _pg_lfmm.get('enabled', True)
-PREGEA_LFMM_GC      = _pg_lfmm.get('genomic_control', False)   # C.0: FALSE so lambda is informative
-PREGEA_LFMM_FDR     = _pg_lfmm.get('fdr', 0.1)
-PREGEA_LFMM_BONF    = _pg_lfmm.get('bonf_alpha', 0.05)
+_pregea = config.get('PreGEA', {})
+
+# Literal predictor list — falls back to Climate.predictors when unset (the
+# old per-block 'auto' text-field sentinel is retired: render_bio_chips() has
+# no representation for it, see fct_config_schema.R).
+PREGEA_PREDICTORS_STR = _pregea.get('predictors', '') or PREDICTORS_SELECTED
+PREGEA_PREDICTORS = [p.strip() for p in str(PREGEA_PREDICTORS_STR).split(',') if p.strip()]
+
+PREGEA_K_OFFSET = int(_pregea.get('k_offset', 2))
 PREGEA_LFMM_KS = ([] if K_BEST is None else
-    sorted({k for k in range(K_BEST + int(_pg_lfmm.get('k_offset_low', -1)),
-                             K_BEST + int(_pg_lfmm.get('k_offset_high', 2)) + 1)
-            if k >= int(_pg_lfmm.get('k_min', 1))}))
+    sorted({k for k in range(K_BEST - PREGEA_K_OFFSET, K_BEST + PREGEA_K_OFFSET + 1) if k >= 1}))
 PREGEA_LFMM_K_STR = ",".join(map(str, PREGEA_LFMM_KS))
 
-_pg_emmax = _pregea.get('EMMAX', {})
-PREGEA_EMMAX_ENABLED = _pg_emmax.get('enabled', True)
-PREGEA_EMMAX_KINSHIP = _pg_emmax.get('kinship', 'BN')
-check_in_list(PREGEA_EMMAX_KINSHIP, ['BN', 'IBS'], 'PreGEA.EMMAX.kinship')
-PREGEA_EMMAX_NPC_MIN = int(_pg_emmax.get('n_pcs_min', 0))
-PREGEA_EMMAX_NPC_MAX = int(_pg_emmax.get('n_pcs_max', 10))
-PREGEA_EMMAX_NPCS    = list(range(PREGEA_EMMAX_NPC_MIN, PREGEA_EMMAX_NPC_MAX + 1))
+# Shared PC range — EMMAX/GAPIT #PCs AND RDA Condition() PCs sweep the SAME
+# values (user decision: "most of the time the number will be equal" — one
+# range, one shared recommendation, instead of two independent ladders).
+PREGEA_NPC_MAX      = int(_pregea.get('n_pcs_max', 10))
+PREGEA_EMMAX_NPCS   = list(range(0, PREGEA_NPC_MAX + 1))
 PREGEA_EMMAX_NPC_STR = ",".join(map(str, PREGEA_EMMAX_NPCS))
-PREGEA_EMMAX_FDR  = _pg_emmax.get('fdr', 0.1)
-PREGEA_EMMAX_BONF = _pg_emmax.get('bonf_alpha', 0.05)
-PREGEA_EMMAX_LAMBDA_TOL      = _pg_emmax.get('lambda_tol', 0.15)
-PREGEA_EMMAX_DEFLATION_FLOOR = _pg_emmax.get('deflation_floor', 0.90)
+PREGEA_RDA_COND_PCS = PREGEA_EMMAX_NPCS
 
-# 'auto' -> Climate.predictors (shared resolver for both ladders)
-def _pregea_predictors(block):
-    raw = block.get('predictors', 'auto')
-    src = PREDICTORS_SELECTED if raw in (None, 'auto') else raw
-    return [p.strip() for p in str(src).split(',') if p.strip()]
-PREGEA_LFMM_PREDICTORS  = _pregea_predictors(_pg_lfmm)
-PREGEA_EMMAX_PREDICTORS = _pregea_predictors(_pg_emmax)
-
-_pg_rda = _pregea.get('RDA', {});      PREGEA_RDA_ENABLED = _pg_rda.get('enabled', True)
-PREGEA_RDA_COND_MIN   = int(_pg_rda.get('condition_pcs_min', 0))
-PREGEA_RDA_COND_MAX   = int(_pg_rda.get('condition_pcs_max', 6))
-PREGEA_RDA_COLLIN_R   = float(_pg_rda.get('collinearity_r', 0.7))
-PREGEA_RDA_VIF_MAX    = float(_pg_rda.get('vif_max', 10.0))
-PREGEA_RDA_MIN_PREDS  = int(_pg_rda.get('min_predictors', 2))
-PREGEA_RDA_AXIS_ALPHA = float(_pg_rda.get('axis_alpha', 0.05))
-PREGEA_RDA_PERMS      = int(_pg_rda.get('permutations', 999))
-
-_pg_vp = _pregea.get('Varpart', {});   PREGEA_VP_ENABLED = _pg_vp.get('enabled', True)
-PREGEA_VP_RESPONSE = _pg_vp.get('response', 'pcs')
-check_in_list(PREGEA_VP_RESPONSE, ['pcs', 'snps'], 'PreGEA.Varpart.response')
-PREGEA_VP_STRUCT = _pg_vp.get('structure_table', 'qmatrix')
-check_in_list(PREGEA_VP_STRUCT, ['qmatrix', 'none'], 'PreGEA.Varpart.structure_table')
-PREGEA_VP_LEVEL = _pg_vp.get('spatial_level', 'auto')
-check_in_list(PREGEA_VP_LEVEL, ['auto', 'site', 'sample'], 'PreGEA.Varpart.spatial_level')
-PREGEA_VP_MIN_SITES  = int(_pg_vp.get('min_sites', 6))
-PREGEA_VP_VAR_CUTOFF = float(_pg_vp.get('response_var_cutoff', 0.8))
-PREGEA_VP_MAX_PCS    = int(_pg_vp.get('response_max_pcs', 20))
-PREGEA_VP_MIN_PCS    = int(_pg_vp.get('response_min_pcs', 2))
-PREGEA_VP_PIN        = float(_pg_vp.get('ordir2step_pin', 0.01))
-PREGEA_VP_SELPERMS   = int(_pg_vp.get('ordir2step_permutations', 999))
-PREGEA_VP_R2PERMS    = int(_pg_vp.get('r2_permutations', 1000))
-PREGEA_VP_PERMS      = int(_pg_vp.get('varpart_permutations', 999))
-PREGEA_VP_CONFOUND   = _pg_vp.get('confounding_flag', True)
+_pg_adv = _pregea.get('Advanced', {})
+PREGEA_RDA_COLLIN_R   = float(_pg_adv.get('collinearity_r', 0.7))
+PREGEA_RDA_VIF_MAX    = float(_pg_adv.get('vif_max', 10.0))
+PREGEA_RDA_AXIS_ALPHA = float(_pg_adv.get('axis_alpha', 0.05))
+PREGEA_RDA_PERMS      = int(_pg_adv.get('permutations', 199))
 
 _pg_tg = _pregea.get('TransferGuard', {})
 PREGEA_TRANSFER_GUARD = _pg_tg.get('enabled', False)
-PREGEA_TG_LFMM_K  = _pg_tg.get('lfmm_k', 'auto')
+PREGEA_TG_LFMM_K     = _pg_tg.get('lfmm_k', 'auto')
 PREGEA_TG_EMMAX_NPCS = _pg_tg.get('emmax_n_pcs', 'auto')
-
-# Gradient Forest's 'spatial' variant now consumes preGEA's forward-selected
-# dbMEM vectors (Block 4: pregea_dbmem + pregea_varpart, adespatial::dbmem +
-# ordiR2step — replaces the old ad hoc pcnm()/keep-half-eigenvalues heuristic
-# in gradient_forest_model.R). Both preGEA rules live behind the single
-# PREGEA_VP_ENABLED guard (pregea.smk), so a spatial GF request with that
-# guard off would otherwise dangle on a missing dependency at parse time —
-# fail loudly here instead, matching the pipeline's philosophy (and the same
-# bug class as commit ebbab3c: a cross-mode dependency silently unmet).
-if 'spatial' in ACTIVE_SPATIAL_TAGS and not PREGEA_VP_ENABLED:
-    raise ValueError(
-        "Maladaptation.methods.gradient_forest.spatial_correction is "
-        f"{SPATIAL_CORRECTION!r} ('spatial' or 'both'), which requires "
-        "forward-selected dbMEM vectors from PreGEA.Varpart. Set "
-        "PreGEA.Varpart.enabled: true (and run mode=pregea first), or set "
-        "spatial_correction: without."
-    )
+# NOTE: the "K_BEST required for mode=pregea" check lives in get_targets()'s
+# 'pregea' branch (MODE isn't defined yet at this point in the file).
 
 #=============================================================================
 # PATH DEFINITIONS
@@ -884,11 +876,12 @@ O['density_future']       = _ph('density_future')
 # --- from add_pregea_paths() ---
 # W[...] keys (not O[...]) — must be pre-seeded too, same reason as the O loop
 # below: pregea.smk is included unconditionally (Snakefile) and Block 0
-# dereferences these at parse time whenever PREGEA_EMMAX_ENABLED (default
-# True), even in modes where K_BEST is None (e.g. processing on a fresh
-# project with no sNMF.k_best set yet). Sentinel values are never read as
-# real paths — rules using them only enter the DAG once K_BEST is set.
-for _k in ('vcf_ld_climate', 'pregea_tped', 'pregea_tfam', 'pregea_kinship', 'pregea_kinship_ibs'):
+# dereferences these at parse time regardless of K_BEST (e.g. processing on a
+# fresh project with no sNMF.k_best set yet). Sentinel values are never read
+# as real paths — rules using them only enter the DAG once K_BEST is set.
+# kinship is always BN now (no IBS flavor — GAPIT uses the same BN matrix, and
+# IBS was never exercised), so only one kinship path remains.
+for _k in ('vcf_ld_climate', 'pregea_tped', 'pregea_tfam', 'pregea_kinship'):
     W[_k] = _ph(_k)
 for _k in ('pregea_screeplot', 'pregea_screeplot_svg', 'pregea_screeplot_tsv',
            'pregea_lfmm_ladder', 'pregea_lfmm_hist', 'pregea_lfmm_qq',
@@ -898,11 +891,14 @@ for _k in ('pregea_screeplot', 'pregea_screeplot_svg', 'pregea_screeplot_tsv',
            'pregea_rda_collin', 'pregea_rda_ladder', 'pregea_rda_axis', 'pregea_rda_fwd',
            'pregea_rda_collin_png', 'pregea_rda_scree_png', 'pregea_rda_ladder_png',
            'pregea_rda_fwd_png', 'pregea_rda_biplot_png',
-           'pregea_dbmem_vectors', 'pregea_dbmem_diag', 'pregea_dbmem_png', 'pregea_dbmem_svg',
-           'pregea_vp_selection', 'pregea_vp_selected', 'pregea_vp_fractions',
-           'pregea_vp_anova', 'pregea_vp_px', 'pregea_vp_path_png', 'pregea_vp_venn_png',
-           'pregea_vp_frac_png', 'pregea_vp_px_png',
            'pregea_recommendations', 'pregea_transfer_guard', 'pregea_transfer_png'):
+    O[_k] = _ph(_k)
+# --- from add_climate_varpart_paths() --- (climate.smk is also included
+# unconditionally; same pre-seeding reason as the pregea loop above)
+for _k in ('climate_dbmem_vectors', 'climate_dbmem_diag', 'climate_dbmem_png', 'climate_dbmem_svg',
+           'climate_vp_selection', 'climate_vp_selected', 'climate_vp_fractions',
+           'climate_vp_anova', 'climate_vp_px', 'climate_vp_path_png', 'climate_vp_venn_png',
+           'climate_vp_frac_png', 'climate_vp_px_png'):
     O[_k] = _ph(_k)
 
 def add_kbest_paths():
@@ -968,7 +964,6 @@ def add_pregea_paths():
     W['pregea_tped']        = f"{WORK_LD}climate/emmax/{VCF_BASE}.tped"
     W['pregea_tfam']        = f"{WORK_LD}climate/emmax/{VCF_BASE}.tfam"
     W['pregea_kinship']     = f"{WORK_LD}climate/emmax/{VCF_BASE}.aBN.kinf"
-    W['pregea_kinship_ibs'] = f"{WORK_LD}climate/emmax/{VCF_BASE}.aIBS.kinf"
     O['pregea_screeplot']     = f"{_pl}structure/pruned_pca_screeplot.png"
     O['pregea_screeplot_svg'] = f"{_pl}structure/pruned_pca_screeplot.svg"
     O['pregea_screeplot_tsv'] = f"{_tb}structure/pruned_pca_screeplot.tsv"
@@ -982,37 +977,62 @@ def add_pregea_paths():
     O['pregea_emmax_qq']      = f"{_pl}emmax/emmax_qq_grid.png"
     O['pregea_emmax_lambda']  = f"{_pl}emmax/emmax_lambda_vs_n_pcs.png"
     O['pregea_emmax_hits']    = f"{_pl}emmax/emmax_hits_vs_n_pcs.png"
+    # Aggregate tables (one row per condition_pcs) — feed both the model
+    # comparison plot and pregea_recommend.R.
     O['pregea_rda_collin']    = f"{_tb}rda/rda_predictor_collinearity.tsv"
     O['pregea_rda_ladder']    = f"{_tb}rda/rda_condition_ladder.tsv"
     O['pregea_rda_axis']      = f"{_tb}rda/rda_axis_anova.tsv"
     O['pregea_rda_fwd']       = f"{_tb}rda/rda_ordir2step_path.tsv"
-    O['pregea_rda_collin_png']= f"{_pl}rda/rda_predictor_collinearity.png"
-    O['pregea_rda_scree_png'] = f"{_pl}rda/rda_axis_screeplot.png"
-    O['pregea_rda_ladder_png']= f"{_pl}rda/rda_condition_ladder.png"
     O['pregea_rda_fwd_png']   = f"{_pl}rda/rda_ordir2step_path.png"
-    O['pregea_rda_biplot_png']= f"{_pl}rda/rda_biplot_best.png"
-    O['pregea_dbmem_vectors'] = f"{_tb}spatial/dbmem_vectors.tsv"
-    O['pregea_dbmem_diag']    = f"{_tb}spatial/dbmem_diagnostics.tsv"
-    O['pregea_dbmem_png']     = f"{_pl}spatial/dbmem_screeplot.png"
-    O['pregea_dbmem_svg']     = f"{_pl}spatial/dbmem_screeplot.svg"
-    O['pregea_vp_selection']  = f"{_tb}varpart/dbmem_selection_path.tsv"
-    O['pregea_vp_selected']   = f"{_tb}varpart/dbmem_selected.tsv"
-    O['pregea_vp_fractions']  = f"{_tb}varpart/varpart_fractions.tsv"
-    O['pregea_vp_anova']      = f"{_tb}varpart/varpart_anova.tsv"
-    O['pregea_vp_px']         = f"{_tb}varpart/px_per_variable.tsv"
-    O['pregea_vp_path_png']   = f"{_pl}varpart/dbmem_selection_path.png"
-    O['pregea_vp_venn_png']   = f"{_pl}varpart/varpart_venn.png"
-    O['pregea_vp_frac_png']   = f"{_pl}varpart/varpart_fractions_bar.png"
-    O['pregea_vp_px_png']     = f"{_pl}varpart/px_barplot.png"
+    # Model comparison plot — replaces the old rda_condition_ladder.png
+    # dual-axis-by-rescaling hack (r2_adj/max_vif/n_axes_sig/anova_full_p,
+    # each on its own facet with its own y-scale).
+    O['pregea_rda_comparison_png'] = f"{_pl}rda/rda_model_comparison.png"
     O['pregea_recommendations']= f"{_tb}pregea_recommendations.tsv"
     O['pregea_transfer_guard'] = f"{_tb}pregea_transfer_guard.tsv"
     O['pregea_transfer_png']   = f"{_pl}transfer/transfer_guard_lambda.png"
+    # NOTE: rda_predictor_collinearity.png, rda_axis_screeplot.png (top-level
+    # "best rung"), and rda_biplot_best.png are RETIRED — superseded by the
+    # per-model artifacts below (one set per condition_pcs value), which the
+    # Shiny RDA tab selects between. rda_predictor_collinearity.png itself is
+    # also redundant with climate/plots/correlation_heatmap.png.
 
 add_pregea_paths()
 
-def pregea_kinship_path():
-    """BN by default, IBS when configured. Mirrors emmax_kinship_climate_path()."""
-    return W['pregea_kinship_ibs'] if PREGEA_EMMAX_KINSHIP == 'IBS' else W['pregea_kinship']
+# Per-condition-PC-value RDA model artifacts (biplot, axis screeplot, axis
+# anova table). One RDA rule (pregea_rda_setup, no wildcard fan-out — see its
+# header) refits every condition_pcs value in an internal loop and writes one
+# set of these per value; the Shiny RDA tab picks between them with a selector.
+def rda_model_dir(n): return f"{MOD_PREGEA}plots/rda/models/pc{n}/"
+def rda_model_biplot(n): return f"{rda_model_dir(n)}biplot.png"
+def rda_model_biplot_svg(n): return f"{rda_model_dir(n)}biplot.svg"
+def rda_model_screeplot(n): return f"{rda_model_dir(n)}axis_screeplot.png"
+def rda_model_screeplot_svg(n): return f"{rda_model_dir(n)}axis_screeplot.svg"
+def rda_model_axis_anova(n): return f"{MOD_PREGEA}tables/rda/models/pc{n}/axis_anova.tsv"
+
+def add_climate_varpart_paths():
+    """Climate dbMEM + variance-partitioning paths — moved out of PreGEA in the
+    module split (climate module now owns all predictor characterization,
+    including spatial structure). K_BEST-dependent: the varpart structure
+    table is the Q-matrix at K_BEST, and the PCA response uses K_BEST's LEA run."""
+    if K_BEST is None:
+        return
+    _pl, _tb = f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/"
+    O['climate_dbmem_vectors'] = f"{_tb}spatial/dbmem_vectors.tsv"
+    O['climate_dbmem_diag']    = f"{_tb}spatial/dbmem_diagnostics.tsv"
+    O['climate_dbmem_png']     = f"{_pl}spatial/dbmem_screeplot.png"
+    O['climate_dbmem_svg']     = f"{_pl}spatial/dbmem_screeplot.svg"
+    O['climate_vp_selection']  = f"{_tb}varpart/dbmem_selection_path.tsv"
+    O['climate_vp_selected']   = f"{_tb}varpart/dbmem_selected.tsv"
+    O['climate_vp_fractions']  = f"{_tb}varpart/varpart_fractions.tsv"
+    O['climate_vp_anova']      = f"{_tb}varpart/varpart_anova.tsv"
+    O['climate_vp_px']         = f"{_tb}varpart/px_per_variable.tsv"
+    O['climate_vp_path_png']   = f"{_pl}varpart/dbmem_selection_path.png"
+    O['climate_vp_venn_png']   = f"{_pl}varpart/varpart_venn.png"
+    O['climate_vp_frac_png']   = f"{_pl}varpart/varpart_fractions_bar.png"
+    O['climate_vp_px_png']     = f"{_pl}varpart/px_barplot.png"
+
+add_climate_varpart_paths()
 
 # Association paths (added when K_BEST is set and association mode is used)
 def add_association_paths():
@@ -1561,7 +1581,9 @@ dirs_to_create = [
     f"{MOD_PRESTRUCT}plots/", f"{MOD_PRESTRUCT}tables/",
     *[f"{MOD_PRESTRUCT}plots/K{k}/" for k in k_range(K_START, K_END)],
     *[f"{MOD_PRESTRUCT}tables/K{k}/" for k in k_range(K_START, K_END)],
-    *([ f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}rasters/present/" ] if CLIMATE_ENABLED else []),
+    *([ f"{MOD_CLIMATE}plots/", f"{MOD_CLIMATE}plots/spatial/", f"{MOD_CLIMATE}plots/varpart/",
+        f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}tables/spatial/", f"{MOD_CLIMATE}tables/varpart/",
+        f"{MOD_CLIMATE}rasters/present/", f"{LOGDIR}climate/" ] if CLIMATE_ENABLED else []),
     f"{MOD_STRUCT}plots/piemap/", f"{MOD_STRUCT}tables/",
     # Log subdirectories
     f"{LOGDIR}processing/", f"{LOGDIR}prestructure/", f"{LOGDIR}structure/",
@@ -1571,16 +1593,16 @@ dirs_to_create = [
 # preGEA directories (LD-pruned hyperparameter-exploration mode)
 dirs_to_create += [
     f"{MOD_PREGEA}plots/structure/", f"{MOD_PREGEA}plots/lfmm/", f"{MOD_PREGEA}plots/emmax/",
-    f"{MOD_PREGEA}plots/rda/", f"{MOD_PREGEA}plots/spatial/", f"{MOD_PREGEA}plots/varpart/",
-    f"{MOD_PREGEA}plots/transfer/",
+    f"{MOD_PREGEA}plots/rda/", f"{MOD_PREGEA}plots/rda/models/", f"{MOD_PREGEA}plots/transfer/",
     f"{MOD_PREGEA}tables/structure/", f"{MOD_PREGEA}tables/lfmm/", f"{MOD_PREGEA}tables/emmax/",
-    f"{MOD_PREGEA}tables/rda/", f"{MOD_PREGEA}tables/spatial/", f"{MOD_PREGEA}tables/varpart/",
+    f"{MOD_PREGEA}tables/rda/", f"{MOD_PREGEA}tables/rda/models/",
     f"{INTER}pregea/lfmm/", f"{INTER}pregea/emmax/",
     f"{LOGDIR}pregea/",
 ]
 if K_BEST is not None:
     dirs_to_create += [f"{INTER}pregea/lfmm/K{k}/" for k in PREGEA_LFMM_KS]
     dirs_to_create += [f"{INTER}pregea/emmax/npc{n}/" for n in PREGEA_EMMAX_NPCS]
+    dirs_to_create += [f"{MOD_PREGEA}plots/rda/models/pc{n}/" for n in PREGEA_RDA_COND_PCS]
 
 # Add association directories for each method
 for method in GEA_CONFIGS:
@@ -1758,40 +1780,56 @@ def get_targets(mode):
         )
 
     elif mode == 'pregea':
-        check_numeric(K_BEST, 'K_BEST')
+        if K_BEST is None:
+            raise ValueError(
+                "PreGEA needs sNMF.k_best to anchor its K-offset sweep range. "
+                "Run mode=prestructure and set sNMF.k_best in the config "
+                "before running mode=pregea."
+            )
         if not CLIMATE_ENABLED:
             raise ValueError("pregea mode requires Climate.enabled: true "
                              "(every ladder uses climate predictors)")
-        if not get_predictors_list():
-            raise ValueError("Climate.predictors must be set for pregea mode")
-        if not (PREGEA_LFMM_ENABLED or PREGEA_EMMAX_ENABLED or
-                PREGEA_RDA_ENABLED or PREGEA_VP_ENABLED):
-            raise ValueError("pregea mode requires at least one PreGEA block enabled")
-        targets = [O['pregea_screeplot'], O['pregea_screeplot_tsv']]
-        if PREGEA_LFMM_ENABLED:
-            if not PREGEA_LFMM_KS:
-                raise ValueError("PreGEA.LFMM: empty K range (check k_offset_low/high/k_min)")
-            targets += [O['pregea_lfmm_ladder'], O['pregea_lfmm_hist'],
-                        O['pregea_lfmm_qq'], O['pregea_lfmm_lambda'], O['pregea_lfmm_hits']]
-        if PREGEA_EMMAX_ENABLED:
-            targets += [O['pregea_emmax_ladder'], O['pregea_emmax_hist'],
-                        O['pregea_emmax_qq'], O['pregea_emmax_lambda'], O['pregea_emmax_hits']]
-        if PREGEA_RDA_ENABLED:
-            targets += [O['pregea_rda_collin'], O['pregea_rda_ladder'],
-                        O['pregea_rda_axis'], O['pregea_rda_fwd'],
-                        O['pregea_rda_collin_png'], O['pregea_rda_scree_png'],
-                        O['pregea_rda_ladder_png'], O['pregea_rda_fwd_png'],
-                        O['pregea_rda_biplot_png']]
-        if PREGEA_VP_ENABLED:
-            targets += [O['pregea_dbmem_vectors'], O['pregea_dbmem_diag'],
-                        O['pregea_dbmem_png'],
-                        O['pregea_vp_selection'], O['pregea_vp_selected'],
-                        O['pregea_vp_fractions'], O['pregea_vp_anova'], O['pregea_vp_px'],
-                        O['pregea_vp_path_png'], O['pregea_vp_venn_png'],
-                        O['pregea_vp_frac_png'], O['pregea_vp_px_png']]
-        targets.append(O['pregea_recommendations'])
+        if not PREGEA_PREDICTORS:
+            raise ValueError("PreGEA.predictors (or Climate.predictors as fallback) must be set")
+        if not PREGEA_LFMM_KS:
+            raise ValueError("PreGEA: empty K range — check PreGEA.k_offset against sNMF.k_best")
+        targets = [
+            O['pregea_screeplot'], O['pregea_screeplot_tsv'],
+            O['pregea_lfmm_ladder'], O['pregea_lfmm_hist'],
+            O['pregea_lfmm_qq'], O['pregea_lfmm_lambda'], O['pregea_lfmm_hits'],
+            O['pregea_emmax_ladder'], O['pregea_emmax_hist'],
+            O['pregea_emmax_qq'], O['pregea_emmax_lambda'], O['pregea_emmax_hits'],
+            O['pregea_rda_collin'], O['pregea_rda_ladder'],
+            O['pregea_rda_axis'], O['pregea_rda_fwd'], O['pregea_rda_fwd_png'],
+            O['pregea_rda_comparison_png'],
+            O['pregea_recommendations'],
+        ]
+        targets += [rda_model_biplot(n) for n in PREGEA_RDA_COND_PCS]
+        targets += [rda_model_biplot_svg(n) for n in PREGEA_RDA_COND_PCS]
+        targets += [rda_model_screeplot(n) for n in PREGEA_RDA_COND_PCS]
+        targets += [rda_model_screeplot_svg(n) for n in PREGEA_RDA_COND_PCS]
+        targets += [rda_model_axis_anova(n) for n in PREGEA_RDA_COND_PCS]
         if PREGEA_TRANSFER_GUARD:
             targets += [O['pregea_transfer_guard'], O['pregea_transfer_png']]
+        targets.append(W['summary_done'])
+        return targets
+
+    elif mode == 'climate':
+        if not CLIMATE_ENABLED:
+            raise ValueError("climate mode requires Climate.enabled: true")
+        if not get_predictors_list():
+            raise ValueError("Climate.predictors must be set for climate mode")
+        check_numeric(K_BEST, 'K_BEST')
+        targets = [
+            O['climate_invariant'], DENSITY_PLOT_COMBINED, O['corr_heatmap'],
+            O['climate_dbmem_vectors'], O['climate_dbmem_diag'], O['climate_dbmem_png'],
+            O['climate_vp_selection'], O['climate_vp_selected'],
+            O['climate_vp_fractions'], O['climate_vp_anova'], O['climate_vp_px'],
+            O['climate_vp_path_png'], O['climate_vp_venn_png'],
+            O['climate_vp_frac_png'], O['climate_vp_px_png'],
+        ]
+        if META_HAS_PHENO:
+            targets += [DENSITY_PLOT_PHENOTYPES]
         targets.append(W['summary_done'])
         return targets
 
@@ -1804,14 +1842,9 @@ def get_targets(mode):
         # Climate-dependent targets
         if CLIMATE_ENABLED:
             targets += [O['climate_site'], O['climate_site_scaled'], O['climate_all'], W['climate_raster']]
-            targets += [O['climate_invariant']]
-            targets += [DENSITY_PLOT_COMBINED]
-            targets += [O['corr_heatmap']]
             # Simple PieMaps for ALL 19 BIO variables (exploration step)
             targets += [piemap_notrait(bio) for bio in ALL_BIO]
             targets += [piemap_notrait_points(bio) for bio in ALL_BIO]
-        if META_HAS_PHENO:
-            targets += [DENSITY_PLOT_PHENOTYPES]
 
         # Population statistics (requires >= 3 samples per population)
         if CALC_POP_STATS:

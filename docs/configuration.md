@@ -111,12 +111,39 @@ Map:
 Climate:
   enabled: true
   predictors: bio_1,bio_12,bio_15
+  Varpart:
+    response: pcs
+    response_var_cutoff: 0.8
+    response_max_pcs: 20
+    response_min_pcs: 2
+    structure_table: qmatrix
+    confounding_flag: true
+    permutations: 199
+  dbMEM:
+    spatial_level: auto
+    min_sites: 6
 ```
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `Climate.enabled` | Enable climate download and climate-dependent analyses. Set `false` to skip GEA, maladaptation, and gea_x_gwas modes. Structure runs without climate plots/piemaps (only imputation + pop stats). GWAS runs without piemaps. | `true` |
 | `Climate.predictors` | Comma-separated WorldClim bioclimatic variables for GEA/GWAS analyses (bio_1 through bio_19). All 19 are shown in the Structure tab piemaps; this list controls which are used as predictors in association. Ignored when `enabled: false`. | — |
+
+**`Climate.Varpart.*`** and **`Climate.dbMEM.*`** configure the `mode=climate` spatial block: the shared dbMEM eigenvectors and the climate/structure/geography variance partitioning (both reused by the spatial Gradient Forest in `mode=maladaptation`).
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `Climate.Varpart.response` | Response matrix for `varpart()`: `pcs` (LEA genomic PCs — documented scalability adaptation) or `snps` (raw LD-pruned SNP matrix) | `"pcs"` |
+| `Climate.Varpart.response_var_cutoff` | Cumulative variance of LEA PCs retained as the response Y (when `response: pcs`) | `0.8` |
+| `Climate.Varpart.response_max_pcs` | Ceiling on the number of response PCs retained | `20` |
+| `Climate.Varpart.response_min_pcs` | Floor on response PCs so varpart always has a multivariate Y | `2` |
+| `Climate.Varpart.structure_table` | Structure predictors: `qmatrix` (sNMF Q at `k_best`, last column dropped) or `none` | `"qmatrix"` |
+| `Climate.Varpart.confounding_flag` | Auto-flag high climate–geography confounding when the shared fraction exceeds either unique fraction | `true` |
+| `Climate.Varpart.permutations` | `varpart` `anova.cca` permutations per testable fraction (`999` is the production/literature value; the default is a faster testing value) | `199` |
+| `Climate.dbMEM.spatial_level` | dbMEM construction level: `auto`, `site`, or `sample` | `"auto"` |
+| `Climate.dbMEM.min_sites` | Minimum sites; below this dbMEM writes a skip record instead of crashing | `6` |
+
+`Climate.Varpart.ordir2step_pin` (`0.01`) and `.r2_permutations` (`999`) are **not** config keys — they are fixed constants (`CLIMATE_VP_PIN` / `CLIMATE_VP_R2PERMS` in `common.smk`), the Blanchet double-stopping-rule standard for forward selection.
 
 ---
 
@@ -177,6 +204,43 @@ Piemap:
 
 ---
 
+### PreGEA — Hyperparameter exploration (optional, `mode=pregea`)
+
+```yaml
+PreGEA:
+  predictors: bio_1,bio_2,bio_3
+  k_offset: 2
+  n_pcs_max: 10
+  Advanced:
+    collinearity_r: 0.7
+    vif_max: 10.0
+    axis_alpha: 0.05
+    permutations: 199
+  TransferGuard:
+    enabled: no
+    lfmm_k: auto
+    emmax_n_pcs: auto
+```
+
+`mode=pregea` sweeps hyperparameter ladders on the cheap LD-pruned dataset — LFMM-K, EMMAX-#PC, and RDA-Condition()-PC — and writes one recommended value per (method, parameter) to `PreGEA/tables/pregea_recommendations.tsv`, pre-filled into the Shiny GEA tab's method editor. LFMM/EMMAX/RDA always run together (no per-block switches).
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `PreGEA.predictors` | Comma-separated predictors for the ladders; falls back to `Climate.predictors` when unset | `Climate.predictors` |
+| `PreGEA.k_offset` | LFMM K sweep range = `sNMF.k_best ± k_offset` | `2` |
+| `PreGEA.n_pcs_max` | Shared ceiling for the EMMAX/GAPIT #PCs **and** RDA Condition()-PC ladders (both sweep `0..n_pcs_max`) | `10` |
+| `PreGEA.Advanced.collinearity_r` | `\|r\|` pre-screen threshold applied before the RDA fit | `0.7` |
+| `PreGEA.Advanced.vif_max` | Post-fit `vif.cca` cutoff; a rung with `max_vif ≥ vif_max` gets `status="vif_exceeded"` and is excluded from recommendations | `10.0` |
+| `PreGEA.Advanced.axis_alpha` | RDA constrained-axis significance level | `0.05` |
+| `PreGEA.Advanced.permutations` | RDA `anova.cca` permutations (`999` is the production value; the default is a faster testing value) | `199` |
+| `PreGEA.TransferGuard.enabled` | Opt-in full-set λ re-check at the recommended hyperparameters — the only PreGEA rule that pulls the full-set imputation chain into this otherwise LD-pruned-only mode | `false` |
+| `PreGEA.TransferGuard.lfmm_k` | LFMM K for the guard; `auto` resolves from `pregea_recommendations.tsv` | `"auto"` |
+| `PreGEA.TransferGuard.emmax_n_pcs` | EMMAX #PCs for the guard; `auto` resolves from `pregea_recommendations.tsv` | `"auto"` |
+
+Many former `PreGEA.*` fields are now fixed constants rather than config keys (seed = 42, kinship = BN, PreGEA `genomic_control` = FALSE, FDR = 0.1, `min_predictors` = 2, `lambda_tol` = 0.15, `deflation_floor` = 0.90, `ordiR2step` `Pin`/`R2permutations` = 0.01/999). See the README's **Fixed constants (PreGEA / Climate)** section for the full list and rationale.
+
+---
+
 ### GEA — Climate association analysis
 
 ```yaml
@@ -221,7 +285,7 @@ GEA:
 - `threshold`: significance threshold after correction
 - `params` (optional): per-method hyperparameters. Source of truth is the method registry (`workflow/methods/gea.py`), also surfaced in the Shiny GEA sidebar's method editor. Omit to use registry defaults (existing configs need no changes). Per-method keys:
   - `EMMAX`: `n_pcs` (int, default = sNMF `k_best`), `kinship` (`BN`|`IBS`, default `BN`)
-  - `LFMM`: `K` (int, default = sNMF `k_best`)
+  - `LFMM`: `K` (int, default = sNMF `k_best`), `genomic_control` (bool, default `TRUE` — `lfmm2.test(genomic.control=...)` for the production run; PreGEA's own K-ladder always fits with this OFF so λ_GC stays informative)
   - `GAPIT models`: `n_pcs` (int, default = sNMF `k_best`)
   - `RDA`: `axes` (`auto` or int ≥2), `axis_alpha` (float, default `0.05`), `condition_pcs` (int, default = sNMF `k_best`), `predictor_set` (`auto` or comma-separated subset of `Climate.predictors`), `permutations` (int, default `999`), `fit_mode` (`auto`|`full`|`pruned` — `pruned` is an engineering fallback, not the literature default), `full_fit_max_snps`/`full_fit_max_gb` (size gate for `fit_mode: auto`), `seed` (int, default `42`)
 
@@ -420,7 +484,10 @@ Set `GFF.go_field: "NULL"` to skip enrichment.
 │
 ├── climate/
 │   ├── plots/                             # density_plot_present, correlation_heatmap, density_plot_future_*
-│   ├── tables/present/                    # climate_present_{all,site,site_scaled}.tsv
+│   ├── plots/{spatial,varpart}/           # dbmem_screeplot, varpart_venn, px_barplot (mode=climate)
+│   ├── tables/present/                    # climate_present_{all,site,site_scaled}.tsv, climate_invariant_predictors.tsv
+│   ├── tables/spatial/                    # dbmem_vectors, dbmem_diagnostics (mode=climate)
+│   ├── tables/varpart/                    # varpart_fractions, varpart_anova, px_per_variable, dbmem_selected (mode=climate)
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_{site,all}.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters
 │

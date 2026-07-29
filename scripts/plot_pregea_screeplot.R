@@ -25,7 +25,7 @@ args <- commandArgs(trailingOnly = TRUE)
 EIGENVALUES <- args[1]                       # LEA .eigenvalues, one value/line, no header
 K_BEST      <- as.numeric(args[2])
 K_RANGE_STR <- args[3]                       # comma-separated swept LFMM K values, e.g. "2,3,4,5"
-N_PCS_MAX   <- as.numeric(args[4])           # EMMAX #PC ladder ceiling
+N_PCS_MAX   <- as.numeric(args[4])           # shared EMMAX/RDA #PC ladder ceiling
 OUT_PNG     <- args[5]
 OUT_TSV     <- args[6]
 INTER_DIR   <- args[7]
@@ -78,7 +78,10 @@ g <- ggplot(plot_dt, aes(x = pc, y = var_explained)) +
     geom_point(aes(y = broken_stick), color = ADAPT_THRESHOLD, size = 1.2) +
     geom_vline(xintercept = range(k_range), linetype = "dashed", color = ADAPT_COL$secondary) +
     geom_hline(yintercept = 0, color = "transparent") +
-    scale_fill_manual(values = c(`TRUE` = ADAPT_RETAINED, `FALSE` = ADAPT_NEUTRAL), guide = "none") +
+    # ADAPT_NEUTRAL is an alias of ADAPT_RETAINED (both #0B775E) — using it
+    # here made above/below-broken-stick bars render identically. ADAPT_THRESHOLD
+    # (dark plum) actually distinguishes "below the null" from "above it".
+    scale_fill_manual(values = c(`TRUE` = ADAPT_RETAINED, `FALSE` = ADAPT_THRESHOLD), guide = "none") +
     labs(x = "PC", y = "Proportion of variance explained",
         title = "LD-pruned genotype PCA screeplot",
         subtitle = sprintf("%d axis/axes above broken-stick null (n=%d total) | K_best=%s | swept K range dashed",
