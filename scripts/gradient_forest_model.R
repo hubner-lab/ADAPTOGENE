@@ -1,6 +1,5 @@
 library(dplyr)
 library(data.table)
-library(vegan)
 library(gradientForest)
 library(stringr)
 library(qs)
@@ -18,6 +17,13 @@ COR_THRESHOLD = args[9] %>% as.numeric
 SPATIAL_CORRECTION = args[10]         # "with" or "without"
 MODEL_TYPE = args[11]   # "adaptive" or "random"
 OUTPUT = args[12]
+# Appended after OUTPUT (positions 13-14), matching rda.R's "append after
+# outputs, never insert mid-list" convention — inserting earlier would
+# silently shift MODEL_TYPE/OUTPUT. "NULL" (literal string) when
+# SPATIAL_CORRECTION == 'without' (workflow/rules/maladaptation.smk's
+# nospatial branch never reads these).
+DBMEM_VECTORS = args[13]   # PreGEA/tables/spatial/dbmem_vectors.tsv, or "NULL"
+DBMEM_SELECTED = args[14]  # PreGEA/tables/varpart/dbmem_selected.tsv, or "NULL"
 ##############
 
 set.seed(42)
@@ -66,7 +72,7 @@ if (MODEL_TYPE == 'adaptive') {
 # Compute maxLevel for gradient forest
 maxLevel <- log2(0.368 * nrow(lfmm_dt) / 2)
 
-# Load samples for PCNM
+# Load samples (also the sample-ID key for the dbMEM join below)
 samples <- fread(SAMPLES,
                  colClasses = c("site" = "character",
                                 'sample' = 'character',
@@ -76,16 +82,43 @@ samples <- fread(SAMPLES,
 # Load climate predictors
 env.bio <- fread(CLIM_PRESENT_SITE) %>% dplyr::select(!!PREDICTORS_SELECTED)
 
-# Build input matrix and predictor list
+# Build input matrix and predictor list. Spatial covariates are preGEA's
+# forward-selected dbMEM vectors (adespatial::dbmem() + ordiR2step, Block 4 —
+# scripts/pregea_dbmem.R + scripts/pregea_varpart.R), NOT the old ad hoc
+# vegan::pcnm(dist(raw lon/lat)) + "keep half the positive eigenvalues"
+# heuristic this replaces. "Keep all positive MEMs" was considered and
+# rejected: docs/rda_research.md's A20/C4 rows always pair dbMEM WITH forward
+# selection, never recommend the raw set alone as a GF predictor block.
 if (SPATIAL_CORRECTION == 'with') {
-  coords <- data.frame(long = samples$longitude, lat = samples$latitude)
-  pcnm_result <- pcnm(dist(coords))
-  keep <- round(length(which(pcnm_result$value > 0)) / 2)
-  pcnm_scores <- vegan::scores(pcnm_result)[, 1:keep]
-  message(paste0('INFO: Using ', ncol(pcnm_scores), ' PCNM axes'))
+  dbmem_dt <- fread(DBMEM_VECTORS, colClasses = c(sample = "character"))
+  sel_dt   <- fread(DBMEM_SELECTED)
+  selected_mems <- sel_dt[selected == TRUE, mem]
 
-  input_matrix <- cbind(env.bio, pcnm_scores, snp_subset)
-  predictor_vars <- c(colnames(env.bio), colnames(pcnm_scores))
+  mem_cols <- grep("^MEM\\d+$", names(dbmem_dt), value = TRUE)
+  if (length(mem_cols) == 0 || length(selected_mems) == 0) {
+    stop("HARD STOP: dbMEM produced no usable spatial vectors for this project ",
+         "(see PreGEA/tables/spatial/dbmem_diagnostics.tsv and ",
+         "PreGEA/tables/varpart/dbmem_selected.tsv for why — e.g. too few ",
+         "unique sample coordinates, or ordiR2step selected 0 MEMs). A ",
+         "'spatial' Gradient Forest model cannot be built on this dataset. ",
+         "Set Maladaptation.methods.gradient_forest.spatial_correction to ",
+         "'without', or investigate why dbMEM/forward-selection degenerated.")
+  }
+
+  # dbmem_vectors.tsv is keyed by sample (preGEA's own row order); this
+  # script's LFMM/env.bio matrices are positionally aligned to `samples`
+  # (SAMPLES arg) — match() explicitly here rather than assuming row order,
+  # since dbMEM comes from a different source file than the other two.
+  dbmem_dt <- dbmem_dt[match(samples$sample, sample)]
+  stopifnot(!anyNA(dbmem_dt$sample))  # every GF sample must resolve to a dbMEM row
+
+  mem_scores <- as.data.frame(dbmem_dt[, ..selected_mems])
+  colnames(mem_scores) <- selected_mems
+  message(paste0('INFO: Using ', ncol(mem_scores), ' forward-selected dbMEM axes: ',
+                 paste(selected_mems, collapse = ', ')))
+
+  input_matrix <- cbind(env.bio, mem_scores, snp_subset)
+  predictor_vars <- c(colnames(env.bio), colnames(mem_scores))
 } else {
   input_matrix <- cbind(env.bio, snp_subset)
   predictor_vars <- colnames(env.bio)

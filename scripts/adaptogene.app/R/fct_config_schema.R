@@ -518,7 +518,7 @@ config_schema <- function() {
           "Spatial correction", "maladaptation","Gradient Forest",
           "select",  FALSE,
           choices = c("with", "without", "both"),
-          help = "Include spatial eigenvectors (PCNM) as covariates. 'both' runs each SNP set as spatial AND nospatial."),
+          help = "Include forward-selected dbMEM spatial vectors as covariates (requires PreGEA.Varpart.enabled — run mode=pregea first). 'both' runs each SNP set as spatial AND nospatial."),
         s("Maladaptation.methods.gradient_forest.random_model",
           "Random model",       "maladaptation","Gradient Forest",
           "checkbox", FALSE,

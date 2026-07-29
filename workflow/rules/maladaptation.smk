@@ -105,6 +105,11 @@ rule density_plot_future:
 # sigsnps is an ancestor-less source file produced by the Shiny GEA tab.
 # {run_label} = saved SNP-set name; {spatial_tag} = spatial|nospatial.
 # pcnm param translates spatial_tag -> 'with'/'without' for the R script.
+# dbmem/dbmem_selected: preGEA's forward-selected dbMEM vectors (Block 4) —
+# only pulled in when spatial_tag == 'spatial'. common.smk raises a clear
+# ValueError at parse time if spatial_correction requests 'spatial'/'both'
+# without PreGEA.Varpart.enabled, so these paths always resolve to real
+# preGEA outputs whenever this branch of the DAG is actually reachable.
 rule gradient_forest_adaptive:
     """Build adaptive Gradient Forest model using a user-curated SNP set."""
     input:
@@ -113,13 +118,17 @@ rule gradient_forest_adaptive:
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = W['metadata_climate_valid'],
-        climate = O['climate_site']
+        climate = O['climate_site'],
+        dbmem          = lambda wc: O['pregea_dbmem_vectors'] if wc.spatial_tag == 'spatial' else [],
+        dbmem_selected = lambda wc: O['pregea_vp_selected']   if wc.spatial_tag == 'spatial' else []
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive')
     params:
         predictors    = PREDICTORS_SELECTED,
         ntree         = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without'
+        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without',
+        dbmem_arg     = lambda wc, input: input.dbmem          if wc.spatial_tag == 'spatial' else 'NULL',
+        dbmem_sel_arg = lambda wc, input: input.dbmem_selected if wc.spatial_tag == 'spatial' else 'NULL'
     log: f"{LOGDIR}maladaptation/gradient_forest_adaptive_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
@@ -127,7 +136,7 @@ rule gradient_forest_adaptive:
             {input.lfmm} {input.sigsnps} {input.vcfsnp} {input.removed} \
             {input.samples} {input.climate} {params.predictors} \
             {params.ntree} {params.cor_threshold} {params.pcnm} \
-            adaptive {output} > {log} 2>&1
+            adaptive {output} {params.dbmem_arg} {params.dbmem_sel_arg} > {log} 2>&1
         """
 
 # Gradient Forest - random/neutral model (optional)
@@ -139,13 +148,17 @@ rule gradient_forest_random:
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
         samples = W['metadata_climate_valid'],
-        climate = O['climate_site']
+        climate = O['climate_site'],
+        dbmem          = lambda wc: O['pregea_dbmem_vectors'] if wc.spatial_tag == 'spatial' else [],
+        dbmem_selected = lambda wc: O['pregea_vp_selected']   if wc.spatial_tag == 'spatial' else []
     output: mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'random')
     params:
         predictors    = PREDICTORS_SELECTED,
         ntree         = NTREE,
         cor_threshold = COR_THRESHOLD,
-        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without'
+        pcnm          = lambda wc: 'with' if wc.spatial_tag == 'spatial' else 'without',
+        dbmem_arg     = lambda wc, input: input.dbmem          if wc.spatial_tag == 'spatial' else 'NULL',
+        dbmem_sel_arg = lambda wc, input: input.dbmem_selected if wc.spatial_tag == 'spatial' else 'NULL'
     log: f"{LOGDIR}maladaptation/gradient_forest_random_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
@@ -153,7 +166,7 @@ rule gradient_forest_random:
             {input.lfmm} {input.sigsnps} {input.vcfsnp} {input.removed} \
             {input.samples} {input.climate} {params.predictors} \
             {params.ntree} {params.cor_threshold} {params.pcnm} \
-            random {output} > {log} 2>&1
+            random {output} {params.dbmem_arg} {params.dbmem_sel_arg} > {log} 2>&1
         """
 
 # Genetic offset calculation

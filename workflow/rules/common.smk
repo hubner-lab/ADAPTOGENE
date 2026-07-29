@@ -628,6 +628,23 @@ PREGEA_TRANSFER_GUARD = _pg_tg.get('enabled', False)
 PREGEA_TG_LFMM_K  = _pg_tg.get('lfmm_k', 'auto')
 PREGEA_TG_EMMAX_NPCS = _pg_tg.get('emmax_n_pcs', 'auto')
 
+# Gradient Forest's 'spatial' variant now consumes preGEA's forward-selected
+# dbMEM vectors (Block 4: pregea_dbmem + pregea_varpart, adespatial::dbmem +
+# ordiR2step — replaces the old ad hoc pcnm()/keep-half-eigenvalues heuristic
+# in gradient_forest_model.R). Both preGEA rules live behind the single
+# PREGEA_VP_ENABLED guard (pregea.smk), so a spatial GF request with that
+# guard off would otherwise dangle on a missing dependency at parse time —
+# fail loudly here instead, matching the pipeline's philosophy (and the same
+# bug class as commit ebbab3c: a cross-mode dependency silently unmet).
+if 'spatial' in ACTIVE_SPATIAL_TAGS and not PREGEA_VP_ENABLED:
+    raise ValueError(
+        "Maladaptation.methods.gradient_forest.spatial_correction is "
+        f"{SPATIAL_CORRECTION!r} ('spatial' or 'both'), which requires "
+        "forward-selected dbMEM vectors from PreGEA.Varpart. Set "
+        "PreGEA.Varpart.enabled: true (and run mode=pregea first), or set "
+        "spatial_correction: without."
+    )
+
 #=============================================================================
 # PATH DEFINITIONS
 #=============================================================================
