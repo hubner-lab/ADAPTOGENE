@@ -570,16 +570,16 @@ check_in_list(CLIMATE_VP_STRUCT, ['qmatrix', 'none'], 'Climate.Varpart.structure
 CLIMATE_VP_VAR_CUTOFF = float(_climate_vp.get('response_var_cutoff', 0.8))
 CLIMATE_VP_MAX_PCS    = int(_climate_vp.get('response_max_pcs', 20))
 CLIMATE_VP_MIN_PCS    = int(_climate_vp.get('response_min_pcs', 2))
-CLIMATE_VP_CONFOUND   = _climate_vp.get('confounding_flag', True)
+# The confounding-flag diagnostic (shared > max(unique) fraction) is always
+# computed now — no config switch (Climate config simplification).
 # The one surviving Varpart permutation knob — gates the varpart anova
 # significance test itself. NOT the same as CLIMATE_VP_R2PERMS below (that
 # one is ordiR2step's internal R2permutations, now a fixed constant).
-CLIMATE_VP_PERMS      = int(_climate_vp.get('permutations', 199))
+CLIMATE_VP_PERMS      = int(_climate_vp.get('permutations', 999))
 
-_climate_dbmem = config.get('Climate', {}).get('dbMEM', {})
-CLIMATE_DBMEM_LEVEL     = _climate_dbmem.get('spatial_level', 'auto')
-check_in_list(CLIMATE_DBMEM_LEVEL, ['auto', 'site', 'sample'], 'Climate.dbMEM.spatial_level')
-CLIMATE_DBMEM_MIN_SITES = int(_climate_dbmem.get('min_sites', 6))
+# dbMEM is always site-level with no min-sites knob (Climate config
+# simplification) — scripts/pregea_dbmem.R hardcodes a 3-site floor and
+# writes a skip record (surfaced as a Shiny warning) below it.
 
 # Fixed constants (Blanchet double-stopping-rule standard — A17; not
 # user-configurable, see README "Fixed constants"). Shared by climate_varpart's
@@ -896,9 +896,9 @@ for _k in ('pregea_screeplot', 'pregea_screeplot_svg', 'pregea_screeplot_tsv',
 # --- from add_climate_varpart_paths() --- (climate.smk is also included
 # unconditionally; same pre-seeding reason as the pregea loop above)
 for _k in ('climate_dbmem_vectors', 'climate_dbmem_diag', 'climate_dbmem_png', 'climate_dbmem_svg',
-           'climate_vp_selection', 'climate_vp_selected', 'climate_vp_fractions',
-           'climate_vp_anova', 'climate_vp_px', 'climate_vp_path_png', 'climate_vp_venn_png',
-           'climate_vp_frac_png', 'climate_vp_px_png'):
+           'climate_vp_selection', 'climate_vp_selected', 'climate_vp_table',
+           'climate_vp_confound', 'climate_vp_px', 'climate_vp_path_png', 'climate_vp_venn_png',
+           'climate_vp_px_png'):
     O[_k] = _ph(_k)
 
 def add_kbest_paths():
@@ -1024,12 +1024,11 @@ def add_climate_varpart_paths():
     O['climate_dbmem_svg']     = f"{_pl}spatial/dbmem_screeplot.svg"
     O['climate_vp_selection']  = f"{_tb}varpart/dbmem_selection_path.tsv"
     O['climate_vp_selected']   = f"{_tb}varpart/dbmem_selected.tsv"
-    O['climate_vp_fractions']  = f"{_tb}varpart/varpart_fractions.tsv"
-    O['climate_vp_anova']      = f"{_tb}varpart/varpart_anova.tsv"
+    O['climate_vp_table']      = f"{_tb}varpart/variance_partition.tsv"
+    O['climate_vp_confound']   = f"{_tb}varpart/climate_confounding.tsv"
     O['climate_vp_px']         = f"{_tb}varpart/px_per_variable.tsv"
     O['climate_vp_path_png']   = f"{_pl}varpart/dbmem_selection_path.png"
     O['climate_vp_venn_png']   = f"{_pl}varpart/varpart_venn.png"
-    O['climate_vp_frac_png']   = f"{_pl}varpart/varpart_fractions_bar.png"
     O['climate_vp_px_png']     = f"{_pl}varpart/px_barplot.png"
 
 add_climate_varpart_paths()
@@ -1824,9 +1823,9 @@ def get_targets(mode):
             O['climate_invariant'], DENSITY_PLOT_COMBINED, O['corr_heatmap'],
             O['climate_dbmem_vectors'], O['climate_dbmem_diag'], O['climate_dbmem_png'],
             O['climate_vp_selection'], O['climate_vp_selected'],
-            O['climate_vp_fractions'], O['climate_vp_anova'], O['climate_vp_px'],
+            O['climate_vp_table'], O['climate_vp_confound'], O['climate_vp_px'],
             O['climate_vp_path_png'], O['climate_vp_venn_png'],
-            O['climate_vp_frac_png'], O['climate_vp_px_png'],
+            O['climate_vp_px_png'],
         ]
         if META_HAS_PHENO:
             targets += [DENSITY_PLOT_PHENOTYPES]

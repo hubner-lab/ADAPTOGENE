@@ -94,7 +94,8 @@ elif MODE == 'climate':
         input:
             invariant = O['climate_invariant'],
             dbmem_diag = O['climate_dbmem_diag'],
-            varpart    = O['climate_vp_fractions'],
+            varpart    = O['climate_vp_table'],
+            confound   = O['climate_vp_confound'],
             px         = O['climate_vp_px'],
         output: W['summary_done']
         params: summary_tsv = O['summary']
@@ -103,7 +104,7 @@ elif MODE == 'climate':
             """
             Rscript /pipeline/scripts/write_summary.R \
                 climate {params.summary_tsv} \
-                {input.invariant} {input.dbmem_diag} {input.varpart} {input.px} > {log} 2>&1
+                {input.invariant} {input.dbmem_diag} {input.varpart} {input.confound} {input.px} > {log} 2>&1
             touch {output}
             """
 

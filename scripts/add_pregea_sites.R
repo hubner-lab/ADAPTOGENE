@@ -5,9 +5,10 @@
 # testing but degenerate for the preGEA varpart/dbMEM block, whose whole
 # purpose is spatial-eigenvector analysis (adespatial::dbmem() + ordiR2step +
 # vegan::varpart). 3 points give at most 1-2 dbMEM vectors and no real
-# geographic gradient to detect; the preGEA config's default min_sites: 4
-# would push every SIMDATA run down the "skipped_too_few_sites" branch,
-# leaving that code untested on the pipeline's primary dataset.
+# geographic gradient to detect; dbMEM's hard floor of 3 sites (hardcoded in
+# scripts/pregea_dbmem.R, not a config key) would push a bare-3-site SIMDATA
+# run right up against the "too_few_sites" skip branch, leaving that code
+# effectively untested on the pipeline's primary dataset.
 #
 # Adds 6 new sites (3 samples each -> 18 new samples, 9 sites total) INSIDE
 # the existing coordinate bounding box (lat 30.854-33.0128, lon

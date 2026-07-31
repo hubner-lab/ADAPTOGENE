@@ -28,7 +28,19 @@ suppressPackageStartupMessages({
     library(dplyr)      # load_pca_covariates() (emmax_core.R) uses %>% internally
     library(vegan)
     library(ggplot2)
-    library(ggrepel)
+    library(ggrepel)    # dbMEM selection-path labels only (see below)
+    library(VennDiagram)  # schematic (non-proportional) 2/3-set Venn for the
+                          # variance-partition plot — bioinformatics-standard
+                          # tool for exactly this diagram, computes its own
+                          # region label positions (draw.triple.venn()'s
+                          # region layout is fixed/schematic by default —
+                          # "General scaling for three-set Venn diagrams are
+                          # disabled due to potentially misleading visual
+                          # representation", its own docs). Two hand-rolled
+                          # attempts before this (donutsk nested donut, then
+                          # ggforce::geom_arc_bar + ggrepel schematic circles)
+                          # both needed manually-guessed anchor points; this
+                          # doesn't.
 })
 
 source("/pipeline/scripts/R/utils/theme_adaptogene.R")
@@ -52,26 +64,26 @@ LFMM_PRUNED      <- args[13]                 # "NULL" when RESPONSE="pcs"
 ORDIR2STEP_PIN   <- as.numeric(args[14])
 R2_PERMUTATIONS  <- as.numeric(args[15])     # ordiR2step's internal R2permutations (fixed constant, Climate.Varpart layer)
 VARPART_PERMS    <- as.numeric(args[16])     # the one surviving Varpart permutations knob (varpart anova test)
-CONFOUND_FLAG    <- toupper(args[17]) == "TRUE"
-SEED             <- as.numeric(args[18])
-OUT_SELECTION_TSV<- args[19]
-OUT_SELECTED_TSV <- args[20]
-OUT_FRACTIONS_TSV<- args[21]
-OUT_ANOVA_TSV    <- args[22]
-OUT_PX_TSV       <- args[23]
-PLOT_DIR         <- args[24]
-INTER_DIR        <- args[25]
+SEED             <- as.numeric(args[17])
+OUT_SELECTION_TSV<- args[18]
+OUT_SELECTED_TSV <- args[19]
+OUT_VARPART_TSV  <- args[20]                 # human-readable variance_partition.tsv (was OUT_FRACTIONS_TSV/OUT_ANOVA_TSV, merged)
+OUT_CONFOUND_TSV <- args[21]                 # climate_confounding.tsv (was OUT_ANOVA_TSV slot)
+OUT_PX_TSV       <- args[22]
+PLOT_DIR         <- args[23]
+INTER_DIR        <- args[24]
 ################################################################################
 # NOTE: SEL_PERMUTATIONS (old arg 16, "ordir2step_permutations" config key) was
 # dropped here — it was assigned but never referenced (ordiR2step's own
 # R2permutations control comes from R2_PERMUTATIONS above, arg 15). Removed
 # together with the config key (module split cleanup) rather than left dead.
+# CONFOUND_FLAG (old arg 17) was dropped too — the confounding-flag diagnostic
+# is now always computed, not switchable (Climate config simplification).
 
 for (d in c(dirname(OUT_SELECTION_TSV), PLOT_DIR, INTER_DIR)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
 predictor_names <- strsplit(PREDICTORS, ",")[[1]] |> trimws()
 climate_valid_ids <- fread(CLIMATE_VALID, header = FALSE, colClasses = "character")$V2
-sample_order_all <- readLines(SAMPLES_ORDER)
 
 ################################################################################
 # 1. Response matrix Y — genomic PCs (default) or raw pruned SNPs
@@ -212,13 +224,20 @@ fwrite(px_dt, OUT_PX_TSV, sep = "\t", quote = FALSE)
 message("INFO: Wrote Px table (", nrow(px_dt), " rows)")
 
 ################################################################################
-# 6. Variance partitioning — 3-table (when struct+geo both available) and the
-#    2-table climate-vs-geo Venn (the ONLY place the confounding flag is
-#    computed — with 3 tables "shared" is ambiguous, d+e+f+g).
+# 6. Variance partitioning — ONE unified tree (Unique-to-one-factor / Shared-
+#    between-factors / Unexplained, each with its own leaves) per run,
+#    populated from whichever varpart fit is available:
+#      - 3-table (climate+structure+geography) when both auxiliary tables exist
+#      - 2-table climate-vs-geography when structure_table="none"
+#      - 2-table climate-vs-structure fallback when geography is unavailable
+#      - climate alone, last resort, when neither auxiliary table exists
+#    The climate-vs-geography CONFOUNDING CHECK is a separate, dedicated
+#    2-table fit, ALWAYS computed when geography is available regardless of
+#    which tree above ends up displayed (docs/rda_research.md A.2 point 4) —
+#    written to its own file (climate_confounding.tsv), not mixed into the
+#    variance-partition rows (that mixing was the old fraction_type=
+#    "diagnostic" hack).
 ################################################################################
-frac_rows <- list()
-anova_rows <- list()
-
 # vegan::varpart()'s indfract table names its adj-R2 column "Adj.R.squared" for a
 # 2-table Venn but "Adj.R.square" (no trailing "d") for 3+ tables — confirmed on
 # this Docker's vegan 2.6-8. data.frame[idx, "wrong_name"] returns NULL silently
@@ -230,101 +249,190 @@ adjr2_col <- function(df) {
     hit[1]
 }
 
-add_testable_fraction <- function(label, rda_obj, testable) {
-    p <- NA_real_
-    if (testable && !is.null(rda_obj)) {
-        set.seed(SEED)
-        av <- tryCatch(anova.cca(rda_obj, permutations = VARPART_PERMS), error = function(e) NULL)
-        if (!is.null(av)) p <- as.data.frame(av)[["Pr(>F)"]][1]
-    }
-    anova_rows[[length(anova_rows) + 1]] <<- data.table(fraction = label, testable = testable, p_value = p)
+# p-value for one testable (unique) fraction via anova.cca on its partial-RDA
+# object. Shared/unexplained fractions are never directly testable this way —
+# callers simply don't call this for those, leaving p_value NA.
+compute_p <- function(rda_obj) {
+    if (is.null(rda_obj)) return(NA_real_)
+    set.seed(SEED)
+    av <- tryCatch(anova.cca(rda_obj, permutations = VARPART_PERMS), error = function(e) NULL)
+    if (is.null(av)) return(NA_real_)
+    as.data.frame(av)[["Pr(>F)"]][1]
+}
+
+# Component/group naming — SEMANTIC keys, independent of which vegan lettering
+# produced the number (2-table [a]/[b]/[c] and 3-table [a]-[g] mean different
+# things by letter — conflating them was the source of the bug below). Single
+# source of truth for both variance_partition.tsv and the Venn plot labels
+# (CLAUDE.md Rule 4). No "(unique)"/"(shared)" suffixes — the Venn's own
+# geometry (own-circle-only vs. overlap region) already makes that obvious.
+COMPONENT <- c(
+    climate_u   = "Climate",
+    structure_u = "Structure",
+    geo_u       = "Geography",
+    clim_struct = "Climate ∩ Structure",
+    struct_geo  = "Structure ∩ Geography",
+    clim_geo    = "Climate ∩ Geography",
+    all_three   = "All three",
+    unexplained = "Unexplained"
+)
+GROUP_OF <- c(
+    climate_u = "Unique to one factor", structure_u = "Unique to one factor", geo_u = "Unique to one factor",
+    clim_struct = "Shared between factors", struct_geo = "Shared between factors",
+    clim_geo = "Shared between factors", all_three = "Shared between factors",
+    unexplained = "Unexplained"
+)
+tree_rows <- list()
+add_tree_row <- function(region_key, value, p = NA_real_) {
+    # NOTE: the column is named region_key, NOT "key" — data.table()'s
+    # constructor reserves `key` as a formal argument (sets the table's
+    # index), so data.table(key = ..., ...) silently does NOT create a "key"
+    # column; it errors downstream instead ("some columns are not in the
+    # data.table"). Caught by testing before this shipped.
+    tree_rows[[length(tree_rows) + 1]] <<- data.table(
+        region_key = region_key, group = GROUP_OF[[region_key]], component = COMPONENT[[region_key]],
+        variance_pct = 100 * value, p_value = p)
 }
 
 have_struct <- !is.null(X_struct) && ncol(X_struct) > 0
 have_geo    <- !is.null(X_geo_sel) && ncol(X_geo_sel) > 0
+status      <- if (!have_geo) "no_spatial_vectors" else if (!have_struct) "no_structure_table" else "ok"
+model_label <- NA_character_
+confound_dt <- data.table(confounded = logical(), shared_pct = numeric(), max_unique_pct = numeric())
 
-# 2-table: climate vs geo — the confounding-flag partition (A.2 point 4)
+# 2-table climate-vs-geography — the dedicated confounding check, ALWAYS
+# computed when geography is available. Also doubles as the MAIN tree when
+# structure is unavailable (structure_table="none") — same fit, no wasted work.
 if (have_geo) {
     vp2 <- tryCatch(varpart(Y, X_clim, X_geo_sel), error = function(e) { message("WARNING: 2-table varpart failed: ", e$message); NULL })
     if (!is.null(vp2)) {
         fr <- vp2$part$indfract
         get_fr <- function(pat) { idx <- grep(pat, rownames(fr), fixed = TRUE); if (length(idx)) fr[idx, adjr2_col(fr)] else NA_real_ }
-        clim_unique <- get_fr("[a]"); shared_2 <- get_fr("[b]"); geo_unique <- get_fr("[c]")
-        frac_rows[[length(frac_rows) + 1]] <- data.table(
-            partition = "2-table", fraction = c("climate_unique", "shared", "geo_unique"),
-            adj_r2 = c(clim_unique, shared_2, geo_unique), fraction_type = c("unique", "shared", "unique"))
+        # vegan 2-table convention (empirically verified with designed test
+        # data): [a]=table1 unique, [b]=table2 unique, [c]=shared, [d]=residual.
+        # BUG FIX: this script previously read [b] as "shared" and [c] as
+        # "table2 unique" (swapped) — which fed the WRONG two numbers into the
+        # confounding-flag comparison below. Fixed here.
+        clim_unique <- get_fr("[a]"); geo_unique <- get_fr("[b]"); shared_2 <- get_fr("[c]")
+        resid_2     <- get_fr("[d]")
         rda_clim_u <- tryCatch(rda(Y, X_clim, X_geo_sel), error = function(e) NULL)
         rda_geo_u  <- tryCatch(rda(Y, X_geo_sel, X_clim), error = function(e) NULL)
-        add_testable_fraction("2table_climate_unique", rda_clim_u, TRUE)
-        add_testable_fraction("2table_geo_unique", rda_geo_u, TRUE)
+        p_clim <- compute_p(rda_clim_u); p_geo <- compute_p(rda_geo_u)
 
-        if (CONFOUND_FLAG && is.finite(shared_2) && is.finite(clim_unique) && is.finite(geo_unique)) {
+        if (is.finite(shared_2) && is.finite(clim_unique) && is.finite(geo_unique)) {
             max_unique <- max(clim_unique, geo_unique, na.rm = TRUE)
             confounded <- shared_2 > max_unique
-            frac_rows[[length(frac_rows) + 1]] <- data.table(
-                partition = "2-table", fraction = "confounding_flag",
-                adj_r2 = as.numeric(confounded), fraction_type = "diagnostic")
+            confound_dt <- data.table(confounded = confounded, shared_pct = 100 * shared_2, max_unique_pct = 100 * max_unique)
             if (confounded) message("WARNING: climate-geography CONFOUNDED — shared (", round(shared_2, 4),
                                     ") exceeds the largest unique fraction (", round(max_unique, 4), ")")
+        }
+
+        if (!have_struct) {
+            add_tree_row("climate_u", clim_unique, p_clim)
+            add_tree_row("geo_u",     geo_unique,  p_geo)
+            add_tree_row("clim_geo",  shared_2)
+            add_tree_row("unexplained", resid_2)
+            model_label <- "2-way (climate + geography)"
         }
     }
 }
 
 # 3-table: climate / structure / geography, when both auxiliary tables exist
-status <- if (!have_geo) "no_spatial_vectors" else if (!have_struct) "no_structure_table" else "ok"
 if (have_struct && have_geo) {
     vp3 <- tryCatch(varpart(Y, X_clim, X_struct, X_geo_sel), error = function(e) { message("WARNING: 3-table varpart failed: ", e$message); NULL })
     if (!is.null(vp3)) {
         fr3 <- vp3$part$indfract
-        letters8 <- c("a", "b", "c", "d", "e", "f", "g")
-        for (lt in letters8) {
-            idx <- grep(paste0("\\[", lt, "\\]"), rownames(fr3), fixed = FALSE)
-            if (length(idx)) frac_rows[[length(frac_rows) + 1]] <- data.table(
-                partition = "3-table", fraction = paste0("[", lt, "]"),
-                adj_r2 = fr3[idx, adjr2_col(fr3)],
-                fraction_type = if (lt %in% c("a", "b", "c")) "unique" else "shared")
-        }
+        get_fr3 <- function(lt) { idx <- grep(paste0("\\[", lt, "\\]"), rownames(fr3)); if (length(idx)) fr3[idx, adjr2_col(fr3)] else NA_real_ }
+        # Verified empirically (designed tests, isolating each pairwise overlap):
+        # [a]=climate unique, [b]=structure unique, [c]=geography unique,
+        # [d]=climate∩structure, [e]=structure∩geography,
+        # [f]=climate∩geography, [g]=all three, [h]=residual.
         rda_clim3 <- tryCatch(rda(Y, X_clim, cbind(X_struct, X_geo_sel)), error = function(e) NULL)
         rda_str3  <- tryCatch(rda(Y, X_struct, cbind(X_clim, X_geo_sel)), error = function(e) NULL)
         rda_geo3  <- tryCatch(rda(Y, X_geo_sel, cbind(X_clim, X_struct)), error = function(e) NULL)
-        add_testable_fraction("3table_climate_unique_a", rda_clim3, TRUE)
-        add_testable_fraction("3table_structure_unique_b", rda_str3, TRUE)
-        add_testable_fraction("3table_geo_unique_c", rda_geo3, TRUE)
+        add_tree_row("climate_u",   get_fr3("a"), compute_p(rda_clim3))
+        add_tree_row("structure_u", get_fr3("b"), compute_p(rda_str3))
+        add_tree_row("geo_u",       get_fr3("c"), compute_p(rda_geo3))
+        add_tree_row("clim_struct", get_fr3("d"))
+        add_tree_row("struct_geo",  get_fr3("e"))
+        add_tree_row("clim_geo",    get_fr3("f"))
+        add_tree_row("all_three",   get_fr3("g"))
+        add_tree_row("unexplained", get_fr3("h"))
+        model_label <- "3-way (climate + structure + geography)"
     }
 } else if (have_struct && !have_geo) {
     # Degenerate-input fallback (dbmem status != ok): climate-vs-structure 2-table instead.
     vp2s <- tryCatch(varpart(Y, X_clim, X_struct), error = function(e) NULL)
     if (!is.null(vp2s)) {
         frs <- vp2s$part$indfract
-        get_fr <- function(pat) { idx <- grep(pat, rownames(frs), fixed = TRUE); if (length(idx)) frs[idx, adjr2_col(frs)] else NA_real_ }
-        frac_rows[[length(frac_rows) + 1]] <- data.table(
-            partition = "2-table-fallback", fraction = c("climate_unique", "shared", "structure_unique"),
-            adj_r2 = c(get_fr("[a]"), get_fr("[b]"), get_fr("[c]")), fraction_type = c("unique", "shared", "unique"))
-        rda_clim_u <- tryCatch(rda(Y, X_clim, X_struct), error = function(e) NULL)
-        rda_str_u  <- tryCatch(rda(Y, X_struct, X_clim), error = function(e) NULL)
-        add_testable_fraction("2table_fallback_climate_unique", rda_clim_u, TRUE)
-        add_testable_fraction("2table_fallback_structure_unique", rda_str_u, TRUE)
+        get_frs <- function(pat) { idx <- grep(pat, rownames(frs), fixed = TRUE); if (length(idx)) frs[idx, adjr2_col(frs)] else NA_real_ }
+        # Same [a]/[b]/[c]/[d] convention as the 2-table block above (same fix applies).
+        clim_unique_s   <- get_frs("[a]"); struct_unique_s <- get_frs("[b]")
+        shared_s        <- get_frs("[c]"); resid_s <- get_frs("[d]")
+        rda_clim_s <- tryCatch(rda(Y, X_clim, X_struct), error = function(e) NULL)
+        rda_str_s  <- tryCatch(rda(Y, X_struct, X_clim), error = function(e) NULL)
+        add_tree_row("climate_u",   clim_unique_s,   compute_p(rda_clim_s))
+        add_tree_row("structure_u", struct_unique_s, compute_p(rda_str_s))
+        add_tree_row("clim_struct", shared_s)
+        add_tree_row("unexplained", resid_s)
+        model_label <- "2-way (climate + structure)"
+    }
+} else if (!have_struct && !have_geo) {
+    # Last resort: neither structure nor geography available — climate alone.
+    rda_clim_only <- tryCatch(rda(Y, X_clim), error = function(e) NULL)
+    if (!is.null(rda_clim_only)) {
+        r2_only <- suppressWarnings(RsquareAdj(rda_clim_only)$adj.r.squared)
+        if (is.finite(r2_only)) {
+            add_tree_row("climate_u", r2_only)
+            add_tree_row("unexplained", 1 - r2_only)
+            model_label <- "climate only (no structure or geography available)"
+        }
     }
 }
 
-fractions_dt <- if (length(frac_rows) > 0) rbindlist(frac_rows, fill = TRUE) else data.table(
-    partition = character(), fraction = character(), adj_r2 = numeric(), fraction_type = character())
-fractions_dt[, status := status]
-anova_dt <- if (length(anova_rows) > 0) rbindlist(anova_rows) else data.table(fraction = character(), testable = logical(), p_value = numeric())
+tree_dt <- if (length(tree_rows) > 0) rbindlist(tree_rows) else data.table(
+    region_key = character(), group = character(), component = character(), variance_pct = numeric(), p_value = numeric())
+tree_dt[, `:=`(model = model_label, status = status)]
 
-fwrite(fractions_dt, OUT_FRACTIONS_TSV, sep = "\t", quote = FALSE)
-fwrite(anova_dt,      OUT_ANOVA_TSV,      sep = "\t", quote = FALSE)
-message("INFO: Wrote varpart fractions (", nrow(fractions_dt), " rows, status=", status, ") and anova (",
-       nrow(anova_dt), " rows)")
+# `region_key` is an internal plotting aid (which predictor-table region a
+# row is — see the Venn plot below); the on-disk table stays the clean,
+# human-readable schema only.
+fwrite(tree_dt[, .(group, component, variance_pct, p_value, model, status)], OUT_VARPART_TSV, sep = "\t", quote = FALSE)
+fwrite(confound_dt, OUT_CONFOUND_TSV, sep = "\t", quote = FALSE)
+message("INFO: Wrote variance partition (", nrow(tree_dt), " rows, status=", status,
+       ", model=", model_label %||% "none", ") and confounding check (", nrow(confound_dt), " row)")
 
 ################################################################################
-# 7. Plots — all low-N (variables/fractions/steps), plain geoms are correct
-#    (Rule 6 does not apply). No on-plot commentary (Rule 8) — the
-#    "shared can be negative / untestable" caveat lives in the Shiny note.
+# 7. Plots. dbMEM selection path stays a line plot (low-N, Rule 6 doesn't
+#    apply). The variance partition is a SCHEMATIC Venn (fixed circle
+#    positions, NOT area-proportional) via VennDiagram::draw.{single,pairwise,
+#    triple}.venn() — a purpose-built, widely-used bioinformatics package for
+#    exactly this diagram, chosen after two hand-rolled attempts (donutsk
+#    nested donut, then ggforce::geom_arc_bar + ggrepel schematic circles)
+#    both needed manually-guessed label anchor points. VennDiagram computes
+#    its own region-label positions; drawn non-proportionally by design
+#    (adjusted-R2 fractions are routinely negative — a real Euler/proportional
+#    diagram can't represent that as area).
+#
+#    The package's own auto-generated region labels are just numbers, with no
+#    way to pass custom text directly — so each region is drawn with a
+#    UNIQUE PLACEHOLDER value first, then that grob's $label is swapped for
+#    our real "Component\nXX.X%" string post-hoc (a standard, documented
+#    customization pattern for this package). draw.triple.venn()'s
+#    area.vector order (verified from the package's own source, NOT the
+#    argument order): [area1-only, n12-only, area2-only, n13-only, all-three,
+#    n23-only, area3-only], with area1=Climate/area2=Structure/area3=Geography
+#    (verified via the category-label coordinates it returns).
+#
+#    Unexplained itself is NOT drawn (it's everything outside the circles,
+#    the standard Venn convention) — its magnitude is instead surfaced as the
+#    "X% variance explained" badge next to the plot in Shiny (mod_climate.R).
+#
+#    Every LABEL always shows the real, unclamped, signed value (CLAUDE.md
+#    Rule 8 — a value label is data, not baked-in commentary). The "read a
+#    negative fraction as ~0 (Peres-Neto et al. 2006)" interpretation lives in
+#    the Shiny help note, not on the plot.
 ################################################################################
-# save_both()/empty_plot() now thin wrappers over the shared
-# adapt_save_both()/adapt_empty_plot() helpers (theme_adaptogene.R) — hoisted
-# there so pregea_rda_setup.R's duplicated ggsave() pairs can reuse them too.
 save_both <- function(name, g, w = 7, h = 5) adapt_save_both(file.path(PLOT_DIR, name), g, w, h)
 empty_plot <- adapt_empty_plot
 
@@ -339,24 +447,79 @@ if (nrow(selection_dt) > 0) {
     save_both("dbmem_selection_path", g_path)
 } else save_both("dbmem_selection_path", empty_plot("No dbMEM selection path (geography unavailable)"))
 
-venn_rows <- fractions_dt[partition == "2-table" & fraction_type != "diagnostic"]
-if (nrow(venn_rows) > 0) {
-    g_venn <- ggplot(venn_rows, aes(x = fraction, y = adj_r2, fill = fraction_type)) +
-        geom_col() +
-        scale_fill_manual(values = c(unique = ADAPT_RETAINED, shared = ADAPT_THRESHOLD), guide = "none") +
-        labs(x = NULL, y = "Adjusted R2", title = "Climate vs geography variance partition (2-table)") +
-        theme_adaptogene()
-    save_both("varpart_venn", g_venn)
-} else save_both("varpart_venn", empty_plot("2-table climate/geography partition unavailable"))
+# Swap placeholder numeric grob labels (as drawn by VennDiagram) for our real
+# text, matched by exact placeholder string — order-independent, robust to
+# whatever internal grob order the package uses.
+replace_grob_labels <- function(g, mapping) {
+    for (i in seq_along(g)) {
+        if (inherits(g[[i]], "text")) {
+            lbl <- as.character(g[[i]]$label)
+            if (lbl %in% names(mapping)) g[[i]]$label <- mapping[[lbl]]
+        }
+    }
+    g
+}
+region_label <- function(row) sprintf("%s\n%.1f%%", row$component, row$variance_pct)
 
-if (nrow(fractions_dt) > 0 && any(fractions_dt$partition == "3-table")) {
-    g_frac <- ggplot(fractions_dt[partition == "3-table"], aes(x = fraction, y = adj_r2, fill = fraction_type)) +
-        geom_col() +
-        scale_fill_manual(values = c(unique = ADAPT_RETAINED, shared = ADAPT_THRESHOLD), guide = "none") +
-        labs(x = NULL, y = "Adjusted R2", title = "Climate / structure / geography 3-table partition") +
-        theme_adaptogene()
-    save_both("varpart_fractions_bar", g_frac)
-} else save_both("varpart_fractions_bar", empty_plot("3-table partition unavailable (needs structure + geography)"))
+venn_ok <- tryCatch({
+    region_dt <- tree_dt[region_key != "unexplained"]
+    if (nrow(region_dt) == 0) stop("no variance-partition data")
+
+    has_clim     <- "climate_u"   %in% region_dt$region_key
+    has_struct_r <- "structure_u" %in% region_dt$region_key
+    has_geo_r    <- "geo_u"       %in% region_dt$region_key
+    n_sets <- sum(has_clim, has_struct_r, has_geo_r)
+    SET_COLOR <- c(Climate = ADAPT_CATEGORICAL[1], Structure = ADAPT_CATEGORICAL[2], Geography = ADAPT_CATEGORICAL[3])
+    by_key <- function(k) region_dt[region_key == k]
+
+    v <- if (n_sets == 3) {
+        order3 <- c("climate_u", "clim_struct", "structure_u", "clim_geo", "all_three", "struct_geo", "geo_u")
+        mapping <- setNames(vapply(order3, function(k) region_label(by_key(k)), character(1)), as.character(1:7))
+        draw.triple.venn(area1 = 100, area2 = 100, area3 = 100, n12 = 40, n23 = 40, n13 = 40, n123 = 20,
+            category = c("Climate", "Structure", "Geography"),
+            fill = unname(SET_COLOR[c("Climate", "Structure", "Geography")]), col = "white", alpha = 0.45,
+            cat.col = ADAPT_COL$fg, cat.cex = 1.15, cat.fontface = "bold",
+            label.col = ADAPT_COL$fg, cex = 0.9,
+            direct.area = TRUE, area.vector = 1:7, ind = FALSE)
+    } else if (n_sets == 2) {
+        other <- if (has_struct_r) "Structure" else "Geography"
+        other_key <- if (has_struct_r) "structure_u" else "geo_u"
+        shared_key <- if (has_struct_r) "clim_struct" else "clim_geo"
+        # No direct.area for pairwise — pick area1/area2/cross.area so the
+        # three AUTO-COMPUTED displayed numbers (area1-cross, cross,
+        # area2-cross) are distinct known placeholders to match on.
+        v0 <- draw.pairwise.venn(area1 = 1000, area2 = 2000, cross.area = 100,
+            category = c("Climate", other), euler.d = FALSE, scaled = FALSE,
+            fill = unname(SET_COLOR[c("Climate", other)]), col = "white", alpha = 0.45,
+            cat.col = ADAPT_COL$fg, cat.cex = 1.15, cat.fontface = "bold",
+            label.col = ADAPT_COL$fg, cex = 0.9, ind = FALSE)
+        mapping <- c(`900` = region_label(by_key("climate_u")), `1900` = region_label(by_key(other_key)),
+                    `100` = region_label(by_key(shared_key)))
+        v0
+    } else {
+        # Last resort: climate alone, no overlap geometry.
+        v0 <- draw.single.venn(area = 1, category = "Climate",
+            fill = unname(SET_COLOR["Climate"]), col = "white", alpha = 0.45,
+            cat.col = ADAPT_COL$fg, cat.cex = 1.15, cat.fontface = "bold",
+            label.col = ADAPT_COL$fg, cex = 0.9, ind = FALSE)
+        mapping <- c(`1` = region_label(by_key("climate_u")))
+        v0
+    }
+    v <- replace_grob_labels(v, mapping)
+    v <- add.title(gList = v, x = "Variance partition", pos = c(0.5, 1.05),
+                   cex = 1.3, fontface = "bold", col = ADAPT_COL$fg)
+    v <- add.title(gList = v, x = model_label, pos = c(0.5, 1.00), cex = 0.9, col = ADAPT_COL$muted)
+
+    grDevices::png(file.path(PLOT_DIR, "varpart_venn.png"), width = 7, height = 7.5, units = "in", res = 300, bg = "white")
+    grid::grid.newpage(); grid::grid.draw(v); grDevices::dev.off()
+    svglite::svglite(file.path(PLOT_DIR, "varpart_venn.svg"), width = 7, height = 7.5, bg = "white")
+    grid::grid.newpage(); grid::grid.draw(v); grDevices::dev.off()
+    TRUE
+}, error = function(e) {
+    message("WARNING: variance-partition Venn failed: ", e$message)
+    FALSE
+})
+if (!venn_ok) save_both("varpart_venn", empty_plot(paste0("Variance partition unavailable (", status, ")")))
 
 if (nrow(px_dt) > 0) {
     g_px <- ggplot(px_dt, aes(x = reorder(variable, Px), y = Px_pct, fill = model)) +

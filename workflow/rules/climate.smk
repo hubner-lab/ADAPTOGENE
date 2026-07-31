@@ -96,12 +96,12 @@ rule climate_dbmem:
     output:
         vectors = O['climate_dbmem_vectors'], diag = O['climate_dbmem_diag'],
         png = O['climate_dbmem_png'], svg = O['climate_dbmem_svg'],
-    params: level = CLIMATE_DBMEM_LEVEL, min_sites = CLIMATE_DBMEM_MIN_SITES, inter_dir = INTER
+    params: inter_dir = INTER
     log:    f"{LOGDIR}climate/dbmem.log"
     shell:
         """
         Rscript /pipeline/scripts/pregea_dbmem.R \
-            {input.metadata} {input.samples} {params.level} {params.min_sites} \
+            {input.metadata} {input.samples} \
             {output.vectors} {output.diag} {output.png} {params.inter_dir} > {log} 2>&1
         """
 
@@ -120,10 +120,10 @@ rule climate_varpart:
         lfmm_pruned = W['lfmm_imp_climate'] if CLIMATE_VP_RESPONSE == 'snps' else [],
     output:
         selection  = O['climate_vp_selection'], selected = O['climate_vp_selected'],
-        fractions  = O['climate_vp_fractions'], anova    = O['climate_vp_anova'],
+        table      = O['climate_vp_table'], confound = O['climate_vp_confound'],
         px         = O['climate_vp_px'],
         p_path = O['climate_vp_path_png'], p_venn = O['climate_vp_venn_png'],
-        p_frac = O['climate_vp_frac_png'], p_px   = O['climate_vp_px_png'],
+        p_px   = O['climate_vp_px_png'],
     params:
         clusters_arg = lambda wc, input: input.clusters if CLIMATE_VP_STRUCT == 'qmatrix' else 'NULL',
         lfmm_arg     = lambda wc, input: input.lfmm_pruned if CLIMATE_VP_RESPONSE == 'snps' else 'NULL',
@@ -131,7 +131,7 @@ rule climate_varpart:
         response = CLIMATE_VP_RESPONSE, response_var = CLIMATE_VP_VAR_CUTOFF,
         response_max = CLIMATE_VP_MAX_PCS, response_min = CLIMATE_VP_MIN_PCS,
         pin = CLIMATE_VP_PIN, r2perms = CLIMATE_VP_R2PERMS,
-        varpartperms = CLIMATE_VP_PERMS, confound = "TRUE" if CLIMATE_VP_CONFOUND else "FALSE",
+        varpartperms = CLIMATE_VP_PERMS,
         seed = PREGEA_SEED, plot_dir = f"{MOD_CLIMATE}plots/varpart/", inter_dir = INTER,
     log: f"{LOGDIR}climate/varpart.log"
     shell:
@@ -141,7 +141,7 @@ rule climate_varpart:
             {input.climate} {input.climate_valid} {input.samples_order} {params.predictors} \
             {params.response} {params.response_var} {params.response_max} {params.response_min} \
             {params.lfmm_arg} {params.pin} {params.r2perms} {params.varpartperms} \
-            {params.confound} {params.seed} \
-            {output.selection} {output.selected} {output.fractions} {output.anova} {output.px} \
+            {params.seed} \
+            {output.selection} {output.selected} {output.table} {output.confound} {output.px} \
             {params.plot_dir} {params.inter_dir} > {log} 2>&1
         """

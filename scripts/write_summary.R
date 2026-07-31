@@ -251,13 +251,25 @@ if (MODE == 'processing') {
     new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())
 
 } else if (MODE == 'climate') {
-    # args: MODE OUTPUT invariant_path dbmem_diag_path varpart_path px_path
+    # args: MODE OUTPUT invariant_path dbmem_diag_path variance_partition_path confounding_path px_path
     INVARIANT_PATH = args[3]
     DBMEM_PATH     = args[4]
     VARPART_PATH   = args[5]
-    PX_PATH        = args[6]
+    CONFOUND_PATH  = args[6]
+    PX_PATH        = args[7]
 
     read_opt <- function(path) if (identical(path, 'NULL') || !file.exists(path)) NULL else fread(path, sep = '\t', header = TRUE)
+
+    # Human-readable component names (e.g. "Climate", "Climate ∩ Structure")
+    # -> a clean summary-key suffix (climate, climate_structure). Same
+    # transform for every branch's rows now that scripts/pregea_varpart.R
+    # writes one uniform schema regardless of which model (3-way/2-way/
+    # climate-only) actually ran — no more hardcoded fraction-name list.
+    comp_key <- function(comp) {
+        k <- gsub("[^A-Za-z0-9]+", "_", comp)
+        k <- gsub("^_+|_+$", "", k)
+        tolower(k)
+    }
 
     new_rows <- list()
     add <- function(metric, value) new_rows[[length(new_rows) + 1]] <<- row('climate', metric, value)
@@ -268,19 +280,22 @@ if (MODE == 'processing') {
     dbmem <- read_opt(DBMEM_PATH)
     if (!is.null(dbmem)) {
         dv <- setNames(dbmem$value, dbmem$key)
-        for (k in c('spatial_level', 'n_unique_coords', 'mst_threshold_km', 'n_mem_positive', 'status'))
+        for (k in c('spatial_level', 'n_sites', 'n_unique_coords', 'mst_threshold_km', 'n_mem_positive', 'status'))
             if (k %in% names(dv)) add(paste0('dbMEM_', k), dv[[k]])
     }
 
     varpart <- read_opt(VARPART_PATH)
     if (!is.null(varpart) && nrow(varpart) > 0) {
         add('varpart_status', unique(varpart$status)[1])
-        conf <- varpart[fraction == 'confounding_flag']
-        if (nrow(conf) > 0) add('varpart_confounding_flag', as.logical(conf$adj_r2[1]))
-        for (fr in c('climate_unique', 'geo_unique', 'structure_unique', 'shared')) {
-            v <- varpart[fraction == fr | fraction == paste0('[', substr(fr, 1, 1), ']')]
-            if (nrow(v) > 0) add(paste0('varpart_', fr, '_R2adj'), v$adj_r2[1])
+        if ('model' %in% names(varpart)) add('varpart_model', unique(varpart$model)[1])
+        for (i in seq_len(nrow(varpart))) {
+            add(paste0('varpart_', comp_key(varpart$component[i]), '_R2adj'), varpart$variance_pct[i])
         }
+    }
+
+    confound <- read_opt(CONFOUND_PATH)
+    if (!is.null(confound) && nrow(confound) > 0) {
+        add('varpart_confounding_flag', as.logical(confound$confounded[1]))
     }
 
     px <- read_opt(PX_PATH)

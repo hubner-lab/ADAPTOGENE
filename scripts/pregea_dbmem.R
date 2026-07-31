@@ -12,16 +12,19 @@
 # maladaptation mode on demand once the Gradient Forest swap lands, without
 # dragging genotype work into that DAG.
 #
-# SPATIAL_LEVEL='auto': site level (avoids the pseudoreplication warned about
-# in rda_varpart_lasky.Rmd — climate/spatial predictors are constant within a
-# site, so sample-level analysis replicates each value ~N times per site and
-# artificially inflates the shared variance fraction) when the dataset has
-# enough distinct sites; else sample level with a loud diagnostic note.
-# Site-level MEMs are BROADCAST back to samples by coordinate/site match, so
-# the output artifact is ALWAYS sample-indexed regardless of level chosen —
-# consumers (varpart, future GF) must match() on `sample`, never assume row
-# order (a wider coord-valid sample set may be joining against this
-# climate-valid one).
+# ALWAYS site level, unconditionally — climate/spatial predictors are
+# constant within a site, so sample-level dbMEM would replicate each value
+# ~N times per site and artificially inflate the shared variance fraction
+# (the pseudoreplication warned about in rda_varpart_lasky.Rmd). Sites are
+# collapsed to their coordinate CENTROID (mean lat/lon) so a site is one
+# point regardless of how many samples it has, down to n=1. Site-level MEMs
+# are BROADCAST back to samples by site match, so the output artifact is
+# ALWAYS sample-indexed — consumers (varpart, future GF) must match() on
+# `sample`, never assume row order (a wider coord-valid sample set may be
+# joining against this climate-valid one). Below 3 sites (or if dbmem()
+# degenerates to rank 0) the script writes a skip record instead of crashing
+# — see write_skip() — surfaced to the user as a warning badge in the Shiny
+# Climate tab, not as a config knob.
 
 suppressPackageStartupMessages({
     library(data.table)
@@ -37,12 +40,11 @@ args <- commandArgs(trailingOnly = TRUE)
 ################################################################################
 METADATA_CLIMATE_VALID <- args[1]
 CLIMATE_VALID_SAMPLES  <- args[2]
-SPATIAL_LEVEL          <- args[3]            # "auto" | "site" | "sample"
-MIN_SITES              <- as.integer(args[4])
-OUT_VECTORS_TSV        <- args[5]
-OUT_DIAG_TSV           <- args[6]
-OUT_PNG                <- args[7]
-INTER_DIR              <- args[8]
+OUT_VECTORS_TSV        <- args[3]
+OUT_DIAG_TSV           <- args[4]
+OUT_PNG                <- args[5]
+INTER_DIR              <- args[6]
+MIN_SITES              <- 3L                 # hard floor — spantree()/dbmem() need >=3 points
 ################################################################################
 
 for (d in c(dirname(OUT_VECTORS_TSV), dirname(OUT_DIAG_TSV), dirname(OUT_PNG), INTER_DIR))
@@ -57,16 +59,20 @@ sample_order <- fread(CLIMATE_VALID_SAMPLES, header = FALSE, colClasses = "chara
 meta <- meta[match(sample_order, sample)]   # enforce CLIMATE_VALID_SAMPLES order
 n_rows <- nrow(meta)
 
-coords_key <- paste(meta$latitude, meta$longitude)
-n_unique_coords <- length(unique(coords_key))
+# Site centroid (mean lat/lon per site) — a site is ONE point regardless of
+# how many samples it has (down to n=1), and regardless of per-sample GPS
+# jitter within a site. n_unique_coords is recorded alongside for diagnostics
+# only; the guard below is on n_sites, since the two can diverge in either
+# direction (two sites sharing one coordinate; one site with jittered coords).
+site_coords <- meta[, .(latitude = mean(latitude), longitude = mean(longitude)), by = site]
+n_sites <- nrow(site_coords)
+n_unique_coords <- length(unique(paste(meta$latitude, meta$longitude)))
 add_diag("n_rows", n_rows)
+add_diag("n_sites", n_sites)
 add_diag("n_unique_coords", n_unique_coords)
-
-level <- SPATIAL_LEVEL
-if (level == "auto") level <- if (n_unique_coords >= MIN_SITES) "site" else "sample"
-add_diag("spatial_level", level)
-message("INFO: preGEA dbMEM — level=", level, " n_rows=", n_rows, " n_unique_coords=", n_unique_coords,
-       " (min_sites=", MIN_SITES, ")")
+add_diag("spatial_level", "site")
+message("INFO: preGEA dbMEM — level=site n_rows=", n_rows, " n_sites=", n_sites,
+       " n_unique_coords=", n_unique_coords)
 
 write_skip <- function(status) {
     add_diag("status", status)
@@ -78,29 +84,23 @@ write_skip <- function(status) {
     fwrite(diag_dt, OUT_DIAG_TSV, sep = "\t", quote = FALSE)
     # Empty-state placeholder — this IS the entire plot content (CLAUDE.md Rule 8 exception).
     g <- ggplot() + annotate("text", x = 0, y = 0, label = paste0(
-            "dbMEM skipped: ", status, "\n(", n_unique_coords, " distinct coordinate(s), need >= ", MIN_SITES, ")")) +
+            "dbMEM skipped: ", status, "\n(", n_sites, " site(s), need >= ", MIN_SITES, ")")) +
         theme_void()
     ggsave(OUT_PNG, g, width = 6, height = 4, dpi = 150)
     ggsave(OUT_SVG, g, width = 6, height = 4, device = svglite::svglite, bg = "transparent")
     message("INFO: dbMEM skipped (", status, ") — wrote 0-MEM vectors file")
 }
 
-if (n_unique_coords < MIN_SITES) {
-    write_skip("skipped_too_few_sites")
+if (n_sites < MIN_SITES) {
+    write_skip("too_few_sites")
     quit(status = 0)
 }
 
 ################################################################################
-# Build the point set at the chosen level
+# Point set = site centroids (always)
 ################################################################################
-if (level == "site") {
-    site_coords <- unique(meta[, .(site, latitude, longitude)])
-    pt_ids <- site_coords$site
-    lon <- site_coords$longitude; lat <- site_coords$latitude
-} else {
-    pt_ids <- meta$sample
-    lon <- meta$longitude; lat <- meta$latitude
-}
+pt_ids <- site_coords$site
+lon <- site_coords$longitude; lat <- site_coords$latitude
 n_pts <- length(pt_ids)
 
 ################################################################################
@@ -146,12 +146,8 @@ message("INFO: dbMEM produced ", n_mem, " positive-autocorrelation MEM(s)")
 ################################################################################
 # Broadcast site-level MEMs back to samples (always sample-indexed output)
 ################################################################################
-if (level == "site") {
-    out <- merge(meta[, .(sample, site)], mem_df, by.x = "site", by.y = ".pt_id", all.x = TRUE)
-    setcolorder(out, c("sample", "site", paste0("MEM", seq_len(n_mem))))
-} else {
-    out <- merge(meta[, .(sample, site)], mem_df, by.x = "sample", by.y = ".pt_id", all.x = TRUE)
-}
+out <- merge(meta[, .(sample, site)], mem_df, by.x = "site", by.y = ".pt_id", all.x = TRUE)
+setcolorder(out, c("sample", "site", paste0("MEM", seq_len(n_mem))))
 out <- out[match(sample_order, sample)]   # restore CLIMATE_VALID_SAMPLES order
 fwrite(out, OUT_VECTORS_TSV, sep = "\t", quote = FALSE)
 
@@ -167,8 +163,8 @@ g <- ggplot(eig_dt, aes(x = factor(mem), y = eigenvalue)) +
     geom_col(fill = ADAPT_RETAINED) +
     labs(x = "MEM", y = "Eigenvalue (Moran's I)",
         title = "dbMEM spatial eigenvector screeplot",
-        subtitle = sprintf("level=%s | %d positive-autocorrelation MEM(s) | MST threshold=%.1f km",
-                           level, n_mem_positive, threshold / 1000)) +
+        subtitle = sprintf("site-level | %d positive-autocorrelation MEM(s) | MST threshold=%.1f km",
+                           n_mem_positive, threshold / 1000)) +
     theme_adaptogene()
 ggsave(OUT_PNG, g, width = 7, height = 5, dpi = 300)
 ggsave(OUT_SVG, g, width = 7, height = 5, device = svglite::svglite, bg = "transparent")
