@@ -2,7 +2,7 @@
 
 This document is the end-to-end guide for running ADAPTOGENE on a simulated dataset with known ground truth. It covers data download, format conversion, pipeline configuration, headless execution, and evaluation on two independent axes: offset accuracy and adaptive-locus detection.
 
-> **This benchmark requires pipeline changes** not yet implemented. Follow `docs/laruson_automation_roadmap.md` to implement Phases 0-5 before attempting the run. The two critical changes are: (1) custom-environment source bypassing WorldClim, and (2) headless SNP-set promotion bypassing Shiny. The guide below assumes those changes are in place.
+> **Status.** Phases 1-3 of `docs/laruson_automation_roadmap.md` (custom-environment source, headless SNP-set promotion, run-all driver) are implemented (commit `e2218b7`). Phase 0 (Gate G1) is confirmed — see `docs/laruson_dataset_notes.md`. Phase 4 (this dataset's converter, `benchmarks/convert_laruson.R`) and `config_LARUSON.yaml` are implemented and verified against a real archive replicate (Case 1, seed 2889863491989). **Phase 5 (the two-axis eval harness) and Shiny UI exposure of `Climate.source: custom` are explicitly deferred** — this guide covers running the pipeline end-to-end on simulated input, not yet scoring it against truth.
 
 ---
 
@@ -32,14 +32,17 @@ Láruson ÁJ, Lotterhos KE, Chamberland VF, Kelley JL, Sundaram M, Lind BM (2022
 
 ### Background
 
-The dataset uses SLiM3 (Haller & Messer 2019) to simulate a population of diploid individuals distributed across a 1D environmental gradient. Multiple architectural scenarios are tested:
+The dataset uses SLiM3 (Haller & Messer 2019) to simulate diploid individuals on a **100-deme, 10x10 grid landscape** with two orthogonal environmental optima axes and two quantitative traits (confirmed — see `docs/laruson_dataset_notes.md`). The archive ships four "Case" replicated scenarios, all multilocus/polygenic, distinguished by **landscape shape** rather than genetic architecture:
 
-- **Single-locus (oligogenic)** — one or few QTNs of large effect
-- **Polygenic** — many QTNs of small effect (more realistic for complex traits)
+- **Case 1 (`ML_WF_Cline.slim`)** — simple monotonic cline (closest to a "1D gradient" reading)
+- **Case 2 (`ML_WF_MountainRange.slim`)** — non-monotonic ("mountain") gradient
+- **Case 3 / Case 4** — undocumented beyond script name in the shipped README
 
-Individuals are then subjected to simulated reciprocal-transplant common garden experiments, producing fitness values across all home-deme × garden-deme combinations. This is the direct analog of a common garden experiment used to validate genetic offset predictions in empirical systems.
+`seeds_Neutral.txt` / `seeds_SingleLocus.txt` are seed lists only — **the true Neutral and Single-Locus scenarios have no corresponding data files in this archive.**
 
-The key finding of the paper: GF offset correlates negatively with fitness across most scenarios, validating the method — but with important confounders (deme size effects, nonlinear environments). This benchmark tests whether ADAPTOGENE reproduces that correlation **and** whether the pipeline's multi-method GEA approach identifies the underlying QTNs.
+Per-replicate fitness data (`_ML_WF_CG_sum_Gen.txt`) is a **population-average generation time series** (`sympatry`, `allopatry`, `local_adaptation` per ~100-generation snapshot) — **not** a home-deme x garden-deme reciprocal-transplant matrix. Building a real Axis-1 (offset-vs-fitness) evaluation will need a different construction (e.g. per-deme `P#_fit` columns from `_Freq_ML_WF.txt`) — deferred to the eval-harness phase, not attempted by the converter.
+
+The paper's key finding: GF offset correlates negatively with fitness across most scenarios, validating the method — but with important confounders (deme size effects, nonlinear environments). This benchmark aims to test whether ADAPTOGENE reproduces that correlation **and** whether the pipeline's multi-method GEA approach identifies the underlying QTNs — once the eval harness exists.
 
 ### Why Láruson 2022 (not other benchmarks)?
 
@@ -86,240 +89,131 @@ cd data/laruson && unzip laruson2022_dryad.zip && cd ../..
 
 > **Checkpoint.** After extraction, `data/laruson/` should contain the files listed in Section 3c. If the download URL above is stale (Dryad periodically rotates direct-download links), go to [https://datadryad.org/dataset/doi:10.5061/dryad.x95x69pkk](https://datadryad.org/dataset/doi:10.5061/dryad.x95x69pkk) and click the download button manually, or use the Dryad API: `wget "https://api.datadryad.org/api/v2/datasets/doi%3A10.5061%2Fdryad.x95x69pkk/download" -O laruson2022_dryad.zip`.
 
-### 3c. File manifest
+### 3c. File manifest (confirmed against the real archive)
 
-The archive (1.14 GB) contains four simulation Case scenarios × 10 replicates per case (different random seeds). Per replicate, five file types are produced:
+The archive (1.14 GB, `doi_10_5061_dryad_x95x69pkk__v20220525.zip`) contains four simulation Case scenarios x 10 replicates per case. Per replicate, five file types are produced (filenames use `Case{N}_{SEED}`, no underscore between "Case" and the number):
 
 | File pattern | Format | Size (approx) | Role |
 |--------------|--------|---------------|------|
-| `Case_N_[SEED].vcf.gz` | VCF.gz | ~27.7 MB | Genotype input → `Input.vcf` (after decompress + normalize) |
-| `Case_N_[SEED]_ind.txt` | TSV | ~635 KB | Individual genotype/metadata matrix (may duplicate VCF) |
-| `Case_N_[SEED]_causal_mutations_pos_filtered.txt` | TSV | ~714 B | **QTN positions** (explicitly listed) → `causal_loci.tsv` |
-| `Case_N_[SEED]_Freq_ML_WF.txt` | TSV | ~157 KB | Allele frequencies from WF/ML models (used for some offset methods) |
-| `Case_N_[SEED]_ML_WF_CG_sum_Gen.txt` | TSV | ~2.5 KB | **Summary statistics by generation for Common Garden** — primary source for fitness values |
+| `Case{N}_{SEED}.vcf.gz` | VCF.gz | ~27.7 MB | Genotype input → `laruson.vcf` (decompress only — already chr-normalized, single contig "1") |
+| `Case{N}_{SEED}_ind.txt` | space-delimited | ~635 KB | 10,000 rows x 8 cols: `indID indSubpopIndex subpop phen0 phen1 opt0 opt1 fitness`. **VCF join is by row order**, not by any ID column — see `docs/laruson_dataset_notes.md` §3 |
+| `Case{N}_{SEED}_causal_mutations_pos_filtered.txt` | headerless, 1 column | ~700 B, 102 rows | Exact VCF `POS` values of causal loci (verified 100% match) → `causal_loci.tsv`. No effect-size column |
+| `Case{N}_{SEED}_Freq_ML_WF.txt` | space-delimited | ~157 KB, 33 rows x 613 cols | Per-generation, per-deme (`P1..P100`) fitness/frequency/phenotype/optima — not used by the converter |
+| `Case{N}_{SEED}_ML_WF_CG_sum_Gen.txt` | space-delimited | ~2.5 KB, 33 rows | Population-average generation time series (`sympatry`, `allopatry`, `local_adaptation`, ...) — **not** a per-deme×garden fitness matrix |
 
-**Plus documentation:**
+**Plus documentation:** `README.txt` (column dictionary, no `src/` scripts shipped), `seeds_source_R.txt` (seed→Case mapping), `seeds_Neutral.txt`/`seeds_SingleLocus.txt` (seed lists only, no data files).
 
-| File | Description |
-|------|-------------|
-| `README.txt` | Column-level data dictionary — **read this first** |
-| `seeds_source_R.txt`, `seeds_Neutral.txt`, `seeds_SingleLocus.txt` | R seeds used per Case |
+**Simulation cases (corrected — all four are multilocus/polygenic, distinguished by landscape shape, not architecture):**
 
-**Simulation cases:**
+| Case | SLiM script | Landscape |
+|------|-------------|-----------|
+| 1 | `ML_WF_Cline.slim` | Simple monotonic cline |
+| 2 | `ML_WF_MountainRange.slim` | Non-monotonic "mountain" gradient |
+| 3 | `ML_WF_Case3.slim` | Undocumented beyond script name |
+| 4 | `ML_WF_Case4.slim` | Undocumented beyond script name |
 
-| Case | Architecture | Notes |
-|------|-------------|-------|
-| Neutral | No adaptive loci | Baseline; `causal_mutations_pos_filtered.txt` should be empty |
-| Monogenic/SingleLocus | 1 QTN of large effect | Simplest detection test |
-| Polygenic | Multiple QTNs of small effect | More realistic; harder to detect |
-| Additional (N=4) | TBD from README | Confirm from README.txt |
-
-**Recommended benchmark target.** Start with the **Polygenic case, one replicate** (e.g., the first seed in `seeds_source_R.txt`). This gives the hardest, most realistic detection test. After the harness validates, optionally loop all 10 replicates and average metrics across seeds.
-
-> **Still unresolved (need README.txt or paper methods).** Column names in `causal_mutations_pos_filtered.txt` and `ML_WF_CG_sum_Gen.txt`, exact fitness matrix dimensions (number of demes × gardens), and the sim's chromosome/LG count and LD block size. Download `README.txt` from the Dryad page first; see `docs/laruson_dataset_notes.md` (filled during Phase 0) for confirmed values.
+**Chosen pilot replicate: Case 1, seed `2889863491989`** — simplest landscape (monotonic cline), matches this doc's original "1D gradient" framing most closely. Full details in `docs/laruson_dataset_notes.md`.
 
 ---
 
 ## 4. Data Model and Conversion
 
-Láruson simulations use abstract environments — no real geography. ADAPTOGENE normally expects WorldClim bioclimatic variables extracted at real lat/lon coordinates. The conversion step bridges this gap:
+Láruson simulations use abstract environments on a **100-deme, 10x10 grid** — no real geography. `benchmarks/convert_laruson.R` bridges this to ADAPTOGENE's expected input set:
 
-- **Abstract lat/lon** — each deme is assigned a unique grid coordinate (e.g., `lat = deme_id × 2.0`, `lon = deme_id × 3.0`) so the metadata is valid for piemap rendering. These coordinates are never used for raster extraction when `Climate.source: custom`.
-- **Environment variables** — the simulation's environment gradient is renamed `bio_1..bio_N` to match ADAPTOGENE's predictor naming convention.
-- **VCF normalization** — chromosome prefix stripped (`chr1` → `1`), coordinates verified as integers.
-- **Minimal GFF** — one synthetic gene record per QTN spans ±500 bp so gene/enrichment rules resolve without errors. No real GO terms (GFF's `go_field` is left empty in `config_LARUSON.yaml`).
+- **Valid, well-spaced lat/lon** — `latitude = row * 2.0`, `longitude = col * 3.0`, where row/col are derived per-replicate from the actual unique environmental-optima grid (not a hardcoded formula). Never used for raster extraction under `Climate.source: custom`.
+- **Environment variables** — the sim's two optima axes (`opt0`, `opt1`) renamed `bio_1`, `bio_2`.
+- **VCF** — decompress only (native R `gzfile()`, no external `zcat`/bash dependency); already chr-normalized (single contig `"1"`, integer `POS`).
+- **Minimal GFF** — one synthetic `gene` record per causal locus (±500 bp) so gene-annotation/enrichment rules resolve without a real GFF. `GFF.go_field` left `"NULL"` — no GO terms, enrichment cleanly no-ops.
 
 ### Run the converter
 
 ```bash
-# Requires Gate G1 complete and benchmarks/convert_laruson.R implemented (Phase 4)
-# Choose a case and seed (example: Polygenic case, first seed from seeds_source_R.txt)
-CASE=3         # FILL: case number for polygenic (confirm from README.txt)
-SEED=1442299973452   # FILL: first seed from seeds_source_R.txt (10 available)
-
 docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
   Rscript /pipeline/benchmarks/convert_laruson.R \
-    data/laruson/                  `# raw archive dir (read-only)` \
-    data/laruson_converted/        `# output dir` \
-    ${CASE}                        `# case number` \
-    ${SEED}                        `# replicate seed` \
-    50                             `# TP_WINDOW_KB — fill from Gate G1 LG architecture`
+    data/laruson/            `# raw archive dir (read-only)` \
+    data/laruson_converted/  `# output dir` \
+    1                         `# CASE_N = 1 (Cline)` \
+    2889863491989             `# SEED (first Case-1 seed)` \
+    5                         `# TP_WINDOW_KB (placeholder — see dataset notes §4)`
 ```
 
-To run all 10 replicates (after the harness validates on one):
-```bash
-while IFS= read -r SEED; do
-  docker run ... Rscript /pipeline/benchmarks/convert_laruson.R \
-    data/laruson/ data/laruson_converted_${SEED}/ ${CASE} ${SEED} 50
-done < data/laruson/seeds_source_R.txt
-```
-
-### Converter outputs
+### Converter outputs (confirmed against a real run)
 
 | File | Description |
 |------|-------------|
-| `laruson.vcf` | Uncompressed, chr-normalized VCF |
-| `metadata.tsv` | `site, sample, latitude, longitude, bio_1..bio_N` |
-| `environments_present.tsv` | `site, bio_1..bio_N` — present environment per deme |
-| `environments_future/garden_{id}.tsv` | Per garden: `site, bio_1..bio_N` — target environment |
-| `causal_loci.tsv` | `chr, pos, effect_size, category` (causal / linked_neutral / background_neutral) |
-| `fitness.tsv` | `site, garden, fitness` (long format) |
-| `laruson_minimal.gff3` | Synthetic GFF covering QTN positions |
+| `laruson.vcf` | Uncompressed VCF, unmodified otherwise |
+| `metadata.tsv` | `site, sample, latitude, longitude, bio_1, bio_2` — 10,000 rows |
+| `environments_present.tsv` | `site, bio_1, bio_2` — 100 rows (one per deme) |
+| `environments_future.tsv` | `site, bio_1, bio_2` — present + fixed +0.5 synthetic shift. **Placeholder only** — no real "future"/garden concept exists in this static landscape; see dataset notes §4 |
+| `causal_loci.tsv` | `chr, pos, category` (causal / linked_neutral / background_neutral) — **no `effect_size` column** (not present in source data), one row per VCF variant row |
+| `fitness_timeseries.tsv` | Raw pass-through of `_ML_WF_CG_sum_Gen.txt` — population-average time series, archived for a future eval harness, **not consumed by the adapter-only pipeline run** |
+| `laruson_minimal.gff3` | One synthetic gene record per causal locus |
 
 ---
 
 ## 5. Configuration
 
-The benchmark uses `config_LARUSON.yaml` (defined in full in `docs/laruson_automation_roadmap.md`, Phase 1a). Key settings that differ from a typical run:
+`config_LARUSON.yaml` (repo root) — current schema, not the stale placeholder previously drafted here. Key settings that differ from a typical run:
 
 ```yaml
 Climate:
-  source:       custom                  # bypass WorldClim; use user-supplied env tables
-  present_file: data/laruson_converted/environments_present.tsv
-  future_dir:   data/laruson_converted/environments_future/
+  source: custom
+  predictors: "bio_1,bio_2"
+  custom:
+    present_table:   environments_present.tsv
+    future_table:    environments_future.tsv    # single table, no per-garden directory (no garden loop today)
+    columns:         "bio_1,bio_2"
+    grid_resolution: 0.5
+    key:             site
 
 GEA:
   configs:
-    - { method: EMMAX, adjust: bonferroni, threshold: 0.05 }
-    - { method: LFMM,  adjust: bonferroni, threshold: 0.05 }
-  combine_method: Sum                   # tested against Overlap and single in eval_detection.R
+    - { method: EMMAX, adjust: bonf, threshold: '0.05' }
+    - { method: LFMM,  adjust: bonf, threshold: '0.05' }
 
 GWAS:
-  configs: []                           # no phenotype GWAS — sim environments → GEA only
-
-headless_snp_set: laruson_gea_combined  # triggers headless SNP-set promotion (Phase 2)
+  configs: []                        # no phenotype data — environments run through GEA only
 
 Maladaptation:
   methods:
-    gradient_forest:
-      run_label: laruson_gea_combined
-      spatial_correction: false         # no real geography, no spatial correction
-      random_model: false
-    geometric_offset:
-      run_label: laruson_gea_combined
+    gradient_forest: { spatial_correction: without, random_model: false }
+    geometric_offset: {}
+  snp_sets: [laruson_gea]
 ```
+
+`sNMF.k_best` is intentionally left `null` — same "review the cross-entropy plot before setting K" convention as any dataset; see `config_LARUSON.yaml`'s inline comment.
 
 ---
 
 ## 6. Headless Run
 
-After Phases 0-4 are complete (Gate G1, pipeline changes, converter), the full run is a single command:
-
 ```bash
-bash benchmarks/run_benchmark.sh \
-  --config config_LARUSON.yaml \
-  --cores 4
+docker build -t adaptogene .   # confirm image current
+
+# Pass 1: runs processing, prestructure, structure, gea, promote_snp_set, maladaptation.
+# Will fail at mode=structure if sNMF.k_best is still null — expected.
+bash benchmarks/run_benchmark.sh config_LARUSON.yaml laruson_gea
+
+# Inspect LARUSON_results/PreStructure/plots/cross_entropy_K*.png (view it yourself —
+# per project rules, image files are not opened programmatically), set sNMF.k_best in
+# config_LARUSON.yaml, then re-run — Snakemake skips the already-completed steps:
+bash benchmarks/run_benchmark.sh config_LARUSON.yaml laruson_gea
 ```
 
-The script runs pipeline modes sequentially (fail-fast), loops over gardens for the fitness matrix, promotes the GEA SNP set headlessly, and invokes the evaluation harness. No Shiny interaction is required. See `docs/laruson_automation_roadmap.md` Phase 3 for the complete spec.
-
-### Manual step-by-step (if `run_benchmark.sh` not yet implemented)
-
-```bash
-CFG="config_LARUSON.yaml"
-DOCKER="docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest"
-SNAKE="snakemake -c4 -s Snakefile --scheduler greedy --configfile ${CFG}"
-
-# 1. Processing
-$DOCKER $SNAKE --config mode=processing
-
-# 2. Pre-structure
-$DOCKER $SNAKE --config mode=prestructure
-
-# 3. Structure
-$DOCKER $SNAKE --config mode=structure
-
-# 4. GEA (uses custom environment tables)
-$DOCKER $SNAKE --config mode=gea
-
-# 5. Headless SNP-set promotion
-$DOCKER $SNAKE --config mode=gea headless_snp_set=laruson_gea_combined
-
-# 6. Maladaptation (repeat per garden, varying garden_id)
-for GARDEN_ID in 1 2 3; do   # FILL: actual garden IDs from fitness.tsv
-  $DOCKER $SNAKE --config mode=maladaptation garden_id=${GARDEN_ID} headless_snp_set=laruson_gea_combined
-done
-
-# 7. Evaluate
-$DOCKER Rscript /pipeline/benchmarks/eval_offset.R \
-  LARUSON_results/Maladaptation/tables/ \
-  data/laruson_converted/fitness.tsv \
-  data/laruson_converted/metadata.tsv \
-  gradient_forest,geometric_offset \
-  laruson_gea_combined \
-  LARUSON_results/benchmark_eval.tsv \
-  LARUSON_results/benchmark_plots/
-
-$DOCKER Rscript /pipeline/benchmarks/eval_detection.R \
-  LARUSON_results/GEA/tables/methods/ \
-  LARUSON_results/GEA/tables/selected_snps.tsv \
-  data/laruson_converted/causal_loci.tsv \
-  EMMAX,LFMM \
-  50 \
-  LARUSON_results/benchmark_eval.tsv \
-  LARUSON_results/benchmark_plots/
-```
+`benchmarks/run_benchmark.sh` already implements exactly this chain and already calls `promote_snp_set.R` with its real argument order — no script changes were needed for this pass. There is no reciprocal-transplant garden loop (the roadmap's original multi-garden design assumed a per-garden directory that doesn't exist in the merged `Climate.custom.future_table` implementation — it's a single table) — Phase 5 (eval harness) will need to design that separately once it exists.
 
 ---
 
-## 7. Evaluation Outputs
+## 7-9. Evaluation, Expected Results, Caveats — deferred to Phase 5
 
-Both eval scripts append to `LARUSON_results/benchmark_eval.tsv` (long format: `axis, method_or_config, metric, value`).
+**Not implemented in this pass.** `benchmarks/eval_offset.R`, `benchmarks/eval_detection.R`, and `benchmarks/report.R` do not exist yet. Gate G1 findings relevant to designing them later (full detail in `docs/laruson_dataset_notes.md`):
 
-### Axis 1 — Offset accuracy
-
-| Metric | Expected direction | Interpretation if wrong |
-|--------|--------------------|------------------------|
-| Spearman ρ (offset vs fitness) | Negative | Check garden-ID loop alignment; verify `site` join between offset and fitness tables |
-| % gardens with ρ < 0 | > 50% | Both methods should track each other; if GF works but geometric doesn't (or vice versa), check the LFMM K alignment |
-| Median |ρ| across gardens | > 0.3 is a reasonable pilot bar | Low but negative = correct direction, weak signal (expected for polygenic sims) |
-
-### Axis 2 — Causal-SNP detection
-
-| Metric | Interpretation |
-|--------|----------------|
-| Recall (causal) | Fraction of true QTNs recovered. Very low recall = GEA misses adaptive signal; check K value, method thresholds |
-| Precision (excl. linked) | Fraction of called SNPs that are true QTNs (excluding expected-linked hits). Very low = mostly noise; check MAF filter, combine threshold |
-| Expected-linked hits | SNPs near QTNs (within TP window) called as significant. These are **expected** — do not treat as FP |
-| Combined > best-single | Combined (Sum or Overlap) should not be Pareto-dominated by any single method |
-
-### Plots produced
-
-| Plot | What to look for |
-|------|------------------|
-| `<method>_garden_<id>_offset_vs_fitness.png` | Negative trend + loess curve; no visible horizontal cloud |
-| `precision_recall.png` | Combined config point should be up-right of all single-method points |
-| `confusion_breakdown.png` | Causal TP bar grows with combination; background-neutral FP shrinks |
-
----
-
-## 8. Expected Results and Interpretation
-
-Based on Láruson et al. 2022 (Tables 2-4, Figures 3-4):
-
-**Axis 1.** GF offset should negatively correlate with fitness across most (not all) gardens and both architectures. Effect size is typically moderate (Spearman |ρ| ~ 0.3–0.6 for oligogenic, weaker for polygenic). Geometric offset (LEA::genetic.gap) was not evaluated in the original paper — this benchmark provides new validation data for that method. A positive or near-zero ρ after controlling for the garden-ID join is a pipeline failure, not a dataset issue.
-
-**Axis 2.** Recall for QTNs is expected to be imperfect — adaptive SNPs at intermediate frequency and in polygenic architectures are the hardest to detect. What matters is that:
-(a) the pipeline produces recall above a random-draw null (recall > QTN_count / total_SNPs)
-(b) combining methods shifts the precision-recall curve upward or to the right relative to any single method
-
-**Caveats.**
-- Abstract environments have no spatial correlation structure; the spatial correction (`spatial_correction: true`) is turned off in `config_LARUSON.yaml` because the spatial PCNM approach assumes geographic autocorrelation.
-- Linked-neutral hits (within TP_WINDOW_KB of a QTN) are expected to inflate the called-SNP list — this reflects LD, not a pipeline bug. Report them as a separate category, not as false positives.
-- The Láruson simulations were designed with relatively simple demographic models. More complex realistic demography (admixture, bottlenecks, isolation-by-distance) may produce different confounder patterns — see Láruson 2022 Section 4.2 for a discussion.
-
----
-
-## 9. Caveats, Gates, and Known Limitations
-
-| Caveat | Detail |
-|--------|--------|
-| Gate G1 required | The manifest table (Section 3c), TP window (Section 7), and garden IDs (Section 6) must be filled from the Phase 0 deep-research pass before any conversion or evaluation |
-| Pipeline changes required | `Climate.source: custom` + headless SNP-set promotion are not yet implemented; see `docs/laruson_automation_roadmap.md` Phases 1-2 |
-| No GO enrichment | The minimal GFF has no GO annotation; enrichment plots will be empty. This is expected and not a failure |
-| Abstract map quality | Piemaps use abstract lat/lon grid coords; the geographic output is meaningless. Ignore map-based plots for this benchmark; focus on tabular outputs |
-| Fitness matrix vs scalar | If Gate G1 confirms a scalar (one fitness per pop, not a matrix), the garden loop in `run_benchmark.sh` is simplified to a single maladaptation run; update `run_benchmark.sh` accordingly |
-| MVP benchmark | Lind & Lotterhos 2025 (BCO-DMO/Zenodo) is the publication-grade follow-up but requires a separate converter and larger compute; not in scope for this pass |
+- **No per-deme×garden fitness matrix exists in this dataset.** `_ML_WF_CG_sum_Gen.txt` is a population-average `sympatry`/`allopatry` time series, not itemized per garden. A real Axis-1 (offset-vs-fitness) design will need `_Freq_ML_WF.txt`'s per-generation, per-deme `P#_fit` columns, or a different construction entirely.
+- **No `effect_size` for causal loci** — Axis-2 (precision/recall) is still buildable from `causal_loci.tsv`'s `category` column, just without effect-size-weighted analysis.
+- `TP_WINDOW_KB` (5 kb default in the converter) is an unvalidated placeholder pending a real LD-decay estimate once `mode=processing`/`mode=structure` have run on the converted data.
+- Abstract environments have no spatial correlation structure — `spatial_correction: without` in `config_LARUSON.yaml` is intentional, not a stopgap.
+- Linked-neutral hits (within `TP_WINDOW_KB` of a causal locus) are **expected**, not false positives — report them as a separate category once the eval harness exists.
+- **MVP/Lind & Lotterhos 2025 benchmark** (BCO-DMO/Zenodo, 2,250 seeds, no VCF — allele-count matrix requiring a from-scratch VCF synthesizer) remains a distinct future follow-on, not in scope here.
 
 ---
 

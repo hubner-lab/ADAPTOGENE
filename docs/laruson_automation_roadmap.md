@@ -2,6 +2,13 @@
 
 This document specifies every pipeline change needed to run ADAPTOGENE end-to-end — from raw simulated inputs through evaluation — **without the Shiny GUI**. The primary target is the Láruson 2022 simulation benchmark; the changes are designed to be general enough to support any future benchmark dataset.
 
+> **Status update.** This was originally written as a pure specification (see note below) — it has since been partially implemented, in two passes:
+> - **Phases 1-3 implemented** (commit `e2218b7`): `Climate.source: custom`, `scripts/stage_custom_climate.R`, `scripts/promote_snp_set.R`, `benchmarks/run_benchmark.sh`. Two of this section's own assumptions turned out **stale** relative to what was actually built — see the callouts inline below (Phase 1c's per-garden directory, Phase 2's `promote_snp_set` argument order, the config template's renamed keys).
+> - **Phase 0 (Gate G1) confirmed and Phase 4 (`benchmarks/convert_laruson.R`) implemented**, verified against a real archive replicate (Case 1, seed `2889863491989`) — see `docs/laruson_dataset_notes.md` for confirmed facts and `docs/laruson_benchmark.md` for the current run guide. Several Phase 4 assumptions below (fitness matrix shape, causal-loci schema) turned out different from what's marked "FILL" here.
+> - **Phase 5 (eval harness) and Shiny UI exposure of `Climate.source`/`Climate.custom.*` remain unimplemented** — explicitly deferred, not started.
+>
+> The phase-by-phase spec below is left as originally written (historical record of the design); do not treat its "FILL"/placeholder values as current — `docs/laruson_dataset_notes.md` supersedes them.
+
 > **This is a specification, not an implementation.** File paths, function signatures, acceptance criteria, and config keys are fully specified here. No pipeline or eval code has been written yet. Implement phases sequentially: Phase 0 → 1 → 2 → 3 unlock a headless run; Phase 4 feeds inputs; Phase 5 evaluates outputs.
 
 ---
@@ -118,6 +125,8 @@ Because Snakemake chooses rules at parse time, use `if/else` at module level (sa
 
 For the reciprocal-transplant loop (N gardens = N offset runs), the future site/all tables must be swappable per garden. The approach: `stage_custom_climate.R` accepts `GARDEN_ID`; `run_benchmark.sh` (Phase 3) invokes the pipeline N times with different `GARDEN_ID` injected via `--config garden_id=<id>`. The Snakemake rules pass `{config[garden_id]}` as an arg.
 
+> **As implemented (stale note above):** `Climate.custom.future_table` (`common.smk:143`) is a **single file path**, not a directory, and the real `scripts/stage_custom_climate.R` has no `GARDEN_ID` argument. There is no per-garden loop today — the merged implementation stages exactly one future scenario. A real reciprocal-transplant Axis-1 evaluation (Phase 5) will need to add that looping mechanism when it's built; this pass (`docs/laruson_benchmark.md`) works around it with a single placeholder future table.
+
 **Acceptance criteria:**
 - `mode=gea` and `mode=maladaptation` run to completion with `Climate.source: custom` on abstract environments, with zero network activity and no NA-coordinate abort.
 - Present env tables have the same column structure as the WorldClim-produced versions (validated by reading one WorldClim output and one custom output side-by-side for column types).
@@ -189,6 +198,8 @@ Maladaptation:
 - `mode=maladaptation` resolves the SNP set from `_intermediate/snp_sets/laruson_gea_combined/selected_snps.tsv` without Shiny.
 - `resolve_active_snp_sets()` finds the set and does not error.
 - Both GF and geometric offset rules receive the promoted SNPID list and produce non-empty offset tables.
+
+> **As implemented (stale note above):** the real `scripts/promote_snp_set.R` signature is `SOURCE_SELECTED_SNPS SET_NAME SNP_SETS_DIR [SOURCE_MODULE]` (argument order differs from §2a above) and it also writes/upserts `manifest.json` (Shiny-compatible), not just the TSV. `benchmarks/run_benchmark.sh` already calls it correctly — no changes needed.
 
 ---
 
