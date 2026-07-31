@@ -163,10 +163,10 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │       └── K{k}/                          # clusters_K{k}.tsv (Q-matrices)
 ├── climate/                               # mode=climate owns predictor characterization + spatial/varpart
 │   ├── plots/                             # density_plot_present, correlation_heatmap, density_plot_future_*
-│   ├── plots/{spatial,varpart}/           # dbmem_screeplot, varpart_venn/fractions_bar, px_barplot, dbmem_selection_path
+│   ├── plots/{spatial,varpart}/           # dbmem_screeplot, varpart_venn (nested donut), px_barplot, dbmem_selection_path
 │   ├── tables/present/                    # climate_present_all.tsv, _site.tsv, _site_scaled.tsv, climate_invariant_predictors.tsv
 │   ├── tables/spatial/                    # dbmem_vectors.tsv, dbmem_diagnostics.tsv
-│   ├── tables/varpart/                    # varpart_fractions, varpart_anova, px_per_variable, dbmem_selected, dbmem_selection_path
+│   ├── tables/varpart/                    # variance_partition, climate_confounding, px_per_variable, dbmem_selected, dbmem_selection_path
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
 ├── Structure/

@@ -117,11 +117,7 @@ Climate:
     response_max_pcs: 20
     response_min_pcs: 2
     structure_table: qmatrix
-    confounding_flag: true
-    permutations: 199
-  dbMEM:
-    spatial_level: auto
-    min_sites: 6
+    permutations: 999
 ```
 
 | Parameter | Description | Default |
@@ -129,21 +125,22 @@ Climate:
 | `Climate.enabled` | Enable climate download and climate-dependent analyses. Set `false` to skip GEA, maladaptation, and gea_x_gwas modes. Structure runs without climate plots/piemaps (only imputation + pop stats). GWAS runs without piemaps. | `true` |
 | `Climate.predictors` | Comma-separated WorldClim bioclimatic variables for GEA/GWAS analyses (bio_1 through bio_19). All 19 are shown in the Structure tab piemaps; this list controls which are used as predictors in association. Ignored when `enabled: false`. | — |
 
-**`Climate.Varpart.*`** and **`Climate.dbMEM.*`** configure the `mode=climate` spatial block: the shared dbMEM eigenvectors and the climate/structure/geography variance partitioning (both reused by the spatial Gradient Forest in `mode=maladaptation`).
+**`Climate.Varpart.*`** configures the `mode=climate` variance-partitioning block: `Y ~ X_clim + X_struct + X_geo`, where Y is the response matrix below, X_clim is `Climate.predictors` (GEA tab), X_struct is the structure covariate below, and X_geo is the dbMEM spatial eigenvectors (always site-level, no config — see the dbMEM note below). Reused by the spatial Gradient Forest in `mode=maladaptation`.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `Climate.Varpart.response` | Response matrix for `varpart()`: `pcs` (LEA genomic PCs — documented scalability adaptation) or `snps` (raw LD-pruned SNP matrix) | `"pcs"` |
-| `Climate.Varpart.response_var_cutoff` | Cumulative variance of LEA PCs retained as the response Y (when `response: pcs`) | `0.8` |
-| `Climate.Varpart.response_max_pcs` | Ceiling on the number of response PCs retained | `20` |
+| `Climate.Varpart.response` | Response matrix Y for `varpart()`: `pcs` (LEA genomic PCs — documented scalability adaptation) or `snps` (raw LD-pruned SNP matrix — literal Lasky et al. 2012 methodology, impractical at WGS scale) | `"pcs"` |
+| `Climate.Varpart.response_var_cutoff` | Keep the leading genomic PCs that together explain at least this fraction of genetic variance (when `response: pcs`) | `0.8` |
+| `Climate.Varpart.response_max_pcs` | Ceiling on the number of response PCs retained regardless of variance cutoff | `20` |
 | `Climate.Varpart.response_min_pcs` | Floor on response PCs so varpart always has a multivariate Y | `2` |
-| `Climate.Varpart.structure_table` | Structure predictors: `qmatrix` (sNMF Q at `k_best`, last column dropped) or `none` | `"qmatrix"` |
-| `Climate.Varpart.confounding_flag` | Auto-flag high climate–geography confounding when the shared fraction exceeds either unique fraction | `true` |
-| `Climate.Varpart.permutations` | `varpart` `anova.cca` permutations per testable fraction (`999` is the production/literature value; the default is a faster testing value) | `199` |
-| `Climate.dbMEM.spatial_level` | dbMEM construction level: `auto`, `site`, or `sample` | `"auto"` |
-| `Climate.dbMEM.min_sites` | Minimum sites; below this dbMEM writes a skip record instead of crashing | `6` |
+| `Climate.Varpart.structure_table` | Structure covariate X_struct: `qmatrix` (sNMF Q at `k_best`, last column dropped — Q rows sum to 1 so all K columns are collinear) or `none` (drops the structure fraction; 2-table climate-vs-geography varpart only). Q is used rather than PCs here because Y is already PCs — an ancestry-PC covariate would make X = Y, a tautology. | `"qmatrix"` |
+| `Climate.Varpart.permutations` | `varpart` `anova.cca` permutations per testable fraction | `999` |
+
+The climate–geography confounding diagnostic (flagged when the shared fraction exceeds either unique fraction) is always computed — not a config switch.
 
 `Climate.Varpart.ordir2step_pin` (`0.01`) and `.r2_permutations` (`999`) are **not** config keys — they are fixed constants (`CLIMATE_VP_PIN` / `CLIMATE_VP_R2PERMS` in `common.smk`), the Blanchet double-stopping-rule standard for forward selection.
+
+**dbMEM** (the geography table X_geo) has **no config keys at all** — it is always computed at site level (one point per site, the coordinate centroid of that site's samples, down to n=1 sample), which avoids the pseudoreplication that sample-level dbMEM would introduce (climate/spatial predictors are constant within a site). Below 3 distinct sites, `mode=climate` writes a skip record instead of crashing (surfaced as a warning badge in the Shiny Climate tab, with the suggestion to expand sampling or run Gradient Forest with `Maladaptation.methods.gradient_forest.spatial_correction: without`), rather than exposing a min-sites threshold as a config knob. `dbMEM.spatial_level` / `dbMEM.min_sites` (previously configurable) are removed; a stale `Climate.dbMEM:` block left in an older config file is simply not read.
 
 ---
 
@@ -487,7 +484,7 @@ Set `GFF.go_field: "NULL"` to skip enrichment.
 │   ├── plots/{spatial,varpart}/           # dbmem_screeplot, varpart_venn, px_barplot (mode=climate)
 │   ├── tables/present/                    # climate_present_{all,site,site_scaled}.tsv, climate_invariant_predictors.tsv
 │   ├── tables/spatial/                    # dbmem_vectors, dbmem_diagnostics (mode=climate)
-│   ├── tables/varpart/                    # varpart_fractions, varpart_anova, px_per_variable, dbmem_selected (mode=climate)
+│   ├── tables/varpart/                    # variance_partition, climate_confounding, px_per_variable, dbmem_selected (mode=climate)
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_{site,all}.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters
 │

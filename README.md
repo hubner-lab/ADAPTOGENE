@@ -75,7 +75,7 @@ Run modes sequentially. Each mode is invoked via `--config mode=<MODE>`.
 | 1 | `processing` | Filter VCF, LD prune, normalize | `Filter.*`, `LD.*` | Filtered VCF, LEA formats |
 | 2 | `prestructure` | PCA, sNMF ancestry (K range) | `sNMF.k_start`, `sNMF.k_end` | PCA plots, cross-entropy, Q-matrices |
 | 3 | `structure` | Impute, climate download, piemaps | `sNMF.k_best`, `Map.*` | Piemaps, climate tables, pop stats, LD decay |
-| 4 | `climate` | Predictor characterization: correlation/density, invariant-predictor detection, dbMEM + variance partitioning | `Climate.*`, `Climate.Varpart.*`, `Climate.dbMEM.*` | Correlation heatmap, density plots, dbMEM eigenvectors, varpart fractions |
+| 4 | `climate` | Predictor characterization: correlation/density, invariant-predictor detection, dbMEM + variance partitioning | `Climate.*`, `Climate.Varpart.*` (dbMEM has no config — always site-level) | Correlation heatmap, density plots, dbMEM eigenvectors, varpart fractions |
 | 5 | `pregea` | Hyperparameter exploration (LD-pruned): LFMM-K / EMMAX-#PC / RDA-Condition()-PC ladders (one shared PC range) | `PreGEA.*` | Ladder grids, RDA per-model artifacts, one recommendation per (method, param) |
 | 6 | `gea` | GEA: EMMAX/LFMM/GAPIT → regions → genes | `GEA.*`, `GFF.*`, `Enrichment.*` | Manhattan plots, regions, genes |
 | 7 | `gwas` | GWAS on metadata traits (cols 5+) | `GWAS.*` | Manhattan, piemaps, regions, genes |
@@ -303,8 +303,8 @@ Purple node = optional (`density_plot_phenotypes` needs trait columns in the met
 - `climate/plots/correlation_heatmap.png`, `density_plot_present.png`, `density_plot_phenotypes.png`
 - `climate/tables/present/climate_invariant_predictors.tsv`
 - `climate/tables/spatial/dbmem_vectors.tsv`, `dbmem_diagnostics.tsv` + `climate/plots/spatial/dbmem_screeplot.png/svg`
-- `climate/tables/varpart/varpart_fractions.tsv`, `varpart_anova.tsv`, `px_per_variable.tsv`, `dbmem_selected.tsv`
-- `climate/plots/varpart/varpart_venn.png`, `varpart_fractions_bar.png`, `px_barplot.png`, `dbmem_selection_path.png`
+- `climate/tables/varpart/variance_partition.tsv`, `climate_confounding.tsv`, `px_per_variable.tsv`, `dbmem_selected.tsv`
+- `climate/plots/varpart/varpart_venn.png` (nested donut), `px_barplot.png`, `dbmem_selection_path.png`
 </details>
 
 <details>
