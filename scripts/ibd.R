@@ -31,7 +31,7 @@ FUN_ibd <- function(clusters, samples, CPU){
         tryCatch({
           # Select populations
           clust_df = clusters[clusters$site %in% c(i,i2),] %>% dplyr::select(starts_with('C'))
-          geo_df = samples[samples$site %in% c(i,i2),] %>% dplyr::select(latitude, longitude)
+          geo_df = samples[samples$site %in% c(i,i2),] %>% dplyr::select(longitude, latitude)
 
           clust_dist = vegdist(clust_df, method = 'jaccard')
           geo_dist = distm(geo_df, fun=distVincentyEllipsoid)
