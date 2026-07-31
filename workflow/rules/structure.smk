@@ -4,13 +4,13 @@
 
 rule impute_ld:
     """Impute missing genotypes using SNMF results for K_BEST."""
-    input:  snmf = W['snmf'], lfmm = W['lfmm']
+    input:  snmf = W['snmf'], lfmm = W['lfmm'], nmissing = W['lfmm_nmissing']
     output: W['lfmm_imp']
     params: k = K_BEST
     log:    f"{LOGDIR}structure/impute_ld.log"
     shell:
         """
-        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} {input.nmissing} > {log} 2>&1
         """
 
 rule lfmm2vcf_ld:

@@ -483,7 +483,9 @@ rule normalize_gff:
 rule vcf_to_lfmm:
     """Convert VCF to LEA formats (geno, lfmm)."""
     input:  vcf = W['vcf_ld']
-    output: geno = W['geno'], lfmm = W['lfmm'], vcfsnp = W['vcfsnp'], removed = W['removed']
+    output:
+        geno = W['geno'], lfmm = W['lfmm'], vcfsnp = W['vcfsnp'], removed = W['removed'],
+        nmissing = W['lfmm_nmissing']
     log:    f"{LOGDIR}processing/vcf_to_lfmm.log"
     shell:  "Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
 
