@@ -714,6 +714,7 @@ W = {
     'prune_in': f"{WORK_LD}{VCF_BASE}.prune.in",
     'geno': f"{WORK_LD}{VCF_BASE}.geno",
     'lfmm': f"{WORK_LD}{VCF_BASE}.lfmm",
+    'lfmm_nmissing': f"{WORK_LD}{VCF_BASE}.lfmm_nmissing",
     # LEA PCA outputs (created by pca_plot rule)
     # LEA::pca() strips extension and creates {basename}.pca/ directory
     'pca_projections': f"{WORK_LD}{VCF_BASE}.pca/{VCF_BASE}.projections",
@@ -1042,6 +1043,7 @@ def add_association_paths():
     # Full (non-LD pruned) files for association analysis
     W['geno_full'] = f"{WORK_FILT}{VCF_BASE}.geno"
     W['lfmm_full'] = f"{WORK_FILT}{VCF_BASE}.lfmm"
+    W['lfmm_full_nmissing'] = f"{WORK_FILT}{VCF_BASE}.lfmm_nmissing"
     W['vcfsnp_full'] = f"{WORK_FILT}{VCF_BASE}.vcfsnp"
     W['removed_full'] = f"{WORK_FILT}{VCF_BASE}.removed"
     W['snmf_full'] = f"{WORK_FILT}{VCF_BASE}.snmfProject"
@@ -1117,6 +1119,7 @@ def add_pheno_association_paths():
     if 'vcfsnp_full' not in W:
         W['geno_full']    = f"{WORK_FILT}{VCF_BASE}.geno"
         W['lfmm_full']    = f"{WORK_FILT}{VCF_BASE}.lfmm"
+        W['lfmm_full_nmissing'] = f"{WORK_FILT}{VCF_BASE}.lfmm_nmissing"
         W['vcfsnp_full']  = f"{WORK_FILT}{VCF_BASE}.vcfsnp"
         W['removed_full'] = f"{WORK_FILT}{VCF_BASE}.removed"
 

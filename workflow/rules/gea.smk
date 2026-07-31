@@ -16,7 +16,8 @@ rule vcf_to_lfmm_full:
         geno = W['geno_full'],
         lfmm = W['lfmm_full'],
         vcfsnp = W['vcfsnp_full'],
-        removed = W['removed_full']
+        removed = W['removed_full'],
+        nmissing = W['lfmm_full_nmissing']
     log: f"{LOGDIR}gea/vcf_to_lfmm_full.log"
     shell: "Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
 
@@ -36,13 +37,13 @@ rule snmf_full:
 
 rule impute_full:
     """Impute missing genotypes in full dataset using SNMF."""
-    input:  snmf = W['snmf_full'], lfmm = W['lfmm_full']
+    input:  snmf = W['snmf_full'], lfmm = W['lfmm_full'], nmissing = W['lfmm_full_nmissing']
     output: W['lfmm_imp_full']
     params: k = K_BEST
     log:    f"{LOGDIR}gea/impute_full.log"
     shell:
         """
-        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} {input.nmissing} > {log} 2>&1
         """
 
 rule lfmm2vcf_full:
