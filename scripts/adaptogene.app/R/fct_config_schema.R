@@ -17,8 +17,9 @@
 #'                       method_table
 #'              checkbox_invert displays/writes the negation of the stored value
 #'              (e.g. a "Disable X" box backed by an `X.enabled` key)
-#'   mandatory  TRUE = shown in core section; FALSE = shown in Advanced accordion
-#'              (ignored for tabs using `group`)
+#'   mandatory  TRUE = shown in core section; FALSE = shown in Advanced accordion.
+#'              Honored on `group` tabs too — the Advanced accordion nests
+#'              inside each group rather than at the tab's top level.
 #'   show_if    optional dot-key of a checkbox entry; this field only renders
 #'              while that checkbox is checked (client-side conditionalPanel)
 #'   help       tooltip / hint text shown below input
@@ -205,44 +206,47 @@ config_schema <- function() {
         # Split out of PreGEA (module split, see CLAUDE.md "Phase" notes):
         # correlation/density/invariant-predictor display now lives in
         # mod_climate.R (producers unchanged, in structure.smk); this tab's
-        # config covers the dbMEM + variance-partitioning sub-blocks that used
-        # to live under PreGEA.Varpart. Climate.predictors itself stays on the
-        # GEA tab (single source of truth for which predictors GEA runs on).
-        s("Climate.Varpart.response", "Response matrix", "climate", NULL,
+        # config covers the variance-partitioning sub-block that used to live
+        # under PreGEA.Varpart. Climate.predictors itself stays on the GEA tab
+        # (single source of truth for which predictors GEA runs on).
+        #
+        # Model fitted: Y ~ X_clim + X_struct + X_geo. Y (response, this
+        # section) is genomic PCs by default — a documented scalability
+        # adaptation vs. Lasky et al. 2012's raw-SNP response (WGS-scale
+        # vegan::rda on millions of columns is impractical); 'snps' recovers
+        # literal Lasky methodology. X_clim/X_struct/X_geo (explanatory
+        # tables, next section) are NOT response-matrix choices: X_clim is
+        # Climate.predictors (GEA tab), X_struct is this section's
+        # structure_table, X_geo is always the site-level dbMEM eigenvectors
+        # (no config — see scripts/pregea_dbmem.R). The climate/geography
+        # confounding diagnostic is always computed, not switchable. dbMEM
+        # itself has no user-facing knobs: always one point per site
+        # (coordinate centroid, down to n=1 sample), skip-with-warning below
+        # 3 sites rather than a min-sites config.
+        s("Climate.Varpart.response", "Response matrix (Y)", "climate", "Response matrix (Y)",
           "select", TRUE, group = "Variance partitioning",
           choices = c("pcs", "snps"),
-          help = "'pcs' (genomic PCA scores, scalable) or 'snps' (raw genotypes)"),
-        s("Climate.Varpart.structure_table", "Structure covariate", "climate", NULL,
+          help = "'pcs' = genomic PCA scores (default, scalability adaptation). 'snps' = raw LD-pruned genotypes (literal Lasky et al. 2012 methodology, impractical at WGS scale)."),
+        s("Climate.Varpart.response_var_cutoff", "Response variance cutoff", "climate", "Response matrix (Y)",
+          "numeric", TRUE, group = "Variance partitioning",
+          min = 0, max = 1, step = 0.05,
+          help = "Keep the leading genomic PCs that together explain at least this fraction of genetic variance (0.8 = 80%, the standard choice). Applies only when response = 'pcs'."),
+        s("Climate.Varpart.structure_table", "Structure covariate (X)", "climate", "Explanatory tables (X)",
           "select", TRUE, group = "Variance partitioning",
           choices = c("qmatrix", "none"),
-          help = "'qmatrix' = sNMF Q at sNMF.k_best (last column dropped); 'none' skips the structure fraction"),
-        s("Climate.Varpart.confounding_flag", "Flag climate/geography confounding", "climate", NULL,
-          "checkbox", TRUE, group = "Variance partitioning",
-          help = "Auto-flag when the shared climate/geography fraction exceeds the larger unique fraction"),
-        s("Climate.Varpart.response_var_cutoff", "Response variance cutoff", "climate", NULL,
-          "numeric", FALSE, group = "Variance partitioning",
-          min = 0, max = 1, step = 0.05,
-          help = "Cumulative variance of genomic PCs retained as Y (response = 'pcs' only)"),
-        s("Climate.Varpart.response_max_pcs", "Response PCs (max)", "climate", NULL,
+          help = "Population-structure explanatory table: 'qmatrix' = sNMF Q at sNMF.k_best, last column dropped (Q rows sum to 1, so all K columns are collinear). Uses Q rather than PCs here because Y is already PCs — an ancestry-PC covariate would make X = Y, a tautology. 'none' drops the structure fraction (2-table climate-vs-geography varpart only). Climate (X_clim) is Climate.predictors on the GEA tab; geography (X_geo) is always the site-level dbMEM eigenvectors, no config."),
+        s("Climate.Varpart.response_max_pcs", "Response PCs (max)", "climate", "Response matrix (Y)",
           "numeric", FALSE, group = "Variance partitioning",
           min = 1, step = 1,
           help = "Cap on retained PCs regardless of variance cutoff"),
-        s("Climate.Varpart.response_min_pcs", "Response PCs (min)", "climate", NULL,
+        s("Climate.Varpart.response_min_pcs", "Response PCs (min)", "climate", "Response matrix (Y)",
           "numeric", FALSE, group = "Variance partitioning",
           min = 1, step = 1,
           help = "Floor so varpart always has a multivariate Y"),
-        s("Climate.Varpart.permutations", "Varpart permutations", "climate", NULL,
+        s("Climate.Varpart.permutations", "Varpart permutations", "climate", "Explanatory tables (X)",
           "numeric", FALSE, group = "Variance partitioning",
           min = 99, step = 100,
-          help = "anova.cca permutation count for each testable variance fraction (production default 999; lower values run faster)"),
-        s("Climate.dbMEM.spatial_level", "Spatial level", "climate", NULL,
-          "select", TRUE, group = "Spatial (dbMEM)",
-          choices = c("auto", "site", "sample"),
-          help = "'auto' uses site-level MEMs when there are enough distinct sites (avoids pseudoreplication), else falls back to sample-level"),
-        s("Climate.dbMEM.min_sites", "Min distinct sites", "climate", NULL,
-          "numeric", TRUE, group = "Spatial (dbMEM)",
-          min = 2, step = 1,
-          help = "Below this, dbMEM writes a skip record instead of crashing"),
+          help = "anova.cca permutation count for each testable variance fraction (999 = literature/production default; lower values run faster)"),
 
         # ── PREGEA TAB ────────────────────────────────────────────────────────
         # Focused hyperparameter-choice module: "how many K / how many PCs".

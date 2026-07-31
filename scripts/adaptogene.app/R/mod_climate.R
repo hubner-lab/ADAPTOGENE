@@ -29,6 +29,9 @@ mod_climate_ui <- function(id) {
 
         bslib::card(
             bslib::card_header("Variance Partitioning"),
+            shiny::uiOutput(ns("variance_explained_badge")),
+            shiny::uiOutput(ns("dbmem_skip_warning")),
+            shiny::uiOutput(ns("confounding_badge")),
             bslib::layout_column_wrap(
                 width = 1 / 3,
                 mod_image_card_ui(ns("dbmem_screeplot")),
@@ -39,10 +42,8 @@ mod_climate_ui <- function(id) {
             htmltools::h6("Tables", class = "mt-3"),
             bslib::accordion(
                 open = FALSE, multiple = TRUE,
-                bslib::accordion_panel("Variance-partition fractions",
-                    DT::DTOutput(ns("varpart_fractions_table"))),
-                bslib::accordion_panel("Testable-fraction significance",
-                    DT::DTOutput(ns("varpart_anova_table"))),
+                bslib::accordion_panel("Variance partition",
+                    DT::DTOutput(ns("varpart_table"))),
                 bslib::accordion_panel("Px per variable",
                     DT::DTOutput(ns("px_table"))),
                 bslib::accordion_panel("dbMEM diagnostics",
@@ -156,6 +157,114 @@ mod_climate_server <- function(id, project_data) {
         })
 
         # ── Variance partitioning ────────────────────────────────────────────
+        # Headline number for the section: the Venn plot below deliberately
+        # does NOT draw "Unexplained" (standard Venn convention — it's
+        # everything outside the circles), so without this badge a user has
+        # no way to see how much of the response was explained at all. Same
+        # data-derived-title badge pattern as relatedness_note()/
+        # wza_collapse_note() (utils_ui.R) — the number itself is the visible
+        # label, full context is the hover body.
+        output$variance_explained_badge <- shiny::renderUI({
+            pd <- project_data()
+            p <- climate_table_path(pd$name, "varpart", "variance_partition")
+            if (!file_ok(p)) return(NULL)
+            dt <- tryCatch(data.table::fread(p, sep = "\t", header = TRUE),
+                           error = function(e) data.table::data.table())
+            if (nrow(dt) == 0 || !all(c("component", "variance_pct") %in% names(dt))) return(NULL)
+            unexp <- dt[dt$component == "Unexplained", ]
+            if (nrow(unexp) == 0) return(NULL)
+            unexplained_pct <- unexp$variance_pct[1]
+            explained_pct   <- 100 - unexplained_pct
+            model <- if ("model" %in% names(dt) && nrow(dt) > 0) dt$model[1] else NA_character_
+
+            htmltools::div(
+                class = "d-flex justify-content-end mb-2",
+                filter_note(
+                    sprintf("%.1f%% variance explained", explained_pct),
+                    htmltools::p(
+                        htmltools::strong(sprintf("%.1f%%", explained_pct)),
+                        " of the genomic response's variance is jointly explained by",
+                        if (!is.na(model)) paste0(" ", model) else " climate/structure/geography",
+                        "; the remaining ", sprintf("%.1f%%", unexplained_pct),
+                        " is unexplained residual — typically large at this sample size ",
+                        "(adjusted R² penalizes many predictors relative to N). ",
+                        "The Venn below breaks the explained share down by which factor(s) ",
+                        "contribute; Unexplained itself isn't drawn there (it's everything ",
+                        "outside the circles, the standard Venn convention) — this badge is ",
+                        "where its size is reported."
+                    ),
+                    class = "bg-secondary"
+                )
+            )
+        })
+
+        # dbMEM has no config knob for the too-few-sites case (always
+        # site-level, skip-with-warning below 3 sites — see
+        # scripts/pregea_dbmem.R). Surface that skip as a visible badge here;
+        # dbmem_diagnostics.tsv's `status` otherwise sits unseen inside a
+        # collapsed accordion table (CLAUDE.md Rule 8 — advisory text belongs
+        # in the Shiny note, not left undiscoverable).
+        output$dbmem_skip_warning <- shiny::renderUI({
+            pd <- project_data()
+            p <- climate_table_path(pd$name, "spatial", "dbmem_diagnostics")
+            if (!file_ok(p)) return(NULL)
+            dt <- tryCatch(data.table::fread(p, sep = "\t", header = TRUE),
+                           error = function(e) data.table::data.table())
+            if (nrow(dt) == 0 || !all(c("key", "value") %in% names(dt))) return(NULL)
+            dv <- setNames(dt$value, dt$key)
+            status <- dv[["status"]]
+            if (is.null(status) || identical(status, "ok")) return(NULL)
+
+            n_sites <- dv[["n_sites"]] %||% "?"
+            htmltools::div(
+                class = "d-flex justify-content-end mb-2",
+                filter_note(
+                    "dbMEM skipped",
+                    htmltools::p(
+                        htmltools::strong("dbMEM skipped"), " (", status, ") — only ",
+                        n_sites, " site(s) with coordinates. ",
+                        "The geography fraction was not computed; variance partitioning ",
+                        "fell back to climate vs. structure. Expand sampling to ≥ 3 ",
+                        "distinct sites, or run Gradient Forest without spatial correction (",
+                        htmltools::code("Maladaptation.methods.gradient_forest.spatial_correction: without"),
+                        ")."
+                    ),
+                    class = "bg-warning text-dark"
+                )
+            )
+        })
+
+        # Confounding check is its own dedicated 2-table climate-vs-geography
+        # fit, always computed when geography is available, independent of
+        # which variance-partition tree (2-way/3-way) the donut below shows
+        # (docs/rda_research.md A.2 point 4) — surfaced as a small badge, not
+        # mixed into the variance-partition table (CLAUDE.md Rule 8).
+        output$confounding_badge <- shiny::renderUI({
+            pd <- project_data()
+            p <- climate_table_path(pd$name, "varpart", "climate_confounding")
+            if (!file_ok(p)) return(NULL)
+            dt <- tryCatch(data.table::fread(p, sep = "\t", header = TRUE),
+                           error = function(e) data.table::data.table())
+            if (nrow(dt) == 0 || !"confounded" %in% names(dt)) return(NULL)
+            confounded <- isTRUE(as.logical(dt$confounded[1]))
+            shared_pct <- dt$shared_pct[1]; max_unique_pct <- dt$max_unique_pct[1]
+            htmltools::div(
+                class = "d-flex justify-content-end mb-2",
+                filter_note(
+                    if (confounded) "Climate/Geography: confounded" else "Climate/Geography: not confounded",
+                    htmltools::p(
+                        htmltools::strong("Climate – geography overlap check"), " (independent of the ",
+                        "structure covariate, always climate-vs-geography only): the shared fraction (",
+                        sprintf("%.1f%%", shared_pct), ") ",
+                        if (confounded) "EXCEEDS" else "does not exceed",
+                        " the larger of the two unique fractions (", sprintf("%.1f%%", max_unique_pct), "). ",
+                        if (confounded) "High confounding means climate and geography are hard to tell apart in this dataset — interpret unique fractions cautiously." else "Climate and geography contribute distinguishable signal here."
+                    ),
+                    class = if (confounded) "bg-warning text-dark" else "bg-secondary"
+                )
+            )
+        })
+
         shiny::observe({
             pd <- project_data()
             suggestion <- shiny::reactive("Run mode=climate.")
@@ -176,8 +285,8 @@ mod_climate_server <- function(id, project_data) {
             )
             mod_image_card_server("varpart_venn",
                 path       = shiny::reactive(climate_plot_path(pd$name, "varpart", "varpart_venn")),
-                title      = shiny::reactive("Variance-partition Venn"),
-                dl_name    = shiny::reactive("varpart_venn"),
+                title      = shiny::reactive("Variance Partition"),
+                dl_name    = shiny::reactive("variance_partition"),
                 suggestion = suggestion,
                 note       = shiny::reactive(help_note("climate_varpart_venn"))
             )
@@ -189,13 +298,9 @@ mod_climate_server <- function(id, project_data) {
                 note       = shiny::reactive(help_note("climate_px_barplot"))
             )
         })
-        output$varpart_fractions_table <- DT::renderDataTable({
+        output$varpart_table <- DT::renderDataTable({
             pd <- project_data()
-            render_tsv_table(climate_table_path(pd$name, "varpart", "varpart_fractions"))
-        })
-        output$varpart_anova_table <- DT::renderDataTable({
-            pd <- project_data()
-            render_tsv_table(climate_table_path(pd$name, "varpart", "varpart_anova"))
+            render_tsv_table(climate_table_path(pd$name, "varpart", "variance_partition"))
         })
         output$px_table <- DT::renderDataTable({
             pd <- project_data()

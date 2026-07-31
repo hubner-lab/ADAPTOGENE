@@ -83,8 +83,9 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
                                     "No configuration parameters for this tab."))
 
             # Tabs where any entry sets `group` render as flat named top-level
-            # sections (mandatory/Advanced split does not apply) — see
-            # config_schema() docs and render_group().
+            # sections instead of a single mandatory-core/Advanced split — the
+            # mandatory/Advanced split still applies WITHIN each group (nested
+            # Advanced accordion) — see config_schema() docs and render_group().
             has_groups <- any(vapply(entries, function(e) !is.null(e$group), logical(1)))
 
             if (has_groups) {
@@ -289,17 +290,38 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
 #' Render one top-level config group (used by tabs that opt into `group`,
-#' e.g. Processing's "SNP Filtering" / "Sample Filtering" — no Advanced
-#' accordion, no mandatory/optional split; every field in the group is
-#' always visible). Entries with `section == NULL` render flat; entries
-#' with a distinct `section` (e.g. "LD Pruning") render as a labeled
+#' e.g. Processing's "SNP Filtering" / "Climate's "Variance partitioning").
+#' Entries with `section == NULL` render flat; entries with a distinct
+#' `section` (e.g. "LD Pruning", "Response matrix (Y)") render as a labeled
 #' subsection within the group, via the same helper used elsewhere.
+#'
+#' `mandatory` IS honored here (unlike the old flat-group behavior): any
+#' entry with `mandatory = FALSE` is pulled out of the normal section flow
+#' and rendered inside a nested, collapsed "Advanced" accordion at the
+#' bottom of the group — the same accordion markup used by non-grouped tabs.
 #' @noRd
 render_group <- function(ns, group_title, entries, config, project = NULL) {
+    sp   <- schema_split(entries)
+    mand <- sp$mandatory
+    opt  <- sp$optional
+
     htmltools::div(
         class = "config-section",
         htmltools::p(class = "config-section-header", group_title),
-        render_section_groups(ns, entries, config, project)
+        if (length(mand) > 0) render_section_groups(ns, mand, config, project),
+        if (length(opt) > 0)
+            bslib::accordion(
+                id   = ns(paste0("adv_", gsub("[^a-zA-Z0-9]+", "_", group_title))),
+                open = FALSE,
+                bslib::accordion_panel(
+                    title = htmltools::tagList(
+                        bsicons::bs_icon("gear", size = "0.9em"),
+                        " Advanced"
+                    ),
+                    value = "advanced",
+                    render_section_groups(ns, opt, config, project)
+                )
+            )
     )
 }
 

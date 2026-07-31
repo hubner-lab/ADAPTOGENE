@@ -240,15 +240,15 @@ HELP_NOTES <- list(
     ),
     climate_dbmem_screeplot = list(
         desc   = "dbMEM spatial eigenvector screeplot (Moran's I per MEM) — positive-autocorrelation MEMs are kept as the spatial predictor set for varpart and for Gradient Forest's spatial correction.",
-        config = "Climate.dbMEM.spatial_level, .min_sites"
+        config = "No config — always site-level (one point per site centroid); skipped with a warning below 3 sites."
     ),
     climate_dbmem_selection_path = list(
         desc   = "Forward-selected MEM path (Blanchet double stopping rule) — which spatial eigenvectors entered the varpart geography term, in order.",
         config = NULL
     ),
     climate_varpart_venn = list(
-        desc   = "Climate / population-structure / geography variance-partition Venn (adjusted R2 per fraction) against the genomic-PC response matrix. A fraction can be NEGATIVE — adjusted R2 corrects for the number of predictors used, and overcorrects when a fraction explains ~nothing at low N; read a negative value as ≈0 (Peres-Neto et al. 2006), not an error.",
-        config = "Climate.Varpart.response, .structure_table, .confounding_flag"
+        desc   = "Schematic Venn (fixed circle positions — NOT area-proportional) of the genomic-PC response's variance: one circle per available factor (Climate, Structure, Geography), each region labeled with its adjusted-R2 share. 3 circles when both auxiliary tables are available, falling back to 2 (climate+geography, or climate+structure) or 1 (climate only) otherwise. \"Unexplained\" is deliberately NOT drawn — standard Venn convention, it's everything outside the circles — its size is instead reported by the \"% variance explained\" badge above the plot. A region's % label can be NEGATIVE — adjusted R2 corrects for the number of predictors used and overcorrects when a fraction explains ~nothing at low N; read a negative value as ≈0 (Peres-Neto et al. 2006), not an error. The separate climate/geography confounding badge is its own dedicated check, independent of which Venn variant is shown.",
+        config = "Climate.Varpart.response, .structure_table (confounding flag is always computed; dbMEM geography has no config — always site-level)"
     ),
     climate_px_barplot = list(
         desc   = "Lasky et al. 2012 Px metric per climate predictor — each predictor's share of the RDA-explained variance, ranked, for the unconditional and geography-partialled models.",

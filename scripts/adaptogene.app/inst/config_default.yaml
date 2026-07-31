@@ -61,16 +61,15 @@ Climate:
   enabled: true                    # Set false to skip all climate-dependent analyses
   predictors: "bio_1,bio_2,bio_3,bio_4,bio_8,bio_9,bio_10,bio_12,bio_14,bio_15"
   Varpart:
-    response: pcs                  # 'pcs' (documented scalability adaptation) | 'snps'
-    response_var_cutoff: 0.8       # cumulative variance of LEA PCs retained as Y
+    response: pcs                  # 'pcs' (genomic PCs, scalability adaptation) | 'snps' (raw, Lasky-literal)
+    response_var_cutoff: 0.8       # keep leading PCs explaining >= 80% of genetic variance
     response_max_pcs: 20
     response_min_pcs: 2            # floor so varpart always has a multivariate Y
     structure_table: qmatrix       # 'qmatrix' (sNMF Q at k_best, last column dropped) | 'none'
-    confounding_flag: yes          # auto-flag when shared > max(unique) fraction
-    permutations: 199              # anova.cca permutations per testable fraction (production default 999)
-  dbMEM:
-    spatial_level: auto            # auto | site | sample
-    min_sites: 6                   # below this -> dbMEM writes a skip record, no crash
+    permutations: 999               # varpart anova.cca permutations per testable fraction
+  # dbMEM: always site-level (one point per site, centroid of its samples),
+  # no min-sites knob — below 3 sites, dbMEM writes a skip record (warning
+  # badge in Shiny) instead of a config-time guard.
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS
