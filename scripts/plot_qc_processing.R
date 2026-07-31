@@ -112,7 +112,7 @@ titv_ratio    <- bcf_stats$titv
 #=============================================================================
 # 2. SAMPLE MISSINGNESS DISTRIBUTION
 #=============================================================================
-smiss <- fread(SAMPLE_MISS_FILE)
+smiss <- fread(SAMPLE_MISS_FILE, colClasses = list(character = "IID"))
 p_smiss <- ggplot(smiss, aes(x = F_MISS)) +
     geom_histogram(
         aes(fill = F_MISS > SAMPLE_MISS_THRESH),
@@ -177,7 +177,7 @@ save_plot(p_maf, "maf_distribution.png")
 #=============================================================================
 # 5. HET VS MISSINGNESS SCATTER
 #=============================================================================
-het  <- fread(HET_FILT_FILE)
+het  <- fread(HET_FILT_FILE, colClasses = list(character = "IID"))
 meta <- fread(METADATA_FILE, colClasses = list(character = "sample"))
 
 # Compute observed heterozygosity
