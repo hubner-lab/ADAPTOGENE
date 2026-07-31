@@ -73,6 +73,30 @@ hardcoding the formula, since Case 2-4 landscapes may differ.
   will carry `chr, pos, category` (no `effect_size`); `category` is derived by the converter
   (causal / linked_neutral via a TP-window / background_neutral), not read from source data.
 
+### Two pyslim VCF-writer quirks found only by actually running the converter against plink
+
+Neither is documented anywhere in the archive; both were found because `plink --missing` (the
+first real VCF-consuming step in `mode=processing`) rejected the raw decompressed VCF outright.
+`benchmarks/convert_laruson.R` now repairs both — see its inline comments for the exact regex/logic.
+
+1. **Blank REF on every causal-locus row.** All 102/102 causal-mutation rows (0/33,541 neutral
+   rows) have REF written as an empty string and ALT holding a raw SLiM mutation ID instead of a
+   normal `0`/`1` pair (e.g. `1\t144\t.\t\t354790\t.\tPASS\t.\tGT\t...` — note the double tab).
+   GT calls themselves are untouched/valid. Since no other VCF field is ever legitimately blank in
+   this dataset, "blank REF" is a 100%-reliable causal-row signal — repaired to `REF=0, ALT=1`.
+
+2. **1,119 duplicate-POS rows** (33,541 → 32,422 unique positions after dedup, this replicate) —
+   more than one independently-simulated mutation stacked at the exact same genomic site. Confirmed
+   as a real phenomenon, not a formatting artifact: position 71772 (a causal locus) carries both
+   the causal row (109/247/138/1 het/hom counts — real signal) *and* a distinct co-located neutral
+   mutation. 7 of the 102 causal positions are affected. Since this pipeline is biallelic-only,
+   duplicate-POS groups must collapse to one row — naively keeping "whichever comes first" would
+   have silently discarded a causal row's real genotype signal in ~7% of cases. The converter
+   always keeps the blank-REF (causal) row when a duplicate group contains one, confirmed
+   empirically to correctly preserve all 102 causal loci post-dedup (was 109 miscounted before this
+   fix, due to a handful of causal positions surviving as duplicate rows rather than being
+   collapsed).
+
 ### `_ML_WF_CG_sum_Gen.txt` — 33 rows (per ~100-generation snapshot) + header
 - Columns: `generation sympatry allopatry local_adaptation mean_pheno0 mean_pheno1 corr_pheno0_opt0 corr_pheno1_opt1`
 - **This is a population-average scalar time series, NOT a per-deme×garden reciprocal-transplant

@@ -78,22 +78,112 @@ for (f in c(vcf_gz_path, ind_path, causal_path, cg_sum_path)) {
 message("INFO: Converting Case", CASE_N, " seed ", SEED, " from ", RAW_DIR, " -> ", OUT_DIR)
 
 #=============================================================================
-# 1. VCF -- decompress only. Already single-contig ("1"), no "chr" prefix,
-#    integer POS -- confirmed against this archive, no further normalization needed.
+# 1. VCF -- decompress, repair a pyslim writer quirk, drop duplicate-POS rows.
+#    Already single-contig ("1"), no "chr" prefix, integer POS -- confirmed
+#    against this archive, no further coordinate normalization needed.
 #=============================================================================
 vcf_out_path <- file.path(OUT_DIR, "laruson.vcf")
-message("INFO: Decompressing VCF -> ", vcf_out_path)
-# Native R gzfile connections (no external zcat/bash dependency -- portable across
-# the host R and the Docker R environment alike).
+message("INFO: Decompressing + normalizing VCF -> ", vcf_out_path)
+
+# Two known pyslim/tskit VCF-writer quirks in this archive, both confirmed empirically:
+#
+# (a) Causal-mutation rows: REF written blank, ALT holds a raw SLiM mutation ID
+#     (e.g. "\t\t675377\t" or "\t\t674470,674654\t" when >=2 mutations stack at one
+#     site) instead of a normal biallelic "0"/"1" pair. Confirmed on 102/102 causal
+#     loci in the Case1 pilot replicate, 0/33541 neutral rows -- "blank REF" is a
+#     100% reliable causal-row signal in this dataset (no other field is ever
+#     legitimately blank). GT calls themselves are untouched/valid (0|0/0|1/1|0/1|1).
+#
+# (b) Duplicate POS: ~3% of positions carry >1 independently-simulated mutation at
+#     the exact same site (e.g. one causal + one neutral, confirmed via distinct GT
+#     patterns at pos 71772 in the Case1 replicate) -- not a formatting artifact, a
+#     real recurrent-mutation coalescent outcome. This pipeline is biallelic-only
+#     (see CLAUDE.md), so duplicate-POS rows must collapse to one row per position.
+#     Naively keeping "whichever row comes first" risks silently discarding the
+#     causal row's genotype signal in favor of a coincidentally co-located neutral
+#     one -- so quirk (a)'s signal doubles as the tie-breaker for quirk (b): always
+#     keep the causal (blank-REF) row when a duplicate group contains one.
+MALFORMED_REF_PATTERN <- "^([^\t]*\t[^\t]*\t[^\t]*\t)\t[0-9]+(,[0-9]+)*\t"
+
+# Decompress once to a plain-text temp file (native R gzfile() connection -- no
+# external zcat/bash dependency, and no R.utils dependency for the fread calls below,
+# which only support direct .gz reads via that optional package).
+tmp_raw_vcf <- tempfile(tmpdir = OUT_DIR, fileext = ".raw.vcf")
 in_con  <- gzfile(vcf_gz_path, open = "rt")
+out_con <- file(tmp_raw_vcf, open = "wt")
+while (length(chunk <- readLines(in_con, n = 100000)) > 0) writeLines(chunk, out_con)
+close(in_con)
+close(out_con)
+
+# Pass 1 (lightweight): fread only POS + REF (columns 2 and 4) -- data.table skips
+# parsing/storing the other 10,005 genotype columns entirely, far faster than a
+# manual per-line regex scan of the full (very wide) lines.
+pos_ref <- fread(tmp_raw_vcf, skip = "#CHROM", header = TRUE, select = c(2, 4),
+                  col.names = c("pos", "ref"), colClasses = list(character = 4))
+n_total_rows <- nrow(pos_ref)
+line_dt <- data.table(idx = seq_len(n_total_rows), pos = pos_ref$pos,
+                       malformed = is.na(pos_ref$ref) | pos_ref$ref == "")
+setorder(line_dt, pos, -malformed)  # within a POS group, malformed (causal) row sorts first
+keep_dt <- line_dt[, .SD[1L], by = pos]
+keep_idx <- sort(keep_dt$idx)
+n_dropped <- n_total_rows - length(keep_idx)
+if (n_dropped > 0) {
+    message("INFO: Dropping ", n_dropped, " duplicate-POS rows (", n_total_rows,
+            " -> ", length(keep_idx), " variants) -- keeping the causal/blank-REF row ",
+            "wherever a duplicate group contains one, see comment above")
+}
+keep_idx_set <- keep_idx  # sorted, unique -- safe for match() below
+
+# Pass 2: re-read the decompressed temp file, apply the REF/ALT repair only to lines
+# being kept, write only kept data lines (plus all header/meta lines) to the final VCF.
+n_fixed <- 0L
+row_counter <- 0L
+in_con  <- file(tmp_raw_vcf, open = "rt")
 out_con <- file(vcf_out_path, open = "wt")
 while (length(chunk <- readLines(in_con, n = 100000)) > 0) {
+    is_data_line <- !startsWith(chunk, "#")
+    n_data_this_chunk <- sum(is_data_line)
+    if (n_data_this_chunk > 0) {
+        data_idx <- row_counter + seq_len(n_data_this_chunk)
+        is_kept <- data_idx %in% keep_idx_set
+        keep_mask <- rep(TRUE, length(chunk))
+        keep_mask[is_data_line] <- is_kept
+        chunk <- chunk[keep_mask]
+
+        # Recompute is_data_line/malformed on the now-filtered chunk for the repair step
+        is_data_line2 <- !startsWith(chunk, "#")
+        is_malformed <- is_data_line2 & grepl("\t\t", chunk, fixed = TRUE)
+        if (any(is_malformed)) {
+            n_fixed <- n_fixed + sum(is_malformed)
+            chunk[is_malformed] <- sub(MALFORMED_REF_PATTERN, "\\1<<FIXREF>>\t", chunk[is_malformed])
+            chunk[is_malformed] <- sub("<<FIXREF>>\t", "0\t1\t", chunk[is_malformed], fixed = TRUE)
+        }
+        row_counter <- row_counter + n_data_this_chunk
+    }
     writeLines(chunk, out_con)
 }
 close(in_con)
 close(out_con)
+unlink(tmp_raw_vcf)
 if (!file.exists(vcf_out_path) || file.info(vcf_out_path)$size == 0) {
     stop("ERROR: VCF decompression failed for ", vcf_gz_path)
+}
+if (n_fixed > 0) {
+    message("INFO: Repaired ", n_fixed, " malformed REF/ALT rows (blank REF -> \"0\", ",
+            "SLiM mutation-ID ALT -> \"1\") -- see comment above")
+}
+
+# Re-scan the written file for any remaining blank field or duplicate-POS data lines --
+# catches an incomplete repair/dedup and any other malformation this converter doesn't
+# yet know about.
+written_check <- fread(vcf_out_path, skip = "#CHROM", header = TRUE, select = c(2, 4),
+                        col.names = c("pos", "ref"), colClasses = list(character = 4))
+still_malformed <- sum(is.na(written_check$ref) | written_check$ref == "")
+still_dup <- sum(duplicated(written_check$pos))
+if (still_malformed > 0 || still_dup > 0) {
+    stop("ERROR: ", still_malformed, " blank-field and ", still_dup, " duplicate-POS data ",
+         "lines remain after repair/dedup -- inspect ", vcf_out_path, " manually before ",
+         "trusting downstream output.")
 }
 
 # Read header line (the "#CHROM..." row) to get sample names, and the contig ID.
