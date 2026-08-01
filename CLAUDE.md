@@ -239,6 +239,17 @@ Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand
 2. Test with SIMDATA (`config_SIMDATA.yaml`)
 3. Only spin up a real-data project (its own `config_<PROJECT>.yaml`) for validation the user explicitly requests
 
+### Retired: Láruson et al. 2022 — unusable as a GEA benchmark (2026-08-01)
+
+Archived to `_archive/laruson/`. **Do not revive it for GEA benchmarking.** Two disqualifying properties, both confirmed from the Dryad archive's own simulation parameters and from our runs:
+
+1. **No population structure.** SLiM parameters are `m = 0.2`, `n = 100` → Nm = 20 migrants/deme/generation, expected Fst ≈ 0.012. Measured: PC1 = 0.38% of variance, PC1–3 = 0.94%. Worse, **PC1/PC2 are just a rotation of the two environmental axes** (R²_env = 0.835 / 0.838; PC3 onward ≈ 0.006). There is no structure confounding the environment — the only structure present *is* the adaptive signal. Consequence: structure correction can only destroy signal (EMMAX `n_pcs` 0 → 3 collapses AUC-PR 0.580 → 0.052; RDA `condition_pcs` likewise), so the dataset cannot exercise or validate the pipeline's structure-correction machinery at all. It was built to test Gradient Forest genetic-offset prediction, not GEA.
+2. **Truth set incompatible with our MAF filter.** `causal_mutations_pos_filtered.txt` lists causal variants already MAF-filtered by the authors at **MAF ≥ 0.01** (minimum causal MAF is exactly 0.010000), but the shipped VCF is their *unfiltered* one. At our `Filter.maf: 0.05` only **28 of 102** causal loci are testable; at 0.01 all 102 are. Any recall figure against the 102 denominator is capped at ~27% by construction.
+
+Also: LD decays to r²=0.2 at **591 bp** (`r = 1e-5`, ≈5 Morgans over the 500 kb contig), so causal loci cannot be picked up via linked markers — and WZA is useless here (only 50 windows genome-wide).
+
+The reusable parts were kept out of the archive: `benchmarks/lib_detection.R`, `eval_detection.R`, `sweep_thresholds.R`, `sweep_rda.sh`, `score_ladders.sh` are dataset-agnostic (they take any wide p-value table + a `chr/pos/category` truth table) and should be reused by the next simulation benchmark.
+
 ### Testing Guidelines
 
 **CRITICAL - Preserve output directories**:
