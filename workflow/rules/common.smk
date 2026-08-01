@@ -812,6 +812,7 @@ O['ld_decay_plot_chr_svg']= _ph('ld_decay_plot_chr_svg')
 W['blocks_det']           = _ph('blocks_det')
 W['geno_full']            = _ph('geno_full')
 W['lfmm_full']            = _ph('lfmm_full')
+W['lfmm_full_nmissing']   = _ph('lfmm_full_nmissing')
 W['vcfsnp_full']          = _ph('vcfsnp_full')
 W['removed_full']         = _ph('removed_full')
 W['snmf_full']            = _ph('snmf_full')
@@ -890,8 +891,7 @@ for _k in ('pregea_screeplot', 'pregea_screeplot_svg', 'pregea_screeplot_tsv',
            'pregea_emmax_ladder', 'pregea_emmax_hist', 'pregea_emmax_qq',
            'pregea_emmax_lambda', 'pregea_emmax_hits',
            'pregea_rda_collin', 'pregea_rda_ladder', 'pregea_rda_axis', 'pregea_rda_fwd',
-           'pregea_rda_collin_png', 'pregea_rda_scree_png', 'pregea_rda_ladder_png',
-           'pregea_rda_fwd_png', 'pregea_rda_biplot_png',
+           'pregea_rda_fwd_png', 'pregea_rda_comparison_png',
            'pregea_recommendations', 'pregea_transfer_guard', 'pregea_transfer_png'):
     O[_k] = _ph(_k)
 # --- from add_climate_varpart_paths() --- (climate.smk is also included
