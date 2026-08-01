@@ -1,0 +1,137 @@
+/* rmd-lab-journal dark callout stylesheet.
+   Copy this file next to every journal Rmd (work/journal/_callouts.css) and reference it
+   via YAML `css: ["_callouts.css"]`. Pairs with `theme: darkly` / `highlight: breezedark`. */
+
+/* Belt-and-suspenders dark override for code/output blocks. Some rmarkdown-bundled builds of
+   the "darkly" bootswatch theme leave `pre` at its Bootstrap-default light-grey background —
+   this file loads after the theme CSS, so it wins regardless of which rmarkdown/pandoc version
+   is rendering. Token colors from `highlight: breezedark` are set on inline <span> elements and
+   are untouched by this — only the block background/base text color is forced dark. */
+pre,
+pre.sourceCode {
+  background-color: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  border-color: #3a3a3a !important;
+}
+
+.callout-method,
+.callout-result,
+.callout-conclusion,
+.was,
+.now {
+  padding: 0.6em 1em;
+  margin: 1em 0;
+  border-radius: 3px;
+  color: #e8e8e8;
+}
+
+.callout-method {
+  border-left: 4px solid #4dac26;
+  background: #16220f;
+}
+.callout-method::before {
+  content: "Метод";
+  display: block;
+  font-weight: 700;
+  color: #7fd858;
+  margin-bottom: 0.3em;
+}
+
+.callout-result {
+  border-left: 4px solid #2c7bb6;
+  background: #0f1c26;
+}
+.callout-result::before {
+  content: "Результат";
+  display: block;
+  font-weight: 700;
+  color: #6cb6ec;
+  margin-bottom: 0.3em;
+}
+.callout-result ul,
+.callout-result ol {
+  margin: 0.3em 0 0 0;
+}
+
+.callout-conclusion {
+  border-left: 4px solid #d95f02;
+  background: #241606;
+}
+.callout-conclusion::before {
+  content: "Вывод";
+  display: block;
+  font-weight: 700;
+  color: #f0a35c;
+  margin-bottom: 0.3em;
+}
+
+/* Version-tracking blocks (append-only history, see SKILL.md rule H).
+   Nest inside a callout-method or callout-result div — never replace the original text. */
+.was {
+  border-left: 4px solid #d7191c;
+  background: #2b1416;
+}
+.was::before {
+  content: "было";
+  display: block;
+  font-weight: 700;
+  color: #f27f81;
+  margin-bottom: 0.2em;
+}
+
+.now {
+  border-left: 4px solid #4dac26;
+  background: #14251a;
+}
+.now::before {
+  content: "стало";
+  display: block;
+  font-weight: 700;
+  color: #7fd858;
+  margin-bottom: 0.2em;
+}
+
+/* Collapsible technical asides (see SKILL.md rule I). */
+details.callout-note {
+  border-left: 4px solid #6c6c6c;
+  background: #1c1c1c;
+  padding: 0.5em 1em;
+  margin: 1em 0;
+  border-radius: 3px;
+  color: #bdbdbd;
+}
+details.callout-note summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #9a9a9a;
+}
+details.callout-note summary::marker {
+  color: #6c6c6c;
+}
+details.callout-note[open] summary {
+  margin-bottom: 0.4em;
+}
+
+/* D2 diagram embeds (see SKILL.md rule L) — center and cap width on the dark background. */
+.d2-diagram {
+  display: block;
+  margin: 1em auto;
+  max-width: 100%;
+  background: #1a1a1a;
+  border-radius: 4px;
+  padding: 0.5em;
+}
+
+/* Document abstract diagram (see SKILL.md rule M) — full-width, set apart from per-step
+   diagrams with a bottom divider, since it's the one thing that precedes the first step. */
+.d2-abstract {
+  display: block;
+  margin: 1em auto 1.5em;
+  max-width: 100%;
+  width: 100%;
+  background: #1a1a1a;
+  border-radius: 4px;
+  padding: 0.5em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid #444;
+}
