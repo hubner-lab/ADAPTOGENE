@@ -1,0 +1,12 @@
+# Build-context hygiene fix (2026-07-31): docker build has no way to know these
+# project output/data directories aren't needed inside the image, and without this
+# file it tars all of them into the build context — hundreds of GB, enough to fill
+# /var (Docker's storage root) even though /mnt/data itself has plenty of space.
+*_results/
+*_logs/
+data/
+.snakemake/
+.git/
+TEMP/
+TEMP_*/
+*.qs
