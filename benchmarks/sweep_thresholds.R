@@ -10,10 +10,19 @@
 # post-hoc scoring.
 #
 # Sweeps, per method:
-#   bonf   0.01 0.05 0.1
-#   qval   0.05 0.1 0.2 0.3
-#   top    10 20 30 50 100
-#   custom 1e-5 1e-4 1e-3
+#   bonf   0.01 0.05 0.1 0.5 1
+#   qval   0.05 0.1 0.2 0.3 0.4 0.5
+#   top    10 20 30 50 100 200 500 1000 2000 5000
+#   custom 1e-6 1e-5 1e-4 1e-3 1e-2
+#
+# The grid deliberately runs well past conventional significance. The premise is
+# that a user reads the operating point off the Manhattan plot: climate-association
+# signal is noisy, so the useful question is the shape of the whole precision/recall
+# tradeoff, not the single point FDR 0.05 lands on. The upper rungs also matter for
+# recall to be measurable at all on the polygenic replicates -- MVP seeds carry up to
+# 395 causal loci (1231798), so a grid topping out at top-100 would cap recall near
+# 25% by construction rather than by method performance. bonf 1 is the "one expected
+# false positive genome-wide" line (cutoff = 1/n_tested).
 #
 # Combine rules across methods, at each shared (adjust, value):
 #   union, intersection, at_least_2, and a threshold-free rank_sum top-N.
@@ -61,10 +70,17 @@ for (s in spec) {
 if (!length(methods)) stop("--methods produced no entries")
 
 GRID <- rbind(
-    data.table(adjust = "bonf",   value = c("0.01", "0.05", "0.1")),
-    data.table(adjust = "qval",   value = c("0.05", "0.1", "0.2", "0.3")),
-    data.table(adjust = "top",    value = c("10", "20", "30", "50", "100")),
-    data.table(adjust = "custom", value = c("1e-5", "1e-4", "1e-3"))
+    data.table(adjust = "bonf",   value = c("0.01", "0.05", "0.1", "0.5", "1")),
+    data.table(adjust = "qval",   value = c("0.05", "0.1", "0.2", "0.3", "0.4", "0.5")),
+    # Up to 5000. Measured need, not a guess: on the highly-polygenic replicates (1231798,
+    # 395 causal; 1232923, 363; 1233133, 324; 1232908, 268) F1 was still rising monotonically
+    # at top=1000 for EVERY rule -- LFMM 0.129 -> 0.182 -> 0.202, union 0.143 -> 0.159 ->
+    # 0.167 -- so a grid stopping at 1000 reports a censored frontier as if it were the
+    # frontier. That understates every rule and understates the COMBINE rules most, because
+    # union needs more calls than any single method to express its recall advantage.
+    data.table(adjust = "top",    value = c("10", "20", "30", "50", "100", "200", "500",
+                                            "1000", "2000", "5000")),
+    data.table(adjust = "custom", value = c("1e-6", "1e-5", "1e-4", "1e-3", "1e-2"))
 )
 
 truth <- load_truth(TRUTH_F)
@@ -159,7 +175,7 @@ for (m in names(loaded)) {
 }
 wide[, rank_sum := rowSums(.SD), .SDcols = names(loaded)]
 setorder(wide, rank_sum)
-for (n in c(10, 20, 30, 50, 100, 200)) {
+for (n in c(10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000)) {
     if (n > nrow(wide)) next
     s   <- score_calls(wide$snp[seq_len(n)], WINDOW, truth, testable_union)
     cfg <- paste0(TAG, "|COMBINE_rank_sum|top_", n)

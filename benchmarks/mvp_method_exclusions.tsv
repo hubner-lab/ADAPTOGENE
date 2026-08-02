@@ -1,0 +1,9 @@
+seed	method	reason
+# Declared (seed, method) pairs that cannot run, with the reason. Two effects:
+#   1. mvp_write_sweep_configs.R omits the method from that seed's GEA.configs, so the
+#      mode=gea run does not abort on a target it can never produce.
+#   2. mvp_run_sweep.sh treats a missing p-value table as FATAL *unless* it is declared
+#      here -- so a known gap stays distinguishable from a silent failure.
+# Currently empty. The previous entry (1231858 BLINK) was removed once the underlying
+# GAPIT.Genotype.View crash was fixed at source via Geno.View.output = FALSE in
+# scripts/gapit.R; all 14 replicates now run all four methods.
