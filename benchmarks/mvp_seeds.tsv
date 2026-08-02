@@ -1,0 +1,15 @@
+seed	arm	project	architecture	arch_level	demog_level	demog_level_sub	n_traits	ispleiotropy	K_authors	k_best	meanFst	r2_pc1_temp	r2_pc1_sal	n_snps	n_causal_pre	n_causal_maf01	n_causal_temp	n_causal_sal	final_LA
+1232568	control_degenerate	MVP1232568	mod-polygenic_2-trait-pleiotropy-equal-S	mod-polygenic	Est-Clines	N-variable_m-variable	2	1	1	2	0.2166	0.9397	0.0036	10062	389	38	37	37	0.4895
+1231578	control_degenerate	MVP1231578	highly-polygenic_2-trait-no-pleiotropy-unequal-S	highly-polygenic	Est-Clines	N-variable_m-variable	2	0	1	2	0.2102	0.9197	4e-04	13161	2103	515	236	278	0.3316
+1231288	primary	MVP1231288	oliogenic_2-trait-no-pleiotropy-unequal-S	oliogenic	SS-Mtn	N-variable_m-variable	2	0	2	2	0.2174	0.5712	0.0015	11287	14	6	2	4	0.3917
+1232578	primary	MVP1232578	mod-polygenic_2-trait-pleiotropy-equal-S	mod-polygenic	SS-Mtn	N-variable_m-variable	2	1	7	7	0.2046	0.4333	0.0249	10145	436	28	28	28	0.5488
+1232548	primary	MVP1232548	mod-polygenic_2-trait-no-pleiotropy-equal-S	mod-polygenic	SS-Mtn	N-variable_m-variable	2	0	5	5	0.1978	0.5726	0.0046	10394	643	70	30	40	0.5458
+1231858	primary	MVP1231858	mod-polygenic_1-trait	mod-polygenic	SS-Mtn	N-variable_m-variable	1	0	3	3	0.1952	0.5206	0.0124	8526	465	46	46	0	0.4728
+1232218	primary	MVP1232218	oliogenic_2-trait-pleiotropy-unequal-S	oliogenic	SS-Mtn	N-variable_m-variable	2	1	2	2	0.1925	0.345	0.0034	9934	8	6	6	6	0.3674
+1231993	primary	MVP1231993	oliogenic_2-trait-pleiotropy-unequal-S	oliogenic	SS-Mtn	N-variable_m-variable	2	1	2	2	0.1923	0.418	6e-04	4985	11	8	8	8	0.3667
+1232398	primary	MVP1232398	oliogenic_2-trait-no-pleiotropy-equal-S	oliogenic	SS-Mtn	N-variable_m-variable	2	0	1	2	0.1853	0.5026	0.0054	9548	16	10	3	7	0.5462
+1233208	primary	MVP1233208	mod-polygenic_1-trait	mod-polygenic	SS-Mtn	N-variable_m-variable	1	0	4	4	0.1821	0.4506	0.0143	9672	516	39	39	0	0.4674
+1232923	primary	MVP1232923	highly-polygenic_2-trait-no-pleiotropy-equal-S	highly-polygenic	SS-Mtn	N-variable_m-variable	2	0	3	3	0.1758	0.3245	0.0293	12185	2228	363	163	200	0.5539
+1231798	primary	MVP1231798	highly-polygenic_2-trait-no-pleiotropy-equal-S	highly-polygenic	SS-Mtn	N-variable_m-variable	2	0	3	3	0.174	0.3973	0.027	9916	2250	395	171	224	0.5459
+1232908	primary	MVP1232908	highly-polygenic_1-trait	highly-polygenic	SS-Mtn	N-variable_m-variable	1	0	2	2	0.1717	0.3973	0.0058	11438	2071	268	268	0	0.4766
+1233133	primary	MVP1233133	highly-polygenic_1-trait	highly-polygenic	SS-Mtn	N-variable_m-variable	1	0	2	2	0.1711	0.3103	0.0174	10831	2123	324	324	0	0.4687
