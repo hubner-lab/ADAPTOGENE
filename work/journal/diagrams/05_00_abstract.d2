@@ -1,0 +1,75 @@
+direction: right
+
+data: {
+  label: "MVP benchmark\n14 реплик (Lotterhos 2023)"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  vcf: "MVP{seed}.vcf\n~5-13k SNP x 1000 особей"
+  truth: "truth_{temp,sal,any}.tsv\ncausal / linked_neutral /\nbackground_neutral"
+}
+
+cfg: {
+  label: "Генерация ячеек\nmvp_write_sweep_configs.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  ladder: "Лестницы рунгов\nn_pcs: 0, k/2, k, 2k, 4k\nLFMM K: k-2 .. k+4"
+  cells: "config_MVP{seed}_c{1..5}.yaml\nproject_name НЕ меняется ->\nupstream считается один раз"
+}
+
+run: {
+  label: "Прогон\nmvp_run_sweep.sh"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  up: "processing -> prestructure -> structure\n(один раз на seed)"
+  pregea: "mode=pregea\nрекомендатель рунга\n(LD-pruned: НЕ для скоринга)"
+  gea: "mode=gea x 5 ячеек\nEMMAX / LFMM / RDA / BLINK"
+  harvest: "Сбор таблиц\nимя файла хранит k_best,\nа не рунг -> перезапись"
+  gate: "Гейт: таблица ячейки\nне должна совпадать\nс предыдущей"
+}
+
+score: {
+  label: "Скоринг\nmvp_score_sweep.sh"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  rank: "eval_detection.R --mode=rank\nAUC-PR по (метод x ось)"
+  sweep: "sweep_thresholds.R\nbonf/qval/top/custom x\nunion/at_least_2/\nintersection/rank_sum"
+  bundles: "Смешанные наборы\noracle (по истине, ВЕРХНЯЯ ГРАНИЦА)\npregea (достижимый)"
+}
+
+out: {
+  label: "Результат\nmvp_sweep_report.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  pareto: "Поверхность precision/recall\nна каждый seed"
+  ladderplot: "AUC-PR vs рунг\n+ коллапс Est-Clines контролей"
+  adv: "default -> pregea -> oracle\nлучший одиночный метод\nvs лучшее объединение"
+  fp: "FP-контроль: 4 seed'а\nс 0 каузальных на bio_2"
+}
+
+data.vcf -> run.up
+data.vcf -> cfg.ladder: "k_best"
+cfg.ladder -> cfg.cells
+cfg.cells -> run.gea
+run.up -> run.pregea
+run.up -> run.gea
+run.gea -> run.harvest -> run.gate
+run.gate -> score.rank
+run.gate -> score.sweep
+run.pregea -> score.bundles: "рекомендованный рунг"
+score.rank -> score.bundles: "лучший рунг по истине"
+data.truth -> score.rank
+data.truth -> score.sweep
+score.sweep -> out.pareto
+score.rank -> out.ladderplot
+score.bundles -> out.adv
+score.sweep -> out.fp
