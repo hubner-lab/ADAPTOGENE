@@ -1,0 +1,86 @@
+axis	config	category	metric	value
+detection	ourLFMM_temp	truth	n_causal_simulated	30
+detection	ourLFMM_temp	truth	n_causal_testable	30
+detection	ourLFMM_temp	truth	n_snps_tested	10325
+detection	ourLFMM_temp	trait_bio_1	threshold	0.000100376124704384
+detection	ourLFMM_temp	trait_bio_1	n_tested	10325
+detection	ourLFMM_temp|qval_0.05	window_0kb	n_called	22
+detection	ourLFMM_temp|qval_0.05	window_0kb	tp	4
+detection	ourLFMM_temp|qval_0.05	window_0kb	tp_any_causal	4
+detection	ourLFMM_temp|qval_0.05	window_0kb	expected_linked	18
+detection	ourLFMM_temp|qval_0.05	window_0kb	fp_background	0
+detection	ourLFMM_temp|qval_0.05	window_0kb	untracked	0
+detection	ourLFMM_temp|qval_0.05	window_0kb	fn_testable	26
+detection	ourLFMM_temp|qval_0.05	window_0kb	precision_strict	1
+detection	ourLFMM_temp|qval_0.05	window_0kb	precision_all	0.181818181818182
+detection	ourLFMM_temp|qval_0.05	window_0kb	recall_testable	0.133333333333333
+detection	ourLFMM_temp|qval_0.05	window_0kb	recall_simulated	0.133333333333333
+detection	ourLFMM_temp|qval_0.05	window_0kb	f1	0.235294117647059
+detection	ourLFMM_sal	truth	n_causal_simulated	40
+detection	ourLFMM_sal	truth	n_causal_testable	40
+detection	ourLFMM_sal	truth	n_snps_tested	10325
+detection	ourLFMM_sal	trait_bio_2	threshold	0.0001628180339161
+detection	ourLFMM_sal	trait_bio_2	n_tested	10325
+detection	ourLFMM_sal|qval_0.05	window_0kb	n_called	33
+detection	ourLFMM_sal|qval_0.05	window_0kb	tp	8
+detection	ourLFMM_sal|qval_0.05	window_0kb	tp_any_causal	8
+detection	ourLFMM_sal|qval_0.05	window_0kb	expected_linked	25
+detection	ourLFMM_sal|qval_0.05	window_0kb	fp_background	0
+detection	ourLFMM_sal|qval_0.05	window_0kb	untracked	0
+detection	ourLFMM_sal|qval_0.05	window_0kb	fn_testable	32
+detection	ourLFMM_sal|qval_0.05	window_0kb	precision_strict	1
+detection	ourLFMM_sal|qval_0.05	window_0kb	precision_all	0.242424242424242
+detection	ourLFMM_sal|qval_0.05	window_0kb	recall_testable	0.2
+detection	ourLFMM_sal|qval_0.05	window_0kb	recall_simulated	0.2
+detection	ourLFMM_sal|qval_0.05	window_0kb	f1	0.333333333333333
+detection	ourEMMAX_temp	truth	n_causal_simulated	30
+detection	ourEMMAX_temp	truth	n_causal_testable	30
+detection	ourEMMAX_temp	truth	n_snps_tested	10325
+detection	ourEMMAX_temp	trait_bio_1	threshold	
+detection	ourEMMAX_temp	trait_bio_1	n_tested	10325
+detection	ourEMMAX_temp|qval_0.05	window_0kb	n_called	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	tp	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	tp_any_causal	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	expected_linked	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	fp_background	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	untracked	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	fn_testable	30
+detection	ourEMMAX_temp|qval_0.05	window_0kb	precision_strict	
+detection	ourEMMAX_temp|qval_0.05	window_0kb	precision_all	
+detection	ourEMMAX_temp|qval_0.05	window_0kb	recall_testable	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	recall_simulated	0
+detection	ourEMMAX_temp|qval_0.05	window_0kb	f1	
+detection	ourEMMAX_sal	truth	n_causal_simulated	40
+detection	ourEMMAX_sal	truth	n_causal_testable	40
+detection	ourEMMAX_sal	truth	n_snps_tested	10325
+detection	ourEMMAX_sal	trait_bio_2	threshold	1.35533107e-06
+detection	ourEMMAX_sal	trait_bio_2	n_tested	10325
+detection	ourEMMAX_sal|qval_0.05	window_0kb	n_called	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	tp	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	tp_any_causal	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	expected_linked	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	fp_background	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	untracked	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	fn_testable	40
+detection	ourEMMAX_sal|qval_0.05	window_0kb	precision_strict	
+detection	ourEMMAX_sal|qval_0.05	window_0kb	precision_all	
+detection	ourEMMAX_sal|qval_0.05	window_0kb	recall_testable	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	recall_simulated	0
+detection	ourEMMAX_sal|qval_0.05	window_0kb	f1	
+detection	ourRDA	truth	n_causal_simulated	70
+detection	ourRDA	truth	n_causal_testable	70
+detection	ourRDA	truth	n_snps_tested	10325
+detection	ourRDA	trait_climate_multivariate	threshold	
+detection	ourRDA	trait_climate_multivariate	n_tested	10325
+detection	ourRDA|qval_0.05	window_0kb	n_called	0
+detection	ourRDA|qval_0.05	window_0kb	tp	0
+detection	ourRDA|qval_0.05	window_0kb	tp_any_causal	0
+detection	ourRDA|qval_0.05	window_0kb	expected_linked	0
+detection	ourRDA|qval_0.05	window_0kb	fp_background	0
+detection	ourRDA|qval_0.05	window_0kb	untracked	0
+detection	ourRDA|qval_0.05	window_0kb	fn_testable	70
+detection	ourRDA|qval_0.05	window_0kb	precision_strict	
+detection	ourRDA|qval_0.05	window_0kb	precision_all	
+detection	ourRDA|qval_0.05	window_0kb	recall_testable	0
+detection	ourRDA|qval_0.05	window_0kb	recall_simulated	0
+detection	ourRDA|qval_0.05	window_0kb	f1	

@@ -26,3 +26,8 @@ workflow/methods/__pycache__/
 .understand-anything/
 graphify-out/
 docs/
+
+# MVP benchmark: regenerable per-cell p-value tables (rebuild with
+# benchmarks/mvp_score_published.R / rda_param_sweep.R). Scored summaries stay tracked.
+benchmarks/mvp_eval/published/
+benchmarks/mvp_eval/rda_sweep/*/*_pvalues.tsv
