@@ -2,6 +2,16 @@
 # mvp_write_sweep_configs.R -- emit the per-cell GEA parameter-sweep configs.
 #
 # Usage:  Rscript benchmarks/mvp_write_sweep_configs.R [--seeds=1232548,...] [--cells=5]
+#             [--methods=EMMAX,LFMM,RDA,BLINK] [--kinship=BN|IBS] [--wza-window=1000]
+#             [--suffix=STR] [--manifest-out=PATH]
+#
+# All five optional switches default to the journal-05 behaviour, so a bare invocation
+# regenerates exactly the 70 four-method configs and the 280-row manifest it produced. The
+# switches exist for journal 06, which needs (a) 11 methods instead of 4, (b) an EMMAX-only
+# IBS-kinship ladder written to its own filenames, and (c) a fixed WZA window. --manifest-out
+# is what keeps a SEED-SCOPED regeneration from truncating the 14-seed manifest: writing the
+# scoped rows to a different file leaves benchmarks/mvp_sweep_cells.tsv describing the runs
+# that actually produced benchmarks/mvp_eval/sweep/.
 #
 # WHY THIS EXISTS
 # ---------------
@@ -59,7 +69,40 @@ for (a in commandArgs(trailingOnly = TRUE)) {
 ROOT      <- Sys.getenv("PIPELINE_ROOT", "/pipeline")
 SEEDS_TSV <- file.path(ROOT, "benchmarks/mvp_seeds.tsv")
 N_CELLS   <- as.integer(if (is.null(A$cells)) 5L else A$cells)
-METHODS   <- c("EMMAX", "LFMM", "RDA", "BLINK")
+METHODS   <- if (is.null(A$methods)) c("EMMAX", "LFMM", "RDA", "BLINK") else trimws(strsplit(A$methods, ",")[[1]])
+SUFFIX    <- if (is.null(A$suffix)) "" else A$suffix
+MANIFEST_OUT <- file.path(ROOT, if (is.null(A$manifest_out)) "benchmarks/mvp_sweep_cells.tsv" else A$manifest_out)
+
+# Which params block each method carries. The swept quantity is the same one in every case --
+# the number of covariates removed before testing -- but the registry spells it differently per
+# engine (workflow/methods/gea.py): EMMAX/GAPIT `n_pcs`, RDA `condition_pcs`, LFMM `K` (latent
+# factors, NOT a PC count, hence its own ladder). Any method not listed is assumed GAPIT, which
+# is correct for all eight GAPIT models and is what makes adding the other seven a one-flag
+# change rather than an edit here.
+LADDER_PARAM <- function(m) switch(m, EMMAX = "n_pcs", LFMM = "K", RDA = "condition_pcs", "n_pcs")
+
+# EMMAX kinship variant. NULL leaves the param unset, which resolves to the registry default
+# (BN) -- byte-identical to the journal-05 configs. Set to IBS for the kinship arm.
+KINSHIP <- if (is.null(A$kinship)) NULL else A$kinship
+
+# A parallel-arm project: same input data, different Filter.maf, its own {PROJECT}_results/.
+#
+# MAF cannot be swept inside one project. {PROJECT}_results/ is keyed on project_name alone,
+# and the module output paths (GEA/tables/methods/...) carry no filter tag -- only the
+# _work/maf{}_miss{}_smiss{}/ intermediates do. Two MAF values under one project_name would
+# therefore overwrite each other's published tables, which is the exact hazard CLAUDE.md
+# documents. So the MAF arm is a SEPARATE project_name pointing at the SAME Input.*.
+#
+# Input.dir is deliberately NOT changed: the pipeline re-filters the same VCF. Only the truth
+# tables need a MAF-matched copy, which benchmarks/mvp_filter_truth_maf.R produces.
+PROJ_SUFFIX <- if (is.null(A$project_suffix)) "" else A$project_suffix
+MAF_OVERRIDE <- if (is.null(A$maf)) NULL else A$maf
+
+# Fixed WZA window in bp. NULL omits the GEA.wza block entirely, leaving the pipeline default
+# `auto_genome_wide`. MVP_README.md:102 dismissed WZA on this benchmark under that default;
+# a fixed 1 kb window is the same rescaling already applied to LD.window (100 -> 10 kb) for the
+# simulated 1 Mb genome, and gives ~1000 windows at ~10 SNPs each.
+WZA_WINDOW <- if (is.null(A$wza_window)) NULL else as.integer(A$wza_window)
 
 # anova.cca permutations, for BOTH the GEA RDA params and PreGEA.Advanced.
 #
@@ -138,12 +181,26 @@ methods_for <- function(s) setdiff(METHODS, EXCL[seed == s, method])
 
 gea_block <- function(seed, cell, npc, lfk, k_best) {
     keep <- methods_for(seed)
-    entry <- function(method, param, value) sprintf(
-        '    - method: "%s"\n      adjust: "bonf"\n      threshold: \'0.05\'\n      params:\n        %s: %d',
-        method, param, value)
-    # RDA carries one extra param: see the permutations note below.
-    rda_entry <- function(value) paste0(entry("RDA", "condition_pcs", value),
-                                        "\n        permutations: ", PERMUTATIONS)
+    entry <- function(method) {
+        param <- LADDER_PARAM(method)
+        value <- if (method == "LFMM") lfk else npc
+        extra <- character(0)
+        # RDA carries one extra param: see the permutations note above.
+        if (method == "RDA")                      extra <- c(extra, sprintf("permutations: %d", PERMUTATIONS))
+        if (method == "EMMAX" && !is.null(KINSHIP)) extra <- c(extra, sprintf('kinship: "%s"', KINSHIP))
+        paste0(sprintf(
+            '    - method: "%s"\n      adjust: "bonf"\n      threshold: \'0.05\'\n      params:\n        %s: %d',
+            method, param, value),
+            if (length(extra)) paste0("\n        ", paste(extra, collapse = "\n        ")) else "")
+    }
+    rungs <- paste(vapply(keep, function(m)
+        sprintf("%s %s = %d", m, LADDER_PARAM(m), if (m == "LFMM") lfk else npc),
+        character(1)), collapse = " | ")
+    # GEA.wza is emitted only when a fixed window was requested; omitting the key leaves the
+    # pipeline default (auto_genome_wide) and keeps the no-flag output byte-identical.
+    wza <- if (is.null(WZA_WINDOW)) "" else sprintf(
+        "  wza:\n    window_size: %d                        # fixed, rescaled to the simulated 1 Mb genome\n",
+        WZA_WINDOW)
     paste0(
         sprintf('#-----------------------------------------------------------------------------
 # GEA -- parameter-sweep cell c%d of %d for seed %s (k_best = %d).
@@ -153,21 +210,19 @@ gea_block <- function(seed, cell, npc, lfk, k_best) {
 # Input.*, Filter.*, LD.*, sNMF.*, Climate.*, PreGEA.* and GWAS.* are untouched, so all
 # cells share one {PROJECT}_results/ tree and one upstream computation.
 #
-# Rungs in this cell:  EMMAX n_pcs = %d | LFMM K = %d | RDA condition_pcs = %d | BLINK n_pcs = %d
+# Rungs in this cell:  %s
 # (c%d of the n_pcs ladder; the pipeline default rung is the one where n_pcs == k_best == %d.)
+# Every GAPIT model shares one n_pcs by construction: gapit_gea_trait runs them all in one
+# gapit.R call and _gapit_shared_npcs() (gea.smk) hard-errors on disagreement.
 #
 # snp_clumping_distance stays 5000: the 100 kb default would collapse an entire 50 kb
 # linkage group into a single region on this simulated genome.
 #-----------------------------------------------------------------------------
 GEA:
   configs:
-', cell, N_CELLS, seed, k_best, seed, npc, lfk, npc, npc, cell, k_best),
-        paste(Filter(Negate(is.null), list(
-                if ("EMMAX" %in% keep) entry("EMMAX", "n_pcs", npc),
-                if ("LFMM"  %in% keep) entry("LFMM",  "K",     lfk),
-                if ("RDA"   %in% keep) rda_entry(npc),
-                if ("BLINK" %in% keep) entry("BLINK", "n_pcs", npc))), collapse = "\n"),
-        "\n  snp_clumping_distance: 5000\n  promoter_length: 1000\n")
+', cell, N_CELLS, seed, k_best, seed, rungs, cell, k_best),
+        paste(vapply(keep, entry, character(1)), collapse = "\n"),
+        "\n  snp_clumping_distance: 5000\n  promoter_length: 1000\n", wza)
 }
 
 # --------------------------------------------------------------- LDdecay scope patch
@@ -203,6 +258,35 @@ patch_pregea_perms <- function(lines) {
     if (!length(i)) return(lines)
     j <- start[1] + i[1] - 1L
     lines[j] <- sprintf("    permutations: %d                        # was 999: anova.cca is 98%% of RDA cost and cannot move K_sel (rank 2)", PERMUTATIONS)
+    lines
+}
+
+# --------------------------------------------------------- parallel-arm patches
+# Both are single-key line rewrites on the base config's own text, so everything the arm is
+# NOT varying stays byte-identical to the base project and the two arms differ in exactly the
+# quantity under test.
+patch_project_name <- function(lines, seed) {
+    if (!nzchar(PROJ_SUFFIX)) return(lines)
+    i <- grep("^project_name:", lines)
+    if (!length(i)) stop("No 'project_name:' line in base config")
+    lines[i[1]] <- sprintf(
+        "project_name: MVP%s%s                 # parallel arm of MVP%s: same Input.*, different Filter.maf",
+        seed, PROJ_SUFFIX, seed)
+    lines
+}
+
+patch_maf <- function(lines) {
+    if (is.null(MAF_OVERRIDE)) return(lines)
+    start <- grep("^Filter:", lines)
+    if (!length(start)) stop("No 'Filter:' block in base config")
+    nxt <- grep("^[A-Za-z][A-Za-z0-9_]*:", lines)
+    nxt <- nxt[nxt > start[1]]
+    stop_at <- if (length(nxt)) nxt[1] - 1L else length(lines)
+    i <- grep("^\\s*maf:", lines[start[1]:stop_at])
+    if (!length(i)) stop("No 'maf:' key inside the Filter block")
+    j <- start[1] + i[1] - 1L
+    lines[j] <- sprintf("  maf: %s                                  # arm override, see benchmarks/mvp_write_sweep_configs.R",
+                        MAF_OVERRIDE)
     lines
 }
 
@@ -253,17 +337,18 @@ for (i in seq_len(nrow(man))) {
     base_lines <- readLines(base_f, warn = FALSE)
 
     for (cell in seq_len(N_CELLS)) {
-        out_f <- file.path(ROOT, sprintf("config_MVP%s_c%d.yaml", seed, cell))
-        writeLines(patch_pregea_perms(patch_lddecay(patch_config(base_lines,
-                       gea_block(seed, cell, npcs[cell], lfks[cell], k_best)))),
+        out_f <- file.path(ROOT, sprintf("config_MVP%s%s_c%d%s.yaml", seed, PROJ_SUFFIX, cell, SUFFIX))
+        writeLines(patch_maf(patch_project_name(patch_pregea_perms(patch_lddecay(
+                       patch_config(base_lines,
+                           gea_block(seed, cell, npcs[cell], lfks[cell], k_best)))), seed)),
                    out_f)
         for (m in methods_for(seed)) {
-            param <- switch(m, EMMAX = "n_pcs", LFMM = "K", RDA = "condition_pcs", BLINK = "n_pcs")
             value <- if (m == "LFMM") lfks[cell] else npcs[cell]
             rows[[length(rows) + 1L]] <- data.table(
                 seed = seed, cell = paste0("c", cell), k_best = k_best,
-                method = m, param = param, value = value,
-                is_default = (m == "LFMM" && value == k_best) || (m != "LFMM" && value == k_best),
+                method = m, param = LADDER_PARAM(m), value = value,
+                is_default = value == k_best,
+                kinship = if (m == "EMMAX" && !is.null(KINSHIP)) KINSHIP else NA_character_,
                 config = basename(out_f))
         }
     }
@@ -272,7 +357,6 @@ for (i in seq_len(nrow(man))) {
 }
 
 cells <- rbindlist(rows)
-out_manifest <- file.path(ROOT, "benchmarks/mvp_sweep_cells.tsv")
-fwrite(cells, out_manifest, sep = "\t")
-message("INFO: wrote ", out_manifest, " (", nrow(cells), " rows = ",
+fwrite(cells, MANIFEST_OUT, sep = "\t")
+message("INFO: wrote ", MANIFEST_OUT, " (", nrow(cells), " rows = ",
         uniqueN(cells$seed), " seeds x ", N_CELLS, " cells x ", length(METHODS), " methods)")

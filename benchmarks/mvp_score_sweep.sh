@@ -40,10 +40,36 @@ SEED_JOBS="${2:-7}"
 CELLS="${3:-5}"
 
 MANIFEST="$PIPELINE_ROOT/benchmarks/mvp_seeds.tsv"
-PARAMS_DIR="$PIPELINE_ROOT/benchmarks/mvp_eval/params"
-SWEEP_DIR="$PIPELINE_ROOT/benchmarks/mvp_eval/sweep"
-UNIVARIATE=(EMMAX LFMM BLINK)
-ALL_METHODS=(EMMAX LFMM RDA BLINK)
+PARAMS_DIR="${PARAMS_DIR:-$PIPELINE_ROOT/benchmarks/mvp_eval/params}"
+SWEEP_DIR="${SWEEP_DIR:-$PIPELINE_ROOT/benchmarks/mvp_eval/sweep}"
+
+# Method lists are env-overridable so journal 06's 11-method run reuses this driver rather
+# than forking it -- the scoring contract encoded in the header is the thing that must not
+# be duplicated. Defaults reproduce journal 05 exactly.
+#   SWEEP_UNIVARIATE  methods with one p-value column PER PREDICTOR: EMMAX, LFMM and every
+#                     GAPIT model. These get the per-axis bundles (bio_1/temp, bio_2/sal).
+#   SWEEP_ALL_METHODS the full set including RDA, which is any-axis only.
+# COMBINE_WINDOW_KB / TOP_MAX are passed straight through to sweep_thresholds.R.
+read -r -a UNIVARIATE  <<< "${SWEEP_UNIVARIATE:-EMMAX LFMM BLINK}"
+read -r -a ALL_METHODS <<< "${SWEEP_ALL_METHODS:-EMMAX LFMM RDA BLINK}"
+COMBINE_WINDOW_KB="${COMBINE_WINDOW_KB:-0}"
+TOP_MAX="${TOP_MAX:-5000}"
+
+# Container-side twins of PARAMS_DIR / SWEEP_DIR. The host paths above are what this script
+# stats and writes through the bind mount; these are what the R scripts INSIDE the container
+# see. They must be set together -- a host override with a stale container path would read
+# journal 05's tables while writing journal 06's, which no error would catch.
+CONT_PARAMS="${CONT_PARAMS:-/pipeline/benchmarks/mvp_eval/params}"
+CONT_SWEEP="${CONT_SWEEP:-/pipeline/benchmarks/mvp_eval/sweep}"
+SWEEP_CELLS_TSV="${SWEEP_CELLS_TSV:-benchmarks/mvp_sweep_cells.tsv}"
+
+# PROJ_SUFFIX selects a parallel arm (its own project_name / _results / params tree).
+# TRUTH_PROJ names the directory holding that arm's truth tables. They are separate knobs on
+# purpose: a MAF arm needs MAF-MATCHED truth (benchmarks/mvp_filter_truth_maf.R), because
+# scoring a MAF-filtered VCF against the unfiltered truth divides recall by loci the VCF no
+# longer contains -- the defect that disqualified the Laruson benchmark. Defaults keep the
+# base arm scoring against its own tables exactly as before.
+PROJ_SUFFIX="${PROJ_SUFFIX:-}"
 
 mkdir -p "$SWEEP_DIR"
 DOCKER=(nix shell nixpkgs#docker-client -c docker)
@@ -57,6 +83,9 @@ fi
 R() {   # R <script> <args...>   -- run an R script inside the container
     local script="$1"; shift
     "${DOCKER[@]}" run --user "$(id -u):$(id -g)" --rm -e USER=pipeline \
+        -e SWEEP_UNIVARIATE="${UNIVARIATE[*]}" -e SWEEP_ALL_METHODS="${ALL_METHODS[*]}" \
+        -e SWEEP_DIR="$CONT_SWEEP" -e PARAMS_DIR_CONTAINER="$CONT_PARAMS" \
+        -e SWEEP_CELLS_TSV="$SWEEP_CELLS_TSV" \
         --cpus=4 --memory=32g -v "$PIPELINE_ROOT:/pipeline" "$IMAGE" \
         Rscript "/pipeline/benchmarks/$script" "$@"
 }
@@ -83,8 +112,9 @@ truth_join_gate() {   # truth_join_gate <rank.tsv> <n_temp> <n_sal> <n_any>
 
 score_seed() {
     local seed="$1"
-    local proj="MVP${seed}"
-    local data="$PIPELINE_ROOT/data/mvp/$proj"
+    local proj="MVP${seed}${PROJ_SUFFIX}"
+    local truth_proj="${TRUTH_PROJ:-$proj}"
+    local data="$PIPELINE_ROOT/data/mvp/$truth_proj"
     local out="$SWEEP_DIR/$proj"
     local log="$out/score.log"
     mkdir -p "$out"; : > "$log"
@@ -95,12 +125,12 @@ score_seed() {
     n_any=$(n_causal "$data/truth_any.tsv")
     echo "[$proj] causal: temp=$n_temp sal=$n_sal any=$n_any" | tee -a "$log"
 
-    local rank_out="/pipeline/benchmarks/mvp_eval/sweep/$proj/rank.tsv"
+    local rank_out="$CONT_SWEEP/$proj/rank.tsv"
     rm -f "$out/rank.tsv"
 
     for i in $(seq 1 "$CELLS"); do
         local cd_host="$PARAMS_DIR/$proj/c${i}"
-        local cd_cont="/pipeline/benchmarks/mvp_eval/params/$proj/c${i}"
+        local cd_cont="$CONT_PARAMS/$proj/c${i}"
         [[ -s "$cd_host/EMMAX_pvalues.tsv" ]] || { echo "[$proj] c$i not harvested, skipping" | tee -a "$log"; continue; }
 
         # Per-axis tables: keep SNPID/chr/pos plus the one trait column. sweep_thresholds.R
@@ -118,19 +148,19 @@ score_seed() {
         # ---- rank mode: AUC-PR per method x axis. This is what selects a method's best rung.
         for m in "${UNIVARIATE[@]}"; do
             R eval_detection.R --mode=rank --pvalues="$cd_cont/${m}_pvalues.tsv" \
-                --truth="/pipeline/data/mvp/$proj/truth_temp.tsv" --traits=bio_1 \
+                --truth="/pipeline/data/mvp/$truth_proj/truth_temp.tsv" --traits=bio_1 \
                 --label="${proj}|${m}|c${i}|temp" --out="$rank_out" >> "$log" 2>&1
             if (( n_sal > 0 )); then
                 R eval_detection.R --mode=rank --pvalues="$cd_cont/${m}_pvalues.tsv" \
-                    --truth="/pipeline/data/mvp/$proj/truth_sal.tsv" --traits=bio_2 \
+                    --truth="/pipeline/data/mvp/$truth_proj/truth_sal.tsv" --traits=bio_2 \
                     --label="${proj}|${m}|c${i}|sal" --out="$rank_out" >> "$log" 2>&1
             fi
             R eval_detection.R --mode=rank --pvalues="$cd_cont/${m}_pvalues.tsv" \
-                --truth="/pipeline/data/mvp/$proj/truth_any.tsv" --traits=all \
+                --truth="/pipeline/data/mvp/$truth_proj/truth_any.tsv" --traits=all \
                 --label="${proj}|${m}|c${i}|any" --out="$rank_out" >> "$log" 2>&1
         done
         R eval_detection.R --mode=rank --pvalues="$cd_cont/RDA_pvalues.tsv" \
-            --truth="/pipeline/data/mvp/$proj/truth_any.tsv" --traits=all \
+            --truth="/pipeline/data/mvp/$truth_proj/truth_any.tsv" --traits=all \
             --label="${proj}|RDA|c${i}|any" --out="$rank_out" >> "$log" 2>&1
 
         # ---- threshold x combine surface
@@ -140,12 +170,12 @@ score_seed() {
             spec_temp+="${m}=${cd_cont}/${m}_pvalues_bio_1.tsv,"
             spec_sal+="${m}=${cd_cont}/${m}_pvalues_bio_2.tsv,"
         done
-        R sweep_thresholds.R --methods="${spec_any%,}"  --truth="/pipeline/data/mvp/$proj/truth_any.tsv" \
-            --tag="${proj}_c${i}_any"  --outdir="/pipeline/benchmarks/mvp_eval/sweep/$proj" >> "$log" 2>&1
-        R sweep_thresholds.R --methods="${spec_temp%,}" --truth="/pipeline/data/mvp/$proj/truth_temp.tsv" \
-            --tag="${proj}_c${i}_temp" --outdir="/pipeline/benchmarks/mvp_eval/sweep/$proj" >> "$log" 2>&1
-        R sweep_thresholds.R --methods="${spec_sal%,}"  --truth="/pipeline/data/mvp/$proj/truth_sal.tsv" \
-            --tag="${proj}_c${i}_sal"  --outdir="/pipeline/benchmarks/mvp_eval/sweep/$proj" >> "$log" 2>&1
+        R sweep_thresholds.R --combine-window-kb="$COMBINE_WINDOW_KB" --top-max="$TOP_MAX" --methods="${spec_any%,}"  --truth="/pipeline/data/mvp/$truth_proj/truth_any.tsv" \
+            --tag="${proj}_c${i}_any"  --outdir="$CONT_SWEEP/$proj" >> "$log" 2>&1
+        R sweep_thresholds.R --combine-window-kb="$COMBINE_WINDOW_KB" --top-max="$TOP_MAX" --methods="${spec_temp%,}" --truth="/pipeline/data/mvp/$truth_proj/truth_temp.tsv" \
+            --tag="${proj}_c${i}_temp" --outdir="$CONT_SWEEP/$proj" >> "$log" 2>&1
+        R sweep_thresholds.R --combine-window-kb="$COMBINE_WINDOW_KB" --top-max="$TOP_MAX" --methods="${spec_sal%,}"  --truth="/pipeline/data/mvp/$truth_proj/truth_sal.tsv" \
+            --tag="${proj}_c${i}_sal"  --outdir="$CONT_SWEEP/$proj" >> "$log" 2>&1
 
         if (( i == 1 )); then
             if truth_join_gate "$out/rank.tsv" "$n_temp" "$n_sal" "$n_any" >> "$log" 2>&1; then
@@ -165,9 +195,9 @@ score_seed() {
     R mvp_pick_bundles.R --seed="$seed" --cells="$CELLS" > "$out/bundles.txt" 2>> "$log"
     while IFS=$'\t' read -r kind axis truth spec; do
         [[ -z "${spec:-}" ]] && continue
-        R sweep_thresholds.R --methods="$spec" --truth="$truth" \
+        R sweep_thresholds.R --combine-window-kb="$COMBINE_WINDOW_KB" --top-max="$TOP_MAX" --methods="$spec" --truth="$truth" \
             --tag="${proj}_${kind}_${axis}" \
-            --outdir="/pipeline/benchmarks/mvp_eval/sweep/$proj" >> "$log" 2>&1
+            --outdir="$CONT_SWEEP/$proj" >> "$log" 2>&1
     done < "$out/bundles.txt"
 
     echo "[$proj] SCORED $(date -Is)" | tee -a "$log"

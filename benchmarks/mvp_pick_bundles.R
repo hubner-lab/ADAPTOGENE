@@ -44,11 +44,19 @@ CELLS <- as.integer(if (is.null(A$cells)) 5L else A$cells)
 ROOT  <- Sys.getenv("PIPELINE_ROOT", "/pipeline")
 PROJ  <- paste0("MVP", SEED)
 
-UNIVARIATE  <- c("EMMAX", "LFMM", "BLINK")
-ALL_METHODS <- c("EMMAX", "LFMM", "RDA", "BLINK")
+# Method lists and directories are env-overridable so journal 06's 11-method run reuses this
+# picker rather than forking it. Defaults reproduce journal 05 exactly.
+# SWEEP_UNIVARIATE must list every method with one p-value column PER PREDICTOR (EMMAX, LFMM
+# and all eight GAPIT models); RDA stays out of it because rda.R writes a single
+# climate_multivariate column and has no per-axis p-value (MVP_README.md:47-54).
+splitenv <- function(v, d) { x <- Sys.getenv(v); if (!nzchar(x)) d else strsplit(trimws(x), "[ ,]+")[[1]] }
+UNIVARIATE  <- splitenv("SWEEP_UNIVARIATE",  c("EMMAX", "LFMM", "BLINK"))
+ALL_METHODS <- splitenv("SWEEP_ALL_METHODS", c("EMMAX", "LFMM", "RDA", "BLINK"))
 
-sweep_dir  <- file.path(ROOT, "benchmarks/mvp_eval/sweep", PROJ)
-params_dir <- file.path("/pipeline/benchmarks/mvp_eval/params", PROJ)   # container-side
+sweep_root  <- Sys.getenv("SWEEP_DIR",  file.path(ROOT, "benchmarks/mvp_eval/sweep"))
+params_root <- Sys.getenv("PARAMS_DIR_CONTAINER", "/pipeline/benchmarks/mvp_eval/params")
+sweep_dir  <- file.path(sweep_root, PROJ)
+params_dir <- file.path(params_root, PROJ)   # container-side
 truth_dir  <- file.path("/pipeline/data/mvp", PROJ)
 
 n_causal <- function(f) {
@@ -94,7 +102,9 @@ if (file.exists(rank_f)) {
 
 # ------------------------------------------------------------------- pregea bundle
 rec_f   <- file.path(ROOT, sprintf("%s_results/PreGEA/tables/pregea_recommendations.tsv", PROJ))
-cells_f <- file.path(ROOT, "benchmarks/mvp_sweep_cells.tsv")
+# The ladder manifest must describe the run being scored, not journal 05's: a scoped
+# regeneration writes its rows to a different file (mvp_write_sweep_configs.R --manifest-out).
+cells_f <- file.path(ROOT, Sys.getenv("SWEEP_CELLS_TSV", "benchmarks/mvp_sweep_cells.tsv"))
 if (file.exists(rec_f) && file.exists(cells_f)) {
     rec   <- fread(rec_f)
     ladder <- fread(cells_f, colClasses = c(seed = "character"))[seed == SEED]

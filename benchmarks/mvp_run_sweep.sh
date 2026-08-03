@@ -57,9 +57,25 @@ SNAKE_CORES="${SNAKE_CORES:-4}"
 
 MANIFEST="$PIPELINE_ROOT/benchmarks/mvp_seeds.tsv"
 EXCLUSIONS="$PIPELINE_ROOT/benchmarks/mvp_method_exclusions.tsv"
-PARAMS_DIR="$PIPELINE_ROOT/benchmarks/mvp_eval/params"
-RUNLOG_DIR="$PIPELINE_ROOT/benchmarks/mvp_eval/runlogs"
-METHODS=(EMMAX LFMM RDA BLINK)
+PARAMS_DIR="${PARAMS_DIR:-$PIPELINE_ROOT/benchmarks/mvp_eval/params}"
+RUNLOG_DIR="${RUNLOG_DIR:-$PIPELINE_ROOT/benchmarks/mvp_eval/runlogs}"
+
+# SWEEP_METHODS / CFG_SUFFIX / PARAMS_DIR are what let journal 06 run an 11-method ladder
+# on one replicate WITHOUT overwriting journal 05's harvest. Point CFG_SUFFIX at the
+# generated config variant (mvp_write_sweep_configs.R --suffix) and PARAMS_DIR at a fresh
+# tree; the defaults reproduce journal 05 exactly.
+#
+# HARVEST_WZA additionally copies out {method}_wza_K{k}.tsv. mode=gea emits those by
+# default (common.smk:1725), but journal 05 never harvested them, so they were overwritten
+# by the next cell like everything else.
+read -r -a METHODS <<< "${SWEEP_METHODS:-EMMAX LFMM RDA BLINK}"
+CFG_SUFFIX="${CFG_SUFFIX:-}"
+HARVEST_WZA="${HARVEST_WZA:-0}"
+# PROJ_SUFFIX makes this a PARALLEL ARM: project_name becomes MVP{seed}{PROJ_SUFFIX}, so the
+# arm gets its own {PROJECT}_results/ tree and its own Snakemake lock, and can therefore run
+# CONCURRENTLY with the base arm. That is safe only because the project names differ -- two
+# arms sharing a project_name would collide on the lock and overwrite each other's tables.
+PROJ_SUFFIX="${PROJ_SUFFIX:-}"
 
 mkdir -p "$PARAMS_DIR" "$RUNLOG_DIR"
 
@@ -86,7 +102,7 @@ snake() {   # snake <seed> <mode> <configfile> <logfile>
 
 run_seed() {
     local seed="$1"
-    local proj="MVP${seed}"
+    local proj="MVP${seed}${PROJ_SUFFIX}"
     local res="$PIPELINE_ROOT/${proj}_results"
     local k; k="$(kbest_of "$seed")"
     local log="$RUNLOG_DIR/${proj}.log"
@@ -104,7 +120,7 @@ run_seed() {
         "${DOCKER[@]}" run --user "$(id -u):$(id -g)" --rm -e USER=pipeline \
             -v "$PIPELINE_ROOT:/pipeline" "$IMAGE" \
             snakemake -s Snakefile --unlock --config mode=gea \
-                --configfile "config_${proj}_c1.yaml" >> "$log" 2>&1
+                --configfile "config_${proj}_c1${CFG_SUFFIX}.yaml" >> "$log" 2>&1
     fi
 
     # ---- upstream. Snakemake decides what is stale; MVP1231288 rebuilds by itself here
@@ -116,7 +132,7 @@ run_seed() {
     # chromosome subsets) out of the DAG. Using the base config here would reintroduce it.
     for mode in processing prestructure structure; do
         echo "[$proj] mode=$mode" | tee -a "$log"
-        snake "$seed" "$mode" "config_${proj}_c1.yaml" "$log" \
+        snake "$seed" "$mode" "config_${proj}_c1${CFG_SUFFIX}.yaml" "$log" \
             || { echo "[$proj] FAILED at mode=$mode" | tee -a "$log"; return 1; }
     done
 
@@ -125,17 +141,17 @@ run_seed() {
     # temperature axis), so PreGEA NOMINATES a rung and the production cells below are what
     # actually get scored. Never mix a PreGEA recall number into the production surface.
     echo "[$proj] mode=pregea" | tee -a "$log"
-    snake "$seed" pregea "config_${proj}_c1.yaml" "$log" \
+    snake "$seed" pregea "config_${proj}_c1${CFG_SUFFIX}.yaml" "$log" \
         || echo "[$proj] WARNING: pregea failed, recommender arm unavailable" | tee -a "$log"
 
     # ---- cells
     local prev_dir=""
     for i in $(seq 1 "$CELLS"); do
-        local cfg="config_${proj}_c${i}.yaml"
+        local cfg="config_${proj}_c${i}${CFG_SUFFIX}.yaml"
         local dest="$PARAMS_DIR/${proj}/c${i}"
         [[ -f "$PIPELINE_ROOT/$cfg" ]] || { echo "[$proj] FATAL: missing $cfg" | tee -a "$log"; return 1; }
 
-        if [[ -f "$dest/BLINK_pvalues.tsv" ]]; then
+        if [[ -f "$dest/${METHODS[-1]}_pvalues.tsv" ]]; then
             echo "[$proj] c$i already harvested, skipping" | tee -a "$log"
             prev_dir="$dest"; continue
         fi
@@ -162,6 +178,14 @@ run_seed() {
                 echo "[$proj] FATAL: c$i missing/empty $src" | tee -a "$log"; return 1
             fi
             cp "$src" "$dest/${m}_pvalues.tsv"
+            if [[ "$HARVEST_WZA" == "1" ]]; then
+                wsrc="$res/GEA/tables/methods/$m/${m}_wza_K${k}.tsv"
+                # Non-fatal: supports_wza is a per-method registry flag, so a missing WZA
+                # table is a legitimate opt-out, not the silent-failure case the p-value
+                # gate above exists to catch.
+                [[ -s "$wsrc" ]] && cp "$wsrc" "$dest/${m}_wza.tsv" \
+                    || echo "[$proj] c$i $m: no WZA table (supports_wza off?)" >> "$log"
+            fi
         done
         cp -r "$res/GEA/plots/manhattan/." "$dest/manhattan/" 2>/dev/null
         cp "$res/GEA/tables/selected_snps.tsv" "$dest/" 2>/dev/null
