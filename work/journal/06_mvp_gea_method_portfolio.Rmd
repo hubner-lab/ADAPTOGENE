@@ -1,0 +1,1242 @@
+---
+title: "06. Портфель методов GEA, помодельные пороги и профиль детекций — ADAPTOGENE"
+subtitle: "MVP1232548 · 11 методов · окно согласия при объединении · какие каузальные локусы мы не находим · два плеча Filter.maf 0.01 и 0.05"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда: контейнер adaptogene:latest (Docker) для всех R-скриптов и snakemake;
+# d2 CLI — с хоста.
+# Клиент docker: /snap/bin/docker на этой машине падает (setuid заблокирован, nosuid+NoNewPrivs),
+# поэтому каждый вызов обёрнут в `nix shell nixpkgs#docker-client -c docker ...` — см. CLAUDE.local.md.
+# Аргумент `-e USER=pipeline` обязателен: без него getpwuid() внутри snakemake падает под --user.
+#
+# Рендер: nix shell nixpkgs#docker-client -c docker run --rm --user $(id -u):$(id -g) -e USER=pipeline \
+#   -v /mnt/data/eugene/ADAPTOGENE:/mnt/data/eugene/ADAPTOGENE \
+#   adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/mnt/data/eugene/ADAPTOGENE/work/journal/06_mvp_gea_method_portfolio.Rmd")'
+# (пути хоста монтируются 1:1, не в /pipeline — литеральные пути проверок файлов должны
+# резолвиться внутри контейнера так же, как снаружи, см. Стадию 01/02/04/05.)
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+rd <- function(f, ...) if (file.exists(f)) fread(f, ...) else NULL
+```
+
+## Обзор
+
+Обзор файла: журнал 05 развернул сетку порогов и лестницы коррекции структуры на 14 репликах,
+но только для **четырёх** методов, с **одним общим** правилом порога на все методы при
+объединении и с согласием методов **по точному совпадению SNP**. Журнал 06 снимает все три
+ограничения на одной реплике и добавляет вопрос, который развёртка задать не может: *какие
+именно* каузальные локусы находятся, а какие не находятся никогда.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/06_00_abstract.svg"
+if (file.exists(img_path)) knitr::include_graphics(img_path) else
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path, "\n")
+```
+
+---
+
+# Часть I. Плечо `Filter.maf: 0.01`
+
+## 1. Что измеряется, метрика цели и почему одна реплика
+
+<div class="callout-method">
+**Три ограничения журнала 05, которые снимаются здесь:**
+
+1. **Семь из восьми моделей GAPIT никогда не скорились.** Реестр
+   (`/mnt/data/eugene/ADAPTOGENE/workflow/methods/gea.py:166-173`) содержит GLM, MLM, CMLM,
+   ECMLM, SUPER, MLMM, FarmCPU, BLINK; в бенчмарке был только BLINK. Вопрос «покупает ли
+   что-нибудь запуск ещё семи моделей и их объединение» не был задан.
+2. **Объединение навязывало всем методам один порог.** `sweep_thresholds.R` комбинировал только
+   при общей паре `(adjust, value)`. Именно эта общность и находится под вопросом: методы
+   радикально расходятся по калибровке p-значений (у RDA `pmax` даёт верный **порядок**, но не
+   верное p-значение — `MVP_README.md:283-306`). Пайплайн этого никогда не требовал:
+   `GEA.configs` — список `{method, adjust, threshold}`, помодельный с
+   `common.smk:395-409`.
+3. **Согласие методов считалось по точному совпадению SNP.** `table(all_keys)` в
+   `sweep_thresholds.R` требовал, чтобы оба метода назвали **тот же самый** SNP. Каузальные
+   локусы лежат в блоках сцепления: на этой реплике `linked_neutral` отстоит от ближайшего
+   каузального на медиану **2 351 п.н.** (p75 **4 496**, p90 **6 819**). Два метода, назвавшие
+   соседние SNP одного гаплотипа, — это подтверждение, а не расхождение. Сам пайплайн так и
+   считает: `scripts/R/lib/combine_sigsnps.R:.overlap_cross_method` использует `foverlaps` по
+   `GEA.snp_clumping_distance` (**5 000** п.н. в этом конфиге). Харнесс был **строже**, чем код,
+   который он измеряет.
+
+**Метрика цели — `F1` по (`precision_strict`, `recall_testable`).** Уже считается в
+`lib_detection.R::score_calls()`; сохраняет сопоставимость с журналом 05 и с
+`published_comparison.tsv`.
+
+- `precision_strict = tp / (tp + fp_background)` — ложноположительными считаются ТОЛЬКО локусы
+  `background_neutral` (группы сцепления 11–20). Это конвенция самой статьи Lotterhos 2023 и
+  headline-метрика журнала 05. Менять её здесь нельзя — иначе серия перестаёт быть сравнимой.
+- Формулировка задачи («найдено / всего названо значимым») — это буквально
+  `precision_all = tp / n_called`. Она выводится в **каждой** таблице рядом с
+  `precision_strict`, вместе с `n_called` и новой колонкой
+  `calls_per_tp = n_called / tp` — «сколько строк надо просмотреть на одно реальное попадание».
+- **Не MCC.** MCC требует истинных отрицательных, а TN здесь не определён: `linked_neutral`
+  (**5 207** из **10 325** SNP) не является ни TP, ни FP, поэтому MCC определялся бы
+  произвольным размером фона.
+- **Правило выбора «оптимального»:** максимум `F1`, ничьи разрешаются в пользу меньшего
+  `n_called`.
+
+**Почему ровно одна реплика — MVP1232548.** Выбор навязан ограничением `top <= 100`. На этой
+реплике **70** каузальных локусов (**30** temp / **40** sal), обе оси непусты (иначе
+`eval_detection.R:74` падает), `k_best = 5` даёт лестницу с реальным разбросом `{0,2,5,10,20}`,
+R²(PC1~temp) = **0.573**. Все остальные реплики либо ≤ 16 каузальных (precision нестабилен),
+либо 268–515 (recall цензурирован потолком top-100 по построению, а не по качеству метода).
+
+**Сетка порогов, урезанная относительно журнала 05:**
+
+| правило | журнал 05 | журнал 06 |
+|---|---|---|
+| `bonf` | 0.01 0.05 0.1 0.5 1 | без изменений |
+| `qval` | 0.05 … 0.5 | 0.05 0.1 0.2 |
+| `top` | 10 … **5000** | 10 20 30 50 **100** |
+| `custom` | 1e-6 … 1e-2 | 1e-6 1e-5 1e-4 1e-3 |
+| `rank_sum` top-N | 10 … 5000 | 10 20 30 50 100 |
+
+На этой реплике потолок ничего не стоит: 70 каузальных локусов, поэтому `top 100` всё ещё
+достигает recall 1.0.
+</div>
+
+```{r 01-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548/truth_any.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548/loci_freq.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/raw/mutations/1232548_Rout_muts_full.txt.gz",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/lib_detection.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh"))
+```
+
+```{r 01-ld, echo=FALSE}
+# Масштаб сцепления, на котором калибруется окно согласия: расстояние от каждого
+# linked_neutral до ближайшего каузального локуса.
+f <- "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548/truth_any.tsv"
+if (file.exists(f)) {
+  tr <- fread(f, colClasses = c(chr = "character"))
+  ca <- tr[category == "causal"]; ln <- tr[category == "linked_neutral"]
+  d <- ln[, {cc <- chr; pp <- pos
+             vapply(seq_len(.N), function(i) {
+               o <- ca[chr == cc[i], pos]
+               if (length(o)) min(abs(o - pp[i])) else NA_real_}, numeric(1))}]
+  cat("linked_neutral -> ближайший каузальный, п.н.:\n")
+  print(round(quantile(d, c(0, .25, .5, .75, .9, 1), na.rm = TRUE)))
+  cat("\nКатегории по группам сцепления:\n")
+  print(tr[, .N, by = .(группа = ifelse(as.integer(chr) <= 10, "LG1-10", "LG11-20"), category)])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+---
+
+## 2. Генерация конфигов на 11 методов
+
+<div class="callout-method">
+**R 4.5 / data.table** в контейнере `adaptogene:latest`, скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_sweep_configs.R`.
+
+Расширен пятью необязательными ключами; **без них вывод побайтово прежний**, поэтому
+14-сидовый манифест журнала 05 не затрагивается:
+
+- `--methods=` — список методов вместо жёстко зашитой четвёрки. Параметр лестницы выбирается
+  по методу: EMMAX/GAPIT `n_pcs`, RDA `condition_pcs`, LFMM `K` (латентные факторы, не число
+  PC — отдельная лестница). Любой не перечисленный метод считается GAPIT, что верно для всех
+  восьми моделей и делает добавление ещё семи изменением одного флага.
+- `--kinship=BN|IBS` — добавляет `params.kinship` только EMMAX. Не задан → реестровый дефолт.
+- `--wza-window=` — вписывает `GEA.wza.window_size`. Не задан → блок `wza` не пишется вовсе.
+- `--suffix=` — суффикс имени конфига, чтобы конфиги журнала 05 остались на месте.
+- `--manifest-out=` — **главная защита**: покадровая регенерация пишет строки в отдельный файл,
+  и `benchmarks/mvp_sweep_cells.tsv` продолжает описывать те прогоны, которые реально породили
+  `benchmarks/mvp_eval/sweep/`.
+
+Все восемь моделей GAPIT делят один `n_pcs` внутри ячейки **по построению**: `gapit_gea_trait`
+запускает их одним вызовом `gapit.R`, и `_gapit_shared_npcs()` (`gea.smk`) жёстко падает при
+расхождении. Дизайн ячеек это уже обеспечивает.
+</div>
+
+```{r 02-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_sweep_configs.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_sweep_cells_p11.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548_c1_p11.yaml",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548_c5_p11.yaml"))
+```
+
+```{bash 02-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_write_sweep_configs.R \
+    --seeds=1232548 \
+    --methods=EMMAX,LFMM,RDA,GLM,MLM,CMLM,ECMLM,SUPER,MLMM,FarmCPU,BLINK \
+    --wza-window=1000 --suffix=_p11 \
+    --manifest-out=benchmarks/mvp_sweep_cells_p11.tsv
+
+# Регрессионная проверка: тот же скрипт БЕЗ новых флагов должен воспроизвести конфиги
+# журнала 05. Прогнано в отдельный суффикс _regr и сравнено, файлы затем удалены.
+#   diff config_MVP1232548_c{1..5}.yaml config_MVP1232548_c{1..5}_regr.yaml
+```
+
+```{r 02-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_sweep_cells_p11.tsv"
+if (!is.null(cl <- rd(f, colClasses = c(seed = "character")))) {
+  cat("Строк в манифесте:", nrow(cl), "(ожидается 5 ячеек x 11 методов = 55)\n\n")
+  print(dcast(cl, method + param ~ cell, value.var = "value"))
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+<div class="callout-result">
+- Сгенерировано **5** конфигов (`config_MVP1232548_c{1..5}_p11.yaml`), манифест — **55** строк
+- Лестницы: `n_pcs` = **0, 2, 5, 10, 20** (EMMAX, RDA `condition_pcs`, все 8 моделей GAPIT);
+  LFMM `K` = **3, 4, 5, 7, 9**
+- Дефолтный рунг пайплайна — **c3** (`n_pcs = K = k_best = 5`)
+- Регрессия дефолтного режима: расхождение с конфигами журнала 05 — **2** строки комментария
+  на файл, ни одного смыслового отличия
+</div>
+
+---
+
+## 3. Два дефекта пайплайна, найденные этой работой
+
+Оба исправлены после отдельного согласования (режим `CLAUDE.local.md` — «use-only»: находки
+докладываются, правки не делаются молча).
+
+### 3.1. `Random.model = TRUE` у GAPIT
+
+<div class="callout-method">
+Найден замером стоимости перед основным прогоном.
+
+`scripts/gapit.R:151-176` никогда не задавал `Random.model`, поэтому наследовал дефолт GAPIT
+`TRUE` (проверено: `formals(GAPIT::GAPIT)$Random.model` → `TRUE`). При `TRUE` GAPIT после
+скана запускает `GAPIT.RandomModel`: **переподгоняет смешанную модель lme4 на каждый SNP,
+который модель назвала значимым**, оценивая его компоненту дисперсии, и пишет таблицы BLUP/Pred
+и PDF по каждой модели.
+
+Ничего из этого downstream не читается: единственный продукт `gapit.R` — таблица p-значений,
+собираемая из `GAPIT.Association.GWAS_Results.{model}.{trait}.csv`, которую пишет **сам скан**,
+до вызова RandomModel.
+
+**Стоимость масштабируется числом значимых SNP, а не числом маркеров** — поэтому невидима на
+нулевом признаке и доминирует на реальном. Замер на ячейке c3, 1000 особей × 10 325 SNP, все
+восемь моделей одним вызовом:
+
+- ортогональная контрольная ось `bio_2` (мало значимых SNP): **5** моделей за **20** минут
+- конфаундированная ось `bio_1`: **19+** минут внутри RandomModel на одной GLM, дальше не ушло
+
+Отключение не может сдвинуть ни одного p-значения: скан к моменту вызова RandomModel уже
+закончен. Это **проверено, а не постулировано** — см. Результат.
+</div>
+
+```{r 03-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/scripts/gapit.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/probe_p11/randommodel_baseline",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/probe_p11/c3_run.log",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/probe_p11/c3_run_norandom.log"))
+```
+
+```{bash 03-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Правка: scripts/gapit.R, в вызов GAPIT() добавлено  Random.model = FALSE
+#
+# Эталон снят ДО правки (пять моделей на bio_2 успели дописаться):
+#   cp MVP1232548_results/_intermediate/gapit/gea/bio_2/GAPIT.Association.GWAS_Results.*.bio_2.csv \
+#      benchmarks/mvp_eval/probe_p11/randommodel_baseline/
+#
+# Проверка побайтового совпадения ПОСЛЕ правки:
+for m in GLM MLM CMLM ECMLM SUPER; do
+  cmp -s benchmarks/mvp_eval/probe_p11/randommodel_baseline/GAPIT.Association.GWAS_Results.$m.bio_2.csv \
+         MVP1232548_results/_intermediate/gapit/gea/bio_2/GAPIT.Association.GWAS_Results.$m.bio_2.csv \
+    && echo "$m IDENTICAL" || echo "$m DIFFERS"
+done
+```
+
+```{r 03-result, echo=FALSE}
+base <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/probe_p11/randommodel_baseline"
+new  <- "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/_intermediate/gapit/gea/bio_2"
+mods <- c("GLM", "MLM", "CMLM", "ECMLM", "SUPER")
+res <- rbindlist(lapply(mods, function(m) {
+  f1 <- file.path(base, sprintf("GAPIT.Association.GWAS_Results.%s.bio_2.csv", m))
+  f2 <- file.path(new,  sprintf("GAPIT.Association.GWAS_Results.%s.bio_2.csv", m))
+  data.table(модель = m,
+             эталон = file.exists(f1), после_правки = file.exists(f2),
+             совпадает = if (file.exists(f1) && file.exists(f2))
+               identical(tools::md5sum(f1)[[1]], tools::md5sum(f2)[[1]]) else NA)
+}))
+print(res)
+```
+
+<div class="callout-result">
+- `GAPIT.Association.GWAS_Results` для **5** моделей на оси `bio_2` — **побайтово идентичны**
+  до и после правки (сверка md5)
+- GLM на конфаундированной оси `bio_1`: было **19+ мин** (не завершилось) → стало **~2 мин**
+- Затронутые режимы: `mode=gea` и `mode=gwas`, любой пользователь любой модели GAPIT
+</div>
+
+<details class="callout-note">
+<summary>Примечание</summary>
+Первый запуск замера падал на флаге `--stats`: он удалён в Snakemake 8
+(`snakemake: error: unrecognized arguments: --stats`). Тайминги в этом журнале взяты из
+временных меток самого лога и из `docker exec ps -eo etime`, а не из stats-файла.
+</details>
+
+### 3.2. Скрытый второй MAF-фильтр внутри WZA
+
+<div class="callout-method">
+Найден при подготовке оконного плеча: число SNP, попавших в окна (**7 823**), не совпадало с
+числом SNP в таблице p-значений (**10 325**) при `Filter.maf: 0.01`.
+
+`scripts/compute_wza.R:40` жёстко задавал `MIN_MAF_WZA <- 0.05` (рекомендация Booker et al. §3)
+и выбрасывал все SNP ниже порога **до** нарезки окон — поверх того, что уже сделал
+`Filter.maf`. Последствие на этой реплике: удалялись **2 502** из **10 325** SNP и **28** из
+**70** каузальных локусов, поэтому WZA нёс потолок recall **0.60**, который читался как
+свойство метода, а был скрытым вторым фильтром. Ни один другой выход того же прогона такого
+фильтра не применяет — оконное плечо молча расходилось со всем остальным.
+
+Рекомендация Booker сама по себе разумна; неверна была её жёсткая зашивка. Пользователь,
+которому нужен этот порог, ставит `Filter.maf: 0.05` и получает его **везде и согласованно** —
+что и делается во второй части этого журнала.
+
+Убрано 2026-08-03. Остался единственный отбор `!is.na(maf) & maf > 0`: вес
+`h = 2·MAF·(1−MAF)` без записи о частоте не определён, поэтому такие SNP не могут войти в
+оконную сумму вообще.
+</div>
+
+```{r 03b-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/scripts/compute_wza.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_wza_gate.R"))
+```
+
+```{bash 03b-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-03
+# Правка: scripts/compute_wza.R
+#   [изменено 2026-08-03] было: MIN_MAF_WZA <- 0.05 + pval_dt[!is.na(maf) & maf > MIN_MAF_WZA]
+#                         стало: константа удалена, отбор  pval_dt[!is.na(maf) & maf > 0]
+# Согласованное следствие в харнессе: benchmarks/mvp_wza_gate.R --wza-maf по умолчанию 0
+# (а не 0.05); знаменатель каузальных теперь полный, а не урезанный.
+grep -n "MIN_MAF_WZA\|usable MAF" /mnt/data/eugene/ADAPTOGENE/scripts/compute_wza.R
+```
+
+<div class="callout-result">
+- Было: **7 823** из **10 325** SNP в окнах, тестируемых каузальных **42** из **70**
+- Стало: окна строятся на всём наборе, который пропустил `Filter.maf`
+- Затронуты `mode=gea` и `mode=gwas`, любой метод с `supports_wza`
+- Все таблицы WZA, посчитанные до 2026-08-03, несопоставимы и пересчитаны
+</div>
+
+---
+
+## 4. Оконное согласие методов при объединении
+
+<div class="callout-method">
+Новая функция `combine_support()` в
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/lib_detection.R`. Для каждого SNP, названного **любым**
+методом, считает, сколько **различных** методов поставили вызов в пределах `window_bp` от него;
+`union` / `at_least_k` / `intersection` становятся порогами на этот счётчик.
+
+- реализация через `data.table::foverlaps`, тот же приём, что в
+  `scripts/R/lib/combine_sigsnps.R:.snp_overlap` — идиома не переизобретается
+- колонка запроса называется `qsnp`, а не `snp`: `foverlaps` префиксует колонки x-таблицы через
+  `i.` **только при коллизии имён**, поэтому одинаковое имя сделало бы имя выходной колонки
+  зависящим от того, что оказалось в y
+- **удерживаемая единица остаётся SNP, а не окно**: при окне > 0 «пересечение» сохраняет каждый
+  SNP, у которого рядом есть подтверждение, то есть каждый метод вносит свою позицию. Это
+  намеренно и совпадает с поведением пайплайна; это **не** точное пересечение ключей
+- рунги окна калиброваны по таблице истины самой реплики (медиана 2 351, p75 4 496 п.н.), а
+  5 кб — это `GEA.snp_clumping_distance` из конфига
+
+**Порог TP (`--tp-window-kb`) остаётся 0** для всех headline-чисел и не смешивается с окном
+согласия. На группах сцепления 1–10 из 5 277 некаузальных SNP **5 207** имеют категорию
+`linked_neutral`, поэтому щедрое окно TP превращает почти любой вызов на этих группах в
+«истинно положительный» и раздувает recall бессмысленно.
+
+**Юнит-тест вшит в скрипт**: при окне 0 `combine_support()` обязана воспроизвести точную
+множественную логику журнала 05 (`table(all_keys)`) для union / at_least_2 / intersection, иначе
+`sweep_thresholds.R` падает. Это единственное место, где молчаливое изменение переписало бы все
+combine-числа серии без единой ошибки.
+</div>
+
+```{r 04-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/lib_detection.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_thresholds.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_portfolio.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/_harness_test/HARNESS_TEST_c3_any_threshold_sweep.tsv"))
+```
+
+```{bash 04-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Проверка харнесса на УЖЕ СОБРАННЫХ таблицах журнала 05 (4 метода, ячейка c3),
+# до того как появились 11-методные таблицы.
+D=/pipeline/benchmarks/mvp_eval/params/MVP1232548/c3
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/sweep_thresholds.R \
+    --methods="EMMAX=$D/EMMAX_pvalues.tsv,LFMM=$D/LFMM_pvalues.tsv,RDA=$D/RDA_pvalues.tsv,BLINK=$D/BLINK_pvalues.tsv" \
+    --truth=/pipeline/data/mvp/MVP1232548/truth_any.tsv \
+    --tag=HARNESS_TEST_c3_any --combine-window-kb=0,1,2.5,5 \
+    --outdir=/pipeline/benchmarks/mvp_eval/_harness_test \
+    --out=/pipeline/benchmarks/mvp_eval/_harness_test/eval.tsv
+# -> "INFO: window-0 combine identity check passed on bonf_0.01"
+```
+
+```{r 04-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/_harness_test/HARNESS_TEST_c3_any_threshold_sweep.tsv"
+if (!is.null(S <- rd(f))) {
+  cat("Лучший F1 у правил объединения, по окну согласия (4 метода журнала 05, ячейка c3):\n\n")
+  print(S[grepl("^combine_", kind) & !is.na(f1)][order(-f1, n_called), .SD[1],
+          by = .(kind, combine_window_kb)][order(kind, combine_window_kb),
+          .(правило = kind, окно_кб = combine_window_kb, adjust, value, n_called, tp,
+            fp_bg = fp_background, precision = round(precision, 3),
+            recall = round(recall_testable, 3), f1 = round(f1, 3))])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+<div class="callout-result">
+- Тест тождества при окне 0 — **пройден** (union / at_least_2 / intersection совпадают с
+  точной множественной логикой журнала 05)
+- Лучшее пересечение при окне **2.5 кб**: **118** вызовов, **14** TP, **0** фоновых FP,
+  precision **1.000**, F1 **0.333**
+- Лучший портфель (`sweep_portfolio.R`, помодельные точки): **LFMM+RDA**, пересечение при окне
+  **5 кб** — F1 **0.400** при precision **0.900**, против лучшего одиночного метода LFMM
+  F1 **0.385** при precision **0.588**
+</div>
+
+---
+
+## 5. WZA: гейт жизнеспособности и встроенный фильтр MAF
+
+<div class="callout-method">
+`MVP_README.md:102` объявлял WZA неприменимым на этом наборе: «~10k SNP на 20 группах даёт
+порядка 10¹–10² окон». Это утверждение о **размере окна**, а не о наборе данных: геном
+симуляции — 1 Мб, и к нему применимо то же перемасштабирование, что уже применено к
+`LD.window` (100 → 10 кб). Задано `GEA.wza.window_size: 1000`.
+
+**Связующее ограничение — не число окон, а число окон, содержащих каузальный локус**, который
+WZA вообще может увидеть. Гейт: **≥ 30** таких окон, иначе скоринг не выполняется и WZA
+объявляется неприменимым **с числами**, а не молча пропускается.
+
+**Окна строятся ровно на том наборе SNP, который пропустил `Filter.maf`** — см. раздел 3.2:
+скрытый второй фильтр `MIN_MAF_WZA <- 0.05` убран, поэтому знаменатель тестируемых каузальных
+локусов здесь полный, а не урезанный. Флаг `--wza-maf` сохранён (по умолчанию **0**) только
+чтобы при желании воспроизвести прежнее поведение для сравнения.
+
+**Контракт скоринга на уровне окон** — те же конвенции, поднятые на единицу выше:
+TP-окно содержит ≥ 1 тестируемый каузальный локус; FP-окно лежит на фоновой группе сцепления
+(11–20); окно на LG 1–10 без каузального внутри — оконный аналог `linked_neutral` и в ошибку не
+засчитывается; recall считается **по локусам**, чтобы оставаться сравнимым с SNP-уровневым.
+
+**Защита от устаревшей таблицы.** Все методы окнуются одним правилом из одного
+`GEA.wza.window_size`, поэтому наборы окон обязаны совпадать. Однажды они не совпали:
+999-оконные таблицы (1 кб, этот прогон) лежали рядом со 100-оконными (`auto_genome_wide`,
+журнал 05), и это дало «recall 1.000 при top-100», что вообще не было результатом детекции —
+top-100 от 100-оконной таблицы называет весь геном. Теперь это фатальная ошибка: режим отказа
+выглядит как выдающийся успех.
+</div>
+
+```{r 05-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_wza_gate.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza/MVP1232548_c3_wza_gate.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza/MVP1232548_c3_wza_scores.tsv"))
+```
+
+```{bash 05-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+W=/pipeline/MVP1232548_results/GEA/tables/methods
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_wza_gate.R \
+    --wza="EMMAX=$W/EMMAX/EMMAX_wza_K5.tsv,LFMM=$W/LFMM/LFMM_wza_K5.tsv,..." \
+    --truth=/pipeline/data/mvp/MVP1232548/truth_any.tsv \
+    --loci-freq=/pipeline/data/mvp/MVP1232548/loci_freq.tsv \
+    --tag=MVP1232548_c3 --top-max=100 \
+    --outdir=/pipeline/benchmarks/mvp_eval/wza
+```
+
+<div class="callout-result">
+- Окон: **1 000** при фиксированном окне 1 кб, медиана **8** SNP на окно, все **10 325** SNP
+- Окон, содержащих каузальный локус: **66** из 1 000 — гейт (**>= 30**) пройден
+- Лучший метод на оконном уровне — **LFMM**: **176** окон, **28** TP-окон, **40** фоновых FP,
+  найден **31** каузальный локус, precision **0.412**, recall **0.443**, F1 **0.427**
+- Против того же LFMM на уровне SNP: F1 **0.385**, recall **0.286** (найдено **20** локусов)
+- Recall в обоих случаях считается **по локусам**, поэтому сравним напрямую: оконная
+  агрегация находит **31** каузальный локус там, где поSNP-овый вызов находит **20**
+</div>
+
+<div class="callout-conclusion">
+Вердикт `MVP_README.md:102` («WZA неприменим на этом наборе») был утверждением о **размере
+окна**, а не о наборе данных. При окне, перемасштабированном под симулированный геном 1 Мб,
+WZA не просто применим — он даёт **лучший одиночный результат по recall** во всём журнале.
+Это же поднимает вопрос, вынесенный в проектный файл: если оконная агрегация лучше поSNP-овой
+для *детекции*, стоит проверить, не лучше ли она и как **единица отклика для генетического
+оффсета** — но это отдельная работа и отдельная ловушка (WZA выдаёт p-значение, а
+Gradient Forest ждёт частоту аллеля).
+</div>
+
+```{r 05-result, echo=FALSE}
+g <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza/MVP1232548_c3_wza_gate.tsv")
+if (!is.null(g)) print(t(g)) else cat("[ОТСУТСТВУЕТ] гейт WZA\n")
+s <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza/MVP1232548_c3_wza_scores.tsv")
+if (!is.null(s)) {
+  cat("\nЛучший F1 по методу (оконный уровень), исключая правила, называющие весь геном:\n\n")
+  print(s[!is.na(f1) & calls_whole_genome == FALSE][order(-f1, n_called_windows), .SD[1], by = method][
+    , .(method, adjust, value, окон = n_called_windows, tp_окон = tp_windows,
+        fp_окон = fp_windows, локусов = causal_loci_found,
+        precision = round(precision, 3), recall = round(recall, 3), f1 = round(f1, 3))])
+}
+```
+
+---
+
+## 6. Профиль детекций: какие каузальные локусы мы не находим
+
+<div class="callout-method">
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_profile_detections.R`. Одна строка на
+(каузальный локус × метод × рабочая точка) с флагом детекции, приклеенная к свойствам, которые
+локусу назначил **сам симулятор**.
+
+**Это заменяет плечо с перефильтровкой по MAF.** Повторный прогон пайплайна при
+`Filter.maf: 0.05` ответил бы «какой recall при MAF 0.05» ценой нового дерева проекта, новой
+sNMF и заново выведенной таблицы истины. Стратификация **уже полученных** детекций по
+собственному MAF каждого локуса отвечает на тот же вопрос без единой дополнительной секунды
+счёта — и отвечает на более острую его версию: является ли детекция **функцией** MAF, или MAF
+просто скоррелирован с размером эффекта. Второй прогон этого различить не может.
+
+**Ковариаты** берутся из депозитной таблицы мутаций (67 колонок), а не из чего-либо, что мы
+посчитали сами. Джойн идёт `truth -> loci_freq.tsv` (собственная карта chr/pos ↔ mutname
+конвертера) `-> raw mutations`; прямой джойн к сырому файлу означал бы переизобретение
+координатного преобразования здесь.
+
+- `a_freq_subset` / `maf` — **находим ли мы низкочастотные каузальные локусы**
+- `mutTempEffect`, `mutSalEffect` — только ли крупноэффектные QTN
+- `Va_temp_prop`, `Va_sal_prop` — полигенное разбавление
+- `af_cor_temp`, `af_slope_temp`, `af_cor_sal` — не является ли детекция просто крутизной клины
+- `Fst_outflank`, `He_outflank` — не переоткрывает ли GEA просто Fst-выбросы
+- расстояние до ближайшего другого каузального локуса, локальная плотность `linked_neutral` —
+  помогает или маскирует кластеризация QTN
+
+**Гейт джойна:** каждый из 70 каузальных локусов обязан найти строку по `mutname`; промах —
+фатальная ошибка, а не `NA`. Локус без ковариат молча выпал бы из каждой стратифицированной
+таблицы и тихо уменьшил знаменатель.
+
+`detected` — точное совпадение. `detected_near` (вызов в пределах 1 кб) выводится отдельно и
+**никогда** как headline, по той же причине, что и порог TP в разделе 4.
+</div>
+
+```{r 06-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_profile_detections.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/MVP1232548_c3_maf_cut.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/MVP1232548_c3_maf_recall.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/MVP1232548_c3_detection_glm.tsv"))
+```
+
+```{r 06-maf, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/"
+if (!is.null(M <- rd(paste0(p, "MVP1232548_c3_maf_cut.tsv")))) {
+  cat("Recall ниже и выше MAF 0.05 (все методы в top_100):\n\n")
+  print(M[, .(метод = method, каузальных = n_causal, ниже_0.05 = n_below_0.05,
+              найдено = detected_total, найдено_ниже = detected_below_0.05,
+              recall_ниже = round(recall_below_0.05, 3),
+              recall_выше = round(recall_above_0.05, 3))])
+}
+if (!is.null(R <- rd(paste0(p, "MVP1232548_c3_maf_recall.tsv")))) {
+  cat("\nRecall по интервалам MAF:\n\n")
+  print(dcast(R, method ~ maf_bin, value.var = "recall"))
+}
+```
+
+```{r 06-glm, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/MVP1232548_c3_detection_glm.tsv"
+if (!is.null(G <- rd(f))) {
+  cat("Совместная логистическая модель: остаётся ли MAF значимым при контроле Va и Fst?\n\n")
+  print(G[model == "joint", .(метод = method, член = term, оценка = round(estimate, 2),
+                              z = round(z, 2), p = signif(p, 3))])
+}
+```
+
+<div class="callout-result">
+- Каузальных локусов ниже MAF 0.05: **27** из **70**
+- Из них при `top_100` находят: девять методов из одиннадцати — **0**; GLM — **2**
+  (recall **0.074**), SUPER — **1** (**0.037**); объединение всех одиннадцати — **2**
+- Выше MAF 0.05 recall: **0.19–0.47** у одиночных методов, **0.651** у объединения
+- Два метода, которые вообще что-то нашли ниже порога, — ровно те, у которых вызванное
+  множество раздуто: GLM **1 184** и SUPER **980** вызовов при `bonf 0.05`
+- В совместной логистической модели MAF остаётся значимым **при контроле** Va и Fst:
+  LFMM z = **2.13**, EMMAX z = **2.45**, RDA z = **2.50**; Fst_outflank значим независимо
+  (LFMM z = **2.73**)
+</div>
+
+<div class="callout-conclusion">
+Низкочастотные каузальные локусы не находит практически никто, и это **функция MAF**, а не
+только следствие того, что низкая частота коррелирует с малым эффектом — иначе MAF потерял бы
+значимость при контроле Va. Прямое следствие: фильтр `Filter.maf: 0.05` должен стоить почти
+ничего в детекции и при этом убрать **2 484** SNP из знаменателя Бонферрони. Это гипотеза,
+проверяемая прогоном, а не рассуждением, — Часть II.
+</div>
+
+```{r 06-plot, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile/MVP1232548_c3_maf_recall.png"
+if (file.exists(p)) knitr::include_graphics(p) else cat("[ОТСУТСТВУЕТ]", p, "\n")
+```
+
+---
+
+## 7. Избыточность методов: покупают ли семь моделей GAPIT хоть что-нибудь
+
+<div class="callout-method">
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_method_redundancy.R`, всё пост-хок на уже
+существующих таблицах p-значений — без единой переподгонки.
+
+GLM / MLM / CMLM / ECMLM — вложенное семейство: одна смешанная модель с всё более сложной
+структурой родства/группировки. MLMM / FarmCPU / BLINK — многолокусное семейство, каждый
+итеративный вариант предыдущего. Объединение восьми почти одинаковых моделей раздувает
+`n_called` без новых свидетельств; пересечение восьми почти одинаковых моделей сходится к тому,
+что сказала бы любая одна. В обоих случаях правило объединения выдаёт число, которое **выглядит**
+подтверждением, но им не является.
+
+**Две меры, потому что они расходятся содержательно:**
+
+- `corr` — Spearman по ранжирующему счёту SNP (−log10 минимального p по признакам метода).
+  Полногеномная, беспороговая. Единственная, куда входит RDA: у него одна псевдо-признаковая
+  колонка `climate_multivariate`, и попризнаковая корреляция его включить не может вовсе.
+- `jaccard` — перекрытие **вызванных** множеств в фиксированной рабочей точке. Два метода могут
+  ранжировать почти одинаково и всё равно вызывать непересекающиеся множества, если различается
+  калибровка p-значений — ровно ситуация RDA. Сходство рангов без сходства вызовов — подпись
+  проблемы калибровки, а не избыточности.
+
+Кластеризация — на корреляции **рангов**, не на Jaccard: Jaccard при фиксированном пороге
+спутан с размером вызванного множества (метод, назвавший 3 SNP, не может сильно пересечься с
+назвавшим 300, как бы ни были похожи их ранжирования).
+
+Представитель семейства — максимум AUC-PR, а не F1: AUC-PR беспороговая, поэтому выбор
+представителя не зависит от рабочей точки, которую поиск подмножеств ещё не выбрал. AUC-PR
+считается общей функцией `auc_pr_from_rank()` в `lib_detection.R`, дословно извлечённой из
+`eval_detection.R` mode=rank; `eval_detection.R` намеренно продолжает считать своей копией,
+чтобы опубликованные числа журнала 05 не оказались за рефакторингом.
+</div>
+
+```{r 07-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_method_redundancy.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy/MVP1232548_c3_method_clusters.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy/MVP1232548_c3_redundancy_heatmap.png"))
+```
+
+```{r 07-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy/MVP1232548_c3_method_clusters.tsv"
+if (!is.null(K <- rd(f))) {
+  print(K[, .(метод = method, семейство = cluster, auc_pr = round(auc_pr, 4),
+              n_called, представитель = representative)])
+  cat("\nПредставители:", paste(K[representative == TRUE, method], collapse = ", "), "\n")
+}
+s <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy/MVP1232548_c3_method_similarity.tsv")
+if (!is.null(s)) {
+  cat("\nСамые похожие пары по рангам (Spearman >= 0.95):\n\n")
+  print(head(s[measure == "spearman" & value >= 0.95][order(-value)], 15))
+}
+```
+
+<div class="callout-result">
+- Одиннадцать методов схлопываются в **7** семейств по корреляции рангов
+- **MLM, ECMLM, MLMM неотличимы от EMMAX** — метода, который вообще не GAPIT
+  (AUC-PR **0.0828–0.0835**, одно семейство)
+- **GLM и SUPER** — второе семейство (**0.182** / **0.161**)
+- Собственные семейства: **LFMM** (**0.323**, лучший), **RDA** (**0.222**),
+  **FarmCPU** (**0.138**), **BLINK** (**0.052**), **CMLM** (**0.029**, худший)
+- Разброс калибровки при одном номинальном пороге `bonf 0.05` — **три порядка**:
+  GLM **1 184** вызовов, SUPER **980**, FarmCPU **28**, LFMM **12**, EMMAX **1**, RDA **0**
+- Регрессия: AUC-PR EMMAX/LFMM/RDA/BLINK совпадает с `mvp_ladders.tsv` журнала 05 до 4 знака
+</div>
+
+<div class="callout-conclusion">
+Из восьми моделей GAPIT независимую информацию несут не восемь, а **пять**, и три из них
+дублируют EMMAX. Разброс калибровки в три порядка при одном номинальном пороге — это и есть
+прямое обоснование помодельных порогов (раздел 9): общий порог заведомо неверен минимум для
+одного метода в любой паре.
+</div>
+
+```{r 07-plot, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy/MVP1232548_c3_redundancy_heatmap.png"
+if (file.exists(p)) knitr::include_graphics(p) else cat("[ОТСУТСТВУЕТ]", p, "\n")
+```
+
+---
+
+## 8. Лестница коррекции структуры на 11 методах
+
+<div class="callout-method">
+Прогон: `/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh run`, который вызывает
+`mvp_run_sweep.sh` с `SWEEP_METHODS` / `CFG_SUFFIX` / `PARAMS_DIR` / `HARVEST_WZA` — драйвер
+журнала 05 переиспользуется, а не форкается, поэтому гейты (устаревшие манхэттены, побайтово
+совпавшая с предыдущей ячейкой таблица) действуют без изменений.
+
+**Ячейки внутри реплики идут строго последовательно.** Все пять делят `project_name`, значит и
+`MVP1232548_results/`, и один Snakemake-lock. Журнал 05 распараллеливал по **сидам**; фокус на
+одной реплике эту параллельность убирает.
+
+Оценка ранжирования — AUC-PR, потому что она не зависит от выбора порога и потому что для RDA
+порог на этих данных не срабатывает вовсе.
+</div>
+
+```{r 08-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/ladder_aucpr.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/ladder_best_rung.tsv"))
+```
+
+```{bash 08-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh run 1232548
+```
+
+```{r 08-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/ladder_best_rung.tsv"
+if (!is.null(B <- rd(f))) {
+  cat("Лучший рунг каждого метода против дефолтного c3, по AUC-PR:\n\n")
+  print(B[order(axis, -gain_over_default),
+          .(метод = method, ось = axis, лучшая_ячейка = best_cell,
+            auc_лучшая = round(best_auc, 4), auc_дефолт = round(default_auc, 4),
+            выигрыш = round(gain_over_default, 2))])
+  cat("\nСлучаев, где дефолт c3 НЕ лучший рунг: ",
+      B[best_cell != "c3", .N], " из ", nrow(B), "\n", sep = "")
+}
+```
+
+<div class="callout-result">
+- Дефолтный рунг `c3` (= `k_best`) **не является лучшим** для **9** методов из **11**
+- **EMMAX, MLM, ECMLM, MLMM** лучше всего на `c1` (`n_pcs = 0`): AUC-PR **0.0828 → 0.1715**,
+  выигрыш **2.07×**
+- **BLINK, GLM, SUPER, CMLM** лучше всего на `c2`; BLINK на оси sal — выигрыш **4.21×**
+- Только **LFMM** и **RDA** действительно лучше всего на `k_best` (выигрыш **1.00**)
+- Стоимость ячейки на 11 методов: **34–46** мин, растёт с `n_pcs`
+</div>
+
+```{r 08-plot, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/ladder_aucpr.png"
+if (file.exists(p)) knitr::include_graphics(p) else cat("[ОТСУТСТВУЕТ]", p, "\n")
+```
+
+---
+
+## 9. Портфельный поиск: помодельные пороги × подмножества × окна
+
+<div class="callout-method">
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_portfolio.R`. Два этапа, потому что 11 методов ×
+17 точек сетки не перечисляются как декартово произведение:
+
+- **Этап 1** (бесплатный, уже посчитан `sweep_thresholds.R`): полная кривая каждого метода.
+  Сводится к ≤ **3** кандидатным рабочим точкам: максимум F1; максимум recall при
+  `precision_strict >= 0.9`; дефолт пайплайна `bonf 0.05`. Дефолт сохраняется, даже когда он
+  доминирован: это то, что пользователь получает, ничего не трогая, поэтому строка про него
+  нужна в каждой таблице.
+- **Этап 2**: все пары и тройки из **top-6 методов по одиночному F1**, плюс все-11 `at_least_k`
+  для k = 2, 3, 4, каждый метод — в своей кандидатной точке, всё это × 4 окна согласия.
+
+Перечисление назначений ограничено размером подмножества, а не вкусом: для пар и троек полное
+произведение ≤ 3³ = 27 и перечисляется; для все-11 оно было бы 3¹¹ = 177 147, поэтому берутся
+только **три когерентных** назначения — все методы в своей лучшей по F1 точке, все в
+высокоточной, все на дефолте пайплайна. Это три политики, которые пользователь может
+сформулировать; 177 145 смесей между ними — не рекомендация, которой можно следовать.
+
+**`--rank-source` пришпилен к c3 для каждой ячейки**, чтобы все ячейки искали в одном и том же
+пуле методов. Переранжирование внутри каждой группы молча дало бы группам разные пулы — ровно
+тот провал, на который журнал 05 §10 указывал для чтения свидетельств об объединении по c3.
+
+`rank_sum` сохранён: он беспороговый и обходит проблему калибровки RDA, из-за которой любое
+пересечение с участием RDA вырождается в ноль (журнал 05 §10).
+</div>
+
+```{r 09-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/headline.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/solo_vs_combine.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/combine_window_summary.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/gapit_marginal.tsv"))
+```
+
+```{bash 09-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh score 1232548
+```
+
+```{r 09-headline, echo=FALSE}
+r <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/"
+if (!is.null(H <- rd(paste0(r, "headline.tsv")))) {
+  cat("Лучшая рабочая точка по ячейкам:\n\n")
+  print(H[, .(tag, подмножество = subset, правило = rule, окно = combine_window_kb,
+              n_called, tp, precision = round(precision, 3),
+              precision_all = round(precision_all, 3),
+              recall = round(recall_testable, 3), f1 = round(f1, 3),
+              на_один_tp = round(calls_per_tp, 1))])
+}
+if (!is.null(SC <- rd(paste0(r, "solo_vs_combine.tsv")))) {
+  cat("\nЛучший одиночный метод против лучшего объединения:\n\n")
+  print(SC[, .(tag, одиночный = solo_subset, f1_одиночный = round(solo_f1, 3),
+               объединение = combine_subset, правило = combine_rule,
+               окно = combine_cw, f1_объединение = round(combine_f1, 3),
+               выигрыш = round(f1_gain, 3))])
+}
+```
+
+```{r 09-window, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/combine_window_summary.tsv"
+if (!is.null(W <- rd(f))) {
+  cat("Даёт ли окно согласия больше, чем совпадение по SNP (парное сравнение, окно 0 — база):\n\n")
+  print(W)
+}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/combine_window_effect.png"
+if (file.exists(p)) knitr::include_graphics(p)
+```
+
+<div class="callout-result">
+**Объединение бьёт лучший одиночный метод во всех пяти ячейках** (лучший одиночный — всегда
+LFMM, F1 **0.360–0.400**):
+
+- `c1` **0.374 → 0.614** (`at_least_2` @ 5 кб, LFMM+GLM+SUPER), прирост **+0.240**
+- `c2` **0.360 → 0.557** (`intersection` @ 5 кб, LFMM+GLM), **+0.196**
+- `c4` **0.374 → 0.458** (`intersection` @ 5 кб, LFMM+RDA), **+0.085**
+- `c3` **0.385 → 0.416** (`at_least_2` @ 1 кб, LFMM+RDA+FarmCPU), **+0.031**
+- `c5` **0.400 → 0.426** (`intersection` @ 5 кб, LFMM+SUPER), **+0.026**
+
+**Окно согласия — парное сравнение** (то же подмножество, то же правило, то же назначение,
+меняется только окно; окно 0 — база):
+
+- `intersection`: **+0.026** (1 кб) → **+0.050** (2.5 кб) → **+0.077** (5 кб), при 5 кб
+  **946** побед / **50** ничьих / **126** поражений из **1 122**
+- `at_least_2` при 5 кб: **824** победы из **1 232**, медиана **+0.034**
+- `union`: **0.000** во всех **1 677** сравнениях на каждом окне — окно **не может** добавить
+  элемент в объединение. Это не результат, а **проверка корректности** реализации
+
+**Больше моделей GAPIT — хуже** (лучший F1 подмножества по числу входящих моделей GAPIT,
+ячейка c1): **1** модель → **0.600**, **2** → **0.614**, **3** → **0.391**,
+все **8** (набор из 11 методов) → **0.318**
+</div>
+
+```{r 09-gapit, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/gapit_marginal.tsv"
+if (!is.null(G <- rd(f))) {
+  cat("Лучший F1 подмножества как функция числа входящих в него моделей GAPIT:\n\n")
+  print(dcast(G, tag + n_methods ~ n_gapit, value.var = "best_f1"))
+}
+```
+
+---
+
+<div class="callout-result">
+**Метрика цели выбирает точки, которыми пользоваться нельзя** — и это находка, а не помеха:
+
+| ячейка | правило | n_called | tp | precision_strict | precision_all | calls_per_tp | F1 |
+|---|---|---|---|---|---|---|---|
+| c1 | max F1 | **1 458** | 31 | **1.000** | 0.021 | **47.0** | 0.614 |
+| c2 | max F1 | **811** | 27 | **1.000** | 0.033 | **30.0** | 0.557 |
+| c3 | max F1 | 147 | 21 | 0.677 | 0.143 | **7.0** | 0.416 |
+| c1 | max F1 при n_called ≤ 100 | **100** | 20 | 0.645 | 0.200 | **5.0** | 0.396 |
+
+- `precision_strict = 1.000` у c1 **корректно** по конвенции Lotterhos: каждый лишний вызов
+  там попал на `linked_neutral`, который никогда не считается ложноположительным
+- Но пользователь при этом просматривает **47** SNP на одно реальное попадание
+- Ограничение `top <= 100` **не связывает там, где вред**: победитель c1 —
+  `LFMM:top_30 + GLM:bonf_0.05 + SUPER:top_20`, а GLM при `bonf 0.05` сам по себе вызывает
+  **1 184** SNP (**11%** генома). Потолок ограничивает только правило `top`
+- Поэтому в `headline.tsv` выводятся **две** ранжировки: максимум F1 и максимум F1 при
+  `n_called <= 100`
+</div>
+
+<div class="callout-conclusion">
+Часть I отвечает на все четыре поставленных вопроса. (1) Семь дополнительных моделей GAPIT
+несут **три** независимых сигнала, а не семь, и их добавление в объединение **ухудшает** F1.
+(2) Помодельные пороги не потребовали правки пайплайна — `GEA.configs` был помодельным всегда;
+потребовалась правка **харнесса**, который был строже пайплайна. (3) Окно согласия при
+объединении выигрывает монотонно до 5 кб для пересекающих правил и, как и положено, не влияет
+на объединение. (4) Низкочастотные каузальные локусы не находит никто.
+
+Но заодно Часть I показывает, что **`precision_strict` в паре с F1 выбирает нерабочие точки** на
+наборе, где половина генома — `linked_neutral`. Отсюда прямой мост в Часть II: если убрать
+SNP, которые и порождают эти бесполезные вызовы, компромисс должен стать не только лучше, но и
+**пригодным**.
+</div>
+
+---
+
+# Часть II. Плечо `Filter.maf: 0.05`
+
+## 10. Зачем понадобился отдельный проект, а не ещё одна ячейка
+
+<div class="callout-method">
+Раздел 6 показал, что низкочастотные каузальные локусы не находит **никто**: из **27**
+каузальных локусов ниже MAF 0.05 при `top_100` девять методов из одиннадцати находят **ноль**,
+а два, которые находят хоть что-то (GLM, SUPER), — это ровно те, у которых вызванное множество
+раздуто (**1 184** и **980** вызовов при `bonf 0.05`). Отсюда прямое следствие, которое нужно
+проверить прогоном, а не рассуждением: **фильтр MAF 0.05 не должен стоить почти ничего в
+recall, но должен улучшить precision**, потому что он убирает **2 484** SNP из знаменателя
+Бонферрони, не убирая ни одной находки.
+
+**Почему отдельный `project_name`, а не ещё один рунг.** `{PROJECT}_results/` ключуется только
+на `project_name`, а пути модульных выходов (`GEA/tables/methods/...`) не несут метки фильтра —
+её несут только промежуточные `_work/maf{}_miss{}_smiss{}/`. Два значения MAF под одним
+`project_name` перезаписали бы опубликованные таблицы друг друга; это в точности та опасность,
+которую документирует `CLAUDE.md`. Отдельные имена проектов дают ещё и раздельные
+Snakemake-локи, поэтому оба плеча идут **параллельно**.
+
+**`Input.*` не меняется.** Плечо читает тот же VCF и применяет к нему свой фильтр. Различие
+между конфигами — ровно две строки: `project_name` и `Filter.maf`.
+
+**Таблицы истины пересчитаны под MAF.** Это не опция.
+`benchmarks/mvp_filter_truth_maf.R` выбрасывает из таблицы истины **каждую** строку — causal,
+linked_neutral и background_neutral одинаково — чей SNP не переживёт фильтр. Скоринг
+отфильтрованного VCF против неотфильтрованной истины делил бы recall на локусы, которых в VCF
+уже нет, — ровно тот дефект, который дисквалифицировал бенчмарк Láruson
+(`_archive/laruson/README.md`). Выбросить только каузальные строки тоже нельзя: тогда
+знаменатель ложноположительных считал бы фоновые SNP, которых в VCF нет.
+
+`loci_freq.tsv` копируется в проект плеча уже отфильтрованным, поэтому `mvp_wza_gate.R` и
+`mvp_profile_detections.R` видят ту же вселенную SNP, что и таблицы истины, а не тянутся
+обратно в неотфильтрованное плечо.
+</div>
+
+```{r 10-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_filter_truth_maf.R",
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548M05/truth_any.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548M05/truth_filter_provenance.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548M05/loci_freq.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548M05_c3_p11.yaml"))
+```
+
+```{bash 10-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-03
+# Плечо целиком: таблицы истины под MAF -> конфиги -> лестница -> скоринг.
+ARM=m05 /mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh run   1232548
+ARM=m05 /mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_journal06.sh score 1232548
+
+# Гейт на конфиг: единственные отличия от базового плеча — project_name и Filter.maf.
+diff /mnt/data/eugene/ADAPTOGENE/config_MVP1232548_c3_p11.yaml \
+     /mnt/data/eugene/ADAPTOGENE/config_MVP1232548M05_c3_p11.yaml
+```
+
+```{r 10-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/data/mvp/MVP1232548M05/truth_filter_provenance.tsv"
+if (!is.null(P <- rd(f))) {
+  cat("Строки таблиц истины, оставшиеся после фильтра MAF > 0.05:\n\n")
+  print(dcast(P, table ~ category, value.var = c("N_before", "N_after")))
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+<div class="callout-result">
+- SNP: **10 325** → **7 841** (удалено **2 484**, **24.1%**)
+- Каузальные (`truth_any`): **70** → **43**
+- Каузальные по осям: temp **30** → **17**, sal **40** → **26**
+- `linked_neutral`: **5 207** → **3 971**; `background_neutral`: **5 048** → **3 827**
+- Отличие конфига от базового плеча: **2** строки (`project_name`, `Filter.maf`); `Input.*`
+  побайтово совпадает
+- Источник набора SNP — **сам отфильтрованный VCF пайплайна**, а не пересчёт по `loci_freq`
+</div>
+
+<details class="callout-note">
+<summary>Примечание — граница порога, пойманная до скоринга</summary>
+Первая версия таблиц истины строилась по `loci_freq.tsv` со **строгим** `maf > 0.05` и дала
+**7 823** SNP, тогда как plink оставил **7 841**: `--maf` в plink исключает варианты
+**ниже** порога, то есть сохраняет `MAF >= 0.05`, и ровно **18** SNP стоят на самой границе
+0.05. Расхождение поймано сверкой с `_work/maf0.05_miss0.1_smiss0.5/MVP1232548.vcf` до того,
+как хоть одно число было посчитано. Скрипт теперь принимает `--vcf` и, когда он передан,
+берёт набор SNP из настоящего отфильтрованного VCF; сравнение внутри скрипта — `>=`.
+Побочный эффект: **1** каузальный локус на температурной оси (**16** → **17**) стоит точно на
+MAF 0.05.
+</details>
+
+---
+
+## 11. Плечо MAF 0.05: те же тесты, тот же харнесс
+
+<div class="callout-method">
+Прогоняется **тот же** драйвер с `ARM=m05`: лестница из 5 ячеек на 11 методов, помодельные
+пороги, оконное объединение, избыточность, WZA, профиль детекций. Выходы уходят в параллельные
+каталоги с суффиксом `_m05` (`params06_m05`, `sweep06_m05`, `portfolio_m05`, `redundancy_m05`,
+`wza_m05`, `profile_m05`), поэтому ни одно число базового плеча не перезаписывается.
+
+Что здесь сравнивается — и что сравнивать **нельзя**:
+
+- **Сравнимо**: precision, `calls_per_tp`, форма компромисса, ранжирование методов и правил
+  объединения, лучший рунг коррекции структуры.
+- **Не сравнимо напрямую**: абсолютный recall. Знаменатели разные по построению (**70** против
+  **42** тестируемых каузальных локусов). Поэтому recall каждого плеча читается только внутри
+  своего плеча, а между плечами сравнивается **доля найденного из достижимого**.
+- **Порог Бонферрони сдвигается механически**: `bonf` = value / n_tested, и `n_tested` падает с
+  **10 325** до **7 841**, то есть порог становится в **1.32** раза мягче при том же номинальном
+  уровне. Часть любого выигрыша в recall — это он, а не свойство фильтра; правила `top` и
+  `custom` от этого свободны и потому здесь информативнее.
+- **Лестница `k_best` не двигается**: она берётся из опубликованной колонки K депозита, а не из
+  кросс-энтропии, поэтому от MAF не зависит. Одним конфаундером меньше.
+</div>
+
+```{r 11-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06_m05/headline.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy_m05/MVP1232548M05_c3_method_clusters.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza_m05/MVP1232548M05_c3_wza_gate.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/profile_m05/MVP1232548M05_c3_maf_cut.tsv"))
+```
+
+```{r 11-compare, echo=FALSE}
+# Прямое сопоставление плеч по общим (метод, правило) точкам.
+b <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/headline.tsv")
+m <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06_m05/headline.tsv")
+if (!is.null(b) && !is.null(m)) {
+  b[, arm := "maf 0.01"]; m[, arm := "maf 0.05"]
+  cmp <- rbind(b, m, fill = TRUE)
+  print(cmp[, .(arm, tag, подмножество = subset, правило = rule, окно = combine_window_kb,
+                n_called, tp, precision = round(precision, 3),
+                precision_all = round(precision_all, 3),
+                recall = round(recall_testable, 3), f1 = round(f1, 3),
+                на_один_tp = round(calls_per_tp, 1))])
+} else cat("[ОТСУТСТВУЕТ] одно из плеч ещё не сосчитано\n")
+```
+
+```{r 11-ladder, echo=FALSE}
+b <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06/ladder_best_rung.tsv")
+m <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report06_m05/ladder_best_rung.tsv")
+if (!is.null(b) && !is.null(m)) {
+  b[, arm := "maf 0.01"]; m[, arm := "maf 0.05"]
+  L <- rbind(b, m)
+  cat("Меняет ли фильтр MAF выбор лучшего рунга коррекции структуры?\n\n")
+  print(dcast(L, method + axis ~ arm, value.var = "best_cell"))
+}
+```
+
+```{r 11-wza, echo=FALSE}
+b <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza/MVP1232548_c3_wza_gate.tsv")
+m <- rd("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/wza_m05/MVP1232548M05_c3_wza_gate.tsv")
+if (!is.null(b) || !is.null(m)) {
+  cat("Гейт WZA в обоих плечах:\n\n")
+  print(rbind(if (!is.null(b)) cbind(arm = "maf 0.01", b),
+              if (!is.null(m)) cbind(arm = "maf 0.05", m), fill = TRUE))
+}
+```
+
+<div class="callout-result">
+**Качество ранжирования выросло у каждого метода без исключения** (AUC-PR, ячейка c3,
+знаменатель — свои тестируемые каузальные локусы в каждом плече):
+
+| метод | maf 0.01 | maf 0.05 | ×  |
+|---|---|---|---|
+| LFMM | 0.323 | **0.518** | 1.60 |
+| RDA | 0.222 | **0.340** | 1.53 |
+| GLM | 0.182 | **0.283** | 1.56 |
+| EMMAX / MLM / ECMLM / MLMM | 0.083 | **0.253** | **3.06** |
+| SUPER | 0.161 | **0.262** | 1.62 |
+| FarmCPU | 0.138 | **0.224** | 1.62 |
+| BLINK | 0.052 | **0.217** | **4.19** |
+| CMLM | 0.029 | **0.041** | 1.40 |
+
+**Рабочие точки стали пригодными, а не только лучшими:**
+
+| | maf 0.01 | maf 0.05 |
+|---|---|---|
+| лучший F1 в журнале | **0.614** (c1), но **1 458** вызовов, **47.0** на попадание | **0.625** (c4), **173** вызова, **8.7** |
+| дефолтный рунг c3 | **0.416**, 147 вызовов, precision **0.677** | **0.542**, **81** вызов, precision **1.000**, **5.1** на попадание |
+| при ограничении n_called ≤ 100 | **0.396** | **0.542** |
+
+- Патологические точки («тысяча вызовов при `precision_strict` 1.000») **исчезли полностью**
+- Семейства методов — **те же 7**, состав не изменился: фильтр не переупорядочил методы
+- Окно согласия: `intersection` при 5 кб — **1 017** побед, **470** ничьих, **0 поражений**
+  из 1 487 (в плече 0.01 было 126 поражений); `union` снова ровно **0.000** во всех **3 120**
+- Гейт WZA: **999** окон, **40** с каузальным локусом — пройден
+- Абсолютных детекций при этом **меньше**: c3 находит **16** каузальных локусов против **21**
+</div>
+
+<div class="callout-conclusion">
+Фильтр `Filter.maf: 0.05` стоит **5 обнаружимых локусов из 70** и взамен убирает шум, который
+делал рабочие точки непригодными. Дефолтный рунг пайплайна из «F1 0.416 при 147 вызовах и
+precision 0.677» превращается в «F1 0.542 при **81** вызове и precision **1.000**» — то есть
+пользователь, не трогающий ничего, кроме MAF, получает результат, который можно читать.
+
+Важно, что выигрыш **не сводится** к более мягкому порогу Бонферрони (он мягче ровно в
+**1.32** раза): AUC-PR — величина беспороговая, и она выросла у всех одиннадцати методов,
+у EMMAX и BLINK — в **3–4 раза**. Значит SNP ниже MAF 0.05 были не просто ненаходимыми, а
+активно **шумели в ранжировании**.
+
+Ограничение, которое нужно называть: это **одна реплика**. Доля каузальных локусов ниже
+MAF 0.05 (**27/70**) — свойство именно этой симуляции, и на данных с другим спектром частот
+цена фильтра будет другой. Проверяемое утверждение здесь — не «MAF 0.05 всегда прав», а
+«низкочастотные каузальные локусы не находятся, и их присутствие ухудшает ранжирование
+остальных».
+</div>
+
+---
+
+## 12. Что стоит добавить в пайплайн
+
+<div class="callout-method">
+Собрано по ходу работы. Это **предложения, не реализованные правки** — режим `CLAUDE.local.md`
+допускает только исправления багов, и единственная сделанная правка (раздел 3) была согласована
+отдельно.
+
+1. **Пакетный `mode=gea` умеет только объединение.** `SIGSNPS_METHOD = 'All'` жёстко зашит в
+   `workflow/rules/common.smk:192`; `GEA.combine_method` не является живым ключом конфига. Если
+   бенчмарк заключит, что выигрывает `at_least_2` или оконное пересечение, **пайплайн не может
+   это выразить в пакетном режиме** — только интерактивно во вкладке GEA в Shiny. Предложение:
+   вернуть `GEA.combine_method` со словарём, который `combine_sigsnps.R` уже реализует
+   (`All`/`Sum` → union, `Overlap` → межметодное пересечение, `MethodOverlap` → то же по
+   признаку, имя метода → passthrough).
+2. **Окно согласия как дефолт.** Харнесс до этого журнала объединял по точному совпадению SNP,
+   пайплайн — по окну `GEA.snp_clumping_distance`. Какое окно выигрывает здесь — конкретный
+   кандидат в дефолт для combine-пути.
+3. **Модели GAPIT нельзя настраивать независимо.** `_gapit_shared_npcs()` (`gea.smk:328-350`)
+   жёстко падает, когда две модели GAPIT просят разный `n_pcs`, потому что один вызов
+   `gapit.R` принимает один скаляр. Предложение: расщепить правило по моделям или принимать
+   вектор.
+4. **Расширить `pregea_recommend.R`.** Сейчас он номинирует только рунги (LFMM.K, EMMAX.n_pcs,
+   RDA.condition_pcs / axes / predictor_set), а BLINK наследует EMMAX. Добавить: номинацию
+   помодельных `adjust`/`threshold`, рекомендуемый **портфель** методов (из кластеризации
+   избыточности) и рекомендуемое правило объединения — всё выводимо из беспороговых
+   диагностик, без таблицы истины.
+5. **Ограничение размера вызванного множества.** Раздел «метрика цели» показал, что F1 на
+   `precision_strict` выбирает точки с **1 458** вызовами и **47** SNP на одно попадание.
+   Пайплайн не даёт способа сказать «дай мне не больше N вызовов, чем бы это ни значило для
+   порога». Предложение: конфигурируемый потолок `n_called` на комбинированный набор, рядом с
+   `GEA.combine_method` из пункта 1.
+6. **`file.output = TRUE` у GAPIT.** После снятия `Random.model` (раздел 3) оставшийся крупный
+   побочный продукт — PDF и CSV на каждую модель в `GAPIT_native_output/`. Пайплайн читает из
+   них только `GAPIT.Association.GWAS_Results.*`. Не баг, но кандидат в конфигурируемое.
+</div>
+
+---
+
+---
+
+## 13. Ограничения этих тестов
+
+<div class="callout-method">
+**1. RDA тестируется здесь на двух предикторах — в режиме, где её преимущество не может
+проявиться.**
+
+Это самое серьёзное ограничение журнала, и его нужно назвать прежде, чем кто-нибудь прочитает
+таблицы как «RDA работает плохо». Она работает **не плохо**: по беспороговому качеству
+ранжирования RDA — **вторая из одиннадцати** в обоих плечах (AUC-PR **0.222** при MAF 0.01 и
+**0.341** при MAF 0.05), впереди всех восьми моделей GAPIT и EMMAX, и она входит в
+победившую комбинацию в **4** ячейках из 10, включая лучшую в журнале
+(`LFMM+RDA+EMMAX`, F1 **0.625**). Наша реализация воспроизводит RDA самих авторов
+(сид 1231288: опубликовано **0.543**, у нас **0.538**; сид 1231993: **0.633** против
+**0.696**) — то есть дело не в реализации.
+
+Плохо у RDA здесь **не ранжирование, а калибровка**: **0** вызванных SNP при `bonf 0.05` и
+**0** вызванных окон при любом пороговом правиле, потому что `pmax` двух примерно равномерных
+p-значений сохраняет **порядок**, но не является корректным p-значением
+(`MVP_README.md:283-306`). Поэтому RDA попадает в результат только через ранговые правила и
+через оконное согласие — что она и делает.
+
+**А вот число предикторов — отдельная и, вероятно, более важная проблема.** У MVP ровно два
+климатических предиктора (`bio_1` = температура, `bio_2` = Env2), и это жёстко ограничивает
+RDA по построению:
+
+- `scripts/rda.R:290`: `K_max <- RDA_env$CCA$rank` — ранг ограниченной ординации равен числу
+  предикторов, здесь **2**
+- `scripts/rda.R:369-370`: `K_sel` отбирается по p-значениям осей, но **пол — 2**. При
+  `K_max = 2` выбор осей вырождается: `K_sel` всегда ровно 2, свободы нет вообще
+- `rdadapt` считает расстояние Махаланобиса по удержанным осям; по **двум** осям это
+  существенно более слабая статистика, чем по пяти-десяти
+
+Преимущество RDA в литературе возникает именно там, где предикторов много и они
+скоррелированы: ординация находит композитную ось, вдоль которой лежит адаптивный сигнал, и
+одна такая ось заменяет десяток univariate-тестов. С двумя предикторами — причём намеренно
+почти ортогональными (`R²(PC1~temp)` **0.573** против `R²(PC1~Env2)` **0.005**) — этого
+преимущества просто нет: RDA сводится почти к двум univariate-тестам с общей ординацией.
+
+Масштаб расхождения с реальным употреблением пайплайна: дефолт
+(`scripts/adaptogene.app/inst/config_default.yaml:62`) — **10** предикторов; оба реальных
+проекта в репозитории (`config_WBDC_final.yaml`, `config_Trifolium86Full.yaml`) — **19**.
+Здесь — **2**. То есть бенчмарк проверяет RDA в единственном режиме, в котором она не может
+показать то, за что её рекомендуют.
+
+**Почему RDA всё же отсутствует в лучшей комбинации плеча MAF 0.01 — и почему это не про
+RDA.** RDA **входила в пул поиска** в обоих плечах (3-я по одиночному F1 при MAF 0.01, **2-я**
+при MAF 0.05), то есть её пары и тройки перебирались. В плече MAF 0.05 лучшая комбинация её
+**содержит**: четыре верхние точки — `LFMM+RDA+{EMMAX|MLM|ECMLM|MLMM}`, все F1 **0.625**
+(TP **20**, FP_bg **1**, вызовов **173**). В плече MAF 0.01 отрыв составляет **0.014**, и
+причина видна в счётчиках:
+
+| комбинация | правило | TP | FP_bg | вызовов | F1 |
+|---|---|---|---|---|---|
+| LFMM+GLM+SUPER | at_least_2 @5 кб | 31 | 0 | 1 458 | 0.614 |
+| LFMM+GLM | intersection @5 кб | 30 | 0 | 1 293 | 0.600 |
+| **LFMM+RDA+GLM** | at_least_2 @5 кб | **30** | **0** | **1 293** | **0.600** |
+
+`LFMM+RDA+GLM` и `LFMM+GLM` совпадают **по всем счётчикам**: те же TP, те же FP, тот же размер
+набора. Добавление RDA не изменило ровно ничего. Это не слабость RDA, а её **избыточность при
+наличии GLM**: GLM при `bonf 0.05` вызывает **1 184** SNP (**11%** генома), поэтому в окне 5 кб
+практически у любого вызова RDA уже есть партнёр от GLM, и RDA физически не может добавить
+новую пару.
+
+Оба факта связаны: победитель плеча MAF 0.01 — это ровно та рабочая точка, которая забракована
+выше как непригодная (**1 458** вызовов, **47** SNP на попадание), и выигрывает её плохая
+калибровка GLM. После фильтра MAF 0.05 GLM падает с 4-го места на **10-е** по одиночному F1, а
+RDA поднимается на **2-е** — и входит во все верхние комбинации. RDA «отсутствует» только в том
+плече, где работу делает плохо откалиброванный метод.
+
+**Вывод для следующего набора данных:** нужен набор с ≥ 5–10 климатическими предикторами,
+иначе про RDA этот протокол не говорит ничего, кроме «её ранжирование лучше, чем у всего
+GAPIT, а p-значения непригодны для порога». Обе половины этого утверждения верны и здесь, но
+потолок задан не методом, а данными.
+
+**2. Одна реплика.** Всё в журнале измерено на `MVP1232548`. Доля каузальных локусов ниже
+MAF 0.05 (**27/70**) — свойство спектра частот именно этой симуляции. Комбинации с нулём
+фоновых ложноположительных — самый интересный результат — проверены на одной реплике и одном
+наборе данных.
+
+**3. Сетка WZA включала `top`.** Оконное правило `top` навязывает фиксированное число вызовов
+независимо от свидетельств, что противоречит самой идее окон (сократить число тестов). Это
+завысило оконное плечо: LFMM WZA при `top_100` находит **31** каузальный локус (F1 **0.427**),
+при `qval_0.2` — **11** (25 окон, 3 фоновых FP, precision **0.769**, F1 **0.261**). Честная
+формулировка — «WZA при top-N лучше поSNP-ового при top-N», а не «оконная агрегация лучше».
+Журнал оставлен как есть; ограничение (только `bonf`/`qval` для WZA) применяется со
+следующего набора данных.
+</div>
+
+```{r 13-rda, echo=FALSE}
+# Ранг RDA среди одиннадцати методов и её вклад в победившие комбинации.
+for (a in c("", "_m05")) {
+  f <- sprintf("/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/redundancy%s", a)
+  fs <- list.files(f, pattern = "_method_clusters\\.tsv$", full.names = TRUE)
+  if (!length(fs)) next
+  K <- fread(fs[1])[order(-auc_pr)]
+  K[, ранг := seq_len(.N)]
+  cat(sprintf("\nAUC-PR, плечо MAF %s:\n", ifelse(nzchar(a), "0.05", "0.01")))
+  print(K[, .(ранг, метод = method, auc_pr = round(auc_pr, 4), вызовов_bonf05 = n_called)])
+}
+```
+
+---
+
+```{r session-info}
+sessionInfo()
+```
