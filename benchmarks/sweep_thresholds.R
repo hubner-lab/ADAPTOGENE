@@ -9,30 +9,35 @@
 # turns a combinatorial grid into a sum of independent ladders plus free
 # post-hoc scoring.
 #
-# Sweeps, per method:
+# Sweeps, per method (journal-06 grid; see TOP_MAX below for why `top` is capped):
 #   bonf   0.01 0.05 0.1 0.5 1
-#   qval   0.05 0.1 0.2 0.3 0.4 0.5
-#   top    10 20 30 50 100 200 500 1000 2000 5000
-#   custom 1e-6 1e-5 1e-4 1e-3 1e-2
+#   qval   0.05 0.1 0.2
+#   top    10 20 30 50 100
+#   custom 1e-6 1e-5 1e-4 1e-3
 #
-# The grid deliberately runs well past conventional significance. The premise is
-# that a user reads the operating point off the Manhattan plot: climate-association
-# signal is noisy, so the useful question is the shape of the whole precision/recall
-# tradeoff, not the single point FDR 0.05 lands on. The upper rungs also matter for
-# recall to be measurable at all on the polygenic replicates -- MVP seeds carry up to
-# 395 causal loci (1231798), so a grid topping out at top-100 would cap recall near
-# 25% by construction rather than by method performance. bonf 1 is the "one expected
-# false positive genome-wide" line (cutoff = 1/n_tested).
+# The grid still runs past conventional significance. The premise is that a user reads
+# the operating point off the Manhattan plot: climate-association signal is noisy, so the
+# useful question is the shape of the whole precision/recall tradeoff, not the single point
+# FDR 0.05 lands on. bonf 1 is the "one expected false positive genome-wide" line
+# (cutoff = 1/n_tested).
 #
-# Combine rules across methods, at each shared (adjust, value):
+# Combine rules across methods, at each shared (adjust, value) and each combine window:
 #   union, intersection, at_least_2, and a threshold-free rank_sum top-N.
+# Combining is now WINDOWED (--combine-window-kb): two methods calling SNPs within W bp of
+# each other count as agreeing, which is what the pipeline's own combine_sigsnps.R does over
+# GEA.snp_clumping_distance. W=0 is the old exact-key behaviour and is asserted identical.
+#
+# HETEROGENEOUS per-method operating points are NOT done here -- see
+# benchmarks/sweep_portfolio.R, which reads this script's output to choose each method's
+# candidate points and then combines across method subsets.
 #
 # Outputs: long-format rows appended to --out, a wide summary TSV, and a
 # precision-recall scatter with the Pareto frontier drawn through it.
 #
 # Usage:
 #   Rscript sweep_thresholds.R --methods="EMMAX=/p/a.tsv,LFMM=/p/b.tsv,RDA=/p/c.tsv" \
-#       --truth=FILE --tag=STR [--tp-window-kb=0] [--out=FILE] [--outdir=DIR]
+#       --truth=FILE --tag=STR [--tp-window-kb=0] [--combine-window-kb=0,1,2.5,5] \
+#       [--top-max=100] [--out=FILE] [--outdir=DIR]
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -69,19 +74,36 @@ for (s in spec) {
 }
 if (!length(methods)) stop("--methods produced no entries")
 
+# TOP_MAX caps every rank-based rule (`top` and the rank_sum top-N vector).
+#
+# Journal 05 ran `top` to 5000 because the highly-polygenic replicates (1231798, 395 causal;
+# 1232923, 363) were still rising monotonically at 1000, and a censored frontier reported as
+# a frontier understates every rule. Journal 06 restricts the benchmark to ONE replicate
+# (1232548, 70 causal) and caps at 100 by instruction: calling 5000 of ~10 300 SNPs is half
+# the genome and is not an operating point any user would accept, whatever its F1.
+#
+# On this replicate the cap costs nothing measurable -- 70 causal loci, so top-100 can still
+# reach recall 1.0. It WOULD censor the polygenic seeds, which is one of the reasons the
+# single-replicate choice and the cap go together. Raise it only alongside a seed that needs it.
+TOP_MAX  <- as.numeric(opt("top_max", "100"))
+TOP_GRID <- c(10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000)
+TOP_GRID <- TOP_GRID[TOP_GRID <= TOP_MAX]
+
 GRID <- rbind(
     data.table(adjust = "bonf",   value = c("0.01", "0.05", "0.1", "0.5", "1")),
-    data.table(adjust = "qval",   value = c("0.05", "0.1", "0.2", "0.3", "0.4", "0.5")),
-    # Up to 5000. Measured need, not a guess: on the highly-polygenic replicates (1231798,
-    # 395 causal; 1232923, 363; 1233133, 324; 1232908, 268) F1 was still rising monotonically
-    # at top=1000 for EVERY rule -- LFMM 0.129 -> 0.182 -> 0.202, union 0.143 -> 0.159 ->
-    # 0.167 -- so a grid stopping at 1000 reports a censored frontier as if it were the
-    # frontier. That understates every rule and understates the COMBINE rules most, because
-    # union needs more calls than any single method to express its recall advantage.
-    data.table(adjust = "top",    value = c("10", "20", "30", "50", "100", "200", "500",
-                                            "1000", "2000", "5000")),
-    data.table(adjust = "custom", value = c("1e-6", "1e-5", "1e-4", "1e-3", "1e-2"))
+    # qval above 0.2 is not a threshold anyone reports; it survived in journal 05 only to
+    # extend the frontier into the high-recall tail that TOP_MAX now bounds anyway.
+    data.table(adjust = "qval",   value = c("0.05", "0.1", "0.2")),
+    data.table(adjust = "top",    value = as.character(TOP_GRID)),
+    data.table(adjust = "custom", value = c("1e-6", "1e-5", "1e-4", "1e-3"))
 )
+
+# Cross-method agreement windows, in kb. 0 reproduces journal 05's exact-key set operations
+# (asserted below). The non-zero rungs are calibrated on this replicate's own truth table --
+# linked_neutral -> nearest causal is median 2 351 bp, p75 4 496, p90 6 819 -- and 5 kb is
+# GEA.snp_clumping_distance from the config, i.e. what the pipeline itself would use.
+COMBINE_WINDOWS <- as.numeric(strsplit(opt("combine_window_kb", "0"), ",", fixed = TRUE)[[1]])
+if (any(is.na(COMBINE_WINDOWS))) stop("--combine-window-kb must be a comma-separated numeric list")
 
 truth <- load_truth(TRUTH_F)
 message("INFO: truth = ", truth$n_simulated, " simulated causal loci")
@@ -106,15 +128,16 @@ message("INFO: union testable causal across methods = ", n_testable_union)
 
 E   <- new_emitter()
 sum_rows <- list()
-add_summary <- function(config, kind, adjust, value, s, testable_keys) {
+add_summary <- function(config, kind, adjust, value, s, testable_keys, combine_window_kb = 0) {
     sum_rows[[length(sum_rows) + 1L]] <<- data.table(
         tag = TAG, config = config, kind = kind, adjust = adjust, value = value,
+        combine_window_kb = combine_window_kb,
         n_called = s$n_called, tp = s$tp, tp_any_causal = s$tp_any_causal,
         expected_linked = s$expected_linked,
         fp_background = s$fp_background, fn_testable = s$fn_testable,
         precision = s$precision_strict, precision_all = s$precision_all,
         recall_testable = s$recall_testable, recall_simulated = s$recall_simulated,
-        f1 = s$f1, n_testable = length(testable_keys))
+        f1 = s$f1, calls_per_tp = s$calls_per_tp, n_testable = length(testable_keys))
 }
 
 # ------------------------------------------------------- per-method threshold
@@ -135,26 +158,49 @@ for (g in seq_len(nrow(GRID))) {
 }
 
 # ------------------------------------------------------------- combine rules
+# Homogeneous rules: every method at the SAME (adjust, value). Heterogeneous per-method
+# operating points are the job of benchmarks/sweep_portfolio.R, which reads this script's
+# output to pick each method's candidate points first.
 for (key in names(called_cache)) {
     parts <- called_cache[[key]]
     if (length(parts) < 2) next
     adj <- sub("_[^_]*$", "", key); val <- sub("^.*_", "", key)
 
-    all_keys <- unlist(parts, use.names = FALSE)
-    tab      <- table(all_keys)
-
-    combos <- list(
-        union        = names(tab),
-        intersection = names(tab)[tab == length(parts)],
-        at_least_2   = names(tab)[tab >= 2]
-    )
-    for (cname in names(combos)) {
-        s   <- score_calls(combos[[cname]], WINDOW, truth, testable_union)
-        cfg <- paste0(TAG, "|COMBINE_", cname, "|", key)
-        E$emit_scored(cfg, s, WINDOW)
-        add_summary(cfg, paste0("combine_", cname), adj, val, s, testable_union)
+    for (cw in COMBINE_WINDOWS) {
+        support <- combine_support(parts, cw * 1000)
+        combos  <- list(
+            union        = support$snp,
+            intersection = support[n_methods >= length(parts), snp],
+            at_least_2   = support[n_methods >= 2, snp]
+        )
+        for (cname in names(combos)) {
+            s   <- score_calls(combos[[cname]], WINDOW, truth, testable_union)
+            cfg <- paste0(TAG, "|COMBINE_", cname, "|", key,
+                          if (cw > 0) paste0("|cw", cw, "kb") else "")
+            E$emit_scored(cfg, s, WINDOW)
+            add_summary(cfg, paste0("combine_", cname), adj, val, s, testable_union, cw)
+        }
     }
 }
+
+# ---- unit test: at window 0, combine_support() must reproduce the exact-key set logic
+# journal 05 used. Asserted rather than assumed -- this is the one place where a silent
+# change would rewrite every combine number in the series without any error surfacing.
+local({
+    key <- names(called_cache)[1]
+    parts <- called_cache[[key]]
+    if (length(parts) >= 2) {
+        tab <- table(unlist(parts, use.names = FALSE))
+        sup <- combine_support(parts, 0)
+        chk <- function(a, b, what) if (!setequal(a, b))
+            stop("combine_support(window=0) disagrees with exact-key ", what,
+                 ": ", length(a), " vs ", length(b))
+        chk(sup$snp,                              names(tab),                       "union")
+        chk(sup[n_methods >= 2, snp],             names(tab)[tab >= 2],             "at_least_2")
+        chk(sup[n_methods >= length(parts), snp], names(tab)[tab == length(parts)], "intersection")
+        message("INFO: window-0 combine identity check passed on ", key)
+    }
+})
 
 # ------------------------------------------------- threshold-free rank_sum
 # Each method ranks every SNP it tested; ranks are summed across methods and the
@@ -175,7 +221,7 @@ for (m in names(loaded)) {
 }
 wide[, rank_sum := rowSums(.SD), .SDcols = names(loaded)]
 setorder(wide, rank_sum)
-for (n in c(10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000)) {
+for (n in TOP_GRID) {
     if (n > nrow(wide)) next
     s   <- score_calls(wide$snp[seq_len(n)], WINDOW, truth, testable_union)
     cfg <- paste0(TAG, "|COMBINE_rank_sum|top_", n)
@@ -208,7 +254,7 @@ if (nrow(pf)) {
                   aes(x = recall_testable, y = precision),
                   inherit.aes = FALSE, direction = "vh",
                   colour = ADAPT_THRESHOLD, linetype = "dashed", linewidth = 0.5) +
-        scale_color_adaptogene() +
+        scale_colour_n(uniqueN(pf$kind)) +
         scale_x_continuous(limits = c(0, 1)) + scale_y_continuous(limits = c(0, 1)) +
         labs(title = paste0("Causal-locus detection: precision vs recall (", TAG, ")"),
              x = "Recall (causal loci in the tested SNP set)",
@@ -223,10 +269,12 @@ if (nrow(pf)) {
 
 # Console report: best by F1 and best recall at >=0.9 precision, per kind.
 message("\n=== best F1 per method/rule ===")
-best_f1 <- summary_dt[!is.na(f1)][order(-f1), .SD[1], by = kind]
-print(best_f1[, .(kind, adjust, value, n_called, tp, fp_background, expected_linked,
-                  precision = round(precision, 3), recall = round(recall_testable, 3),
-                  f1 = round(f1, 3))])
+best_f1 <- summary_dt[!is.na(f1)][order(-f1, n_called), .SD[1], by = kind]
+print(best_f1[, .(kind, adjust, value, cw = combine_window_kb, n_called, tp, fp_background,
+                  expected_linked, precision = round(precision, 3),
+                  precision_all = round(precision_all, 3),
+                  recall = round(recall_testable, 3), f1 = round(f1, 3),
+                  per_tp = round(calls_per_tp, 1))])
 message("\n=== best recall at precision >= 0.9 ===")
 hp <- summary_dt[!is.na(precision) & precision >= 0.9][order(-recall_testable), .SD[1], by = kind]
 print(hp[, .(kind, adjust, value, n_called, tp, fp_background,
