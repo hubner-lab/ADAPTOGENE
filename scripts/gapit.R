@@ -172,6 +172,27 @@ for (model in MODELS) {
             # LD decay. Association results, p-value tables and per-model native output
             # are unaffected by disabling it.
             Geno.View.output = FALSE,
+            # GAPIT's default is Random.model = TRUE, which runs GAPIT.RandomModel AFTER
+            # the association scan: it refits an lme4 mixed model for every SNP the model
+            # called significant, to estimate that SNP's variance component, and writes
+            # BLUP/Pred tables and per-model PDFs. Nothing downstream reads any of it —
+            # this script's only product is the p-value table assembled below from
+            # GAPIT.Association.GWAS_Results.{model}.{trait}.csv, which is written by the
+            # scan itself, before RandomModel runs.
+            #
+            # Its cost scales with the NUMBER OF SIGNIFICANT SNPs, not with the marker
+            # count, so it is invisible on a null trait and dominant on a real one.
+            # Measured on MVP1232548 cell c3, 1000 individuals x 10 325 SNPs, all eight
+            # models in one call: the orthogonal control axis bio_2 (few significant SNPs)
+            # completed five models in 20 min, while the confounded axis bio_1 spent
+            # 19+ min inside RandomModel for GLM alone and had completed one.
+            #
+            # Turning it off cannot move a p-value: the scan is already finished when
+            # RandomModel is invoked. Verified rather than assumed — the
+            # GAPIT.Association.GWAS_Results CSVs for GLM/MLM/CMLM/ECMLM/SUPER on bio_2
+            # are byte-identical before and after this change (baseline kept in
+            # benchmarks/mvp_eval/probe_p11/randommodel_baseline/).
+            Random.model = FALSE,
             file.output = TRUE
         )
     }, error = function(e) {

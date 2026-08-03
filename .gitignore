@@ -46,3 +46,19 @@ benchmarks/mvp_eval/*.log
 benchmarks/mvp_eval/c1_memtrace.txt
 # 13 MB row-level join of every operating point; rebuild with benchmarks/mvp_sweep_report.R
 benchmarks/mvp_eval/report/mvp_sweep_all.tsv
+
+# Journal 06: 11-method portfolio sweep (benchmarks/mvp_journal06.sh).
+# Same convention as the mvp_eval/params/ + sweep/ rules above: per-cell p-value tables,
+# WZA tables, Manhattans and raw per-tag enumerations are regenerable from the
+# {PROJECT}_results/ trees (2.1 GB here), so only the aggregated summaries are tracked.
+# Tracked deliverables: report06/, report06_m05/, redundancy*/, profile*/, wza*/.
+benchmarks/mvp_eval/params06/
+benchmarks/mvp_eval/params06_ibs/
+benchmarks/mvp_eval/params06_m05/
+benchmarks/mvp_eval/sweep06/
+benchmarks/mvp_eval/sweep06_m05/
+benchmarks/mvp_eval/portfolio/
+benchmarks/mvp_eval/portfolio_m05/
+benchmarks/mvp_eval/runlogs06/
+benchmarks/mvp_eval/probe_p11/
+benchmarks/mvp_eval/_harness_test/
