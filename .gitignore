@@ -62,3 +62,25 @@ benchmarks/mvp_eval/portfolio_m05/
 benchmarks/mvp_eval/runlogs06/
 benchmarks/mvp_eval/probe_p11/
 benchmarks/mvp_eval/_harness_test/
+
+# Journal 07: cross-seed transfer benchmark (benchmarks/mvp_journal07.sh).
+# Same convention as the params/ + sweep/ + journal-06 rules above: harvested per-cell p-value
+# tables (22 GB), per-cell threshold sweeps (437 MB), run/score logs and the full per-tag
+# portfolio enumerations (52 MB/arm) are all regenerable from the {PROJECT}_results/ trees.
+# Tracked deliverables: report07/, redundancy07*/, wza07*/, and the small per-seed
+# *_transfer.tsv / *_candidates.tsv summaries that carry the transferred-scheme results.
+benchmarks/mvp_eval/params07/
+benchmarks/mvp_eval/params07_m05/
+benchmarks/mvp_eval/sweep07/
+benchmarks/mvp_eval/sweep07_m05/
+benchmarks/mvp_eval/runlogs07/
+benchmarks/mvp_eval/runlogs07_m05/
+benchmarks/mvp_eval/scorelogs07/
+benchmarks/mvp_eval/scorelogs07_m05/
+benchmarks/mvp_eval/repairlogs/
+benchmarks/mvp_eval/axislogs/
+benchmarks/mvp_eval/_j07test/
+benchmarks/mvp_eval/portfolio07/*_portfolio.tsv
+benchmarks/mvp_eval/portfolio07_m05/*_portfolio.tsv
+benchmarks/mvp_eval/axis07/*_portfolio.tsv
+benchmarks/mvp_eval/axis07_m05/*_portfolio.tsv

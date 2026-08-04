@@ -66,6 +66,10 @@ WINDOW       <- as.numeric(opt("tp_window_kb", "0"))
 POOL_N       <- as.integer(opt("pool", "6"))
 HP_PRECISION <- as.numeric(opt("hp_precision", "0.9"))
 TOP_MAX      <- as.numeric(opt("top_max", "100"))
+# Optional. When given, a SECOND table {TAG}_transfer.tsv is written holding fixed schemes
+# imported from another replicate. Without the flag nothing changes and {TAG}_portfolio.tsv
+# is byte-identical -- the same regression discipline journal 06 used for the config writer.
+SCHEMES_F    <- opt("schemes", "")
 TOP_GRID     <- c(10, 20, 30, 50, 100, 200, 500, 1000)
 TOP_GRID     <- TOP_GRID[TOP_GRID <= TOP_MAX]
 COMBINE_WINDOWS <- as.numeric(strsplit(opt("combine_window_kb", "0,1,2.5,5"), ",", fixed = TRUE)[[1]])
@@ -258,3 +262,163 @@ print(out[!is.na(f1)][order(-f1, n_called), .SD[1], by = rule][
     , .(rule, subset, cw = combine_window_kb, n_called, tp,
         precision = round(precision, 3), recall = round(recall_testable, 3),
         f1 = round(f1, 3))])
+
+# =============================================================================
+# TRANSFER: fixed schemes imported from another replicate
+# =============================================================================
+# Everything above is an IN-SAMPLE search -- subset, assignment and window are all chosen on
+# the same causal loci the resulting F1 is then reported on. That number cannot answer "does
+# combining generalise"; it can only answer "what is the best combination here".
+#
+# This block answers the first question by scoring schemes that were fixed on a DIFFERENT
+# replicate. Two modes per scheme, and the difference between them is the point:
+#
+#   verbatim  the anchor's subset, rule, window AND per-method operating points, unchanged.
+#             The strict test. Note that an operating point is not a portable object:
+#             `top_100` selects 100 SNPs whether the replicate has 43 causal loci or 395, so
+#             a verbatim loss on a polygenic seed is expected and is not evidence about the
+#             combine structure.
+#   recal     the anchor's subset, rule and window, but each method's operating point re-
+#             picked from THIS replicate's own candidate set. This isolates the transferable
+#             claim -- that the STRUCTURE of the combination generalises -- from the
+#             calibration, which demonstrably does not.
+#
+# Neither mode chooses the subset on this replicate, so neither inherits the search bias that
+# {TAG}_portfolio.tsv carries by construction.
+if (nzchar(SCHEMES_F)) {
+    if (!file.exists(SCHEMES_F)) stop("--schemes given but not found: ", SCHEMES_F)
+    sch <- fread(SCHEMES_F)
+    for (cn in c("scheme_id", "subset", "rule", "combine_window_kb", "assignment"))
+        if (!cn %in% names(sch)) stop("--schemes table has no `", cn, "` column")
+
+    called_of <- function(m, a, v) {
+        k <- paste0(m, "|", a, "_", v)
+        if (is.null(CALLED[[k]]))
+            CALLED[[k]] <<- call_by_threshold(loaded[[m]]$pv, loaded[[m]]$trait_cols,
+                                              a, v, quiet = TRUE)$called
+        CALLED[[k]]
+    }
+    # An operating point is written "<adjust>_<value>"; split at the FIRST underscore only,
+    # or `custom_1e-04` loses its exponent and `at_least_2` would not round-trip.
+    split_point <- function(s) {
+        i <- regexpr("_", s, fixed = TRUE)
+        if (i < 1L) stop("Bad operating point (expected <adjust>_<value>): ", s)
+        c(substr(s, 1L, i - 1L), substr(s, i + 1L, nchar(s)))
+    }
+    parse_assignment <- function(a, ss) {
+        out <- list()
+        for (t in strsplit(a, ";", fixed = TRUE)[[1]]) {
+            kv <- strsplit(t, ":", fixed = TRUE)[[1]]
+            if (length(kv) != 2L) stop("Bad assignment token: ", t)
+            pt <- split_point(kv[2])
+            if (kv[1] == "*") for (m in ss) out[[m]] <- pt else out[[kv[1]]] <- pt
+        }
+        if (length(setdiff(ss, names(out))))
+            stop("Assignment does not cover ", paste(setdiff(ss, names(out)), collapse = ","))
+        out[ss]
+    }
+    rule_k <- function(rule, n) {
+        if (rule %in% c("solo", "union")) 1L
+        else if (rule == "intersection") as.integer(n)
+        else if (grepl("^at_least_[0-9]+$", rule)) as.integer(sub("at_least_", "", rule))
+        else stop("Unknown rule: ", rule)
+    }
+    eval_scheme <- function(ss, pts, rule, cw) {
+        # Union of what ANY member could have found -- using one method's testable set would
+        # misreport the subset's recall, same convention as the main enumeration above.
+        testable_ss <- unique(unlist(lapply(ss, function(m) loaded[[m]]$testable)))
+        parts <- lapply(ss, function(m) called_of(m, pts[[m]][1], pts[[m]][2]))
+        names(parts) <- ss
+        sel <- if (length(ss) == 1L) parts[[1]] else {
+            combine_support(parts, cw * 1000)[n_methods >= rule_k(rule, length(ss)), snp]
+        }
+        list(s = score_calls(sel, WINDOW, truth, testable_ss), n_testable = length(testable_ss))
+    }
+    # This replicate's own candidate points, enumerated exactly as the main search does:
+    # full cross-product for <= 3 methods, the three COHERENT role assignments beyond that.
+    recal_grid <- function(ss) {
+        cands <- lapply(ss, function(m) CAND[method == m]); names(cands) <- ss
+        if (length(ss) <= 3L) {
+            g <- do.call(expand.grid, c(lapply(cands, function(d) seq_len(nrow(d))),
+                                        list(KEEP.OUT.ATTRS = FALSE)))
+            lapply(seq_len(nrow(g)), function(i) {
+                p <- lapply(ss, function(m) {
+                    r <- cands[[m]][as.integer(g[[m]][i])]; c(r$adjust, r$value) })
+                names(p) <- ss; p })
+        } else {
+            roles <- unique(unlist(lapply(cands, `[[`, "role")))
+            lapply(roles, function(rl) {
+                p <- lapply(ss, function(m) {
+                    d <- cands[[m]]
+                    j <- which(d$role == rl)
+                    # Falling back to "default" is NOT safe: pick_candidates() dedups by
+                    # (adjust, value), so a method whose high-precision point happens to BE
+                    # bonf_0.05 loses its `default` row to the dedup and keeps only
+                    # `hp_recall`. The old fallback then indexed with integer(0) -> NA, and
+                    # an NA operating point reaches compute_pval_threshold(), which halts the
+                    # whole script -- taking that cell's entire transfer table with it. Seen
+                    # on MVP1231858 c1/c5, where MLM/CMLM/ECMLM/MLMM all lack a default row.
+                    if (!length(j)) j <- which(d$role == "default")
+                    if (!length(j)) j <- 1L
+                    c(d$adjust[j[1]], d$value[j[1]]) })
+                names(p) <- ss; p })
+        }
+    }
+    lbl_of <- function(ss, pts) paste(vapply(ss, function(m)
+        sprintf("%s:%s_%s", m, pts[[m]][1], pts[[m]][2]), character(1)), collapse = ";")
+
+    trows <- list()
+    tadd <- function(row, ss, rule, cw, mode, pts, r) {
+        trows[[length(trows) + 1L]] <<- data.table(
+            tag = TAG, scheme_id = row$scheme_id,
+            label = if ("label" %in% names(row)) row$label else NA_character_,
+            subset = paste(ss, collapse = "+"), n_methods = length(ss),
+            rule = rule, combine_window_kb = cw, mode = mode,
+            assignment = lbl_of(ss, pts),
+            n_called = r$s$n_called, tp = r$s$tp, fp_background = r$s$fp_background,
+            precision = r$s$precision_strict, precision_all = r$s$precision_all,
+            recall_testable = r$s$recall_testable, f1 = r$s$f1,
+            calls_per_tp = r$s$calls_per_tp, n_testable = r$n_testable)
+    }
+
+    for (i in seq_len(nrow(sch))) {
+        row <- sch[i]
+        ss  <- if (row$subset == "ALL") names(loaded)
+               else strsplit(row$subset, "+", fixed = TRUE)[[1]]
+        miss <- setdiff(ss, names(loaded))
+        if (length(miss)) {
+            message("SKIP ", row$scheme_id, ": method(s) not available here: ",
+                    paste(miss, collapse = ","))
+            next
+        }
+        cw <- as.numeric(row$combine_window_kb)
+
+        pts <- tryCatch(parse_assignment(row$assignment, ss), error = function(e) e)
+        if (inherits(pts, "error")) {
+            message("SKIP ", row$scheme_id, ": ", conditionMessage(pts)); next
+        }
+        tadd(row, ss, row$rule, cw, "verbatim", pts, eval_scheme(ss, pts, row$rule, cw))
+
+        # recalibrated: same structure, this replicate's own points, best F1 (ties -> fewer calls)
+        best <- NULL; best_pts <- NULL
+        for (p in recal_grid(ss)) {
+            r <- eval_scheme(ss, p, row$rule, cw)
+            if (is.na(r$s$f1)) next
+            if (is.null(best) || r$s$f1 > best$s$f1 ||
+                (r$s$f1 == best$s$f1 && r$s$n_called < best$s$n_called)) {
+                best <- r; best_pts <- p
+            }
+        }
+        if (!is.null(best)) tadd(row, ss, row$rule, cw, "recal", best_pts, best)
+    }
+
+    if (length(trows)) {
+        tout <- rbindlist(trows, fill = TRUE)
+        tf <- file.path(OUTDIR, paste0(TAG, "_transfer.tsv"))
+        fwrite(tout, tf, sep = "\t")
+        message("INFO: wrote ", tf, " (", nrow(tout), " transferred scheme evaluations)")
+        message("\n=== transferred schemes ===")
+        print(tout[, .(scheme_id, mode, n_called, tp, precision = round(precision, 3),
+                       recall = round(recall_testable, 3), f1 = round(f1, 3))])
+    } else message("WARNING: --schemes given but no scheme was evaluable here")
+}
