@@ -130,7 +130,7 @@ config_schema <- function() {
           help = "For datasets without coordinates. Check to run GWAS analysis only — skips WorldClim download, GEA, and maladaptation."),
         s("Climate.predictors",    "Climate predictors", "gea", "Climate",
           "bio_chips", TRUE,
-          help = "Click to toggle variables for GEA. Review piemaps in Structure first to drop collinear or low-variance predictors."),
+          help = "Click to toggle variables for GEA. Review piemaps in Structure first to drop collinear or low-variance predictors. Same list as the Climate tab's copy of this field — editing either updates both."),
         # Optional — map
         s("Map.climate_extent", "Map extent",        "structure", "Map",
           "text",    TRUE,
@@ -207,8 +207,18 @@ config_schema <- function() {
         # correlation/density/invariant-predictor display now lives in
         # mod_climate.R (producers unchanged, in structure.smk); this tab's
         # config covers the variance-partitioning sub-block that used to live
-        # under PreGEA.Varpart. Climate.predictors itself stays on the GEA tab
-        # (single source of truth for which predictors GEA runs on).
+        # under PreGEA.Varpart, plus (2026-08-03) its own copy of the
+        # Climate.predictors chip picker — SAME config key as the GEA tab's
+        # entry below, both write into the one shared config_state$working
+        # path, so editing on either tab is instantly reflected on the other
+        # (Filter(e$tab==tab_name, config_schema()) just scopes which tabs a
+        # given key renders on; project/invariant-drop plumbing in
+        # render_bio_chips is already tab-agnostic). Added because varpart
+        # itself consumes Climate.predictors directly (X_clim) and this tab
+        # has no other way to fix an invariant predictor (e.g. bio_14)
+        # silently NaN-cascading climate_varpart to an empty
+        # variance_partition.tsv — see
+        # knowledge/ADAPTOGENE/55-rda-scale-gate-and-invariant-predictor-cascade.
         #
         # Model fitted: Y ~ X_clim + X_struct + X_geo. Y (response, this
         # section) is genomic PCs by default — a documented scalability
@@ -216,13 +226,16 @@ config_schema <- function() {
         # vegan::rda on millions of columns is impractical); 'snps' recovers
         # literal Lasky methodology. X_clim/X_struct/X_geo (explanatory
         # tables, next section) are NOT response-matrix choices: X_clim is
-        # Climate.predictors (GEA tab), X_struct is this section's
+        # Climate.predictors (chip picker below), X_struct is this section's
         # structure_table, X_geo is always the site-level dbMEM eigenvectors
         # (no config — see scripts/pregea_dbmem.R). The climate/geography
         # confounding diagnostic is always computed, not switchable. dbMEM
         # itself has no user-facing knobs: always one point per site
         # (coordinate centroid, down to n=1 sample), skip-with-warning below
         # 3 sites rather than a min-sites config.
+        s("Climate.predictors", "Climate predictors", "climate", "Climate predictors",
+          "bio_chips", TRUE, group = "Predictors",
+          help = "Same list as the GEA tab's Climate predictors — editing here updates there too. Invariant predictors (flagged by check_climate_variance, e.g. zero-variance across sites) are auto-blocked: including one would z-score to an all-NaN column and silently empty out the variance-partition table below."),
         s("Climate.Varpart.response", "Response matrix (Y)", "climate", "Response matrix (Y)",
           "select", TRUE, group = "Variance partitioning",
           choices = c("pcs", "snps"),
