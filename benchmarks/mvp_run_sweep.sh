@@ -164,17 +164,26 @@ run_seed() {
 
         mkdir -p "$dest/manhattan"
         for m in "${METHODS[@]}"; do
+            # [changed 2026-08-04] The exclusion test used to live INSIDE the `! -s "$src"`
+            # branch, i.e. it was only consulted when the table was missing. But a method
+            # declared in mvp_method_exclusions.tsv is dropped from GEA.configs, so mode=gea
+            # never regenerates it -- while the table from an EARLIER run is still sitting in
+            # {PROJECT}_results/GEA/tables/methods/. The old order therefore found that stale
+            # file, copied it into every cell of the ladder, and the byte-identical harvest
+            # gate below then (correctly) aborted the seed: c2's table was c1's table.
+            # Checking the exclusion FIRST means an excluded method is never harvested at all.
+            # Seen on MVP1232568 / MVP1231578 (SUPER) after those seeds were re-run with the
+            # method excluded.
+            if awk -F'\t' -v s="$seed" -v m="$m" 'NR>1 && $1==s && $2==m {found=1}
+                                                  END {exit !found}' "$EXCLUSIONS" 2>/dev/null; then
+                echo "[$proj] c$i $m EXCLUDED (declared in mvp_method_exclusions.tsv)" | tee -a "$log"
+                continue
+            fi
             src="$res/GEA/tables/methods/$m/${m}_pvalues_K${k}.tsv"
             if [[ ! -s "$src" ]]; then
-                # A missing table is FATAL unless this (seed, method) is a declared exclusion
-                # in benchmarks/mvp_method_exclusions.tsv. Without that distinction a genuine
-                # silent failure would look identical to a known gap, which is exactly the
-                # class of bug this whole harness exists to rule out.
-                if awk -F'\t' -v s="$seed" -v m="$m" 'NR>1 && $1==s && $2==m {found=1}
-                                                      END {exit !found}' "$EXCLUSIONS" 2>/dev/null; then
-                    echo "[$proj] c$i $m EXCLUDED (declared in mvp_method_exclusions.tsv)" | tee -a "$log"
-                    continue
-                fi
+                # A missing table for a NON-excluded method is FATAL: a genuine silent failure
+                # must not look like a known gap, which is the class of bug this harness exists
+                # to rule out.
                 echo "[$proj] FATAL: c$i missing/empty $src" | tee -a "$log"; return 1
             fi
             cp "$src" "$dest/${m}_pvalues.tsv"
@@ -228,8 +237,13 @@ for seed in "${SEEDS[@]}"; do
 done
 wait
 for seed in "${SEEDS[@]}"; do
-    grep -q "^\[MVP${seed}\] DONE" "$RUNLOG_DIR/MVP${seed}.log" 2>/dev/null \
-        || { echo "INCOMPLETE: MVP${seed} (see $RUNLOG_DIR/MVP${seed}.log)"; fail=1; }
+    # [changed 2026-08-03] was: MVP${seed}.log, with no PROJ_SUFFIX. run_seed writes to
+    # MVP{seed}{PROJ_SUFFIX}.log, so on a parallel arm this checked the BASE arm's log --
+    # which, once the base arm had run, always contained DONE. The arm could fail on every
+    # seed and this loop would still report "all seeds complete".
+    proj="MVP${seed}${PROJ_SUFFIX}"
+    grep -q "^\[${proj}\] DONE" "$RUNLOG_DIR/${proj}.log" 2>/dev/null \
+        || { echo "INCOMPLETE: ${proj} (see $RUNLOG_DIR/${proj}.log)"; fail=1; }
 done
 echo "INFO: sweep finished, $( [[ $fail -eq 0 ]] && echo 'all seeds complete' || echo 'SOME SEEDS INCOMPLETE' )"
 exit $fail
