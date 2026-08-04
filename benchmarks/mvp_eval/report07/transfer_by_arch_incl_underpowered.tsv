@@ -1,0 +1,85 @@
+arch	arm	mode	scheme_id	label	n_seeds	n_beat_default	med_gain_default	med_f1	any_underpowered
+highly-polygenic	base	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1553	0.1633	FALSE
+highly-polygenic	base	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1553	0.1633	FALSE
+highly-polygenic	base	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.1526	0.1526	FALSE
+highly-polygenic	base	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1491	0.1591	FALSE
+highly-polygenic	base	recal	S5	LFMM+RDA, union, 0kb	4	4	0.1438	0.146	FALSE
+highly-polygenic	base	recal	S6	all 11, at_least_3, 5kb	4	4	0.1377	0.1428	FALSE
+highly-polygenic	base	recal	B2	all 11, union, 0kb, bonf 0.05	4	4	0.129	0.129	FALSE
+highly-polygenic	base	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	4	0.1198	0.1201	FALSE
+highly-polygenic	base	verbatim	S6	all 11, at_least_3, 5kb	4	4	0.1085	0.116	FALSE
+highly-polygenic	base	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.0712	0.0782	FALSE
+highly-polygenic	base	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.0623	0.0681	FALSE
+highly-polygenic	base	verbatim	S5	LFMM+RDA, union, 0kb	4	4	0.0522	0.0597	FALSE
+highly-polygenic	base	verbatim	S2	LFMM+EMMAX, union, 0kb	4	4	0.0359	0.0436	FALSE
+highly-polygenic	base	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.0297	0.0397	FALSE
+highly-polygenic	m05	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1823	0.1925	FALSE
+highly-polygenic	m05	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1823	0.1925	FALSE
+highly-polygenic	m05	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1694	0.1814	FALSE
+highly-polygenic	m05	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.1607	0.1697	FALSE
+highly-polygenic	m05	recal	S5	LFMM+RDA, union, 0kb	4	4	0.1607	0.1771	FALSE
+highly-polygenic	m05	recal	S6	all 11, at_least_3, 5kb	4	4	0.128	0.1382	FALSE
+highly-polygenic	m05	recal	B2	all 11, union, 0kb, bonf 0.05	4	4	0.1022	0.1177	FALSE
+highly-polygenic	m05	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1304	0.1406	FALSE
+highly-polygenic	m05	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1168	0.1324	FALSE
+highly-polygenic	m05	verbatim	S6	all 11, at_least_3, 5kb	4	4	0.1035	0.1066	FALSE
+highly-polygenic	m05	verbatim	S5	LFMM+RDA, union, 0kb	4	4	0.1005	0.1198	FALSE
+highly-polygenic	m05	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	4	0.0827	0.088	FALSE
+highly-polygenic	m05	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.0716	0.0858	FALSE
+highly-polygenic	m05	verbatim	S2	LFMM+EMMAX, union, 0kb	4	4	0.0545	0.0705	FALSE
+mod-polygenic	base	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.1947	0.328	FALSE
+mod-polygenic	base	recal	S5	LFMM+RDA, union, 0kb	4	4	0.1938	0.3304	FALSE
+mod-polygenic	base	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1585	0.3157	FALSE
+mod-polygenic	base	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1585	0.3157	FALSE
+mod-polygenic	base	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1285	0.2618	FALSE
+mod-polygenic	base	recal	S6	all 11, at_least_3, 5kb	4	3	0.0208	0.1898	FALSE
+mod-polygenic	base	recal	B2	all 11, union, 0kb, bonf 0.05	4	1	-0.0091	0.1768	FALSE
+mod-polygenic	base	verbatim	S2	LFMM+EMMAX, union, 0kb	4	4	0.1496	0.3048	FALSE
+mod-polygenic	base	verbatim	S5	LFMM+RDA, union, 0kb	4	4	0.1456	0.2889	FALSE
+mod-polygenic	base	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.0944	0.2375	FALSE
+mod-polygenic	base	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.0841	0.2453	FALSE
+mod-polygenic	base	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.0638	0.2766	FALSE
+mod-polygenic	base	verbatim	S6	all 11, at_least_3, 5kb	4	0	-0.0733	0.0772	FALSE
+mod-polygenic	base	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.0905	0.0633	FALSE
+mod-polygenic	m05	recal	S5	LFMM+RDA, union, 0kb	4	4	0.2722	0.4627	FALSE
+mod-polygenic	m05	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.2585	0.469	FALSE
+mod-polygenic	m05	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.2452	0.4628	FALSE
+mod-polygenic	m05	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.2452	0.4628	FALSE
+mod-polygenic	m05	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1722	0.3884	FALSE
+mod-polygenic	m05	recal	S6	all 11, at_least_3, 5kb	4	4	0.0652	0.2875	FALSE
+mod-polygenic	m05	recal	B2	all 11, union, 0kb, bonf 0.05	4	3	0.0401	0.2681	FALSE
+mod-polygenic	m05	verbatim	S2	LFMM+EMMAX, union, 0kb	4	4	0.2237	0.3961	FALSE
+mod-polygenic	m05	verbatim	S5	LFMM+RDA, union, 0kb	4	4	0.1799	0.4056	FALSE
+mod-polygenic	m05	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1711	0.3843	FALSE
+mod-polygenic	m05	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	3	0.0809	0.3249	FALSE
+mod-polygenic	m05	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.0656	0.3686	FALSE
+mod-polygenic	m05	verbatim	S6	all 11, at_least_3, 5kb	4	0	-0.0737	0.1018	FALSE
+mod-polygenic	m05	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.0949	0.0638	FALSE
+oliogenic	base	recal	S2	LFMM+EMMAX, union, 0kb	4	3	0.1286	0.8667	TRUE
+oliogenic	base	recal	S5	LFMM+RDA, union, 0kb	4	3	0.0822	0.8286	TRUE
+oliogenic	base	recal	S6	all 11, at_least_3, 5kb	4	2	0.0382	0.7778	TRUE
+oliogenic	base	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	0	0	0.7846	TRUE
+oliogenic	base	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	3	1	0	0.8	TRUE
+oliogenic	base	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	0	0	0.7846	TRUE
+oliogenic	base	recal	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.3124	0.4327	TRUE
+oliogenic	base	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	2	0.0271	0.7451	TRUE
+oliogenic	base	verbatim	S2	LFMM+EMMAX, union, 0kb	4	2	-0.0931	0.6618	TRUE
+oliogenic	base	verbatim	S5	LFMM+RDA, union, 0kb	4	0	-0.3444	0.4188	TRUE
+oliogenic	base	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	0	-0.3573	0.4274	TRUE
+oliogenic	base	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	3	0	-0.5128	0.25	TRUE
+oliogenic	base	verbatim	S6	all 11, at_least_3, 5kb	4	0	-0.7288	0.0219	TRUE
+oliogenic	base	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.7494	0.0085	TRUE
+oliogenic	m05	recal	S2	LFMM+EMMAX, union, 0kb	4	3	0.0705	0.8737	TRUE
+oliogenic	m05	recal	S5	LFMM+RDA, union, 0kb	4	3	0.0705	0.8737	TRUE
+oliogenic	m05	recal	S6	all 11, at_least_3, 5kb	4	2	0.0286	0.85	TRUE
+oliogenic	m05	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	1	0	0.8545	TRUE
+oliogenic	m05	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	3	1	0	0.8	TRUE
+oliogenic	m05	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	1	0	0.8545	TRUE
+oliogenic	m05	recal	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.4238	0.4275	TRUE
+oliogenic	m05	verbatim	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	2	0.0286	0.8286	TRUE
+oliogenic	m05	verbatim	S2	LFMM+EMMAX, union, 0kb	4	2	-0.0305	0.7833	TRUE
+oliogenic	m05	verbatim	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	0	-0.2917	0.4747	TRUE
+oliogenic	m05	verbatim	S5	LFMM+RDA, union, 0kb	4	0	-0.379	0.4327	TRUE
+oliogenic	m05	verbatim	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	3	0	-0.4667	0.3333	TRUE
+oliogenic	m05	verbatim	S6	all 11, at_least_3, 5kb	4	0	-0.7461	0.0244	TRUE
+oliogenic	m05	verbatim	B2	all 11, union, 0kb, bonf 0.05	4	0	-0.7861	0.0099	TRUE

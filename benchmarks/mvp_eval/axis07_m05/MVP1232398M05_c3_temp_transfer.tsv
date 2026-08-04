@@ -1,0 +1,11 @@
+tag	scheme_id	label	subset	n_methods	rule	combine_window_kb	mode	assignment	n_called	tp	fp_background	precision	precision_all	recall_testable	f1	calls_per_tp	n_testable
+MVP1232398M05_c3_temp	A1	LFMM+EMMAX, union, 0kb	LFMM+EMMAX	2	union	0	verbatim	LFMM:custom_0.001;EMMAX:bonf_0.5	30	2	1	0.666666666666667	0.0666666666666667	1	0.8	15	2
+MVP1232398M05_c3_temp	A1	LFMM+EMMAX, union, 0kb	LFMM+EMMAX	2	union	0	recal	LFMM:bonf_0.01;EMMAX:bonf_0.05	4	2	0	1	0.5	1	1	2	2
+MVP1232398M05_c3_temp	A2	LFMM+EMMAX+MLMM, at_least_2, 5kb	LFMM+EMMAX+MLMM	3	at_least_2	5	verbatim	LFMM:top_100;EMMAX:qval_0.1;MLMM:top_50	65	2	3	0.4	0.0307692307692308	1	0.571428571428572	32.5	2
+MVP1232398M05_c3_temp	A2	LFMM+EMMAX+MLMM, at_least_2, 5kb	LFMM+EMMAX+MLMM	3	at_least_2	5	recal	LFMM:bonf_0.01;EMMAX:bonf_0.1;MLMM:bonf_0.01	4	2	0	1	0.5	1	1	2	2
+MVP1232398M05_c3_temp	A3	LFMM+EMMAX+GLM, at_least_2, 5kb	LFMM+EMMAX+GLM	3	at_least_2	5	verbatim	LFMM:top_100;EMMAX:custom_1e-04;GLM:bonf_0.05	369	2	99	0.0198019801980198	0.00542005420054201	1	0.0388349514563107	184.5	2
+MVP1232398M05_c3_temp	A3	LFMM+EMMAX+GLM, at_least_2, 5kb	LFMM+EMMAX+GLM	3	at_least_2	5	recal	LFMM:bonf_0.01;EMMAX:bonf_0.1;GLM:top_10	8	2	0	1	0.25	1	1	4	2
+MVP1232398M05_c3_temp	P1	LFMM solo, qval 0.05	LFMM	1	solo	0	verbatim	LFMM:qval_0.05	10	2	0	1	0.2	1	1	5	2
+MVP1232398M05_c3_temp	P1	LFMM solo, qval 0.05	LFMM	1	solo	0	recal	LFMM:bonf_0.01	4	2	0	1	0.5	1	1	2	2
+MVP1232398M05_c3_temp	P2	all univariate, union, bonf 0.05	EMMAX+LFMM+GLM+MLM+CMLM+ECMLM+SUPER+MLMM+FarmCPU+BLINK	10	union	0	verbatim	EMMAX:bonf_0.05;LFMM:bonf_0.05;GLM:bonf_0.05;MLM:bonf_0.05;CMLM:bonf_0.05;ECMLM:bonf_0.05;SUPER:bonf_0.05;MLMM:bonf_0.05;FarmCPU:bonf_0.05;BLINK:bonf_0.05	933	2	361	0.00550964187327824	0.00214362272240086	1	0.010958904109589	466.5	2
+MVP1232398M05_c3_temp	P2	all univariate, union, bonf 0.05	EMMAX+LFMM+GLM+MLM+CMLM+ECMLM+SUPER+MLMM+FarmCPU+BLINK	10	union	0	recal	EMMAX:bonf_0.1;LFMM:bonf_0.01;GLM:top_10;MLM:custom_1e-05;CMLM:qval_0.05;ECMLM:custom_1e-05;SUPER:top_10;MLMM:bonf_0.01;FarmCPU:top_50;BLINK:top_10	61	2	20	0.0909090909090909	0.0327868852459016	1	0.166666666666667	30.5	2

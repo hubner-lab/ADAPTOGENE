@@ -1,0 +1,29 @@
+scheme_id	label	mode	arm	n_seeds	n_seeds_with_baseline	n_beat_best	n_beat_deflt	med_gain_best	med_gain_default	med_f1	med_called	med_precision
+S2	LFMM+EMMAX, union, 0kb	recal	base	8	8	0	8	0	0.1603	0.2317	974.5	0.338
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	recal	base	8	8	3	8	-0.0021	0.1553	0.233	373.5	0.606
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	recal	base	8	8	3	8	-0.0021	0.1553	0.233	373.5	0.606
+S5	LFMM+RDA, union, 0kb	recal	base	8	8	1	8	0	0.1513	0.2294	583	0.243
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	recal	base	8	8	1	8	-0.027	0.1491	0.1932	307.5	0.728
+B2	all 11, union, 0kb, bonf 0.05	recal	base	8	8	0	5	-0.0846	0.0709	0.1438	983.5	0.097
+S6	all 11, at_least_3, 5kb	recal	base	8	8	1	7	-0.0515	0.0573	0.1788	1565.5	0.134
+S2	LFMM+EMMAX, union, 0kb	verbatim	base	8	8	0	8	-0.0726	0.0919	0.1668	52.5	0.675
+S5	LFMM+RDA, union, 0kb	verbatim	base	8	8	0	8	-0.0792	0.081	0.1483	97.5	0.461
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	verbatim	base	8	8	0	8	-0.0871	0.0712	0.1439	162	0.252
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	verbatim	base	8	8	0	8	-0.0831	0.0638	0.1385	163.5	0.259
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	verbatim	base	8	8	0	8	-0.112	0.056	0.1266	79	0.483
+S6	all 11, at_least_3, 5kb	verbatim	base	8	8	0	4	-0.1325	0.0232	0.096	1153.5	0.067
+B2	all 11, union, 0kb, bonf 0.05	verbatim	base	8	8	0	4	-0.1276	0.0223	0.0974	2445.5	0.057
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	recal	m05	8	8	4	8	0.0052	0.216	0.2959	277	0.511
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	recal	m05	8	8	4	8	0.0052	0.216	0.2959	277	0.511
+S5	LFMM+RDA, union, 0kb	recal	m05	8	8	1	8	0	0.2105	0.2809	288	0.41
+S2	LFMM+EMMAX, union, 0kb	recal	m05	8	8	3	8	0	0.2081	0.2982	287.5	0.457
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	recal	m05	8	8	2	8	-0.0306	0.1694	0.2295	374.5	0.551
+S6	all 11, at_least_3, 5kb	recal	m05	8	8	0	8	-0.0714	0.0863	0.2013	533	0.181
+B2	all 11, union, 0kb, bonf 0.05	recal	m05	8	8	0	7	-0.122	0.083	0.1662	1241.5	0.104
+S2	LFMM+EMMAX, union, 0kb	verbatim	m05	8	8	0	8	-0.0707	0.1571	0.2357	41.5	0.735
+S5	LFMM+RDA, union, 0kb	verbatim	m05	8	8	0	8	-0.0473	0.145	0.2126	98	0.439
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	verbatim	m05	8	8	0	8	-0.0716	0.1341	0.2038	81.5	0.52
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	verbatim	m05	8	8	0	8	-0.0522	0.0916	0.1916	167.5	0.312
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	verbatim	m05	8	8	1	7	-0.0568	0.0883	0.2204	163	0.25
+S6	all 11, at_least_3, 5kb	verbatim	m05	8	8	0	4	-0.1692	0.0136	0.1066	1108	0.074
+B2	all 11, union, 0kb, bonf 0.05	verbatim	m05	8	8	0	4	-0.1948	0.0031	0.084	2028	0.046

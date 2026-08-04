@@ -1,0 +1,11 @@
+tag	scheme_id	label	subset	n_methods	rule	combine_window_kb	mode	assignment	n_called	tp	fp_background	precision	precision_all	recall_testable	f1	calls_per_tp	n_testable
+MVP1231288_c3_temp	A1	LFMM+EMMAX, union, 0kb	LFMM+EMMAX	2	union	0	verbatim	LFMM:custom_0.001;EMMAX:bonf_0.5	11	1	3	0.25	0.0909090909090909	0.5	0.333333333333333	11	2
+MVP1231288_c3_temp	A1	LFMM+EMMAX, union, 0kb	LFMM+EMMAX	2	union	0	recal	LFMM:qval_0.05;EMMAX:bonf_0.01	1	1	0	1	1	0.5	0.666666666666667	1	2
+MVP1231288_c3_temp	A2	LFMM+EMMAX+MLMM, at_least_2, 5kb	LFMM+EMMAX+MLMM	3	at_least_2	5	verbatim	LFMM:top_100;EMMAX:qval_0.1;MLMM:top_50	46	1	11	0.0833333333333333	0.0217391304347826	0.5	0.142857142857143	46	2
+MVP1231288_c3_temp	A2	LFMM+EMMAX+MLMM, at_least_2, 5kb	LFMM+EMMAX+MLMM	3	at_least_2	5	recal	LFMM:qval_0.05;EMMAX:bonf_0.01;MLMM:bonf_0.01	1	1	0	1	1	0.5	0.666666666666667	1	2
+MVP1231288_c3_temp	A3	LFMM+EMMAX+GLM, at_least_2, 5kb	LFMM+EMMAX+GLM	3	at_least_2	5	verbatim	LFMM:top_100;EMMAX:custom_1e-04;GLM:bonf_0.05	648	2	221	0.00896860986547085	0.00308641975308642	1	0.0177777777777778	324	2
+MVP1231288_c3_temp	A3	LFMM+EMMAX+GLM, at_least_2, 5kb	LFMM+EMMAX+GLM	3	at_least_2	5	recal	LFMM:qval_0.05;EMMAX:bonf_0.01;GLM:top_10	5	1	0	1	0.2	0.5	0.666666666666667	5	2
+MVP1231288_c3_temp	P1	LFMM solo, qval 0.05	LFMM	1	solo	0	verbatim	LFMM:qval_0.05	1	1	0	1	1	0.5	0.666666666666667	1	2
+MVP1231288_c3_temp	P1	LFMM solo, qval 0.05	LFMM	1	solo	0	recal	LFMM:qval_0.05	1	1	0	1	1	0.5	0.666666666666667	1	2
+MVP1231288_c3_temp	P2	all univariate, union, bonf 0.05	EMMAX+LFMM+GLM+MLM+CMLM+ECMLM+SUPER+MLMM+FarmCPU+BLINK	10	union	0	verbatim	EMMAX:bonf_0.05;LFMM:bonf_0.05;GLM:bonf_0.05;MLM:bonf_0.05;CMLM:bonf_0.05;ECMLM:bonf_0.05;SUPER:bonf_0.05;MLMM:bonf_0.05;FarmCPU:bonf_0.05;BLINK:bonf_0.05	1571	2	670	0.00297619047619048	0.00127307447485678	1	0.00593471810089021	785.5	2
+MVP1231288_c3_temp	P2	all univariate, union, bonf 0.05	EMMAX+LFMM+GLM+MLM+CMLM+ECMLM+SUPER+MLMM+FarmCPU+BLINK	10	union	0	recal	EMMAX:bonf_0.01;LFMM:qval_0.05;GLM:top_10;MLM:bonf_0.01;CMLM:bonf_0.01;ECMLM:bonf_0.01;SUPER:top_10;MLMM:bonf_0.01;FarmCPU:top_10;BLINK:top_10	24	1	7	0.125	0.0416666666666667	0.5	0.2	24	2
