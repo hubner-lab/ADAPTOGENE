@@ -184,42 +184,6 @@
 // exists to avoid). Cheap, defensive: matches .control-bar's intent.
 .threshold-bar { overflow: visible; }
 
-// ── Per-method significance-rule table (collapsed <details> under the
-//    master threshold bar) ────────────────────────────────────────────────
-.pm-rules {
-    font-size: 0.78rem;
-
-    summary {
-        cursor: pointer;
-        user-select: none;
-        color: var(--bs-secondary-color);
-
-        &:hover { color: $primary; }
-    }
-}
-
-.pm-rules-table {
-    font-size: 0.75rem;
-
-    th, td { padding: 0.15rem 0.35rem; vertical-align: middle; }
-
-    select, input[type="text"] {
-        height: 24px;
-        font-size: 0.72rem;
-        padding: 0.05rem 0.25rem;
-    }
-
-    input[type="text"].is-invalid {
-        border-color: var(--bs-danger);
-        background: rgba(192, 57, 43, 0.06);
-    }
-
-    .pm-revert {
-        text-decoration: none;
-        font-size: 0.85rem;
-    }
-}
-
 // ── Manhattan interactive filter bar ─────────────────────────────────────────
 // Compact bar with trait x method matrix + strategy radios.
 .manhattan-filter-bar {
@@ -275,13 +239,25 @@
         vertical-align: middle;
     }
 
+    // Gear icon inside row/column headers — opens the bulk threshold popup
+    // for that whole trait/method. Hidden until the header is hovered so it
+    // doesn't compete visually with the trait/method label.
+    .tm-gear {
+        opacity: 0;
+        margin-left: 0.3rem;
+        cursor: pointer;
+        color: var(--bs-secondary-color);
+        transition: opacity 0.1s, color 0.1s;
+        &:hover { color: $primary; }
+    }
+
     .tm-col-header {
         cursor: pointer;
         font-weight: 600;
         font-size: 0.7rem;
         color: var(--bs-body-color);
         padding-bottom: 0.3rem;
-        &:hover { color: $primary; }
+        &:hover { color: $primary; .tm-gear { opacity: 1; } }
     }
 
     .tm-row-header {
@@ -290,7 +266,7 @@
         font-weight: 500;
         padding-right: 0.5rem;
         color: var(--bs-body-color);
-        &:hover { color: $primary; }
+        &:hover { color: $primary; .tm-gear { opacity: 1; } }
     }
 
     .tm-cell {
@@ -329,6 +305,20 @@
             padding-top: 0.15rem;
             width: 100%;
             text-align: center;
+            cursor: pointer;   // clicking the threshold text opens the rule popup
+            &:hover { text-decoration: underline; }
+        }
+
+        // A cell whose resolved rule came from a user override or the
+        // method's registry default (RDA) gets a visual marker — without it
+        // "Reset overrides" is a blind action and a pinned RDA cell looks
+        // identical to a master-following one.
+        .tm-thr-override {
+            font-weight: 700;
+            color: var(--bs-warning-text-emphasis, #856404);
+        }
+        .tm-thr-registry {
+            font-style: italic;
         }
 
         &.tm-active {
@@ -340,6 +330,7 @@
                 color: darken($primary, 5%);
                 border-top-color: rgba(27, 122, 110, 0.45);
             }
+            .tm-thr-override { color: var(--bs-warning-text-emphasis, #856404); }
         }
 
         &.tm-empty {
@@ -349,7 +340,11 @@
             border-color: rgba(0, 0, 0, 0.10);
 
             .tm-count { opacity: 0.35; }
-            .tm-thr   { color: var(--bs-body-color); opacity: 0.65; }
+            .tm-thr   {
+                color: var(--bs-body-color);
+                opacity: 0.65;
+                pointer-events: auto;   // a zero-count cell must stay threshold-editable
+            }
         }
     }
 }
@@ -386,6 +381,8 @@
             }
             .tm-count { opacity: 0.30; }
         }
+        .tm-thr-override { color: #ffd873; }
+        .tm-cell.tm-active .tm-thr-override { color: #ffd873; }
         .tm-row-header, .tm-col-header { color: var(--bs-body-color); }
     }
 }

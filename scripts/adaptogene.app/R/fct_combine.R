@@ -242,24 +242,20 @@ threshold_value_valid_for_type <- function(type, value) {
 #' Build the always-present threshold bar (regime switch + threshold type/value + hint).
 #'
 #' Separate from the trait matrix so it is never gated on traits being present.
+#' Per-method/per-cell rules no longer live here -- they're set directly in the
+#' trait x method matrix (build_filter_bar_ui()'s cell/row/column popups) via
+#' R/fct_threshold_rules.R. This bar only owns the MASTER rule.
 #'
 #' @param ns           Shiny namespace function
 #' @param input_prefix Character prefix for input IDs (e.g. "" or "gea_")
 #' @param regime_value Logical: current WZA regime state
 #' @param threshold_type_value  Character: "bonf"/"qval"/"top"/"custom"
 #' @param threshold_value_value Numeric: current threshold value
-#' @param methods           Character vector of ALL configured method names —
-#'   drives the per-method rules table below the master bar. Empty (default)
-#'   omits the table entirely — callers that don't pass it get today's bar
-#'   unchanged (mod_gea_x_gwas.R's two calls compile as-is).
-#' @param overrides         Named list: METHOD -> list(type=,value=), the
-#'   subset of methods that deviate from the master (type, value) above.
-#' @param combo_thresholds  Named list "trait::method" -> resolved cutoff p —
-#'   used only to show a representative resolved cutoff per method row.
-#' @param config_rules      Named list: METHOD -> resolve_adjust() string
-#'   ("bonf_0.05") — the rule the PIPELINE files on disk were built with.
-#' @param registry_families Named list: METHOD -> significance_family, drives
-#'   the multivariate marker on methods (e.g. RDA) with one joint test/SNP.
+#' @param show_apply_to_config Logical: render the "Apply rules to config"
+#'   button, which collapses the current master/registry/override rules into
+#'   config_state$working's GEA.configs/GWAS.configs (one adjust/threshold
+#'   per method -- the pipeline has no per-trait granularity). Omitted by
+#'   GEAxGWAS's two bars, which don't drive a pipeline run.
 #' @return tagList
 #' @noRd
 build_threshold_bar_ui <- function(ns, input_prefix = "",
@@ -267,14 +263,9 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
                                    threshold_type_value  = "bonf",
                                    threshold_value_value = 0.05,
                                    regime_context        = "gea",
-                                   methods               = character(0),
-                                   overrides             = list(),
-                                   combo_thresholds      = list(),
-                                   config_rules          = list(),
-                                   registry_families     = list()) {
+                                   show_apply_to_config  = FALSE) {
     pid <- function(name) ns(paste0(input_prefix, name))
 
-    htmltools::tagList(
     htmltools::div(
         class = "threshold-bar mb-2",
         # Regime switch row
@@ -311,7 +302,7 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
             ),
             htmltools::div(
                 class = "d-flex flex-column",
-                htmltools::span(" ", class = "filter-label mb-1"),
+                htmltools::span(" ", class = "filter-label mb-1"),
                 shiny::numericInput(
                     pid("threshold_value"),
                     label = NULL,
@@ -320,220 +311,39 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
                     width = "110px"
                 )
             ),
-            shiny::uiOutput(pid("threshold_hint"))
-        )
-    ),
-    build_per_method_rules_ui(ns, input_prefix, methods, overrides,
-                              combo_thresholds, config_rules, registry_families)
-    )
-}
-
-#' Per-method significance-rule table — collapsed `<details>` under the
-#' master threshold bar. A method absent from `overrides` follows the master
-#' (type, value); a method present in `overrides` deviates.
-#'
-#' Raw HTML controls (not shiny::selectInput/numericInput) + one hidden JSON
-#' bridge textInput + one delegated JS listener, keyed off explicit DOM ids
-#' (not document.currentScript — Shiny's renderUI insertion timing makes that
-#' unreliable) — same idiom as mod_config_sidebar.R's render_method_editor():
-#' N Shiny inputs inside a renderUI would need N observeEvents for
-#' region_params.json persistence and would re-render the whole table on
-#' every keystroke.
-#' @noRd
-build_per_method_rules_ui <- function(ns, input_prefix, methods, overrides,
-                                      combo_thresholds, config_rules, registry_families) {
-    if (length(methods) == 0) return(NULL)
-    pid           <- function(name) ns(paste0(input_prefix, name))
-    json_id       <- pid("threshold_overrides_json")
-    container_id  <- pid("pm_rules")
-
-    n_overridden <- length(intersect(names(overrides), methods))
-    summary_content <- if (n_overridden > 0) {
-        htmltools::tagList(
-            "Per-method rules ",
-            htmltools::tags$span(class = "badge bg-warning text-dark",
-                                 sprintf("%d overridden", n_overridden))
-        )
-    } else {
-        htmltools::span(class = "text-muted",
-                        sprintf("Per-method rules · all %d method%s follow the master rule",
-                                length(methods), if (length(methods) == 1) "" else "s"))
-    }
-
-    resolved_cutoff_for <- function(m) {
-        keys <- Filter(function(k) endsWith(k, paste0("::", m)), names(combo_thresholds))
-        vals <- unlist(combo_thresholds[keys])
-        vals <- vals[!is.na(vals) & vals > 0]
-        if (length(vals) == 0) "—" else formatC(min(vals), format = "e", digits = 2)
-    }
-
-    adjust_opts_html <- function(selected) {
-        choices <- c("bonf", "qval", "top", "custom")
-        labels  <- c("Bonferroni", "FDR (qval)", "Top N", "Custom")
-        paste(sprintf('<option value="%s"%s>%s</option>', choices,
-                     ifelse(choices == selected, " selected", ""), labels), collapse = "")
-    }
-
-    make_row <- function(m) {
-        ov      <- overrides[[m]]
-        follows <- is.null(ov)
-        family  <- registry_families[[m]] %||% "univariate_pvalue"
-        cfg_rule <- config_rules[[m]] %||% ""
-        htmltools::tags$tr(
-            class = "pm-rule-row", `data-method` = m,
-            htmltools::tags$td(
-                m,
-                if (identical(family, "multivariate_pvalue"))
-                    htmltools::tags$sup(class = "text-muted ms-1",
-                        title = "Multivariate: one joint test per SNP, not one per trait.", "M")
-            ),
-            htmltools::tags$td(
-                htmltools::tags$input(type = "checkbox", `data-role` = "follow",
-                                      checked = if (follows) NA else NULL)
-            ),
-            htmltools::tags$td(
-                htmltools::tags$select(
-                    class = "form-select form-select-sm", `data-role` = "type",
-                    disabled = if (follows) NA else NULL,
-                    htmltools::HTML(adjust_opts_html(ov$type %||% "bonf"))
-                )
-            ),
-            htmltools::tags$td(
-                htmltools::tags$input(type = "text", inputmode = "decimal",
-                                      class = "form-control form-control-sm",
-                                      `data-role` = "value",
-                                      disabled = if (follows) NA else NULL,
-                                      value = if (is.null(ov$value)) "" else as.character(ov$value))
-            ),
-            htmltools::tags$td(class = "text-muted small", resolved_cutoff_for(m)),
-            htmltools::tags$td(
-                class = "text-muted small", title =
-                    if (nzchar(cfg_rule)) sprintf(
-                        "Pipeline files (QQ/Manhattan background) were built with %s.", cfg_rule)
-                    else "",
-                if (nzchar(cfg_rule)) cfg_rule
-            ),
-            htmltools::tags$td(
-                if (!follows) htmltools::tags$button(
-                    type = "button", class = "btn btn-link btn-sm p-0 pm-revert",
-                    title = "Revert to master rule", "↩"
+            shiny::uiOutput(pid("threshold_hint")),
+            if (show_apply_to_config) htmltools::div(
+                class = "d-flex flex-column ms-2",
+                htmltools::span(" ", class = "filter-label mb-1"),
+                shiny::actionButton(
+                    pid("apply_to_config"),
+                    label = htmltools::tagList(bsicons::bs_icon("cloud-arrow-up"),
+                                               " Apply rules to config"),
+                    class = "btn btn-outline-secondary btn-sm",
+                    title = paste(
+                        "Collapse the master/registry/override rules into one",
+                        "adjust+threshold per method and write it into the",
+                        "project config (Run or Save Project Files to persist to YAML)."
+                    )
                 )
             )
         )
-    }
-
-    htmltools::tags$details(
-        id    = container_id,
-        class = "pm-rules mt-1",
-        htmltools::tags$summary(class = "small", summary_content),
-        htmltools::div(
-            class = "d-flex justify-content-end mb-1",
-            htmltools::tags$button(
-                type = "button", class = "btn btn-link btn-sm text-muted pm-reset-all",
-                "Reset all to master"
-            )
-        ),
-        htmltools::tags$table(
-            class = "pm-rules-table table table-sm mb-0",
-            htmltools::tags$thead(htmltools::tags$tr(
-                lapply(c("Method", "⇄", "Rule", "Value", "cutoff p", "config", ""),
-                      htmltools::tags$th)
-            )),
-            htmltools::tags$tbody(lapply(methods, make_row))
-        ),
-        shiny::textInput(json_id, label = NULL,
-                         value = jsonlite::toJSON(overrides, auto_unbox = TRUE)) |>
-            shinyjs::hidden(),
-        htmltools::tags$script(htmltools::HTML(sprintf(
-'(function() {
-  var containerId = "%s";
-  var jsonInputId = "%s";
-
-  function collect(container) {
-    var out = {};
-    container.querySelectorAll(".pm-rule-row").forEach(function(row) {
-      var follow = row.querySelector("[data-role=follow]");
-      if (follow && follow.checked) return;   // omitted key = follow master
-      var m = row.dataset.method;
-      var t = row.querySelector("[data-role=type]");
-      var v = row.querySelector("[data-role=value]");
-      if (!m || !t || !v) return;
-      var raw = String(v.value).trim();
-      var ok = raw.length > 0 && !/[_\\s]/.test(raw) && isFinite(Number(raw)) && Number(raw) > 0;
-      v.classList.toggle("is-invalid", !ok);
-      if (!ok) return;
-      out[m] = {type: t.value, value: Number(raw)};
-    });
-    return out;
-  }
-
-  function push() {
-    var container = document.getElementById(containerId);
-    var el = document.getElementById(jsonInputId);
-    if (!container || !el) return;
-    var json = JSON.stringify(collect(container));
-    el.value = json;
-    Shiny.setInputValue(jsonInputId, json, {priority: "event"});
-  }
-
-  function wire() {
-    var container = document.getElementById(containerId);
-    if (!container || container.dataset.pmWired) return;
-    container.dataset.pmWired = "1";
-
-    container.addEventListener("change", function(e) {
-      var row = e.target.closest(".pm-rule-row");
-      if (!row) return;
-      if (e.target.matches("[data-role=follow]")) {
-        var disable = e.target.checked;
-        row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
-          el.disabled = disable;
-        });
-      }
-      push();
-    });
-
-    container.addEventListener("click", function(e) {
-      if (e.target.matches(".pm-revert")) {
-        var row = e.target.closest(".pm-rule-row");
-        var follow = row.querySelector("[data-role=follow]");
-        follow.checked = true;
-        row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
-          el.disabled = true;
-        });
-        push();
-      }
-    });
-
-    var resetBtn = container.querySelector(".pm-reset-all");
-    if (resetBtn) {
-      resetBtn.addEventListener("click", function() {
-        container.querySelectorAll(".pm-rule-row").forEach(function(row) {
-          var follow = row.querySelector("[data-role=follow]");
-          follow.checked = true;
-          row.querySelectorAll("[data-role=type],[data-role=value]").forEach(function(el) {
-            el.disabled = true;
-          });
-        });
-        push();
-      });
-    }
-  }
-
-  // The <details> and its <script> are inserted together by renderUI; wiring
-  // synchronously here is safe (script tags execute in DOM order on insert).
-  wire();
-})();
-',
-            container_id, json_id
-        )))
     )
 }
 
-#' Build the trait×method matrix + strategy + clumping filter bar.
+#' Build the trait x method matrix + strategy + clumping filter bar.
 #'
-#' Pure function — call inside renderUI. Handles its own namespacing via `ns`.
+#' Pure function -- call inside renderUI. Handles its own namespacing via `ns`.
 #' The threshold/regime controls live in a separate always-present build_threshold_bar_ui().
+#'
+#' Per-cell significance rules are set directly here: click a cell's threshold
+#' text to open a rule popup for that (trait, method); click the gear icon
+#' revealed on hovering a row/column header to open a bulk popup for that
+#' whole trait (all methods) or method (all traits). Row/column headers keep
+#' their existing click-to-toggle-all behaviour -- the gear is a distinct
+#' target so the two gestures never collide (see fct_threshold_rules.R for
+#' the resulting override map and its precedence: cell override > registry
+#' default (RDA) > master).
 #'
 #' @param ns                        Shiny namespace function from session$ns
 #' @param traits                    Character vector of ALL trait names (full list, not just sig ones)
@@ -546,13 +356,32 @@ build_per_method_rules_ui <- function(ns, input_prefix, methods, overrides,
 #' @param input_prefix              Character scalar: prefix for all Shiny input IDs inside this bar.
 #'   Use "" (default) for a single filter bar; use e.g. "gea_" or "gwas_" when two bars
 #'   coexist in the same module to avoid input ID collisions.
+#' @param selected_pairs   Character vector of "trait::method" pairs currently
+#'   active, or NULL to default every non-empty cell to active (first render /
+#'   no persisted selection yet). Seeds which cells render `tm-active` so a
+#'   caller-side re-render (e.g. after a threshold edit) does not silently
+#'   reset the user's on/off choices -- see mod_gea.R's tm_selection_rv.
+#' @param overrides         Named list "trait::method" -> list(type=,value=),
+#'   the cells that deviate from the registry-or-master fallback.
+#' @param registry_defaults Named list method -> list(adjust=,threshold=,family=),
+#'   from gea_method_significance_defaults() -- pins non-univariate methods
+#'   (RDA) to their registry rule unless a cell override exists.
+#' @param master_type / master_value  The threshold bar's current master rule,
+#'   needed here only to resolve each cell's rule SOURCE for the visual marker
+#'   (override / registry / master) -- the resolved cutoff itself already
+#'   arrives via combo_thresholds.
 #' @return tagList (or a muted placeholder div when no data available)
 #' @noRd
 build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                                 combo_counts, combo_thresholds = list(),
                                 default_strategy_value,
                                 snp_clumping_distance_value = 100000L,
-                                input_prefix = "") {
+                                input_prefix = "",
+                                selected_pairs = NULL,
+                                overrides = list(),
+                                registry_defaults = list(),
+                                master_type = "bonf",
+                                master_value = 0.05) {
     # Helper: produce an input id with optional prefix
     pid <- function(name) ns(paste0(input_prefix, name))
     # Guard only for truly empty project (no data at all)
@@ -563,12 +392,18 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
         ))
     }
 
-    # Build table header row: blank + method column headers
+    # Build table header row: blank + method column headers (each with a
+    # hover-revealed gear icon that opens the bulk "all traits, this method" popup)
     header_cells <- lapply(methods, function(m) {
         htmltools::tags$th(
             class = "tm-col-header",
             `data-method` = m,
-            m
+            m,
+            htmltools::tags$span(
+                class = "tm-gear",
+                title = paste0("Set threshold for every trait — ", m),
+                bsicons::bs_icon("gear-fill", size = "0.65em")
+            )
         )
     })
     header_row <- htmltools::tags$tr(
@@ -586,22 +421,32 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
         row_header <- htmltools::tags$th(
             class = "tm-row-header",
             `data-trait` = t,
-            htmltools::HTML(paste0(dot_html, htmltools::htmlEscape(t)))
+            htmltools::HTML(paste0(dot_html, htmltools::htmlEscape(t))),
+            htmltools::tags$span(
+                class = "tm-gear",
+                title = paste0("Set threshold for every method — ", t),
+                bsicons::bs_icon("gear-fill", size = "0.65em")
+            )
         )
         cells <- lapply(methods, function(m) {
-            key     <- paste0(t, "::", m)
-            n       <- combo_counts[[key]] %||% 0L
-            thr     <- combo_thresholds[[key]]
-            thr_txt <- if (is.null(thr) || is.na(thr)) "n/a" else
-                           formatC(thr, format = "e", digits = 1)
+            key      <- paste0(t, "::", m)
+            n        <- combo_counts[[key]] %||% 0L
+            thr      <- combo_thresholds[[key]]
+            thr_txt  <- if (is.null(thr) || is.na(thr)) "n/a" else
+                            formatC(thr, format = "e", digits = 1)
+            rule_src <- effective_rule_for(method = m, trait = t, overrides = overrides,
+                                           master_type = master_type, master_value = master_value,
+                                           registry_defaults = registry_defaults)$source
+            thr_class <- if (rule_src == "master") "tm-thr" else paste0("tm-thr tm-thr-", rule_src)
+            is_active <- n > 0 && (is.null(selected_pairs) || key %in% selected_pairs)
             if (n > 0) {
                 htmltools::tags$td(
                     htmltools::tags$button(
-                        class = "tm-cell tm-active",
+                        class = paste("tm-cell", if (is_active) "tm-active" else ""),
                         `data-trait` = t,
                         `data-method` = m,
                         htmltools::tags$span(class = "tm-count", as.character(n)),
-                        htmltools::tags$span(class = "tm-thr", thr_txt)
+                        htmltools::tags$span(class = thr_class, thr_txt)
                     )
                 )
             } else {
@@ -610,8 +455,8 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
                         class = "tm-cell tm-empty",
                         `data-trait` = t,
                         `data-method` = m,
-                        htmltools::tags$span(class = "tm-count", "\u2014"),
-                        htmltools::tags$span(class = "tm-thr", thr_txt)
+                        htmltools::tags$span(class = "tm-count", "—"),
+                        htmltools::tags$span(class = thr_class, thr_txt)
                     )
                 )
             }
@@ -625,14 +470,17 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
         htmltools::tags$tbody(body_rows)
     )
 
-    # Hidden input bridge updated by JS
-    hidden_input <- shiny::textInput(
-        pid("tm_selection"), label = NULL, value = ""
-    )
+    # Hidden input bridge updated by JS (selection) and the popup trigger bridge
+    input_id <- pid("tm_selection")
+    popup_id <- pid("thr_popup")
+    hidden_input <- shiny::textInput(input_id, label = NULL, value = "")
 
-    # JS: delegated click on matrix container
+    # JS: delegated click on matrix container. Popup branches (cell threshold
+    # text, row/column gear) are checked BEFORE the existing toggle-all
+    # branches and each `return`s -- a single listener, not two competing
+    # ones, so there is no ordering ambiguity between "open popup" and
+    # "toggle selection" on the same click.
     container_id <- pid("tm_container")
-    input_id     <- pid("tm_selection")
     js_code <- sprintf('
 (function() {
     var container = document.getElementById("%s");
@@ -655,9 +503,36 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
         Shiny.setInputValue("%s", json);
     }
     container.addEventListener("click", function(e) {
-        var cell = e.target.closest(".tm-cell");
-        if (cell && !cell.classList.contains("tm-empty")) {
-            cell.classList.toggle("tm-active");
+        // ── Popup triggers (checked first) ──────────────────────────────
+        var thr = e.target.closest(".tm-thr");
+        if (thr) {
+            var cell = thr.closest(".tm-cell");
+            if (cell) {
+                Shiny.setInputValue("%s", {
+                    scope: "cell", trait: cell.dataset.trait, method: cell.dataset.method,
+                    ts: Date.now()
+                }, {priority: "event"});
+            }
+            return;
+        }
+        var gear = e.target.closest(".tm-gear");
+        if (gear) {
+            var gth = gear.closest("th");
+            if (gth.classList.contains("tm-row-header")) {
+                Shiny.setInputValue("%s", {
+                    scope: "trait", trait: gth.dataset.trait, method: null, ts: Date.now()
+                }, {priority: "event"});
+            } else if (gth.classList.contains("tm-col-header")) {
+                Shiny.setInputValue("%s", {
+                    scope: "method", trait: null, method: gth.dataset.method, ts: Date.now()
+                }, {priority: "event"});
+            }
+            return;
+        }
+        // ── Existing toggle-selection behaviour ─────────────────────────
+        var cellBtn = e.target.closest(".tm-cell");
+        if (cellBtn && !cellBtn.classList.contains("tm-empty")) {
+            cellBtn.classList.toggle("tm-active");
             syncSelection();
             return;
         }
@@ -681,7 +556,7 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
     });
     syncSelection();
 })();
-', container_id, input_id, input_id, input_id)
+', container_id, input_id, input_id, input_id, popup_id, popup_id, popup_id)
 
     strategy_choices <- c("Union", "Cross-method", "Cross-method per-trait")
     strategy_labels  <- setNames(
@@ -696,16 +571,31 @@ build_filter_bar_ui <- function(ns, traits, methods, trait_colors,
     default_strat_norm <- .normalize_strategy(default_strategy_value)
     if (!default_strat_norm %in% strategy_choices) default_strat_norm <- "Union"
 
+    n_overridden <- length(overrides)
+
     htmltools::div(
         class = "manhattan-filter-bar",
         htmltools::div(
             class = "filter-row align-items-start",
             # Matrix
             htmltools::div(
-                id    = container_id,
-                class = "tm-container me-4",
-                matrix_table,
-                hidden_input
+                class = "d-flex flex-column me-4",
+                if (n_overridden > 0) htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-1",
+                    htmltools::tags$span(class = "badge bg-warning text-dark",
+                                         sprintf("%d cell%s overridden", n_overridden,
+                                                 if (n_overridden == 1) "" else "s")),
+                    shiny::actionButton(
+                        pid("reset_overrides"), "Reset overrides",
+                        class = "btn btn-link btn-sm text-muted p-0"
+                    )
+                ),
+                htmltools::div(
+                    id    = container_id,
+                    class = "tm-container",
+                    matrix_table,
+                    hidden_input
+                )
             ),
             # Strategy
             htmltools::div(
@@ -820,4 +710,253 @@ compute_interactive_sigsnps <- function(all_method_sigsnps, tm_selection_json,
     # region in sync with the interactive region table/rectangles.
     combined_dt[, region_id := NA_character_]
     combined_dt
+}
+
+#' Wire the trait×method matrix's rule popup + reset-overrides + apply-to-
+#' config observers for ONE filter bar instance.
+#'
+#' Shared by mod_gea.R (GEA tab), mod_gwas.R (GWAS tab), and mod_gea_x_gwas.R
+#' (called TWICE, once per side — hence `input_prefix` distinguishing "gea_"
+#' from "gwas_" so the two popups/reset/apply observers never collide within
+#' one moduleServer). See R/fct_threshold_rules.R for the precedence the
+#' popup edits (cell override > registry default > master).
+#'
+#' @param input,output,session Standard Shiny module server args (the CALLING
+#'   module's — this is not itself a moduleServer, just a helper that
+#'   registers observers into the caller's reactive graph)
+#' @param ns              The calling module's session$ns
+#' @param input_prefix    "" for a single filter bar, "gea_"/"gwas_" for two
+#'   sharing one moduleServer (GEAxGWAS)
+#' @param project_data    Reactive project data bundle
+#' @param module          MOD_GEA / MOD_GWAS / MOD_GEAXGWAS — region_params.json
+#'   partition (GEAxGWAS's two sides still need input_prefix-scoped KEYS within
+#'   that one module's params, since both sides share module = MOD_GEAXGWAS)
+#' @param methods,all_traits  Reactives: character vectors for this side
+#' @param threshold_type,threshold_value  Reactives: this side's master rule
+#' @param registry_defaults  Reactive: method -> list(adjust=,threshold=,family=)
+#' @param config_rules       Reactive: method -> "bonf_0.05" (pipeline rule string)
+#' @param config_state       reactiveValues from app_server.R, or NULL to omit
+#'   "Apply rules to config" (GEAxGWAS's two bars don't drive a pipeline run)
+#' @param config_module_key  "GEA" or "GWAS" — which config_state$working key
+#'   Apply-to-config collapses rules into
+#' @return list(overrides = debounced reactive "trait::method"->rule,
+#'   selected_pairs = reactive character vector or NULL, reload = function()
+#'   that re-reads both from region_params.json into this instance's
+#'   reactiveVals — call after writing into the SAME JSON keys from outside
+#'   this instance, e.g. mod_gea_x_gwas.R's "Fill from …" buttons) — the
+#'   first two feed straight into build_filter_bar_ui()
+#' @noRd
+setup_matrix_rules_server <- function(input, output, session, ns, input_prefix = "",
+                                      project_data, module, methods, all_traits,
+                                      threshold_type, threshold_value,
+                                      registry_defaults, config_rules,
+                                      config_state = NULL, config_module_key = "GEA") {
+    pid <- function(name) paste0(input_prefix, name)
+
+    # ── Per-cell overrides ("trait::method" -> rule) ────────────────────────
+    threshold_overrides_rv <- shiny::reactiveVal(list())
+
+    # ── Matrix selection (which cells are included in the combined view) ───
+    # Separate from threshold_overrides — this is WHICH cells, not their rule.
+    # NULL means "not yet set"; compute_interactive_sigsnps() then defaults to
+    # every non-empty cell active (pre-rework behaviour).
+    tm_selection_rv <- shiny::reactiveVal(NULL)
+
+    # Re-read both from region_params.json — cold load on project switch, and
+    # exposed as `reload()` so a caller who wrote INTO these same JSON keys
+    # from outside this instance (mod_gea_x_gwas.R's "Fill from …" buttons,
+    # which copy the OTHER side's persisted rules) can force this instance's
+    # reactiveVals to pick up the change immediately, not just on next reload.
+    reload_from_region_params <- function() {
+        pd <- project_data(); if (is.null(pd)) return()
+        rp <- read_region_params(pd$name)
+        threshold_overrides_rv(normalize_threshold_overrides(
+            get_global_param(rp, module, paste0(input_prefix, "threshold_overrides")),
+            traits = all_traits(), methods = methods()
+        ))
+        saved <- get_global_param(rp, module, paste0(input_prefix, "snp_matrix_selection"))
+        tm_selection_rv(if (is.null(saved)) NULL else as.character(unlist(saved)))
+    }
+    shiny::observe(reload_from_region_params())
+
+    # Debounced — an override edit shouldn't fire a full-vector scan per keystroke.
+    threshold_overrides <- shiny::debounce(
+        shiny::reactive(threshold_overrides_rv()), 500)
+
+    persist_overrides <- function(ov) {
+        pd <- project_data(); if (is.null(pd)) return()
+        threshold_overrides_rv(ov)
+        rp <- read_region_params(pd$name)
+        # set_global_param(..., NULL) deletes the key — a full reset leaves the
+        # file byte-identical to the legacy (pre-override) shape.
+        rp <- set_global_param(rp, module, paste0(input_prefix, "threshold_overrides"),
+                               if (length(ov) == 0) NULL else ov)
+        save_region_params(pd$name, rp)
+    }
+
+    shiny::observeEvent(input[[pid("tm_selection")]], {
+        pd <- project_data(); if (is.null(pd)) return()
+        raw    <- input[[pid("tm_selection")]]
+        parsed <- tryCatch(jsonlite::fromJSON(raw), error = function(e) NULL)
+        pairs  <- if (is.null(parsed) || length(parsed) == 0) NULL else as.character(parsed)
+        tm_selection_rv(pairs)
+        rp <- read_region_params(pd$name)
+        rp <- set_global_param(rp, module, paste0(input_prefix, "snp_matrix_selection"), pairs)
+        save_region_params(pd$name, rp)
+    }, ignoreInit = TRUE)
+
+    # ── Rule popup: cell / row (trait) / column (method) ────────────────────
+    # input[[pid("thr_popup")]] is an object payload {scope, trait, method, ts}
+    # set by fct_combine.R's delegated click listener with {priority:"event"} —
+    # opening the same cell's popup twice must not be deduped away.
+    popup_ctx <- shiny::reactiveVal(NULL)
+
+    shiny::observeEvent(input[[pid("thr_popup")]], {
+        ctx <- input[[pid("thr_popup")]]
+        popup_ctx(ctx)
+        ov <- threshold_overrides_rv(); rd <- registry_defaults()
+        mt <- threshold_type(); mv <- threshold_value()
+
+        title <- switch(ctx$scope,
+            cell   = sprintf("%s × %s", ctx$trait, ctx$method),
+            trait  = sprintf("%s — all methods", ctx$trait),
+            method = sprintf("%s — all traits", ctx$method),
+            "Significance rule"
+        )
+        # A cell popup resolves its own cell; a row/column popup seeds from a
+        # representative (method[1]/no-trait or trait/no-method) rule — Apply
+        # always writes an explicit rule to every cell in scope regardless of
+        # what they currently show, so the seed is a starting point, not a summary.
+        seed_method <- ctx$method %||% methods()[1]
+        seed_trait  <- ctx$trait  %||% NULL
+        rule <- effective_rule_for(method = seed_method, trait = seed_trait,
+                                   overrides = ov, master_type = mt, master_value = mv,
+                                   registry_defaults = rd)
+        cfg_rule <- if (!is.null(ctx$method)) config_rules()[[ctx$method]] %||% "" else ""
+        source_label <- switch(rule$source,
+            override = "your override", registry = "method's registry default",
+            "master rule")
+
+        shiny::showModal(shiny::modalDialog(
+            title = title,
+            shiny::selectInput(ns(pid("thr_popup_type")), "Rule",
+                choices = c("Bonferroni" = "bonf", "FDR (qval)" = "qval",
+                           "Top N" = "top", "Custom (raw p)" = "custom"),
+                selected = rule$type),
+            shiny::numericInput(ns(pid("thr_popup_value")), "Value",
+                                value = rule$value, min = 0, step = NA),
+            htmltools::p(class = "small text-muted mb-1",
+                sprintf("Currently: %s %s (%s)", rule$type, rule$value, source_label)),
+            if (nzchar(cfg_rule)) htmltools::p(class = "small text-muted",
+                sprintf("Pipeline files (QQ/Manhattan background) were built with %s.", cfg_rule)),
+            footer = htmltools::tagList(
+                shiny::actionButton(ns(pid("thr_popup_follow")), "Follow master/registry",
+                                    class = "btn btn-link btn-sm text-muted"),
+                shiny::modalButton("Cancel"),
+                shiny::actionButton(ns(pid("thr_popup_apply")), "Apply", class = "btn btn-primary")
+            ),
+            easyClose = TRUE
+        ))
+    })
+
+    scope_keys <- function(ctx) {
+        if (is.null(ctx)) return(character(0))
+        switch(ctx$scope,
+            cell   = paste0(ctx$trait, "::", ctx$method),
+            trait  = paste0(ctx$trait, "::", methods()),
+            method = paste0(all_traits(), "::", ctx$method),
+            character(0)
+        )
+    }
+
+    shiny::observeEvent(input[[pid("thr_popup_apply")]], {
+        ctx <- popup_ctx(); if (is.null(ctx)) return()
+        keys <- scope_keys(ctx)
+        ty <- input[[pid("thr_popup_type")]]; va <- input[[pid("thr_popup_value")]]
+        if (!threshold_value_valid_for_type(ty, va)) {
+            shiny::showNotification("Invalid threshold value for this rule.", type = "error")
+            return()
+        }
+        ov <- threshold_overrides_rv()
+        for (k in keys) ov[[k]] <- list(type = ty, value = as.numeric(va))
+        persist_overrides(ov)
+        shiny::removeModal()
+    })
+
+    shiny::observeEvent(input[[pid("thr_popup_follow")]], {
+        ctx <- popup_ctx(); if (is.null(ctx)) return()
+        keys <- scope_keys(ctx)
+        ov <- threshold_overrides_rv()
+        ov[keys] <- NULL
+        persist_overrides(ov)
+        shiny::removeModal()
+    })
+
+    shiny::observeEvent(input[[pid("reset_overrides")]], {
+        persist_overrides(list())
+        shiny::showNotification("All threshold overrides reset to master/registry.",
+                                type = "message", duration = 3)
+    })
+
+    # ── Apply rules to config ────────────────────────────────────────────────
+    # Collapses master/registry/override into one adjust+threshold per method
+    # and writes it into config_state$working. The pipeline has no per-trait
+    # granularity (GEA.configs/GWAS.configs is per-method — see
+    # workflow/rules/common.smk's parse_association_configs()), so a method
+    # whose cells disagree needs an explicit choice, never a silent pick.
+    if (!is.null(config_state)) {
+        shiny::observeEvent(input[[pid("apply_to_config")]], {
+            ov <- threshold_overrides_rv(); mt <- threshold_type(); mv <- threshold_value()
+            rd <- registry_defaults(); ms <- methods(); tr <- all_traits()
+
+            per_method <- lapply(ms, function(m) {
+                rules <- lapply(tr, function(t) effective_rule_for(
+                    method = m, trait = t, overrides = ov,
+                    master_type = mt, master_value = mv, registry_defaults = rd))
+                keys <- unique(vapply(rules, function(r) paste0(r$type, "_", r$value), character(1)))
+                list(method = m, keys = keys, rule = rules[[1]])
+            })
+            conflicts <- Filter(function(x) length(x$keys) > 1, per_method)
+
+            if (length(conflicts) == 0) {
+                # Carry each method's existing `params` (K, n_pcs, axes, …)
+                # forward untouched — this button only ever sets adjust/
+                # threshold. Losing hyperparameters here would be exactly the
+                # silent-discard mistake the sidebar's own reconcile (see
+                # mod_config_sidebar.R) was written to avoid on the other side.
+                cur_val <- config_get_by_path(config_state$working, paste0(config_module_key, ".configs"))
+                cur_by_method <- stats::setNames(
+                    cur_val %||% list(),
+                    vapply(cur_val %||% list(), function(x) x$method %||% "", character(1))
+                )
+                new_configs <- lapply(per_method, function(x) {
+                    existing <- cur_by_method[[x$method]]
+                    list(method = x$method, adjust = x$rule$type,
+                        threshold = as.character(x$rule$value),
+                        params = existing$params %||% list())
+                })
+                config_state$working <- config_set_by_path(
+                    config_state$working, paste0(config_module_key, ".configs"), new_configs)
+                shiny::showNotification(
+                    "Rules applied to config (working copy) — Run or Save Project Files to persist to YAML.",
+                    type = "message", duration = 5)
+            } else {
+                names_conflict <- paste(vapply(conflicts, `[[`, character(1), "method"), collapse = ", ")
+                shiny::showNotification(
+                    sprintf(paste(
+                        "%s %s per-trait rules that disagree — the pipeline config is",
+                        "per-method only. Give %s a single rule (via its column popup)",
+                        "before applying."
+                    ), names_conflict, if (length(conflicts) == 1) "has" else "have",
+                       if (length(conflicts) == 1) "it" else "them"),
+                    type = "warning", duration = 8)
+            }
+        })
+    }
+
+    list(
+        overrides      = threshold_overrides,
+        selected_pairs = shiny::reactive(tm_selection_rv()),
+        reload         = reload_from_region_params
+    )
 }

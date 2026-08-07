@@ -68,9 +68,12 @@ mod_gea_ui <- function(id) {
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
 #' @param module character: MOD_GEA or MOD_GWAS
+#' @param config_state reactiveValues from app_server.R ($working/$saved/$project),
+#'   or NULL to omit the "Apply rules to config" button (no caller currently
+#'   passes NULL, but keeps this module testable/embeddable without it).
 #' @noRd
 mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GEA,
-                           snp_sets_trigger = NULL) {
+                           snp_sets_trigger = NULL, config_state = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -78,20 +81,20 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
 
         # Registry (GEA vs GWAS methods differ — GWAS excludes multivariate RDA)
-        # — drives the per-method threshold table's multivariate marker and
-        # registry-default adjust/threshold seeds.
+        # — method -> list(adjust=,threshold=,family=). Pins non-univariate
+        # methods (RDA) to their registry rule in the trait×method matrix
+        # unless a cell override exists (see R/fct_threshold_rules.R).
         method_registry <- shiny::reactive({
             if (identical(module, MOD_GWAS)) gwas_method_registry() else gea_method_registry()
         })
-        registry_families <- shiny::reactive({
-            sig <- gea_method_significance_defaults(method_registry())
-            stats::setNames(lapply(sig, function(x) x$family), names(sig))
+        registry_defaults <- shiny::reactive({
+            gea_method_significance_defaults(method_registry())
         })
 
         # config_rules: METHOD -> resolve_adjust() string ("bonf_0.05") — the rule
         # the PIPELINE FILES on disk (QQ plot, Manhattan background/coords) were
         # actually built with. Independent of the interactive threshold below —
-        # see R1-R3 in the threshold-rework plan for why the two can diverge.
+        # shown read-only in the matrix popup so the divergence stays visible.
         config_rules <- shiny::reactive({
             pd <- project_data(); ms <- methods()
             if (length(ms) == 0) return(list())
@@ -187,14 +190,15 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         # (type, value, regime, pipeline-fingerprint) combination, then returns instantly.
         combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
-                pvalues_list = effective_method_pvalues(),
-                type         = threshold_type(),
-                value        = threshold_value(),
-                overrides    = threshold_overrides()
+                pvalues_list      = effective_method_pvalues(),
+                type              = threshold_type(),
+                value             = threshold_value(),
+                overrides         = threshold_overrides(),
+                registry_defaults = registry_defaults()
             )
         }) |> shiny::bindCache(threshold_type(), threshold_value(), regime_wza(),
                                pvalue_fingerprint(),
-                               threshold_overrides_key(threshold_overrides()))
+                               threshold_overrides_key(threshold_overrides(), registry_defaults()))
 
         # Strategy: defaults to "All"; persisted to region_params.json so the GEAxGWAS
         # "Fill from GEA tab" button can read the user's last-chosen value.
@@ -317,56 +321,21 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         # Debounce threshold value to avoid firing qval computation on every keystroke
         threshold_value <- shiny::debounce(threshold_value_raw, 500)
 
-        # ── Per-method threshold overrides ─────────────────────────────────────
-        # METHOD -> list(type=,value=). Absent method => follows the master bar.
-        # reactiveVal, not input$, because the table lives in a renderUI (the
-        # per-input-persistence rule: store user value in a reactiveVal, use it
-        # as the renderUI's seed, never let renderUI silently reset it).
-        threshold_overrides_rv <- shiny::reactiveVal(list())
-
-        # Cold load from region_params.json — backward compatible: the key is
-        # absent on every pre-rework file, so get_global_param() returns NULL,
-        # normalize_threshold_overrides(NULL) returns list(), and every
-        # downstream call behaves exactly as it did before per-method rules
-        # existed.
-        shiny::observe({
-            pd <- project_data(); if (is.null(pd)) return()
-            rp <- read_region_params(pd$name)
-            threshold_overrides_rv(normalize_threshold_overrides(
-                get_global_param(rp, module, "threshold_overrides")))
-        })
-
-        # One observer for the whole table's hidden JSON bridge (mirrors
-        # mod_config_sidebar.R's method-editor JSON bridge pattern).
-        shiny::observeEvent(input$threshold_overrides_json, {
-            pd <- project_data(); if (is.null(pd)) return()
-            raw <- tryCatch(jsonlite::fromJSON(input$threshold_overrides_json,
-                                               simplifyVector = FALSE),
-                            error = function(e) NULL)
-            ov <- normalize_threshold_overrides(raw)
-            threshold_overrides_rv(ov)
-            rp <- read_region_params(pd$name)
-            # set_global_param(..., NULL) deletes the key — a full reset leaves
-            # the file byte-identical to the legacy (pre-override) shape rather
-            # than an empty {} artefact.
-            rp <- set_global_param(rp, module, "threshold_overrides",
-                                   if (length(ov) == 0) NULL else ov)
-            save_region_params(pd$name, rp)
-        }, ignoreInit = TRUE)
-
-        # Debounced to match threshold_type/value above — an override edit
-        # shouldn't fire a full-vector scan per keystroke.
-        threshold_overrides <- shiny::debounce(
-            shiny::reactive(threshold_overrides_rv()), 500)
-
-        # METHOD -> resolved rule for every configured method — drives the
-        # save_snp_set provenance record.
-        effective_method_rules <- shiny::reactive({
-            ov <- threshold_overrides(); mt <- threshold_type(); mv <- threshold_value()
-            stats::setNames(lapply(methods(), effective_rule_for,
-                                   overrides = ov, master_type = mt, master_value = mv),
-                            methods())
-        })
+        # ── Per-cell threshold overrides, matrix selection, rule popup ─────────
+        # Set via the trait×method matrix's cell/row/column popups (this is
+        # the "Apply rules to config" home too) — shared with mod_gwas.R and
+        # mod_gea_x_gwas.R so the popup/precedence logic has one implementation.
+        # See R/fct_combine.R::setup_matrix_rules_server().
+        matrix_rules <- setup_matrix_rules_server(
+            input, output, session, ns, input_prefix = "",
+            project_data = project_data, module = module,
+            methods = methods, all_traits = all_trait_names_rv,
+            threshold_type = threshold_type, threshold_value = threshold_value,
+            registry_defaults = registry_defaults, config_rules = config_rules,
+            config_state = config_state,
+            config_module_key = if (identical(module, MOD_GWAS)) "GWAS" else "GEA"
+        )
+        threshold_overrides <- matrix_rules$overrides
 
         # Threshold hint text (context-aware help under the value input)
         output$threshold_hint <- shiny::renderUI({
@@ -395,7 +364,6 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
         # ── Always-present threshold bar (regime + threshold type/value) ─────
         output$threshold_bar <- shiny::renderUI({
             pd <- project_data()
-            ov <- threshold_overrides_rv()   # not debounced — table reflects edits immediately
             shiny::isolate({
                 build_threshold_bar_ui(
                     ns                    = ns,
@@ -404,11 +372,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                     threshold_value_value = input$threshold_value %||%
                         default_threshold(pd$config, module)$value,
                     regime_context        = "gea",
-                    methods               = methods(),
-                    overrides             = ov,
-                    combo_thresholds      = combo_thresholds(),
-                    config_rules          = config_rules(),
-                    registry_families     = registry_families()
+                    show_apply_to_config  = !is.null(config_state)
                 )
             })
         })
@@ -426,8 +390,9 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                 module       = module,
                 # T2.3: pass pre-computed cutoffs from bindCached combo_thresholds so the
                 # cold-path threshold scan runs once (inside combo_thresholds) instead of twice.
-                cutoffs      = combo_thresholds(),
-                overrides    = threshold_overrides()
+                cutoffs           = combo_thresholds(),
+                overrides         = threshold_overrides(),
+                registry_defaults = registry_defaults()
             )
         })
 
@@ -502,7 +467,15 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                 combo_counts                = combo_counts(),
                 combo_thresholds            = combo_thresholds(),
                 default_strategy_value      = default_strategy(),
-                snp_clumping_distance_value = snp_clumping_distance()
+                snp_clumping_distance_value = snp_clumping_distance(),
+                # isolate()d: the matrix's own on/off selection must survive a
+                # re-render triggered by combo_counts/combo_thresholds changing
+                # (e.g. a master threshold edit) — see setup_matrix_rules_server().
+                selected_pairs              = shiny::isolate(matrix_rules$selected_pairs()),
+                overrides                   = threshold_overrides(),
+                registry_defaults           = registry_defaults(),
+                master_type                 = threshold_type(),
+                master_value                = threshold_value()
             )
         })
 
@@ -569,7 +542,7 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                             n,
                             threshold_type(),
                             threshold_value(),
-                            if (n_ov > 0) sprintf(" (%d method%s overridden)", n_ov,
+                            if (n_ov > 0) sprintf(" (%d cell%s overridden)", n_ov,
                                                   if (n_ov == 1) "" else "s") else "",
                             active_strategy(),
                             if (regime_wza()) "WZA" else "per-SNP",

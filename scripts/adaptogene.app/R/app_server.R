@@ -130,8 +130,9 @@ app_server <- function(input, output, session) {
     mod_climate_server("climate",              project_data = project_data)
     mod_pregea_server("pregea",                project_data = project_data)
     mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger,
-                   snp_sets_trigger = snp_sets_trigger)
-    mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger)
+                   snp_sets_trigger = snp_sets_trigger, config_state = config_state)
+    mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger,
+                    config_state = config_state)
     mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data, run_trigger = project_data_trigger)
     mod_maladaptation_server("maladaptation",  project_data = project_data,
                              snp_sets_trigger = snp_sets_trigger)
