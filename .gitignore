@@ -84,3 +84,15 @@ benchmarks/mvp_eval/portfolio07/*_portfolio.tsv
 benchmarks/mvp_eval/portfolio07_m05/*_portfolio.tsv
 benchmarks/mvp_eval/axis07/*_portfolio.tsv
 benchmarks/mvp_eval/axis07_m05/*_portfolio.tsv
+
+# Journal 08/09 offset-arm intermediates. Same convention as mvp_eval/params/ and
+# sweep/ above: the harvested per-garden offsets and the run logs are regenerable
+# intermediates (689 MB, 18k files); the small summary/comparison tables in
+# offset08/ and offset09/ are the deliverable and stay tracked.
+benchmarks/mvp_eval/offset09/gardens/
+benchmarks/mvp_eval/offset09/runlogs/
+benchmarks/mvp_eval/offset08/runlogs/
+benchmarks/mvp_eval/offset08/_v1_singleaxis/
+benchmarks/mvp_eval/offset09/garden_performance.tsv
+benchmarks/mvp_eval/offset09/source_performance.tsv
+benchmarks/mvp_eval/offset09/garden_fitness_*.tsv

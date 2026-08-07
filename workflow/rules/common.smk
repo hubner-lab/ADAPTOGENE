@@ -324,6 +324,15 @@ RDO_SEED = int(_rdo.get('seed', 42))
 # Raw SNP-sets config (cheap parse — actual glob/validate happens only inside get_targets)
 SNP_SETS_CFG = _mala_cfg.get('snp_sets', 'all')
 
+# Emit the maladaptation plots (piemaps, cumulative/overall importance), or tables only.
+# Default True — a normal run is unchanged. Set false for sweeps that consume the offset
+# TABLES programmatically: on the journal-09 garden sweep the plots were ~32 of the ~48 jobs
+# per garden and every one was discarded, and plot_gf_cumimp on a ~10k-SNP Gradient Forest was
+# also the single largest memory consumer (it OOM-killed two lanes at a 24 GB cap).
+MALA_EMIT_PLOTS = _mala_cfg.get('emit_plots', True)
+if not isinstance(MALA_EMIT_PLOTS, bool):
+    raise ValueError(f"Maladaptation.emit_plots must be true or false; got {MALA_EMIT_PLOTS!r}")
+
 # Validate and derive active maladaptation methods from config
 _mala_methods_cfg = config.get('Maladaptation', {}).get('methods', {})
 _unknown_mala = set(_mala_methods_cfg.keys()) - set(MALADAPTATION_METHODS.keys())
@@ -1904,8 +1913,9 @@ def get_targets(mode):
             O['climate_future_site'],
             O['climate_future_all'],
             W['climate_future_raster'],
-            O['density_future'],
         ]
+        if MALA_EMIT_PLOTS:
+            targets.append(O['density_future'])
 
         for set_name in ACTIVE_SNP_SETS:
             for method in ACTIVE_MALA_METHODS:
@@ -1914,22 +1924,28 @@ def get_targets(mode):
                     # Separate model artifact (GF only — geometric_offset is single-call)
                     if _mflags['builds_model']:
                         targets.append(mala_model(method, set_name, spatial_tag, 'adaptive'))
-                    # Core offset outputs (all methods)
+                    # Core offset outputs (all methods) — tables always
                     targets += [
                         mala_offset_map_values(method, set_name, spatial_tag),
                         mala_offset_site_values(method, set_name, spatial_tag),
-                        mala_importance(method, set_name, spatial_tag),
-                        mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
-                        mala_offset_piemap_points(method, set_name, spatial_tag),
                     ]
-                    # Cumulative importance (GF only)
-                    if _mflags['supports_cumulative_importance']:
-                        targets.append(mala_cumimp(method, set_name, spatial_tag))
+                    # Plots — skipped entirely under Maladaptation.emit_plots: false.
+                    # NOTE mala_importance() is a PLOT (overall_importance.png), not a table,
+                    # so it belongs here despite the name.
+                    if MALA_EMIT_PLOTS:
+                        targets += [
+                            mala_importance(method, set_name, spatial_tag),
+                            mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
+                            mala_offset_piemap_points(method, set_name, spatial_tag),
+                        ]
+                        # Cumulative importance (GF only)
+                        if _mflags['supports_cumulative_importance']:
+                            targets.append(mala_cumimp(method, set_name, spatial_tag))
                     # Random/neutral model (GF + config flag)
                     if _mflags['supports_random_model'] and GF_RANDOM_MODEL:
                         targets.append(mala_model(method, set_name, spatial_tag, 'random'))
                     # Pop-stats scaled piemaps (all methods, optional)
-                    if CALC_POP_STATS:
+                    if CALC_POP_STATS and MALA_EMIT_PLOTS:
                         targets += [
                             mala_offset_piemap(method, set_name, spatial_tag, 'tajima_d'),
                             mala_offset_piemap(method, set_name, spatial_tag, 'pi_diversity'),
