@@ -1,0 +1,43 @@
+garden_id	type	dev	opt1	opt2
+deme_001	landscape		-1	-1
+deme_004	landscape		-1	0.5
+deme_007	landscape		-1	0.5
+deme_010	landscape		-1	-1
+deme_013	landscape		-0.777778	0
+deme_016	landscape		-0.777778	1
+deme_019	landscape		-0.777778	-0.5
+deme_022	landscape		-0.555556	-0.5
+deme_025	landscape		-0.555556	1
+deme_028	landscape		-0.555556	0
+deme_031	landscape		-0.333333	-1
+deme_034	landscape		-0.333333	0.5
+deme_037	landscape		-0.333333	0.5
+deme_040	landscape		-0.333333	-1
+deme_043	landscape		-0.111111	0
+deme_046	landscape		-0.111111	1
+deme_049	landscape		-0.111111	-0.5
+deme_052	landscape		0.111111	-0.5
+deme_055	landscape		0.111111	1
+deme_058	landscape		0.111111	0
+deme_061	landscape		0.333333	-1
+deme_064	landscape		0.333333	0.5
+deme_067	landscape		0.333333	0.5
+deme_070	landscape		0.333333	-1
+deme_073	landscape		0.555556	0
+deme_076	landscape		0.555556	1
+deme_079	landscape		0.555556	-0.5
+deme_082	landscape		0.777778	-0.5
+deme_085	landscape		0.777778	1
+deme_088	landscape		0.777778	0
+novel_0.00	novelty	0	0	0
+novel_1.72	novelty	1.72	1.09784990991459	1.21622366364086
+novel_2.35	novelty	2.35	1.49996935366238	1.66170093578839
+novel_2.74	novelty	2.74	1.7489004378872	1.93747258045114
+novel_3.13	novelty	3.13	1.99783152211202	2.21324422511389
+novel_3.53	novelty	3.53	2.2531454546503	2.49608693758851
+novel_3.92	novelty	3.92	2.50207653887512	2.77185858225127
+novel_4.31	novelty	4.31	2.75100762309994	3.04763022691402
+novel_4.70	novelty	4.7	2.99993870732476	3.32340187157677
+novel_5.09	novelty	5.09	3.24886979154958	3.59917351623953
+novel_5.48	novelty	5.48	3.4978008757744	3.87494516090228
+novel_5.88	novelty	5.88	3.75311480831268	4.1577878733769
