@@ -1,0 +1,58 @@
+direction: right
+
+pub: {
+  label: "Опубликованное: Lind & Lotterhos 2025\nMol Ecol Resour 25(4):e14008"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  design: "Полный факториальный трансплант\n100 садов ландшафта + 12 садов новизны\n(отклонения 0 … 5.88 SD)"
+  metric: "Метрика: tau Кендалла\nвнутри сада, по 100 источникам\n(отрицательное = хорошо)"
+  nums: "Их числа: tau -0.6 при LA 0.5 · -0.2 при LA 0.3\nadaptive > neutral 68% · > all 67%\nall > neutral 74% · медианный выигрыш < 3%"
+}
+
+ours: {
+  label: "Наша сторона (тот же депозит, 14 реплик)"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  fit: "Приспособленность в саду — тождество\nиз журнала 08, R2 = 1.000000\nконтроль: LA совпадает с final_LA\nдепозита (|разница| <= 0.022)"
+  sets: "Панели маркеров в их словаре:\nall (4975-13054) · adaptive (121-177)\nneutral (пол того же размера) · truth (наш потолок)"
+  meth: "4 из 5 их реализаций:\nGFoffset · LFMM2offset · RDA-uncorrected\n· RDA-corrected (второй проход)\nRONA не реализована в пайплайне"
+}
+
+run: {
+  label: "Прогон mode=maladaptation"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  loop: "Сад = таблица будущего климата,\nу всех демов оптимум сада\n14 линий параллельно, сады последовательно"
+  harvest: "Сбор offset после каждого сада:\nпути пайплайна не различают сценарии,\nследующий сад их перезапишет"
+}
+
+out: {
+  label: "Сравнение с публикацией"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  la: "tau против степени локальной адаптации\nна их двух якорях"
+  ms: "Три их процента побед\nи медианный выигрыш"
+  nov: "Кривая падения при новизне климата"
+}
+
+pub.design -> ours.fit: "их дизайн, не наш"
+pub.design -> run.loop
+pub.metric -> out.la
+pub.metric -> out.ms
+ours.fit -> out.la
+ours.sets -> run.loop
+ours.meth -> run.loop
+run.loop -> run.harvest
+run.harvest -> out.la
+run.harvest -> out.ms
+run.harvest -> out.nov
+pub.nums -> out.la: "якоря"
+pub.nums -> out.ms: "67 / 68 / 74%"
