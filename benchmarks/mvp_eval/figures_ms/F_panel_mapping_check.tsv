@@ -1,0 +1,15 @@
+panel	median_markers	published	exact_match	check
+EMMAX only	16.5	16.5	TRUE	a: 18 replicates with all 7 panels, must match exactly
+LFMM only	196	196	TRUE	a: 18 replicates with all 7 panels, must match exactly
+RDA only	99	99	TRUE	a: 18 replicates with all 7 panels, must match exactly
+all 3 methods agree	54.5	54.5	TRUE	a: 18 replicates with all 7 panels, must match exactly
+any method (union)	225	225	TRUE	a: 18 replicates with all 7 panels, must match exactly
+true QTNs (oracle)	52.5	52.5	TRUE	a: 18 replicates with all 7 panels, must match exactly
+≥2 methods agree	140.5	140.5	TRUE	a: 18 replicates with all 7 panels, must match exactly
+EMMAX only	11.5	16.5		b: wider replicate coverage, difference expected
+LFMM only	197	196		b: wider replicate coverage, difference expected
+RDA only	99	99		b: wider replicate coverage, difference expected
+all 3 methods agree	39	54.5		b: wider replicate coverage, difference expected
+any method (union)	223.5	225		b: wider replicate coverage, difference expected
+true QTNs (oracle)	42.5	52.5		b: wider replicate coverage, difference expected
+≥2 methods agree	151.5	140.5		b: wider replicate coverage, difference expected

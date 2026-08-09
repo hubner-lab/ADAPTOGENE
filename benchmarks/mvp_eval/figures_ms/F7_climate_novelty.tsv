@@ -1,0 +1,337 @@
+marker_set	dev	method_label	tau_med	n	offset_cv_med	panel
+adaptive	0	LFMM2offset	-0.714751257619992	12	0.668209798163659	true QTNs (oracle)
+adaptive	0	GFoffset	-0.615423236897821	12	0.401990798525178	true QTNs (oracle)
+adaptive	0	RDA-corrected	-0.487442304278158	12	0.551952455842778	true QTNs (oracle)
+adaptive	0	RDA-uncorrected	-0.688491739544401	12	0.420426006942608	true QTNs (oracle)
+adaptive	1.72	LFMM2offset	-0.798745039422927	12	0.6816490727048	true QTNs (oracle)
+adaptive	1.72	GFoffset	-0.8106168492679	12	0.436620581284279	true QTNs (oracle)
+adaptive	1.72	RDA-corrected	-0.604474792943479	12	0.513378041896734	true QTNs (oracle)
+adaptive	1.72	RDA-uncorrected	-0.787696143314534	12	0.427736210954327	true QTNs (oracle)
+adaptive	2.35	LFMM2offset	-0.806700976437614	12	0.561350290527961	true QTNs (oracle)
+adaptive	2.35	GFoffset	-0.817154298424653	12	0.331176457751897	true QTNs (oracle)
+adaptive	2.35	RDA-corrected	-0.602647358231859	12	0.387942730341717	true QTNs (oracle)
+adaptive	2.35	RDA-uncorrected	-0.784046974393501	12	0.331855646547861	true QTNs (oracle)
+adaptive	2.74	LFMM2offset	-0.804059448353429	12	0.50170035407254	true QTNs (oracle)
+adaptive	2.74	GFoffset	-0.816550854022985	12	0.286591984978593	true QTNs (oracle)
+adaptive	2.74	RDA-corrected	-0.601022971821531	12	0.333532190916565	true QTNs (oracle)
+adaptive	2.74	RDA-uncorrected	-0.780179555831961	12	0.289581882059041	true QTNs (oracle)
+adaptive	3.13	LFMM2offset	-0.802235813976613	12	0.451195037268797	true QTNs (oracle)
+adaptive	3.13	GFoffset	-0.814323023210989	12	0.252167650010261	true QTNs (oracle)
+adaptive	3.13	RDA-corrected	-0.599601633712493	12	0.292398838122606	true QTNs (oracle)
+adaptive	3.13	RDA-uncorrected	-0.775697291864343	12	0.256343702730935	true QTNs (oracle)
+adaptive	3.53	LFMM2offset	-0.798985140988554	12	0.407865956256259	true QTNs (oracle)
+adaptive	3.53	GFoffset	-0.81087025200534	12	0.224289314568229	true QTNs (oracle)
+adaptive	3.53	RDA-corrected	-0.601632116725404	12	0.25951702248447	true QTNs (oracle)
+adaptive	3.53	RDA-uncorrected	-0.772848915144063	12	0.229072710699284	true QTNs (oracle)
+adaptive	3.92	LFMM2offset	-0.801231023390868	12	0.372355752323685	true QTNs (oracle)
+adaptive	3.92	GFoffset	-0.81026395735257	12	0.202346472597261	true QTNs (oracle)
+adaptive	3.92	RDA-corrected	-0.599398585411202	12	0.233849707527695	true QTNs (oracle)
+adaptive	3.92	RDA-uncorrected	-0.774474251638092	12	0.207398084308014	true QTNs (oracle)
+adaptive	4.31	LFMM2offset	-0.798792543607973	12	0.342172081433949	true QTNs (oracle)
+adaptive	4.31	GFoffset	-0.811079950892538	12	0.184244822218934	true QTNs (oracle)
+adaptive	4.31	RDA-corrected	-0.596962005795709	12	0.212789285969617	true QTNs (oracle)
+adaptive	4.31	RDA-uncorrected	-0.775288345010658	12	0.189384672586505	true QTNs (oracle)
+adaptive	4.7	LFMM2offset	-0.799008893081077	12	0.316281140492551	true QTNs (oracle)
+adaptive	4.7	GFoffset	-0.80925441634832	12	0.169072290051051	true QTNs (oracle)
+adaptive	4.7	RDA-corrected	-0.596962005795709	12	0.195200898780901	true QTNs (oracle)
+adaptive	4.7	RDA-uncorrected	-0.774679200106785	12	0.174196643237138	true QTNs (oracle)
+adaptive	5.09	LFMM2offset	-0.797994601658323	12	0.293876348316544	true QTNs (oracle)
+adaptive	5.09	GFoffset	-0.808646221528148	12	0.156180044007167	true QTNs (oracle)
+adaptive	5.09	RDA-corrected	-0.594931522782798	12	0.180293124930639	true QTNs (oracle)
+adaptive	5.09	RDA-uncorrected	-0.774477101889195	12	0.161228899912863	true QTNs (oracle)
+adaptive	5.48	LFMM2offset	-0.792703944820344	12	0.274328125984008	true QTNs (oracle)
+adaptive	5.48	GFoffset	-0.809350528946156	12	0.145095380728765	true QTNs (oracle)
+adaptive	5.48	RDA-corrected	-0.594119329577635	12	0.167497576013712	true QTNs (oracle)
+adaptive	5.48	RDA-uncorrected	-0.77549234339565	12	0.150034583557597	true QTNs (oracle)
+adaptive	5.88	LFMM2offset	-0.793314039807918	12	0.256729046656946	true QTNs (oracle)
+adaptive	5.88	GFoffset	-0.807116997631954	12	0.135236217175478	true QTNs (oracle)
+adaptive	5.88	RDA-corrected	-0.591885798263433	12	0.156130303119692	true QTNs (oracle)
+adaptive	5.88	RDA-uncorrected	-0.773045312859447	12	0.140043791414125	true QTNs (oracle)
+all	0	LFMM2offset	-0.623663554295286	12	0.721427667135633	all
+all	0	GFoffset	-0.530768259574824	12	0.39716837135148	all
+all	0	RDA-corrected	-0.49921311871542	12	0.514560822392235	all
+all	0	RDA-uncorrected	-0.526831581391544	12	0.493191863856123	all
+all	1.72	LFMM2offset	-0.696049576825746	12	0.732519084273277	all
+all	1.72	GFoffset	-0.670668539164363	12	0.46410924909864	all
+all	1.72	RDA-corrected	-0.685897161761193	12	0.497221608778637	all
+all	1.72	RDA-uncorrected	-0.613815014802868	12	0.496051985244044	all
+all	2.35	LFMM2offset	-0.677978278010841	12	0.595523064123874	all
+all	2.35	GFoffset	-0.656455158073989	12	0.357278463521646	all
+all	2.35	RDA-corrected	-0.679399616119879	12	0.377934473066516	all
+all	2.35	RDA-uncorrected	-0.601632116725404	12	0.381013880647505	all
+all	2.74	LFMM2offset	-0.667419766343706	12	0.529753912101439	all
+all	2.74	GFoffset	-0.650363709035258	12	0.310847916367309	all
+all	2.74	RDA-corrected	-0.676150843299222	12	0.326622836914587	all
+all	2.74	RDA-uncorrected	-0.597977247302165	12	0.331040898233226	all
+all	3.13	LFMM2offset	-0.663358800317885	12	0.475322080350255	all
+all	3.13	GFoffset	-0.645693598105564	12	0.274591724503288	all
+all	3.13	RDA-corrected	-0.67391731198502	12	0.287248399356265	all
+all	3.13	RDA-uncorrected	-0.595337619385381	12	0.29207212312843	all
+all	3.53	LFMM2offset	-0.6584856410869	12	0.429006445561632	all
+all	3.53	GFoffset	-0.643257018490071	12	0.244992205162423	all
+all	3.53	RDA-corrected	-0.675135601792767	12	0.255485336636828	all
+all	3.53	RDA-uncorrected	-0.592494943167306	12	0.26033364287271	all
+all	3.92	LFMM2offset	-0.656861254676572	12	0.391211736016397	all
+all	3.92	GFoffset	-0.639805197368123	12	0.221553020642291	all
+all	3.92	RDA-corrected	-0.672495973875983	12	0.230544103662105	all
+all	3.92	RDA-uncorrected	-0.590667508455687	12	0.235257514164309	all
+all	4.31	LFMM2offset	-0.653003336952041	12	0.359187620751646	all
+all	4.31	GFoffset	-0.638789955861667	12	0.202126362141345	all
+all	4.31	RDA-corrected	-0.670465490863072	12	0.209996973355017	all
+all	4.31	RDA-uncorrected	-0.588027880538903	12	0.214513162016472	all
+all	4.7	LFMM2offset	-0.650363709035258	12	0.33178430498998	all
+all	4.7	GFoffset	-0.636150327944884	12	0.185781598704752	all
+all	4.7	RDA-corrected	-0.670465490863072	12	0.192787336254968	all
+all	4.7	RDA-uncorrected	-0.585794349224701	12	0.197086340708197	all
+all	5.09	LFMM2offset	-0.649348467528802	12	0.308115496808644	all
+all	5.09	GFoffset	-0.634322893233264	12	0.171849842185318	all
+all	5.09	RDA-corrected	-0.668435007850162	12	0.178168884223094	all
+all	5.09	RDA-uncorrected	-0.584373011115664	12	0.182250432386578	all
+all	5.48	LFMM2offset	-0.647317984515892	12	0.287495391534405	all
+all	5.48	GFoffset	-0.632292410220353	12	0.15983985844906	all
+all	5.48	RDA-corrected	-0.667622814644998	12	0.165686949208307	all
+all	5.48	RDA-uncorrected	-0.583966914513082	12	0.169473549962029	all
+all	5.88	LFMM2offset	-0.646708839612018	12	0.268954038351894	all
+all	5.88	GFoffset	-0.629855830604861	12	0.149153178737261	all
+all	5.88	RDA-corrected	-0.665389283330796	12	0.154578328236342	all
+all	5.88	RDA-uncorrected	-0.582748624705336	12	0.158092456810616	all
+gea_best	0	LFMM2offset	-0.686440214694746	12	0.690510863750923	≥2 methods agree
+gea_best	0	GFoffset	-0.560413311563319	12	0.419345158391412	≥2 methods agree
+gea_best	0	RDA-corrected	-0.4734919353005	12	0.581538251503174	≥2 methods agree
+gea_best	0	RDA-uncorrected	-0.657513714314602	12	0.440144707041603	≥2 methods agree
+gea_best	1.72	LFMM2offset	-0.782142056573154	12	0.692935043100924	≥2 methods agree
+gea_best	1.72	GFoffset	-0.771177448303437	12	0.472312684589731	≥2 methods agree
+gea_best	1.72	RDA-corrected	-0.577266320570477	12	0.555925859622471	≥2 methods agree
+gea_best	1.72	RDA-uncorrected	-0.825010009761079	12	0.435473456602709	≥2 methods agree
+gea_best	2.35	LFMM2offset	-0.788455713771574	12	0.568069819228098	≥2 methods agree
+gea_best	2.35	GFoffset	-0.791888375035124	12	0.361057752643734	≥2 methods agree
+gea_best	2.35	RDA-corrected	-0.560819408165901	12	0.408564095886937	≥2 methods agree
+gea_best	2.35	RDA-uncorrected	-0.826226637509021	12	0.331903063977555	≥2 methods agree
+gea_best	2.74	LFMM2offset	-0.78987692876507	12	0.506311237712377	≥2 methods agree
+gea_best	2.74	GFoffset	-0.800213355388058	12	0.313527524294364	≥2 methods agree
+gea_best	2.74	RDA-corrected	-0.555946248934916	12	0.350657126066125	≥2 methods agree
+gea_best	2.74	RDA-uncorrected	-0.825210780424862	12	0.285693080159918	≥2 methods agree
+gea_best	3.13	LFMM2offset	-0.789470339700324	12	0.454814088729304	≥2 methods agree
+gea_best	3.13	GFoffset	-0.806963880012063	12	0.276541813701289	≥2 methods agree
+gea_best	3.13	RDA-corrected	-0.5472151719794	12	0.307084555903517	≥2 methods agree
+gea_best	3.13	RDA-uncorrected	-0.821555541654999	12	0.250594096837477	≥2 methods agree
+gea_best	3.53	LFMM2offset	-0.789063750635578	12	0.410316735342278	≥2 methods agree
+gea_best	3.53	GFoffset	-0.808998163359778	12	0.246428164049577	≥2 methods agree
+gea_best	3.53	RDA-corrected	-0.543560302556161	12	0.272354908377979	≥2 methods agree
+gea_best	3.53	RDA-uncorrected	-0.818306399487719	12	0.222499320552818	≥2 methods agree
+gea_best	3.92	LFMM2offset	-0.787845091481209	12	0.373943425240359	≥2 methods agree
+gea_best	3.92	GFoffset	-0.810420451552515	12	0.222633325631694	≥2 methods agree
+gea_best	3.92	RDA-corrected	-0.537671901818721	12	0.245298027289467	≥2 methods agree
+gea_best	3.92	RDA-uncorrected	-0.814650914486776	12	0.200547860758312	≥2 methods agree
+gea_best	4.31	LFMM2offset	-0.784595764640618	12	0.343117262844515	≥2 methods agree
+gea_best	4.31	GFoffset	-0.809371720210979	12	0.202946341894593	≥2 methods agree
+gea_best	4.31	RDA-corrected	-0.530768259574825	12	0.223127277475009	≥2 methods agree
+gea_best	4.31	RDA-uncorrected	-0.811604512831934	12	0.182523817031052	≥2 methods agree
+gea_best	4.7	LFMM2offset	-0.784595395293995	12	0.316786094029802	≥2 methods agree
+gea_best	4.7	GFoffset	-0.809435409685729	12	0.186406785380136	≥2 methods agree
+gea_best	4.7	RDA-corrected	-0.526301196946422	12	0.204629777760904	≥2 methods agree
+gea_best	4.7	RDA-uncorrected	-0.810182805376274	12	0.167482778454807	≥2 methods agree
+gea_best	5.09	LFMM2offset	-0.783173810953875	12	0.294074620299232	≥2 methods agree
+gea_best	5.09	GFoffset	-0.809236742456319	12	0.172326531226319	≥2 methods agree
+gea_best	5.09	RDA-corrected	-0.526301196946422	12	0.188963040494878	≥2 methods agree
+gea_best	5.09	RDA-uncorrected	-0.808151953016741	12	0.15481466764005	≥2 methods agree
+gea_best	5.48	LFMM2offset	-0.782970885768125	12	0.274309986342715	≥2 methods agree
+gea_best	5.48	GFoffset	-0.808832299790057	12	0.160201532369635	≥2 methods agree
+gea_best	5.48	RDA-corrected	-0.526098148645131	12	0.175523751717768	≥2 methods agree
+gea_best	5.48	RDA-uncorrected	-0.805715250285707	12	0.1439181375425	≥2 methods agree
+gea_best	5.88	LFMM2offset	-0.782937674600654	12	0.25655346989836	≥2 methods agree
+gea_best	5.88	GFoffset	-0.806933355420141	12	0.149390292277427	≥2 methods agree
+gea_best	5.88	RDA-corrected	-0.525895100343839	12	0.163590044586194	≥2 methods agree
+gea_best	5.88	RDA-uncorrected	-0.803481041836029	12	0.134221115026412	≥2 methods agree
+gea_strict	0	LFMM2offset	-0.56544287419121	12	0.829108388364032	all 3 methods agree
+gea_strict	0	GFoffset	-0.520412796208981	12	0.491360830009705	all 3 methods agree
+gea_strict	0	RDA-corrected	-0.462003396142429	12	0.583961189608553	all 3 methods agree
+gea_strict	0	RDA-uncorrected	-0.51481342025337	12	0.546316166251886	all 3 methods agree
+gea_strict	1.72	LFMM2offset	-0.7584022204358	12	0.770098387274571	all 3 methods agree
+gea_strict	1.72	GFoffset	-0.71285664104136	12	0.579993016032255	all 3 methods agree
+gea_strict	1.72	RDA-corrected	-0.429041060628005	12	0.570902624050118	all 3 methods agree
+gea_strict	1.72	RDA-uncorrected	-0.69356274076002	12	0.480157306242103	all 3 methods agree
+gea_strict	2.35	LFMM2offset	-0.757113409737169	12	0.62432516896603	all 3 methods agree
+gea_strict	2.35	GFoffset	-0.721592317099477	12	0.434277047246584	all 3 methods agree
+gea_strict	2.35	RDA-corrected	-0.423355708191856	12	0.422065629266911	all 3 methods agree
+gea_strict	2.35	RDA-uncorrected	-0.695187127170348	12	0.353358802222259	all 3 methods agree
+gea_strict	2.74	LFMM2offset	-0.758129369853406	12	0.5510590667543	all 3 methods agree
+gea_strict	2.74	GFoffset	-0.730734233482134	12	0.373641214685911	all 3 methods agree
+gea_strict	2.74	RDA-corrected	-0.418076452358288	12	0.3626300201499	all 3 methods agree
+gea_strict	2.74	RDA-uncorrected	-0.696812807078284	12	0.303469835241734	all 3 methods agree
+gea_strict	3.13	LFMM2offset	-0.75772384813865	12	0.491607461154672	all 3 methods agree
+gea_strict	3.13	GFoffset	-0.732563105413316	12	0.32737571762195	all 3 methods agree
+gea_strict	3.13	RDA-corrected	-0.414015486332467	12	0.317755270877548	all 3 methods agree
+gea_strict	3.13	RDA-uncorrected	-0.698641679009466	12	0.265873045261182	all 3 methods agree
+gea_strict	3.53	LFMM2offset	-0.754879734701011	12	0.441838126336657	all 3 methods agree
+gea_strict	3.53	GFoffset	-0.734187779267557	12	0.290263112726245	all 3 methods agree
+gea_strict	3.53	RDA-corrected	-0.410563665210518	12	0.281922857749866	all 3 methods agree
+gea_strict	3.53	RDA-uncorrected	-0.698641391565554	12	0.235874062595309	all 3 methods agree
+gea_strict	3.92	LFMM2offset	-0.757115278122602	12	0.401694017501984	all 3 methods agree
+gea_strict	3.92	GFoffset	-0.73703131781737	12	0.261265937105828	all 3 methods agree
+gea_strict	3.92	RDA-corrected	-0.406705747485988	12	0.253976271332109	all 3 methods agree
+gea_strict	3.92	RDA-uncorrected	-0.70026664030762	12	0.212484938272929	all 3 methods agree
+gea_strict	4.31	LFMM2offset	-0.755896125983117	12	0.367964769817685	all 3 methods agree
+gea_strict	4.31	GFoffset	-0.737640750165156	12	0.237125856344961	all 3 methods agree
+gea_strict	4.31	RDA-corrected	-0.402644781460167	12	0.231060245703944	all 3 methods agree
+gea_strict	4.31	RDA-uncorrected	-0.699454159658543	12	0.193309198547671	all 3 methods agree
+gea_strict	4.7	LFMM2offset	-0.753053018599173	12	0.339286357057894	all 3 methods agree
+gea_strict	4.7	GFoffset	-0.739469765818295	12	0.216918712213552	all 3 methods agree
+gea_strict	4.7	RDA-corrected	-0.397568573927891	12	0.211931461461683	all 3 methods agree
+gea_strict	4.7	RDA-uncorrected	-0.700266496585664	12	0.177304015738096	all 3 methods agree
+gea_strict	5.09	LFMM2offset	-0.754121390994988	12	0.314638870586752	all 3 methods agree
+gea_strict	5.09	GFoffset	-0.738657141447261	12	0.19986722197138	all 3 methods agree
+gea_strict	5.09	RDA-corrected	-0.393101511299488	12	0.195724174848205	all 3 methods agree
+gea_strict	5.09	RDA-uncorrected	-0.701280732038424	12	0.163743980236504	all 3 methods agree
+gea_strict	5.48	LFMM2offset	-0.756151874007898	12	0.293250327686615	all 3 methods agree
+gea_strict	5.48	GFoffset	-0.73865642283748	12	0.185289528407067	all 3 methods agree
+gea_strict	5.48	RDA-corrected	-0.388025303767211	12	0.1818173823256	all 3 methods agree
+gea_strict	5.48	RDA-uncorrected	-0.704528498805388	12	0.15210904668808	all 3 methods agree
+gea_strict	5.88	LFMM2offset	-0.755745777405316	12	0.274079339591424	all 3 methods agree
+gea_strict	5.88	GFoffset	-0.737842936134709	12	0.172385238982433	all 3 methods agree
+gea_strict	5.88	RDA-corrected	-0.386807013959464	12	0.169465893374072	all 3 methods agree
+gea_strict	5.88	RDA-uncorrected	-0.706963210035448	12	0.141775536893392	all 3 methods agree
+gea_union	0	LFMM2offset	-0.66223222146881	12	0.694471769315003	any method (union)
+gea_union	0	GFoffset	-0.51635183018316	12	0.423284239015773	any method (union)
+gea_union	0	RDA-corrected	-0.499221831395987	12	0.571548732602171	any method (union)
+gea_union	0	RDA-uncorrected	-0.620381114535837	12	0.444015297386818	any method (union)
+gea_union	1.72	LFMM2offset	-0.78132986336799	12	0.702591807000761	any method (union)
+gea_union	1.72	GFoffset	-0.722445855993583	12	0.477233020196645	any method (union)
+gea_union	1.72	RDA-corrected	-0.677978278010841	12	0.547794778399366	any method (union)
+gea_union	1.72	RDA-uncorrected	-0.698486156441239	12	0.452014050762706	any method (union)
+gea_union	2.35	LFMM2offset	-0.768131723784071	12	0.577169655300266	any method (union)
+gea_union	2.35	GFoffset	-0.7084355232045	12	0.363911411990765	any method (union)
+gea_union	2.35	RDA-corrected	-0.674120360286312	12	0.403665139005606	any method (union)
+gea_union	2.35	RDA-uncorrected	-0.684881920254737	12	0.347151578499286	any method (union)
+gea_union	2.74	LFMM2offset	-0.763258564553086	12	0.514640515771538	any method (union)
+gea_union	2.74	GFoffset	-0.699907494550276	12	0.31534835499817	any method (union)
+gea_union	2.74	RDA-corrected	-0.673308167081147	12	0.346640750228051	any method (union)
+gea_union	2.74	RDA-uncorrected	-0.676353891600513	12	0.301732373184044	any method (union)
+gea_union	3.13	LFMM2offset	-0.760009791732429	12	0.462535877660116	any method (union)
+gea_union	3.13	GFoffset	-0.699095301345111	12	0.277698219047755	any method (union)
+gea_union	3.13	RDA-corrected	-0.672292925574691	12	0.303661539402994	any method (union)
+gea_union	3.13	RDA-uncorrected	-0.674323408587602	12	0.266355995313273	any method (union)
+gea_union	3.53	LFMM2offset	-0.7583854053221	12	0.417987461470291	any method (union)
+gea_union	3.53	GFoffset	-0.69503433531929	12	0.247133366478187	any method (union)
+gea_union	3.53	RDA-corrected	-0.674323408587603	12	0.269373158676148	any method (union)
+gea_union	3.53	RDA-uncorrected	-0.66620147653596	12	0.237531952263722	any method (union)
+gea_union	3.92	LFMM2offset	-0.753106149488533	12	0.381508990432552	any method (union)
+gea_union	3.92	GFoffset	-0.690161176088305	12	0.223038565103895	any method (union)
+gea_union	3.92	RDA-corrected	-0.672495973875983	12	0.242733882111158	any method (union)
+gea_union	3.92	RDA-uncorrected	-0.663764896920467	12	0.214740530058925	any method (union)
+gea_union	4.31	LFMM2offset	-0.750060424969167	12	0.350521821531792	any method (union)
+gea_union	4.31	GFoffset	-0.689958127787014	12	0.203140908561421	any method (union)
+gea_union	4.31	RDA-corrected	-0.670465490863072	12	0.221125788368291	any method (union)
+gea_union	4.31	RDA-uncorrected	-0.659906979195938	12	0.195871052697092	any method (union)
+gea_union	4.7	LFMM2offset	-0.751075666475622	12	0.323954544677375	any method (union)
+gea_union	4.7	GFoffset	-0.688942886280558	12	0.186450498860967	any method (union)
+gea_union	4.7	RDA-corrected	-0.670465490863072	12	0.203022841049778	any method (union)
+gea_union	4.7	RDA-uncorrected	-0.658079544484318	12	0.180007756066401	any method (union)
+gea_union	5.09	LFMM2offset	-0.750872618174331	12	0.300973232386362	any method (union)
+gea_union	5.09	GFoffset	-0.688739837979267	12	0.172260582167189	any method (union)
+gea_union	5.09	RDA-corrected	-0.668435007850162	12	0.187642227629503	any method (union)
+gea_union	5.09	RDA-uncorrected	-0.657470399580445	12	0.166494451255832	any method (union)
+gea_union	5.48	LFMM2offset	-0.751684811379495	12	0.280928085760213	any method (union)
+gea_union	5.48	GFoffset	-0.687115451568939	12	0.160054957679032	any method (union)
+gea_union	5.48	RDA-corrected	-0.667622814644998	12	0.174416385488272	any method (union)
+gea_union	5.48	RDA-uncorrected	-0.656658206375281	12	0.154850415608877	any method (union)
+gea_union	5.88	LFMM2offset	-0.752293956283368	12	0.262886118502106	any method (union)
+gea_union	5.88	GFoffset	-0.686912403267648	12	0.149195055595632	any method (union)
+gea_union	5.88	RDA-corrected	-0.665389283330796	12	0.162649464861728	any method (union)
+gea_union	5.88	RDA-uncorrected	-0.654830771663661	12	0.144473690213193	any method (union)
+neutral	0	LFMM2offset	-0.619560504595975	12	0.73352679786244	neutral
+neutral	0	GFoffset	-0.540717626338086	12	0.398633496124948	neutral
+neutral	0	RDA-corrected	-0.495238098706849	12	0.49981066335052	neutral
+neutral	0	RDA-uncorrected	-0.527241886361475	12	0.497197305620523	neutral
+neutral	1.72	LFMM2offset	-0.67391731198502	12	0.740788017814596	neutral
+neutral	1.72	GFoffset	-0.666607573138542	12	0.466412224930852	neutral
+neutral	1.72	RDA-corrected	-0.657188062993745	12	0.485201754807834	neutral
+neutral	1.72	RDA-uncorrected	-0.602444309930568	12	0.511614248427415	neutral
+neutral	2.35	LFMM2offset	-0.657267351279154	12	0.602469265534272	neutral
+neutral	2.35	GFoffset	-0.647927129419765	12	0.359954366107895	neutral
+neutral	2.35	RDA-corrected	-0.656377019564231	12	0.365052956494666	neutral
+neutral	2.35	RDA-uncorrected	-0.594322377878926	12	0.389801435524899	neutral
+neutral	2.74	LFMM2offset	-0.649957612432675	12	0.536026800212728	neutral
+neutral	2.74	GFoffset	-0.64508445320169	12	0.31344829364765	neutral
+neutral	2.74	RDA-corrected	-0.659424899912942	12	0.316203724294786	neutral
+neutral	2.74	RDA-uncorrected	-0.589855315250523	12	0.337413928247835	neutral
+neutral	3.13	LFMM2offset	-0.646099694708145	12	0.481011041886467	neutral
+neutral	3.13	GFoffset	-0.642850921887488	12	0.277062345077738	neutral
+neutral	3.13	RDA-corrected	-0.658816329896894	12	0.278544445396332	neutral
+neutral	3.13	RDA-uncorrected	-0.587215687333738	12	0.296976379932948	neutral
+neutral	3.53	LFMM2offset	-0.642850921887488	12	0.434182208188554	neutral
+neutral	3.53	GFoffset	-0.641632632079742	12	0.247317418934923	neutral
+neutral	3.53	RDA-corrected	-0.659220701836	12	0.24804964248452	neutral
+neutral	3.53	RDA-uncorrected	-0.583763866211791	12	0.264262299568859	neutral
+neutral	3.92	LFMM2offset	-0.643053970188779	12	0.395958938678256	neutral
+neutral	3.92	GFoffset	-0.638993004162959	12	0.223740265614537	neutral
+neutral	3.92	RDA-corrected	-0.65962766077032	12	0.224034019307739	neutral
+neutral	3.92	RDA-uncorrected	-0.579296803583387	12	0.238533457394033	neutral
+neutral	4.31	LFMM2offset	-0.637977762656503	12	0.363565559465213	neutral
+neutral	4.31	GFoffset	-0.636759472848756	12	0.204184896911134	neutral
+neutral	4.31	RDA-corrected	-0.6563774507301	12	0.204205402454844	neutral
+neutral	4.31	RDA-uncorrected	-0.573814499448529	12	0.217317089013032	neutral
+neutral	4.7	LFMM2offset	-0.635744231342301	12	0.335842217419251	neutral
+neutral	4.7	GFoffset	-0.634119844931973	12	0.187722150368493	neutral
+neutral	4.7	RDA-corrected	-0.656377594452056	12	0.187568811740791	neutral
+neutral	4.7	RDA-uncorrected	-0.570362678326581	12	0.199535583830406	neutral
+neutral	5.09	LFMM2offset	-0.636759472848756	12	0.311894254231187	neutral
+neutral	5.09	GFoffset	-0.633104603425517	12	0.173683009772313	neutral
+neutral	5.09	RDA-corrected	-0.653330863878995	12	0.173417826727587	neutral
+neutral	5.09	RDA-uncorrected	-0.567723050409797	12	0.184424622320852	neutral
+neutral	5.48	LFMM2offset	-0.63554118304101	12	0.291029044142824	neutral
+neutral	5.48	GFoffset	-0.630668023810025	12	0.161575495908531	neutral
+neutral	5.48	RDA-corrected	-0.651705758858886	12	0.161238278500646	neutral
+neutral	5.48	RDA-uncorrected	-0.565083422493014	12	0.171428788043972	neutral
+neutral	5.88	LFMM2offset	-0.634728989835846	12	0.272265891460476	neutral
+neutral	5.88	GFoffset	-0.628637540797114	12	0.150760214422405	neutral
+neutral	5.88	RDA-corrected	-0.647846260192836	12	0.150394216006772	neutral
+neutral	5.88	RDA-uncorrected	-0.56447427758914	12	0.159865412288528	neutral
+random_matched	0	LFMM2offset	-0.616278064836526	12	0.746216026745061	random_matched
+random_matched	0	GFoffset	-0.562646842877521	12	0.402145755218025	random_matched
+random_matched	0	RDA-corrected	-0.474312545240362	12	0.512744877516811	random_matched
+random_matched	0	RDA-uncorrected	-0.502623588165609	12	0.495930811704601	random_matched
+random_matched	1.72	LFMM2offset	-0.661734413907557	12	0.752414386297042	random_matched
+random_matched	1.72	GFoffset	-0.681836195735371	12	0.4546651151899	random_matched
+random_matched	1.72	RDA-corrected	-0.558788925152991	12	0.498805481836287	random_matched
+random_matched	1.72	RDA-uncorrected	-0.590464460154396	12	0.499464988870644	random_matched
+random_matched	2.35	LFMM2offset	-0.644272259996526	12	0.610624197513705	random_matched
+random_matched	2.35	GFoffset	-0.662952703715303	12	0.351364538013697	random_matched
+random_matched	2.35	RDA-corrected	-0.539905433132922	12	0.374871926122234	random_matched
+random_matched	2.35	RDA-uncorrected	-0.57604803076273	12	0.376917925071596	random_matched
+random_matched	2.74	LFMM2offset	-0.641835680381033	12	0.542307765866342	random_matched
+random_matched	2.74	GFoffset	-0.6584856410869	12	0.306588702582236	random_matched
+random_matched	2.74	RDA-corrected	-0.527722535055459	12	0.323049451126999	random_matched
+random_matched	2.74	RDA-uncorrected	-0.575235837557566	12	0.325606152303744	random_matched
+random_matched	3.13	LFMM2offset	-0.637571666053921	12	0.48602832025218	random_matched
+random_matched	3.13	GFoffset	-0.655033819964952	12	0.271425386996064	random_matched
+random_matched	3.13	RDA-corrected	-0.521021941112854	12	0.283604395214226	random_matched
+random_matched	3.13	RDA-uncorrected	-0.573814499448528	12	0.286258524679664	random_matched
+random_matched	3.53	LFMM2offset	-0.634728989835846	12	0.438295698233747	random_matched
+random_matched	3.53	GFoffset	-0.650566757336549	12	0.242596875902579	random_matched
+random_matched	3.53	RDA-corrected	-0.514727443772831	12	0.251944416909009	random_matched
+random_matched	3.53	RDA-uncorrected	-0.569550485121417	12	0.254541214970616	random_matched
+random_matched	3.92	LFMM2offset	-0.63168326531648	12	0.399435752315024	random_matched
+random_matched	3.92	GFoffset	-0.647521032817183	12	0.219693585648004	random_matched
+random_matched	3.92	RDA-corrected	-0.508229898131518	12	0.227166501549604	random_matched
+random_matched	3.92	RDA-uncorrected	-0.568738291916253	12	0.229651159793363	random_matched
+random_matched	4.31	LFMM2offset	-0.629043637399697	12	0.36656543678854	random_matched
+random_matched	4.31	GFoffset	-0.647317984515892	12	0.200661987728384	random_matched
+random_matched	4.31	RDA-corrected	-0.505387221913443	12	0.206800141914417	random_matched
+random_matched	4.31	RDA-uncorrected	-0.567113905505924	12	0.209155670291346	random_matched
+random_matched	4.7	LFMM2offset	-0.625997912880331	12	0.338474810159307	random_matched
+random_matched	4.7	GFoffset	-0.644678356599108	12	0.184615450763972	random_matched
+random_matched	4.7	RDA-corrected	-0.507214656625062	12	0.189830339720235	random_matched
+random_matched	4.7	RDA-uncorrected	-0.564068180986558	12	0.191995373138093	random_matched
+random_matched	5.09	LFMM2offset	-0.625388767976458	12	0.314237114408717	random_matched
+random_matched	5.09	GFoffset	-0.641632632079742	12	0.170913341985439	random_matched
+random_matched	5.09	RDA-corrected	-0.505590270214734	12	0.175808421199893	random_matched
+random_matched	5.09	RDA-uncorrected	-0.56244379457623	12	0.177422845586234	random_matched
+random_matched	5.48	LFMM2offset	-0.624170478168711	12	0.29313851666848	random_matched
+random_matched	5.48	GFoffset	-0.637571666053921	12	0.159083207652908	random_matched
+random_matched	5.48	RDA-corrected	-0.506605511721189	12	0.163686470946107	random_matched
+random_matched	5.48	RDA-uncorrected	-0.561022456467192	12	0.164896883008111	random_matched
+random_matched	5.88	LFMM2offset	-0.622952188360965	12	0.274179456043407	random_matched
+random_matched	5.88	GFoffset	-0.63554118304101	12	0.148522878230612	random_matched
+random_matched	5.88	RDA-corrected	-0.509651236240555	12	0.152854167912632	random_matched
+random_matched	5.88	RDA-uncorrected	-0.560007214960737	12	0.153756312895051	random_matched

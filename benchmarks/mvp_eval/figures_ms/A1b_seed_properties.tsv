@@ -1,0 +1,33 @@
+seed	arch	is_control	meanFst	r2_pc1_temp	r2_pc1_sal	n_snps	n_causal_maf01	final_LA	k_best	n_traits	pleiotropy	demog
+1232568	moderately polygenic	TRUE	0.2166	0.9397	0.0036	10062	38	0.4895	2	2	1	N-variable_m-variable
+1231578	highly polygenic	TRUE	0.2102	0.9197	4e-04	13161	515	0.3316	2	2	0	N-variable_m-variable
+1231288	oligogenic	FALSE	0.2174	0.5712	0.0015	11287	6	0.3917	2	2	0	N-variable_m-variable
+1232578	moderately polygenic	FALSE	0.2046	0.4333	0.0249	10145	28	0.5488	7	2	1	N-variable_m-variable
+1232548	moderately polygenic	FALSE	0.1978	0.5726	0.0046	10394	70	0.5458	5	2	0	N-variable_m-variable
+1231858	moderately polygenic	FALSE	0.1952	0.5206	0.0124	8526	46	0.4728	3	1	0	N-variable_m-variable
+1232218	oligogenic	FALSE	0.1925	0.345	0.0034	9934	6	0.3674	2	2	1	N-variable_m-variable
+1231993	oligogenic	FALSE	0.1923	0.418	6e-04	4985	8	0.3667	2	2	1	N-variable_m-variable
+1232398	oligogenic	FALSE	0.1853	0.5026	0.0054	9548	10	0.5462	2	2	0	N-variable_m-variable
+1233208	moderately polygenic	FALSE	0.1821	0.4506	0.0143	9672	39	0.4674	4	1	0	N-variable_m-variable
+1232923	highly polygenic	FALSE	0.1758	0.3245	0.0293	12185	363	0.5539	3	2	0	N-variable_m-variable
+1231798	highly polygenic	FALSE	0.174	0.3973	0.027	9916	395	0.5459	3	2	0	N-variable_m-variable
+1232788	moderately polygenic	FALSE	0.1719	0.3611	0.0193	9490	72	0.4088	2	2	0	N-variable_m-variable
+1232908	highly polygenic	FALSE	0.1717	0.3973	0.0058	11438	268	0.4766	2	1	0	N-variable_m-variable
+1233133	highly polygenic	FALSE	0.1711	0.3103	0.0174	10831	324	0.4687	2	1	0	N-variable_m-variable
+1233328	oligogenic	FALSE	0.1708	0.3642	0.0058	13025	8	0.5389	3	2	1	N-variable_m-variable
+1232383	oligogenic	FALSE	0.1551	0.2529	0.0079	10650	4	0.4672	2	1	0	N-variable_m-variable
+1232368	moderately polygenic	FALSE	0.1541	0.2469	0.0348	7426	34	0.3832	9	2	1	N-variable_m-variable
+1231974	oligogenic	FALSE	0.1512	0.2291	4e-04	24381	6	0.5228	3	2	1	N-cline-center-to-edge_m-constant
+1232698	highly polygenic	FALSE	0.1499	0.4367	0.0296	10905	406	0.5507	4	2	0	N-variable_m-variable
+1231468	moderately polygenic	FALSE	0.1461	0.5578	0.0287	11287	33	0.3908	2	2	1	N-variable_m-variable
+1231513	oligogenic	FALSE	0.1452	0.5099	1e-04	9600	9	0.3888	2	2	0	N-variable_m-variable
+1233100	oligogenic	FALSE	0.1415	0.241	0.0032	24981	7	0.5185	2	2	1	N-cline-N-to-S_m-constant
+1231194	moderately polygenic	FALSE	0.1411	0.2071	2e-04	24460	66	0.555	3	2	0	N-cline-center-to-edge_m-constant
+1231585	highly polygenic	FALSE	0.139	0.3112	3e-04	26267	534	0.4081	2	2	0	N-cline-N-to-S_m-constant
+1231600	highly polygenic	FALSE	0.1384	0.5868	0	26486	429	0.5585	2	2	1	N-cline-N-to-S_m-constant
+1231465	moderately polygenic	FALSE	0.1357	0.3213	0.0052	25451	39	0.4101	2	2	1	N-cline-N-to-S_m-constant
+1233175	highly polygenic	FALSE	0.1345	0.4879	0.0037	25631	415	0.5529	4	2	1	N-cline-N-to-S_m-constant
+1232860	oligogenic	FALSE	0.1324	0.5764	0.0031	25383	8	0.4165	4	2	0	N-cline-N-to-S_m-constant
+1232515	highly polygenic	FALSE	0.1318	0.2067	0.0032	26633	497	0.409	4	2	1	N-cline-N-to-S_m-constant
+1232740	highly polygenic	FALSE	0.1311	0.3652	0.0013	25839	434	0.4122	3	2	1	N-cline-N-to-S_m-constant
+1232335	moderately polygenic	FALSE	0.1276	0.2902	3e-04	25664	98	0.4083	4	2	0	N-cline-N-to-S_m-constant

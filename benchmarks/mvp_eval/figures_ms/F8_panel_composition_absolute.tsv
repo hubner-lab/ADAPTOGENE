@@ -1,0 +1,22 @@
+panel	arch	markers	causal	linked	noise	causal_loci_total	n_replicates	accuracy
+EMMAX only	oligogenic	22.7	4.3	17.6	0.8	7.2	10	0.710434239035195
+EMMAX only	moderately polygenic	16.7	3.3	12	1.4	52.5	10	0.731881817813903
+EMMAX only	highly polygenic	7.4	1.6	3.3	2.5	406.5	10	0.631490287069954
+LFMM only	oligogenic	196.6	6.1	163.3	27.2	7.2	10	0.584208891205832
+LFMM only	moderately polygenic	191.4	12.1	144.2	35.1	52.5	10	0.58048547542649
+LFMM only	highly polygenic	197	19.5	128.9	48.6	406.5	10	0.693591581161692
+RDA only	oligogenic	98.9	4.1	86.8	8	7.2	10	0.689695524662237
+RDA only	moderately polygenic	99	6.8	75.6	16.6	52.5	10	0.697684992619748
+RDA only	highly polygenic	98.8	10.1	66.2	22.5	406.5	10	0.664512778419805
+all 3 methods agree	oligogenic	82.3	4.2	78.1	0	7.2	10	0.692870377528268
+all 3 methods agree	moderately polygenic	48.3	3.5	44.6	0.2	52.5	10	0.748567731935846
+all 3 methods agree	highly polygenic	22.9	3.5	17.7	1.7	406.5	10	0.553740990159801
+any method (union)	oligogenic	218.3	6.4	180.9	31	7.2	10	0.603590932050997
+any method (union)	moderately polygenic	227.6	13.1	168	46.5	52.5	10	0.587310573128031
+any method (union)	highly polygenic	238.5	21.8	153.8	62.9	406.5	10	0.713295275157421
+true QTNs (oracle)	oligogenic	7.2	7.2	0	0	7.2	10	0.68645974919282
+true QTNs (oracle)	moderately polygenic	52.5	52.5	0	0	52.5	10	0.694831287017999
+true QTNs (oracle)	highly polygenic	406.5	406.5	0	0	406.5	10	0.731549452886307
+≥2 methods agree	oligogenic	141.1	4.9	128.5	7.7	7.2	10	0.69113217463551
+≥2 methods agree	moderately polygenic	153.7	10.3	123.6	19.8	52.5	10	0.704922957599738
+≥2 methods agree	highly polygenic	155.6	16.1	111.6	27.9	406.5	10	0.72814446514941

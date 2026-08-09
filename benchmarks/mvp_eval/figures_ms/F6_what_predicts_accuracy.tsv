@@ -1,0 +1,631 @@
+seed	arch	panel	accuracy	property	x
+1231194	moderately polygenic	true QTNs (oracle)	0.65076980563784	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	≥2 methods agree	0.649081603516527	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	EMMAX only	0.514284004301027	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	LFMM only	0.66288167620598	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	RDA only	0.547008333061126	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	all 3 methods agree	0.542027531318443	local adaptation (final_LA)	0.555
+1231194	moderately polygenic	any method (union)	0.674729505190184	local adaptation (final_LA)	0.555
+1231288	oligogenic	true QTNs (oracle)	0.626518345236078	local adaptation (final_LA)	0.3917
+1231288	oligogenic	≥2 methods agree	0.707720563623762	local adaptation (final_LA)	0.3917
+1231288	oligogenic	EMMAX only	0.695329107648868	local adaptation (final_LA)	0.3917
+1231288	oligogenic	LFMM only	0.461871840248383	local adaptation (final_LA)	0.3917
+1231288	oligogenic	RDA only	0.703047128951541	local adaptation (final_LA)	0.3917
+1231288	oligogenic	all 3 methods agree	0.703047128951541	local adaptation (final_LA)	0.3917
+1231288	oligogenic	any method (union)	0.469488625868739	local adaptation (final_LA)	0.3917
+1231465	moderately polygenic	true QTNs (oracle)	0.728573977396653	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	≥2 methods agree	0.736147573621311	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	EMMAX only	0.737772623452706	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	LFMM only	0.450651835073091	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	RDA only	0.744679085236128	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	all 3 methods agree	0.725584749717253	local adaptation (final_LA)	0.4101
+1231465	moderately polygenic	any method (union)	0.473193181911192	local adaptation (final_LA)	0.4101
+1231468	moderately polygenic	true QTNs (oracle)	0.609160266221446	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	≥2 methods agree	0.615906034987973	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	EMMAX only	0.764569150042485	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	LFMM only	0.383581180897617	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	RDA only	0.725461705837341	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	all 3 methods agree	0.749072593090632	local adaptation (final_LA)	0.3908
+1231468	moderately polygenic	any method (union)	0.39871966222438	local adaptation (final_LA)	0.3908
+1231513	oligogenic	true QTNs (oracle)	0.678763001450224	local adaptation (final_LA)	0.3888
+1231513	oligogenic	≥2 methods agree	0.747622901663917	local adaptation (final_LA)	0.3888
+1231513	oligogenic	EMMAX only	0.706876960169442	local adaptation (final_LA)	0.3888
+1231513	oligogenic	LFMM only	0.393999534604957	local adaptation (final_LA)	0.3888
+1231513	oligogenic	RDA only	0.743845576758372	local adaptation (final_LA)	0.3888
+1231513	oligogenic	all 3 methods agree	0.734596133211844	local adaptation (final_LA)	0.3888
+1231513	oligogenic	any method (union)	0.402224483504642	local adaptation (final_LA)	0.3888
+1231585	highly polygenic	true QTNs (oracle)	0.478068580188273	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	≥2 methods agree	0.735508894761483	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	EMMAX only	0.725889371819002	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	LFMM only	0.354791724461994	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	RDA only	0.732693024226	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	all 3 methods agree	0.7439176851978	local adaptation (final_LA)	0.4081
+1231585	highly polygenic	any method (union)	0.368695515324677	local adaptation (final_LA)	0.4081
+1231600	highly polygenic	true QTNs (oracle)	0.718803384259965	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	≥2 methods agree	0.771982497837136	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	EMMAX only	0.665412035103094	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	LFMM only	0.632660339384013	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	RDA only	0.607539311538058	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	all 3 methods agree	0.695796918797713	local adaptation (final_LA)	0.5585
+1231600	highly polygenic	any method (union)	0.659123955789965	local adaptation (final_LA)	0.5585
+1231798	highly polygenic	true QTNs (oracle)	0.712465453567849	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	≥2 methods agree	0.858493462836553	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	EMMAX only	0.548449262855629	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	LFMM only	0.699947071767427	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	RDA only	0.729236176747017	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	all 3 methods agree	0.550696650050248	local adaptation (final_LA)	0.5459
+1231798	highly polygenic	any method (union)	0.72523110483417	local adaptation (final_LA)	0.5459
+1231858	moderately polygenic	true QTNs (oracle)	0.813477111465936	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	≥2 methods agree	0.743812429303664	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	EMMAX only	0.739904047909051	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	LFMM only	0.770318857095993	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	RDA only	0.500819733929766	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	all 3 methods agree	0.661085671067322	local adaptation (final_LA)	0.4728
+1231858	moderately polygenic	any method (union)	0.762600533817938	local adaptation (final_LA)	0.4728
+1231974	oligogenic	true QTNs (oracle)	0.755064871639643	local adaptation (final_LA)	0.5228
+1231974	oligogenic	≥2 methods agree	0.585005108431597	local adaptation (final_LA)	0.5228
+1231974	oligogenic	EMMAX only	0.582299932522745	local adaptation (final_LA)	0.5228
+1231974	oligogenic	LFMM only	0.696393324860741	local adaptation (final_LA)	0.5228
+1231974	oligogenic	RDA only	0.549174667368134	local adaptation (final_LA)	0.5228
+1231974	oligogenic	all 3 methods agree	0.538000192079475	local adaptation (final_LA)	0.5228
+1231974	oligogenic	any method (union)	0.719050450172757	local adaptation (final_LA)	0.5228
+1231993	oligogenic	true QTNs (oracle)	0.575723605456115	local adaptation (final_LA)	0.3667
+1231993	oligogenic	≥2 methods agree	0.394274972019864	local adaptation (final_LA)	0.3667
+1231993	oligogenic	EMMAX only	0.686073247897231	local adaptation (final_LA)	0.3667
+1231993	oligogenic	LFMM only	0.338249823400189	local adaptation (final_LA)	0.3667
+1231993	oligogenic	RDA only	0.695186035312023	local adaptation (final_LA)	0.3667
+1231993	oligogenic	all 3 methods agree	0.668104133281013	local adaptation (final_LA)	0.3667
+1231993	oligogenic	any method (union)	0.345260612092872	local adaptation (final_LA)	0.3667
+1232218	oligogenic	true QTNs (oracle)	0.725174872348296	local adaptation (final_LA)	0.3674
+1232218	oligogenic	≥2 methods agree	0.699727240619949	local adaptation (final_LA)	0.3674
+1232218	oligogenic	EMMAX only	0.707202455158329	local adaptation (final_LA)	0.3674
+1232218	oligogenic	LFMM only	0.47042267112098	local adaptation (final_LA)	0.3674
+1232218	oligogenic	RDA only	0.736734939353624	local adaptation (final_LA)	0.3674
+1232218	oligogenic	all 3 methods agree	0.717162389350052	local adaptation (final_LA)	0.3674
+1232218	oligogenic	any method (union)	0.49102917410629	local adaptation (final_LA)	0.3674
+1232335	moderately polygenic	true QTNs (oracle)	0.631516601518465	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	≥2 methods agree	0.767912155338122	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	EMMAX only	0.814150105406804	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	LFMM only	0.469596664998819	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	RDA only	0.81112995669327	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	all 3 methods agree	0.772426365664556	local adaptation (final_LA)	0.4083
+1232335	moderately polygenic	any method (union)	0.481378286008108	local adaptation (final_LA)	0.4083
+1232368	moderately polygenic	true QTNs (oracle)	0.680929105692626	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	≥2 methods agree	0.592629058195231	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	EMMAX only	0.724296452700848	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	LFMM only	0.571445257571963	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	RDA only	0.679671287037598	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	all 3 methods agree	0.779254640905463	local adaptation (final_LA)	0.3832
+1232368	moderately polygenic	any method (union)	0.561968739500985	local adaptation (final_LA)	0.3832
+1232383	oligogenic	true QTNs (oracle)	0.816209431281737	local adaptation (final_LA)	0.4672
+1232383	oligogenic	≥2 methods agree	0.71675760068085	local adaptation (final_LA)	0.4672
+1232383	oligogenic	EMMAX only	0.809191403153845	local adaptation (final_LA)	0.4672
+1232383	oligogenic	LFMM only	0.753976132282683	local adaptation (final_LA)	0.4672
+1232383	oligogenic	RDA only	0.406100116411581	local adaptation (final_LA)	0.4672
+1232383	oligogenic	all 3 methods agree	0.813867760259273	local adaptation (final_LA)	0.4672
+1232383	oligogenic	any method (union)	0.745662669097967	local adaptation (final_LA)	0.4672
+1232398	oligogenic	true QTNs (oracle)	0.842955022809825	local adaptation (final_LA)	0.5462
+1232398	oligogenic	≥2 methods agree	0.806609376878727	local adaptation (final_LA)	0.5462
+1232398	oligogenic	EMMAX only	0.780111573560244	local adaptation (final_LA)	0.5462
+1232398	oligogenic	LFMM only	0.654323150910433	local adaptation (final_LA)	0.5462
+1232398	oligogenic	RDA only	0.64487168711558	local adaptation (final_LA)	0.5462
+1232398	oligogenic	all 3 methods agree	0.781598518746639	local adaptation (final_LA)	0.5462
+1232398	oligogenic	any method (union)	0.680079415367192	local adaptation (final_LA)	0.5462
+1232515	highly polygenic	true QTNs (oracle)	0.431073445436794	local adaptation (final_LA)	0.409
+1232515	highly polygenic	≥2 methods agree	0.356491015252728	local adaptation (final_LA)	0.409
+1232515	highly polygenic	EMMAX only	0.646641046280388	local adaptation (final_LA)	0.409
+1232515	highly polygenic	LFMM only	0.326477841334477	local adaptation (final_LA)	0.409
+1232515	highly polygenic	RDA only	0.472750182511861	local adaptation (final_LA)	0.409
+1232515	highly polygenic	all 3 methods agree	0.47377841097219	local adaptation (final_LA)	0.409
+1232515	highly polygenic	any method (union)	0.339404182063141	local adaptation (final_LA)	0.409
+1232548	moderately polygenic	true QTNs (oracle)	0.675070628000663	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	≥2 methods agree	0.662952703715303	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	EMMAX only	0.547732184291314	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	LFMM only	0.559195021755573	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	RDA only	0.759635912523789	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	all 3 methods agree	0.509702216007264	local adaptation (final_LA)	0.5458
+1232548	moderately polygenic	any method (union)	0.568129147012379	local adaptation (final_LA)	0.5458
+1232578	moderately polygenic	true QTNs (oracle)	0.715253970318258	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	≥2 methods agree	0.682395808371376	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	EMMAX only	0.670272530145969	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	LFMM only	0.650228951639862	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	RDA only	0.724040326264487	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	all 3 methods agree	0.747563947808842	local adaptation (final_LA)	0.5488
+1232578	moderately polygenic	any method (union)	0.663529278795491	local adaptation (final_LA)	0.5488
+1232698	highly polygenic	true QTNs (oracle)	0.718283365817117	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	≥2 methods agree	0.691832395883685	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	EMMAX only	0.624737682426354	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	LFMM only	0.685641122710788	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	RDA only	0.712021770019776	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	all 3 methods agree	0.55450204138992	local adaptation (final_LA)	0.5507
+1232698	highly polygenic	any method (union)	0.699247100377584	local adaptation (final_LA)	0.5507
+1232740	highly polygenic	true QTNs (oracle)	0.493300105252262	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	≥2 methods agree	0.492695562832029	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	EMMAX only	0.698652379229215	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	LFMM only	0.382498041059558	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	RDA only	0.638109700520838	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	all 3 methods agree	0.72395969988586	local adaptation (final_LA)	0.4122
+1232740	highly polygenic	any method (union)	0.402085777167637	local adaptation (final_LA)	0.4122
+1232788	moderately polygenic	true QTNs (oracle)	0.66937345360729	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	≥2 methods agree	0.73271158701715	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	EMMAX only	0.762239952858093	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	LFMM only	0.486761785507206	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	RDA only	0.755441511973273	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	all 3 methods agree	0.755779290462348	local adaptation (final_LA)	0.4088
+1232788	moderately polygenic	any method (union)	0.50341999285759	local adaptation (final_LA)	0.4088
+1232860	oligogenic	true QTNs (oracle)	0.751480900179148	local adaptation (final_LA)	0.4165
+1232860	oligogenic	≥2 methods agree	0.666671883518047	local adaptation (final_LA)	0.4165
+1232860	oligogenic	EMMAX only	0.781078979521194	local adaptation (final_LA)	0.4165
+1232860	oligogenic	LFMM only	0.44714335020157	local adaptation (final_LA)	0.4165
+1232860	oligogenic	RDA only	0.707895951823807	local adaptation (final_LA)	0.4165
+1232860	oligogenic	all 3 methods agree	0.714393497465121	local adaptation (final_LA)	0.4165
+1232860	oligogenic	any method (union)	0.482332014021953	local adaptation (final_LA)	0.4165
+1232908	highly polygenic	true QTNs (oracle)	0.803060000905636	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	≥2 methods agree	0.691515685750621	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	EMMAX only	0.625339488243159	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	LFMM only	0.782000810094698	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	RDA only	0.436209573973749	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	all 3 methods agree	0.283250198971107	local adaptation (final_LA)	0.4766
+1232908	highly polygenic	any method (union)	0.784132485547721	local adaptation (final_LA)	0.4766
+1232923	highly polygenic	true QTNs (oracle)	0.787435225432248	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	≥2 methods agree	0.79232444532449	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	EMMAX only	0.622464743137459	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	LFMM only	0.764453530968243	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	RDA only	0.756090304011264	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	all 3 methods agree	0.545342438052408	local adaptation (final_LA)	0.5539
+1232923	highly polygenic	any method (union)	0.771989641508602	local adaptation (final_LA)	0.5539
+1233100	oligogenic	true QTNs (oracle)	0.582675815051054	local adaptation (final_LA)	0.5185
+1233100	oligogenic	≥2 methods agree	0.680528555240996	local adaptation (final_LA)	0.5185
+1233100	oligogenic	EMMAX only	0.700773408703322	local adaptation (final_LA)	0.5185
+1233100	oligogenic	LFMM only	0.601340645255954	local adaptation (final_LA)	0.5185
+1233100	oligogenic	RDA only	0.699575924890393	local adaptation (final_LA)	0.5185
+1233100	oligogenic	all 3 methods agree	0.681105408539592	local adaptation (final_LA)	0.5185
+1233100	oligogenic	any method (union)	0.603590932050997	local adaptation (final_LA)	0.5185
+1233133	highly polygenic	true QTNs (oracle)	0.760521083867725	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	≥2 methods agree	0.680151530034304	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	EMMAX only	0.464856425834352	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	LFMM only	0.761532644448913	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	RDA only	0.310126753879579	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	all 3 methods agree	0.34427252049297	local adaptation (final_LA)	0.4687
+1233133	highly polygenic	any method (union)	0.75275507126927	local adaptation (final_LA)	0.4687
+1233175	highly polygenic	true QTNs (oracle)	0.725847561779907	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	≥2 methods agree	0.82778103028701	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	EMMAX only	0.570082352471828	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	LFMM only	0.682242292337953	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	RDA only	0.723896374864657	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	all 3 methods agree	0.681630356589266	local adaptation (final_LA)	0.5529
+1233175	highly polygenic	any method (union)	0.683054485543118	local adaptation (final_LA)	0.5529
+1233208	moderately polygenic	true QTNs (oracle)	0.81787855760038	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	≥2 methods agree	0.723416856856343	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	EMMAX only	0.815526025141081	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	LFMM only	0.753362458066444	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	RDA only	0.498732231257019	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	all 3 methods agree	0.807201749673028	local adaptation (final_LA)	0.4674
+1233208	moderately polygenic	any method (union)	0.750238905963371	local adaptation (final_LA)	0.4674
+1233328	oligogenic	true QTNs (oracle)	0.673093743829525	local adaptation (final_LA)	0.5389
+1233328	oligogenic	≥2 methods agree	0.731109857601602	local adaptation (final_LA)	0.5389
+1233328	oligogenic	EMMAX only	0.602193598976359	local adaptation (final_LA)	0.5389
+1233328	oligogenic	LFMM only	0.620128398915572	local adaptation (final_LA)	0.5389
+1233328	oligogenic	RDA only	0.642479849110186	local adaptation (final_LA)	0.5389
+1233328	oligogenic	all 3 methods agree	0.63338660700478	local adaptation (final_LA)	0.5389
+1233328	oligogenic	any method (union)	0.65536648415685	local adaptation (final_LA)	0.5389
+1231194	moderately polygenic	true QTNs (oracle)	0.65076980563784	mean Fst	0.1411
+1231194	moderately polygenic	≥2 methods agree	0.649081603516527	mean Fst	0.1411
+1231194	moderately polygenic	EMMAX only	0.514284004301027	mean Fst	0.1411
+1231194	moderately polygenic	LFMM only	0.66288167620598	mean Fst	0.1411
+1231194	moderately polygenic	RDA only	0.547008333061126	mean Fst	0.1411
+1231194	moderately polygenic	all 3 methods agree	0.542027531318443	mean Fst	0.1411
+1231194	moderately polygenic	any method (union)	0.674729505190184	mean Fst	0.1411
+1231288	oligogenic	true QTNs (oracle)	0.626518345236078	mean Fst	0.2174
+1231288	oligogenic	≥2 methods agree	0.707720563623762	mean Fst	0.2174
+1231288	oligogenic	EMMAX only	0.695329107648868	mean Fst	0.2174
+1231288	oligogenic	LFMM only	0.461871840248383	mean Fst	0.2174
+1231288	oligogenic	RDA only	0.703047128951541	mean Fst	0.2174
+1231288	oligogenic	all 3 methods agree	0.703047128951541	mean Fst	0.2174
+1231288	oligogenic	any method (union)	0.469488625868739	mean Fst	0.2174
+1231465	moderately polygenic	true QTNs (oracle)	0.728573977396653	mean Fst	0.1357
+1231465	moderately polygenic	≥2 methods agree	0.736147573621311	mean Fst	0.1357
+1231465	moderately polygenic	EMMAX only	0.737772623452706	mean Fst	0.1357
+1231465	moderately polygenic	LFMM only	0.450651835073091	mean Fst	0.1357
+1231465	moderately polygenic	RDA only	0.744679085236128	mean Fst	0.1357
+1231465	moderately polygenic	all 3 methods agree	0.725584749717253	mean Fst	0.1357
+1231465	moderately polygenic	any method (union)	0.473193181911192	mean Fst	0.1357
+1231468	moderately polygenic	true QTNs (oracle)	0.609160266221446	mean Fst	0.1461
+1231468	moderately polygenic	≥2 methods agree	0.615906034987973	mean Fst	0.1461
+1231468	moderately polygenic	EMMAX only	0.764569150042485	mean Fst	0.1461
+1231468	moderately polygenic	LFMM only	0.383581180897617	mean Fst	0.1461
+1231468	moderately polygenic	RDA only	0.725461705837341	mean Fst	0.1461
+1231468	moderately polygenic	all 3 methods agree	0.749072593090632	mean Fst	0.1461
+1231468	moderately polygenic	any method (union)	0.39871966222438	mean Fst	0.1461
+1231513	oligogenic	true QTNs (oracle)	0.678763001450224	mean Fst	0.1452
+1231513	oligogenic	≥2 methods agree	0.747622901663917	mean Fst	0.1452
+1231513	oligogenic	EMMAX only	0.706876960169442	mean Fst	0.1452
+1231513	oligogenic	LFMM only	0.393999534604957	mean Fst	0.1452
+1231513	oligogenic	RDA only	0.743845576758372	mean Fst	0.1452
+1231513	oligogenic	all 3 methods agree	0.734596133211844	mean Fst	0.1452
+1231513	oligogenic	any method (union)	0.402224483504642	mean Fst	0.1452
+1231585	highly polygenic	true QTNs (oracle)	0.478068580188273	mean Fst	0.139
+1231585	highly polygenic	≥2 methods agree	0.735508894761483	mean Fst	0.139
+1231585	highly polygenic	EMMAX only	0.725889371819002	mean Fst	0.139
+1231585	highly polygenic	LFMM only	0.354791724461994	mean Fst	0.139
+1231585	highly polygenic	RDA only	0.732693024226	mean Fst	0.139
+1231585	highly polygenic	all 3 methods agree	0.7439176851978	mean Fst	0.139
+1231585	highly polygenic	any method (union)	0.368695515324677	mean Fst	0.139
+1231600	highly polygenic	true QTNs (oracle)	0.718803384259965	mean Fst	0.1384
+1231600	highly polygenic	≥2 methods agree	0.771982497837136	mean Fst	0.1384
+1231600	highly polygenic	EMMAX only	0.665412035103094	mean Fst	0.1384
+1231600	highly polygenic	LFMM only	0.632660339384013	mean Fst	0.1384
+1231600	highly polygenic	RDA only	0.607539311538058	mean Fst	0.1384
+1231600	highly polygenic	all 3 methods agree	0.695796918797713	mean Fst	0.1384
+1231600	highly polygenic	any method (union)	0.659123955789965	mean Fst	0.1384
+1231798	highly polygenic	true QTNs (oracle)	0.712465453567849	mean Fst	0.174
+1231798	highly polygenic	≥2 methods agree	0.858493462836553	mean Fst	0.174
+1231798	highly polygenic	EMMAX only	0.548449262855629	mean Fst	0.174
+1231798	highly polygenic	LFMM only	0.699947071767427	mean Fst	0.174
+1231798	highly polygenic	RDA only	0.729236176747017	mean Fst	0.174
+1231798	highly polygenic	all 3 methods agree	0.550696650050248	mean Fst	0.174
+1231798	highly polygenic	any method (union)	0.72523110483417	mean Fst	0.174
+1231858	moderately polygenic	true QTNs (oracle)	0.813477111465936	mean Fst	0.1952
+1231858	moderately polygenic	≥2 methods agree	0.743812429303664	mean Fst	0.1952
+1231858	moderately polygenic	EMMAX only	0.739904047909051	mean Fst	0.1952
+1231858	moderately polygenic	LFMM only	0.770318857095993	mean Fst	0.1952
+1231858	moderately polygenic	RDA only	0.500819733929766	mean Fst	0.1952
+1231858	moderately polygenic	all 3 methods agree	0.661085671067322	mean Fst	0.1952
+1231858	moderately polygenic	any method (union)	0.762600533817938	mean Fst	0.1952
+1231974	oligogenic	true QTNs (oracle)	0.755064871639643	mean Fst	0.1512
+1231974	oligogenic	≥2 methods agree	0.585005108431597	mean Fst	0.1512
+1231974	oligogenic	EMMAX only	0.582299932522745	mean Fst	0.1512
+1231974	oligogenic	LFMM only	0.696393324860741	mean Fst	0.1512
+1231974	oligogenic	RDA only	0.549174667368134	mean Fst	0.1512
+1231974	oligogenic	all 3 methods agree	0.538000192079475	mean Fst	0.1512
+1231974	oligogenic	any method (union)	0.719050450172757	mean Fst	0.1512
+1231993	oligogenic	true QTNs (oracle)	0.575723605456115	mean Fst	0.1923
+1231993	oligogenic	≥2 methods agree	0.394274972019864	mean Fst	0.1923
+1231993	oligogenic	EMMAX only	0.686073247897231	mean Fst	0.1923
+1231993	oligogenic	LFMM only	0.338249823400189	mean Fst	0.1923
+1231993	oligogenic	RDA only	0.695186035312023	mean Fst	0.1923
+1231993	oligogenic	all 3 methods agree	0.668104133281013	mean Fst	0.1923
+1231993	oligogenic	any method (union)	0.345260612092872	mean Fst	0.1923
+1232218	oligogenic	true QTNs (oracle)	0.725174872348296	mean Fst	0.1925
+1232218	oligogenic	≥2 methods agree	0.699727240619949	mean Fst	0.1925
+1232218	oligogenic	EMMAX only	0.707202455158329	mean Fst	0.1925
+1232218	oligogenic	LFMM only	0.47042267112098	mean Fst	0.1925
+1232218	oligogenic	RDA only	0.736734939353624	mean Fst	0.1925
+1232218	oligogenic	all 3 methods agree	0.717162389350052	mean Fst	0.1925
+1232218	oligogenic	any method (union)	0.49102917410629	mean Fst	0.1925
+1232335	moderately polygenic	true QTNs (oracle)	0.631516601518465	mean Fst	0.1276
+1232335	moderately polygenic	≥2 methods agree	0.767912155338122	mean Fst	0.1276
+1232335	moderately polygenic	EMMAX only	0.814150105406804	mean Fst	0.1276
+1232335	moderately polygenic	LFMM only	0.469596664998819	mean Fst	0.1276
+1232335	moderately polygenic	RDA only	0.81112995669327	mean Fst	0.1276
+1232335	moderately polygenic	all 3 methods agree	0.772426365664556	mean Fst	0.1276
+1232335	moderately polygenic	any method (union)	0.481378286008108	mean Fst	0.1276
+1232368	moderately polygenic	true QTNs (oracle)	0.680929105692626	mean Fst	0.1541
+1232368	moderately polygenic	≥2 methods agree	0.592629058195231	mean Fst	0.1541
+1232368	moderately polygenic	EMMAX only	0.724296452700848	mean Fst	0.1541
+1232368	moderately polygenic	LFMM only	0.571445257571963	mean Fst	0.1541
+1232368	moderately polygenic	RDA only	0.679671287037598	mean Fst	0.1541
+1232368	moderately polygenic	all 3 methods agree	0.779254640905463	mean Fst	0.1541
+1232368	moderately polygenic	any method (union)	0.561968739500985	mean Fst	0.1541
+1232383	oligogenic	true QTNs (oracle)	0.816209431281737	mean Fst	0.1551
+1232383	oligogenic	≥2 methods agree	0.71675760068085	mean Fst	0.1551
+1232383	oligogenic	EMMAX only	0.809191403153845	mean Fst	0.1551
+1232383	oligogenic	LFMM only	0.753976132282683	mean Fst	0.1551
+1232383	oligogenic	RDA only	0.406100116411581	mean Fst	0.1551
+1232383	oligogenic	all 3 methods agree	0.813867760259273	mean Fst	0.1551
+1232383	oligogenic	any method (union)	0.745662669097967	mean Fst	0.1551
+1232398	oligogenic	true QTNs (oracle)	0.842955022809825	mean Fst	0.1853
+1232398	oligogenic	≥2 methods agree	0.806609376878727	mean Fst	0.1853
+1232398	oligogenic	EMMAX only	0.780111573560244	mean Fst	0.1853
+1232398	oligogenic	LFMM only	0.654323150910433	mean Fst	0.1853
+1232398	oligogenic	RDA only	0.64487168711558	mean Fst	0.1853
+1232398	oligogenic	all 3 methods agree	0.781598518746639	mean Fst	0.1853
+1232398	oligogenic	any method (union)	0.680079415367192	mean Fst	0.1853
+1232515	highly polygenic	true QTNs (oracle)	0.431073445436794	mean Fst	0.1318
+1232515	highly polygenic	≥2 methods agree	0.356491015252728	mean Fst	0.1318
+1232515	highly polygenic	EMMAX only	0.646641046280388	mean Fst	0.1318
+1232515	highly polygenic	LFMM only	0.326477841334477	mean Fst	0.1318
+1232515	highly polygenic	RDA only	0.472750182511861	mean Fst	0.1318
+1232515	highly polygenic	all 3 methods agree	0.47377841097219	mean Fst	0.1318
+1232515	highly polygenic	any method (union)	0.339404182063141	mean Fst	0.1318
+1232548	moderately polygenic	true QTNs (oracle)	0.675070628000663	mean Fst	0.1978
+1232548	moderately polygenic	≥2 methods agree	0.662952703715303	mean Fst	0.1978
+1232548	moderately polygenic	EMMAX only	0.547732184291314	mean Fst	0.1978
+1232548	moderately polygenic	LFMM only	0.559195021755573	mean Fst	0.1978
+1232548	moderately polygenic	RDA only	0.759635912523789	mean Fst	0.1978
+1232548	moderately polygenic	all 3 methods agree	0.509702216007264	mean Fst	0.1978
+1232548	moderately polygenic	any method (union)	0.568129147012379	mean Fst	0.1978
+1232578	moderately polygenic	true QTNs (oracle)	0.715253970318258	mean Fst	0.2046
+1232578	moderately polygenic	≥2 methods agree	0.682395808371376	mean Fst	0.2046
+1232578	moderately polygenic	EMMAX only	0.670272530145969	mean Fst	0.2046
+1232578	moderately polygenic	LFMM only	0.650228951639862	mean Fst	0.2046
+1232578	moderately polygenic	RDA only	0.724040326264487	mean Fst	0.2046
+1232578	moderately polygenic	all 3 methods agree	0.747563947808842	mean Fst	0.2046
+1232578	moderately polygenic	any method (union)	0.663529278795491	mean Fst	0.2046
+1232698	highly polygenic	true QTNs (oracle)	0.718283365817117	mean Fst	0.1499
+1232698	highly polygenic	≥2 methods agree	0.691832395883685	mean Fst	0.1499
+1232698	highly polygenic	EMMAX only	0.624737682426354	mean Fst	0.1499
+1232698	highly polygenic	LFMM only	0.685641122710788	mean Fst	0.1499
+1232698	highly polygenic	RDA only	0.712021770019776	mean Fst	0.1499
+1232698	highly polygenic	all 3 methods agree	0.55450204138992	mean Fst	0.1499
+1232698	highly polygenic	any method (union)	0.699247100377584	mean Fst	0.1499
+1232740	highly polygenic	true QTNs (oracle)	0.493300105252262	mean Fst	0.1311
+1232740	highly polygenic	≥2 methods agree	0.492695562832029	mean Fst	0.1311
+1232740	highly polygenic	EMMAX only	0.698652379229215	mean Fst	0.1311
+1232740	highly polygenic	LFMM only	0.382498041059558	mean Fst	0.1311
+1232740	highly polygenic	RDA only	0.638109700520838	mean Fst	0.1311
+1232740	highly polygenic	all 3 methods agree	0.72395969988586	mean Fst	0.1311
+1232740	highly polygenic	any method (union)	0.402085777167637	mean Fst	0.1311
+1232788	moderately polygenic	true QTNs (oracle)	0.66937345360729	mean Fst	0.1719
+1232788	moderately polygenic	≥2 methods agree	0.73271158701715	mean Fst	0.1719
+1232788	moderately polygenic	EMMAX only	0.762239952858093	mean Fst	0.1719
+1232788	moderately polygenic	LFMM only	0.486761785507206	mean Fst	0.1719
+1232788	moderately polygenic	RDA only	0.755441511973273	mean Fst	0.1719
+1232788	moderately polygenic	all 3 methods agree	0.755779290462348	mean Fst	0.1719
+1232788	moderately polygenic	any method (union)	0.50341999285759	mean Fst	0.1719
+1232860	oligogenic	true QTNs (oracle)	0.751480900179148	mean Fst	0.1324
+1232860	oligogenic	≥2 methods agree	0.666671883518047	mean Fst	0.1324
+1232860	oligogenic	EMMAX only	0.781078979521194	mean Fst	0.1324
+1232860	oligogenic	LFMM only	0.44714335020157	mean Fst	0.1324
+1232860	oligogenic	RDA only	0.707895951823807	mean Fst	0.1324
+1232860	oligogenic	all 3 methods agree	0.714393497465121	mean Fst	0.1324
+1232860	oligogenic	any method (union)	0.482332014021953	mean Fst	0.1324
+1232908	highly polygenic	true QTNs (oracle)	0.803060000905636	mean Fst	0.1717
+1232908	highly polygenic	≥2 methods agree	0.691515685750621	mean Fst	0.1717
+1232908	highly polygenic	EMMAX only	0.625339488243159	mean Fst	0.1717
+1232908	highly polygenic	LFMM only	0.782000810094698	mean Fst	0.1717
+1232908	highly polygenic	RDA only	0.436209573973749	mean Fst	0.1717
+1232908	highly polygenic	all 3 methods agree	0.283250198971107	mean Fst	0.1717
+1232908	highly polygenic	any method (union)	0.784132485547721	mean Fst	0.1717
+1232923	highly polygenic	true QTNs (oracle)	0.787435225432248	mean Fst	0.1758
+1232923	highly polygenic	≥2 methods agree	0.79232444532449	mean Fst	0.1758
+1232923	highly polygenic	EMMAX only	0.622464743137459	mean Fst	0.1758
+1232923	highly polygenic	LFMM only	0.764453530968243	mean Fst	0.1758
+1232923	highly polygenic	RDA only	0.756090304011264	mean Fst	0.1758
+1232923	highly polygenic	all 3 methods agree	0.545342438052408	mean Fst	0.1758
+1232923	highly polygenic	any method (union)	0.771989641508602	mean Fst	0.1758
+1233100	oligogenic	true QTNs (oracle)	0.582675815051054	mean Fst	0.1415
+1233100	oligogenic	≥2 methods agree	0.680528555240996	mean Fst	0.1415
+1233100	oligogenic	EMMAX only	0.700773408703322	mean Fst	0.1415
+1233100	oligogenic	LFMM only	0.601340645255954	mean Fst	0.1415
+1233100	oligogenic	RDA only	0.699575924890393	mean Fst	0.1415
+1233100	oligogenic	all 3 methods agree	0.681105408539592	mean Fst	0.1415
+1233100	oligogenic	any method (union)	0.603590932050997	mean Fst	0.1415
+1233133	highly polygenic	true QTNs (oracle)	0.760521083867725	mean Fst	0.1711
+1233133	highly polygenic	≥2 methods agree	0.680151530034304	mean Fst	0.1711
+1233133	highly polygenic	EMMAX only	0.464856425834352	mean Fst	0.1711
+1233133	highly polygenic	LFMM only	0.761532644448913	mean Fst	0.1711
+1233133	highly polygenic	RDA only	0.310126753879579	mean Fst	0.1711
+1233133	highly polygenic	all 3 methods agree	0.34427252049297	mean Fst	0.1711
+1233133	highly polygenic	any method (union)	0.75275507126927	mean Fst	0.1711
+1233175	highly polygenic	true QTNs (oracle)	0.725847561779907	mean Fst	0.1345
+1233175	highly polygenic	≥2 methods agree	0.82778103028701	mean Fst	0.1345
+1233175	highly polygenic	EMMAX only	0.570082352471828	mean Fst	0.1345
+1233175	highly polygenic	LFMM only	0.682242292337953	mean Fst	0.1345
+1233175	highly polygenic	RDA only	0.723896374864657	mean Fst	0.1345
+1233175	highly polygenic	all 3 methods agree	0.681630356589266	mean Fst	0.1345
+1233175	highly polygenic	any method (union)	0.683054485543118	mean Fst	0.1345
+1233208	moderately polygenic	true QTNs (oracle)	0.81787855760038	mean Fst	0.1821
+1233208	moderately polygenic	≥2 methods agree	0.723416856856343	mean Fst	0.1821
+1233208	moderately polygenic	EMMAX only	0.815526025141081	mean Fst	0.1821
+1233208	moderately polygenic	LFMM only	0.753362458066444	mean Fst	0.1821
+1233208	moderately polygenic	RDA only	0.498732231257019	mean Fst	0.1821
+1233208	moderately polygenic	all 3 methods agree	0.807201749673028	mean Fst	0.1821
+1233208	moderately polygenic	any method (union)	0.750238905963371	mean Fst	0.1821
+1233328	oligogenic	true QTNs (oracle)	0.673093743829525	mean Fst	0.1708
+1233328	oligogenic	≥2 methods agree	0.731109857601602	mean Fst	0.1708
+1233328	oligogenic	EMMAX only	0.602193598976359	mean Fst	0.1708
+1233328	oligogenic	LFMM only	0.620128398915572	mean Fst	0.1708
+1233328	oligogenic	RDA only	0.642479849110186	mean Fst	0.1708
+1233328	oligogenic	all 3 methods agree	0.63338660700478	mean Fst	0.1708
+1233328	oligogenic	any method (union)	0.65536648415685	mean Fst	0.1708
+1231194	moderately polygenic	true QTNs (oracle)	0.65076980563784	causal loci in replicate	66
+1231194	moderately polygenic	≥2 methods agree	0.649081603516527	causal loci in replicate	66
+1231194	moderately polygenic	EMMAX only	0.514284004301027	causal loci in replicate	66
+1231194	moderately polygenic	LFMM only	0.66288167620598	causal loci in replicate	66
+1231194	moderately polygenic	RDA only	0.547008333061126	causal loci in replicate	66
+1231194	moderately polygenic	all 3 methods agree	0.542027531318443	causal loci in replicate	66
+1231194	moderately polygenic	any method (union)	0.674729505190184	causal loci in replicate	66
+1231288	oligogenic	true QTNs (oracle)	0.626518345236078	causal loci in replicate	6
+1231288	oligogenic	≥2 methods agree	0.707720563623762	causal loci in replicate	6
+1231288	oligogenic	EMMAX only	0.695329107648868	causal loci in replicate	6
+1231288	oligogenic	LFMM only	0.461871840248383	causal loci in replicate	6
+1231288	oligogenic	RDA only	0.703047128951541	causal loci in replicate	6
+1231288	oligogenic	all 3 methods agree	0.703047128951541	causal loci in replicate	6
+1231288	oligogenic	any method (union)	0.469488625868739	causal loci in replicate	6
+1231465	moderately polygenic	true QTNs (oracle)	0.728573977396653	causal loci in replicate	39
+1231465	moderately polygenic	≥2 methods agree	0.736147573621311	causal loci in replicate	39
+1231465	moderately polygenic	EMMAX only	0.737772623452706	causal loci in replicate	39
+1231465	moderately polygenic	LFMM only	0.450651835073091	causal loci in replicate	39
+1231465	moderately polygenic	RDA only	0.744679085236128	causal loci in replicate	39
+1231465	moderately polygenic	all 3 methods agree	0.725584749717253	causal loci in replicate	39
+1231465	moderately polygenic	any method (union)	0.473193181911192	causal loci in replicate	39
+1231468	moderately polygenic	true QTNs (oracle)	0.609160266221446	causal loci in replicate	33
+1231468	moderately polygenic	≥2 methods agree	0.615906034987973	causal loci in replicate	33
+1231468	moderately polygenic	EMMAX only	0.764569150042485	causal loci in replicate	33
+1231468	moderately polygenic	LFMM only	0.383581180897617	causal loci in replicate	33
+1231468	moderately polygenic	RDA only	0.725461705837341	causal loci in replicate	33
+1231468	moderately polygenic	all 3 methods agree	0.749072593090632	causal loci in replicate	33
+1231468	moderately polygenic	any method (union)	0.39871966222438	causal loci in replicate	33
+1231513	oligogenic	true QTNs (oracle)	0.678763001450224	causal loci in replicate	9
+1231513	oligogenic	≥2 methods agree	0.747622901663917	causal loci in replicate	9
+1231513	oligogenic	EMMAX only	0.706876960169442	causal loci in replicate	9
+1231513	oligogenic	LFMM only	0.393999534604957	causal loci in replicate	9
+1231513	oligogenic	RDA only	0.743845576758372	causal loci in replicate	9
+1231513	oligogenic	all 3 methods agree	0.734596133211844	causal loci in replicate	9
+1231513	oligogenic	any method (union)	0.402224483504642	causal loci in replicate	9
+1231585	highly polygenic	true QTNs (oracle)	0.478068580188273	causal loci in replicate	534
+1231585	highly polygenic	≥2 methods agree	0.735508894761483	causal loci in replicate	534
+1231585	highly polygenic	EMMAX only	0.725889371819002	causal loci in replicate	534
+1231585	highly polygenic	LFMM only	0.354791724461994	causal loci in replicate	534
+1231585	highly polygenic	RDA only	0.732693024226	causal loci in replicate	534
+1231585	highly polygenic	all 3 methods agree	0.7439176851978	causal loci in replicate	534
+1231585	highly polygenic	any method (union)	0.368695515324677	causal loci in replicate	534
+1231600	highly polygenic	true QTNs (oracle)	0.718803384259965	causal loci in replicate	429
+1231600	highly polygenic	≥2 methods agree	0.771982497837136	causal loci in replicate	429
+1231600	highly polygenic	EMMAX only	0.665412035103094	causal loci in replicate	429
+1231600	highly polygenic	LFMM only	0.632660339384013	causal loci in replicate	429
+1231600	highly polygenic	RDA only	0.607539311538058	causal loci in replicate	429
+1231600	highly polygenic	all 3 methods agree	0.695796918797713	causal loci in replicate	429
+1231600	highly polygenic	any method (union)	0.659123955789965	causal loci in replicate	429
+1231798	highly polygenic	true QTNs (oracle)	0.712465453567849	causal loci in replicate	395
+1231798	highly polygenic	≥2 methods agree	0.858493462836553	causal loci in replicate	395
+1231798	highly polygenic	EMMAX only	0.548449262855629	causal loci in replicate	395
+1231798	highly polygenic	LFMM only	0.699947071767427	causal loci in replicate	395
+1231798	highly polygenic	RDA only	0.729236176747017	causal loci in replicate	395
+1231798	highly polygenic	all 3 methods agree	0.550696650050248	causal loci in replicate	395
+1231798	highly polygenic	any method (union)	0.72523110483417	causal loci in replicate	395
+1231858	moderately polygenic	true QTNs (oracle)	0.813477111465936	causal loci in replicate	46
+1231858	moderately polygenic	≥2 methods agree	0.743812429303664	causal loci in replicate	46
+1231858	moderately polygenic	EMMAX only	0.739904047909051	causal loci in replicate	46
+1231858	moderately polygenic	LFMM only	0.770318857095993	causal loci in replicate	46
+1231858	moderately polygenic	RDA only	0.500819733929766	causal loci in replicate	46
+1231858	moderately polygenic	all 3 methods agree	0.661085671067322	causal loci in replicate	46
+1231858	moderately polygenic	any method (union)	0.762600533817938	causal loci in replicate	46
+1231974	oligogenic	true QTNs (oracle)	0.755064871639643	causal loci in replicate	6
+1231974	oligogenic	≥2 methods agree	0.585005108431597	causal loci in replicate	6
+1231974	oligogenic	EMMAX only	0.582299932522745	causal loci in replicate	6
+1231974	oligogenic	LFMM only	0.696393324860741	causal loci in replicate	6
+1231974	oligogenic	RDA only	0.549174667368134	causal loci in replicate	6
+1231974	oligogenic	all 3 methods agree	0.538000192079475	causal loci in replicate	6
+1231974	oligogenic	any method (union)	0.719050450172757	causal loci in replicate	6
+1231993	oligogenic	true QTNs (oracle)	0.575723605456115	causal loci in replicate	8
+1231993	oligogenic	≥2 methods agree	0.394274972019864	causal loci in replicate	8
+1231993	oligogenic	EMMAX only	0.686073247897231	causal loci in replicate	8
+1231993	oligogenic	LFMM only	0.338249823400189	causal loci in replicate	8
+1231993	oligogenic	RDA only	0.695186035312023	causal loci in replicate	8
+1231993	oligogenic	all 3 methods agree	0.668104133281013	causal loci in replicate	8
+1231993	oligogenic	any method (union)	0.345260612092872	causal loci in replicate	8
+1232218	oligogenic	true QTNs (oracle)	0.725174872348296	causal loci in replicate	6
+1232218	oligogenic	≥2 methods agree	0.699727240619949	causal loci in replicate	6
+1232218	oligogenic	EMMAX only	0.707202455158329	causal loci in replicate	6
+1232218	oligogenic	LFMM only	0.47042267112098	causal loci in replicate	6
+1232218	oligogenic	RDA only	0.736734939353624	causal loci in replicate	6
+1232218	oligogenic	all 3 methods agree	0.717162389350052	causal loci in replicate	6
+1232218	oligogenic	any method (union)	0.49102917410629	causal loci in replicate	6
+1232335	moderately polygenic	true QTNs (oracle)	0.631516601518465	causal loci in replicate	98
+1232335	moderately polygenic	≥2 methods agree	0.767912155338122	causal loci in replicate	98
+1232335	moderately polygenic	EMMAX only	0.814150105406804	causal loci in replicate	98
+1232335	moderately polygenic	LFMM only	0.469596664998819	causal loci in replicate	98
+1232335	moderately polygenic	RDA only	0.81112995669327	causal loci in replicate	98
+1232335	moderately polygenic	all 3 methods agree	0.772426365664556	causal loci in replicate	98
+1232335	moderately polygenic	any method (union)	0.481378286008108	causal loci in replicate	98
+1232368	moderately polygenic	true QTNs (oracle)	0.680929105692626	causal loci in replicate	34
+1232368	moderately polygenic	≥2 methods agree	0.592629058195231	causal loci in replicate	34
+1232368	moderately polygenic	EMMAX only	0.724296452700848	causal loci in replicate	34
+1232368	moderately polygenic	LFMM only	0.571445257571963	causal loci in replicate	34
+1232368	moderately polygenic	RDA only	0.679671287037598	causal loci in replicate	34
+1232368	moderately polygenic	all 3 methods agree	0.779254640905463	causal loci in replicate	34
+1232368	moderately polygenic	any method (union)	0.561968739500985	causal loci in replicate	34
+1232383	oligogenic	true QTNs (oracle)	0.816209431281737	causal loci in replicate	4
+1232383	oligogenic	≥2 methods agree	0.71675760068085	causal loci in replicate	4
+1232383	oligogenic	EMMAX only	0.809191403153845	causal loci in replicate	4
+1232383	oligogenic	LFMM only	0.753976132282683	causal loci in replicate	4
+1232383	oligogenic	RDA only	0.406100116411581	causal loci in replicate	4
+1232383	oligogenic	all 3 methods agree	0.813867760259273	causal loci in replicate	4
+1232383	oligogenic	any method (union)	0.745662669097967	causal loci in replicate	4
+1232398	oligogenic	true QTNs (oracle)	0.842955022809825	causal loci in replicate	10
+1232398	oligogenic	≥2 methods agree	0.806609376878727	causal loci in replicate	10
+1232398	oligogenic	EMMAX only	0.780111573560244	causal loci in replicate	10
+1232398	oligogenic	LFMM only	0.654323150910433	causal loci in replicate	10
+1232398	oligogenic	RDA only	0.64487168711558	causal loci in replicate	10
+1232398	oligogenic	all 3 methods agree	0.781598518746639	causal loci in replicate	10
+1232398	oligogenic	any method (union)	0.680079415367192	causal loci in replicate	10
+1232515	highly polygenic	true QTNs (oracle)	0.431073445436794	causal loci in replicate	497
+1232515	highly polygenic	≥2 methods agree	0.356491015252728	causal loci in replicate	497
+1232515	highly polygenic	EMMAX only	0.646641046280388	causal loci in replicate	497
+1232515	highly polygenic	LFMM only	0.326477841334477	causal loci in replicate	497
+1232515	highly polygenic	RDA only	0.472750182511861	causal loci in replicate	497
+1232515	highly polygenic	all 3 methods agree	0.47377841097219	causal loci in replicate	497
+1232515	highly polygenic	any method (union)	0.339404182063141	causal loci in replicate	497
+1232548	moderately polygenic	true QTNs (oracle)	0.675070628000663	causal loci in replicate	70
+1232548	moderately polygenic	≥2 methods agree	0.662952703715303	causal loci in replicate	70
+1232548	moderately polygenic	EMMAX only	0.547732184291314	causal loci in replicate	70
+1232548	moderately polygenic	LFMM only	0.559195021755573	causal loci in replicate	70
+1232548	moderately polygenic	RDA only	0.759635912523789	causal loci in replicate	70
+1232548	moderately polygenic	all 3 methods agree	0.509702216007264	causal loci in replicate	70
+1232548	moderately polygenic	any method (union)	0.568129147012379	causal loci in replicate	70
+1232578	moderately polygenic	true QTNs (oracle)	0.715253970318258	causal loci in replicate	28
+1232578	moderately polygenic	≥2 methods agree	0.682395808371376	causal loci in replicate	28
+1232578	moderately polygenic	EMMAX only	0.670272530145969	causal loci in replicate	28
+1232578	moderately polygenic	LFMM only	0.650228951639862	causal loci in replicate	28
+1232578	moderately polygenic	RDA only	0.724040326264487	causal loci in replicate	28
+1232578	moderately polygenic	all 3 methods agree	0.747563947808842	causal loci in replicate	28
+1232578	moderately polygenic	any method (union)	0.663529278795491	causal loci in replicate	28
+1232698	highly polygenic	true QTNs (oracle)	0.718283365817117	causal loci in replicate	406
+1232698	highly polygenic	≥2 methods agree	0.691832395883685	causal loci in replicate	406
+1232698	highly polygenic	EMMAX only	0.624737682426354	causal loci in replicate	406
+1232698	highly polygenic	LFMM only	0.685641122710788	causal loci in replicate	406
+1232698	highly polygenic	RDA only	0.712021770019776	causal loci in replicate	406
+1232698	highly polygenic	all 3 methods agree	0.55450204138992	causal loci in replicate	406
+1232698	highly polygenic	any method (union)	0.699247100377584	causal loci in replicate	406
+1232740	highly polygenic	true QTNs (oracle)	0.493300105252262	causal loci in replicate	434
+1232740	highly polygenic	≥2 methods agree	0.492695562832029	causal loci in replicate	434
+1232740	highly polygenic	EMMAX only	0.698652379229215	causal loci in replicate	434
+1232740	highly polygenic	LFMM only	0.382498041059558	causal loci in replicate	434
+1232740	highly polygenic	RDA only	0.638109700520838	causal loci in replicate	434
+1232740	highly polygenic	all 3 methods agree	0.72395969988586	causal loci in replicate	434
+1232740	highly polygenic	any method (union)	0.402085777167637	causal loci in replicate	434
+1232788	moderately polygenic	true QTNs (oracle)	0.66937345360729	causal loci in replicate	72
+1232788	moderately polygenic	≥2 methods agree	0.73271158701715	causal loci in replicate	72
+1232788	moderately polygenic	EMMAX only	0.762239952858093	causal loci in replicate	72
+1232788	moderately polygenic	LFMM only	0.486761785507206	causal loci in replicate	72
+1232788	moderately polygenic	RDA only	0.755441511973273	causal loci in replicate	72
+1232788	moderately polygenic	all 3 methods agree	0.755779290462348	causal loci in replicate	72
+1232788	moderately polygenic	any method (union)	0.50341999285759	causal loci in replicate	72
+1232860	oligogenic	true QTNs (oracle)	0.751480900179148	causal loci in replicate	8
+1232860	oligogenic	≥2 methods agree	0.666671883518047	causal loci in replicate	8
+1232860	oligogenic	EMMAX only	0.781078979521194	causal loci in replicate	8
+1232860	oligogenic	LFMM only	0.44714335020157	causal loci in replicate	8
+1232860	oligogenic	RDA only	0.707895951823807	causal loci in replicate	8
+1232860	oligogenic	all 3 methods agree	0.714393497465121	causal loci in replicate	8
+1232860	oligogenic	any method (union)	0.482332014021953	causal loci in replicate	8
+1232908	highly polygenic	true QTNs (oracle)	0.803060000905636	causal loci in replicate	268
+1232908	highly polygenic	≥2 methods agree	0.691515685750621	causal loci in replicate	268
+1232908	highly polygenic	EMMAX only	0.625339488243159	causal loci in replicate	268
+1232908	highly polygenic	LFMM only	0.782000810094698	causal loci in replicate	268
+1232908	highly polygenic	RDA only	0.436209573973749	causal loci in replicate	268
+1232908	highly polygenic	all 3 methods agree	0.283250198971107	causal loci in replicate	268
+1232908	highly polygenic	any method (union)	0.784132485547721	causal loci in replicate	268
+1232923	highly polygenic	true QTNs (oracle)	0.787435225432248	causal loci in replicate	363
+1232923	highly polygenic	≥2 methods agree	0.79232444532449	causal loci in replicate	363
+1232923	highly polygenic	EMMAX only	0.622464743137459	causal loci in replicate	363
+1232923	highly polygenic	LFMM only	0.764453530968243	causal loci in replicate	363
+1232923	highly polygenic	RDA only	0.756090304011264	causal loci in replicate	363
+1232923	highly polygenic	all 3 methods agree	0.545342438052408	causal loci in replicate	363
+1232923	highly polygenic	any method (union)	0.771989641508602	causal loci in replicate	363
+1233100	oligogenic	true QTNs (oracle)	0.582675815051054	causal loci in replicate	7
+1233100	oligogenic	≥2 methods agree	0.680528555240996	causal loci in replicate	7
+1233100	oligogenic	EMMAX only	0.700773408703322	causal loci in replicate	7
+1233100	oligogenic	LFMM only	0.601340645255954	causal loci in replicate	7
+1233100	oligogenic	RDA only	0.699575924890393	causal loci in replicate	7
+1233100	oligogenic	all 3 methods agree	0.681105408539592	causal loci in replicate	7
+1233100	oligogenic	any method (union)	0.603590932050997	causal loci in replicate	7
+1233133	highly polygenic	true QTNs (oracle)	0.760521083867725	causal loci in replicate	324
+1233133	highly polygenic	≥2 methods agree	0.680151530034304	causal loci in replicate	324
+1233133	highly polygenic	EMMAX only	0.464856425834352	causal loci in replicate	324
+1233133	highly polygenic	LFMM only	0.761532644448913	causal loci in replicate	324
+1233133	highly polygenic	RDA only	0.310126753879579	causal loci in replicate	324
+1233133	highly polygenic	all 3 methods agree	0.34427252049297	causal loci in replicate	324
+1233133	highly polygenic	any method (union)	0.75275507126927	causal loci in replicate	324
+1233175	highly polygenic	true QTNs (oracle)	0.725847561779907	causal loci in replicate	415
+1233175	highly polygenic	≥2 methods agree	0.82778103028701	causal loci in replicate	415
+1233175	highly polygenic	EMMAX only	0.570082352471828	causal loci in replicate	415
+1233175	highly polygenic	LFMM only	0.682242292337953	causal loci in replicate	415
+1233175	highly polygenic	RDA only	0.723896374864657	causal loci in replicate	415
+1233175	highly polygenic	all 3 methods agree	0.681630356589266	causal loci in replicate	415
+1233175	highly polygenic	any method (union)	0.683054485543118	causal loci in replicate	415
+1233208	moderately polygenic	true QTNs (oracle)	0.81787855760038	causal loci in replicate	39
+1233208	moderately polygenic	≥2 methods agree	0.723416856856343	causal loci in replicate	39
+1233208	moderately polygenic	EMMAX only	0.815526025141081	causal loci in replicate	39
+1233208	moderately polygenic	LFMM only	0.753362458066444	causal loci in replicate	39
+1233208	moderately polygenic	RDA only	0.498732231257019	causal loci in replicate	39
+1233208	moderately polygenic	all 3 methods agree	0.807201749673028	causal loci in replicate	39
+1233208	moderately polygenic	any method (union)	0.750238905963371	causal loci in replicate	39
+1233328	oligogenic	true QTNs (oracle)	0.673093743829525	causal loci in replicate	8
+1233328	oligogenic	≥2 methods agree	0.731109857601602	causal loci in replicate	8
+1233328	oligogenic	EMMAX only	0.602193598976359	causal loci in replicate	8
+1233328	oligogenic	LFMM only	0.620128398915572	causal loci in replicate	8
+1233328	oligogenic	RDA only	0.642479849110186	causal loci in replicate	8
+1233328	oligogenic	all 3 methods agree	0.63338660700478	causal loci in replicate	8
+1233328	oligogenic	any method (union)	0.65536648415685	causal loci in replicate	8
