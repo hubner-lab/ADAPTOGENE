@@ -269,6 +269,39 @@ Prefer Snakemake flags over manually removing files.
 1. **Do NOT read/view image files** (PNG, SVG, JPG) - User checks plots themselves
 2. **Do NOT modify `Snakefile_old`** - Reference only
 3. **Chromosome normalization** - Pipeline strips "chr" prefix early (chr1→1, chr2H→2H). Both VCF and GFF normalized in processing mode. All outputs use normalized names.
+4. **Log every manual workaround to `docs/pipeline_improvement_requests.md`** — see below. This is mandatory in every session, not optional.
+
+## MANDATORY: Log pipeline gaps as you hit them
+
+**Whenever you have to work *around* the pipeline, append an entry to
+[`docs/pipeline_improvement_requests.md`](docs/pipeline_improvement_requests.md) — in the same
+session, at the moment you hit it, not at the end.**
+
+The trigger is any of:
+
+- **You wrote a helper script to obtain something the pipeline already computed but never wrote to
+  disk.** (Canonical case: cross-entropy is rendered as a PNG only, and rule 1 forbids reading
+  plots — so `sNMF.k_best` could not be chosen from pipeline output at all without extracting the
+  values from the `.snmfProject` by hand.)
+- **You hand-built an output the pipeline cannot emit**, even though the logic exists somewhere in
+  the codebase (e.g. `combine_sigsnps()` implements the ≥2-method consensus rule, but
+  `SIGSNPS_METHOD` is hardcoded so batch mode can only union).
+- **A config value was accepted at parse time and rejected at run time**, after other rules had
+  already burned compute.
+- **An output is misleading, stale, or contradicts a sibling output** in the same directory.
+- **You needed a number to make a decision and no table contained it** — especially a dispersion
+  or uncertainty measure that turns "the minimum is at X" into "the minimum is inside the noise".
+- **Cross-run / cross-project comparison** — nothing in the pipeline compares two `_results/`
+  dirs, so every multi-arm design re-invents this.
+
+**Entry format:** what happened → why it cost something → what would fix it. Cite `file:line` when
+known. Tag `[workaround]` and name the script when a script was written — those are the strongest
+candidates, since the fix already exists and only needs adopting.
+
+**This file is a request queue, not a changelog.** Under `CLAUDE.local.md`'s USE-ONLY mode you log
+the request and move on; you do not implement it. The user decides later what graduates into the
+pipeline. Do not let a gap live only in the session transcript — that is exactly what this file
+exists to prevent.
 
 ## Common Development Tasks
 
