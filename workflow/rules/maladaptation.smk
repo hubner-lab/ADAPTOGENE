@@ -119,9 +119,21 @@ rule density_plot_future:
 # climate outputs whenever this branch of the DAG is actually reachable —
 # the user just needs to have run mode=climate first.
 rule gradient_forest_adaptive:
-    """Build adaptive Gradient Forest model using a user-curated SNP set."""
+    """Build adaptive Gradient Forest model using a user-curated SNP set.
+
+    lfmm is the IMPUTED matrix, matching geometric_offset/rda_offset and the GEA rules.
+    [FIXED 2026-08-10] This rule and gradient_forest_random previously took
+    W['lfmm_full_climate'] -- the raw matrix, in which a missing call is the literal value 9.
+    gradientForest() takes the SNP columns as RESPONSE variables and has no na.action, and
+    gradient_forest_model.R never converted 9 to NA, so 9 entered the regression forest as a
+    genotype 3.5x further from the reference homozygote than the real alternate homozygote.
+    On Trifolium86FinalPC3 (45.05% missing) the fit retained 18 of 185 SNPs, and those 18 were
+    selected by the between-site variance of their MISSINGNESS (Wilcoxon p = 6.6e-11), not by
+    allele frequency (p = 0.36). Refitting on the imputed matrix retains 184 of 185 and gives an
+    unrelated map (rho = -0.064) and an unrelated importance profile (rho = -0.044).
+    See docs/pipeline_improvement_requests.md bug O."""
     input:
-        lfmm    = W['lfmm_full_climate'],
+        lfmm    = W['lfmm_imp_full_climate'],
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],
@@ -149,9 +161,11 @@ rule gradient_forest_adaptive:
 
 # Gradient Forest - random/neutral model (optional)
 rule gradient_forest_random:
-    """Build neutral Gradient Forest model using random SNPs."""
+    """Build neutral Gradient Forest model using random SNPs.
+
+    Imputed matrix, same fix as gradient_forest_adaptive -- see the note there and bug O."""
     input:
-        lfmm    = W['lfmm_full_climate'],
+        lfmm    = W['lfmm_imp_full_climate'],
         sigsnps = lambda wc: snp_set_file(wc.run_label),
         vcfsnp  = W['vcfsnp_full'],
         removed = W['removed_full'],

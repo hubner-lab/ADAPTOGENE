@@ -78,6 +78,13 @@ message(paste0('INFO: K=', K, '  scale=', SCALE, '  scenarios=', N_SCEN))
 message('INFO: Loading full imputed LFMM matrix')
 lfmm_imp <- as.matrix(fread(LFMM_IMP_FULL))
 message(paste0('INFO: LFMM matrix: ', nrow(lfmm_imp), ' samples x ', ncol(lfmm_imp), ' SNPs'))
+# Keyed on the sentinel 9, not on `max > 2`, so a polyploid dataset (sNMF.ploidy > 2) is not
+# falsely rejected. 9 is LFMM's reserved missing code and never a valid dosage in this format.
+if (any(lfmm_imp == 9, na.rm = TRUE)) {
+    stop("Geometric offset: genotype matrix contains the LFMM missing code 9 — this is an ",
+         "UNIMPUTED LFMM file. LFMM2 would fit effect sizes against the missing-data code. ",
+         "Requires an imputed matrix (*_imp*). Check the Snakemake input wiring.")
+}
 
 # ── 2. Build chr:pos vector for all columns ───────────────────────────────────
 vcfsnp_dt <- fread(VCFSNP, header = FALSE) %>%
