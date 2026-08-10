@@ -462,20 +462,31 @@ if (MODE == 'processing') {
     }
 
 } else if (MODE == 'maladaptation') {
-    # args: MODE OUTPUT offset_site_values (space-joined paths, one per snp_set x spatial_tag)
+    # args: MODE OUTPUT offset_site_values
+    #
+    # offset_site_values is a MANIFEST FILE (one path per line, *.txt) written by
+    # the write_summary rule. It used to be a space-joined string, but once offsets
+    # gained the scenario dimension the list grew to methods x sets x scenarios --
+    # 1176 paths on a 42-scenario sweep -- and overflowed the command line. The
+    # space-joined form is still accepted so a hand-run call keeps working.
     OFFSET_SITE = args[3]
 
-    # Split space-joined paths into individual paths
-    offset_paths <- strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
+    offset_paths <- if (grepl('\\.txt$', OFFSET_SITE) && file.exists(OFFSET_SITE)) {
+        readLines(OFFSET_SITE)
+    } else {
+        strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
+    }
+    offset_paths <- trimws(offset_paths)
     offset_paths <- offset_paths[nchar(offset_paths) > 0]
 
-    # Emit per-tag offset stats (one row per method x SNP set x spatial tag)
-    # Path structure: .../tables/{method}/{run_label}_{spatial_tag}/genetic_offset_site.tsv
-    # tag = "{method}_{run_label}_{spatial_tag}"
+    # Emit per-tag offset stats (one row per method x SNP set x spatial tag x scenario)
+    # Path: .../tables/{method}/{run_label}_{spatial_tag}/{scenario}/genetic_offset_site.tsv
+    # tag = "{method}_{run_label}_{spatial_tag}_{scenario}"
     tag_rows <- lapply(offset_paths, function(p) {
-        spatial_dir <- basename(dirname(p))          # e.g. "EMMAX_bonf005_nospatial"
-        method_dir  <- basename(dirname(dirname(p))) # e.g. "geometric_offset"
-        tag <- paste0(method_dir, '_', spatial_dir)
+        scenario_dir <- basename(dirname(p))                    # e.g. "deme_004"
+        spatial_dir  <- basename(dirname(dirname(p)))           # e.g. "EMMAX_bonf005_nospatial"
+        method_dir   <- basename(dirname(dirname(dirname(p))))  # e.g. "geometric_offset"
+        tag <- paste0(method_dir, '_', spatial_dir, '_', scenario_dir)
         if (!file.exists(p)) {
             return(list(
                 row('maladaptation', sprintf('offset_min_%s', tag), NA),

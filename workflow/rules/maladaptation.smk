@@ -6,10 +6,13 @@
 # run_label = set name (matches Shiny charset [A-Za-z0-9_.-]+, no slashes).
 # spatial_tag = exactly 'spatial' or 'nospatial' — disambiguates trailing token
 #   even when run_label itself contains underscores (e.g. 'EMMAX_bonf005').
+# scenario = one future-climate projection (see SCENARIOS in common.smk). Names
+#   come from future-table basenames, so the charset matches a filename stem.
 wildcard_constraints:
     run_label   = r"[A-Za-z0-9_.-]+",
     spatial_tag = r"spatial|nospatial",
-    method      = r"gradient_forest|geometric_offset|rda_offset"
+    scenario    = r"[A-Za-z0-9_.+-]+",
+    method      = r"gradient_forest|geometric_offset|rda_offset|rda_offset_corrected"
 
 if CLIMATE_SOURCE == 'worldclim':
     # Per-model future climate download (runs in parallel via Snakemake)
@@ -46,9 +49,9 @@ if CLIMATE_SOURCE == 'worldclim':
             present_raster = W['climate_raster'],
             present_all = O['climate_all']
         output:
-            raster = W['climate_future_raster'],
-            all_vals = O['climate_future_all'],
-            site_vals = O['climate_future_site'],
+            raster = climate_future_raster(DEFAULT_SCENARIO),
+            all_vals = climate_future_all(DEFAULT_SCENARIO),
+            site_vals = climate_future_site(DEFAULT_SCENARIO),
             na_excluded = O['climate_future_na_excluded']
         params:
             raster_str = lambda wc, input: ','.join(input.model_rasters),
@@ -64,25 +67,29 @@ if CLIMATE_SOURCE == 'worldclim':
             """
 else:
     rule stage_custom_climate_future:
-        """Stage user-supplied future climate table into pipeline-standard outputs.
-        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples)."""
+        """Stage one user-supplied future climate table into pipeline-standard outputs.
+        Uses metadata_climate.tsv (coord-valid samples only, see filter_coord_samples).
+
+        env_table is an INPUT, not a param: as a param Snakemake could not see the
+        table change, so editing a future scenario left stale offsets in place and
+        reported "Nothing to be done"."""
         input:
             samples        = W['metadata_climate'],
             present_all    = O['climate_all'],
-            present_raster = W['climate_raster']
+            present_raster = W['climate_raster'],
+            env_table      = lambda wc: SCENARIOS[wc.scenario]
         output:
-            raster    = W['climate_future_raster'],
-            all_vals  = O['climate_future_all'],
-            site_vals = O['climate_future_site']
+            raster    = climate_future_raster('{scenario}'),
+            all_vals  = climate_future_all('{scenario}'),
+            site_vals = climate_future_site('{scenario}')
         params:
-            env_table = CUSTOM_FUTURE_TABLE,
             columns   = CUSTOM_CLIMATE_COLUMNS,
             key       = CUSTOM_CLIMATE_KEY
-        log: f"{LOGDIR}maladaptation/stage_custom_climate_future.log"
+        log: f"{LOGDIR}maladaptation/stage_custom_climate_future_{{scenario}}.log"
         shell:
             """
             Rscript /pipeline/scripts/stage_custom_climate.R future \
-                {input.samples} {params.env_table} {params.columns} {params.key} \
+                {input.samples} {input.env_table} {params.columns} {params.key} \
                 {input.present_raster} {input.present_all} \
                 {output.raster} {output.all_vals} {output.site_vals} > {log} 2>&1
             """
@@ -170,28 +177,37 @@ rule gradient_forest_random:
             random {output} {params.dbmem_arg} {params.dbmem_sel_arg} > {log} 2>&1
         """
 
-# Genetic offset calculation
+# Genetic offset calculation — all scenarios in one job.
+# Multi-output by design: the model load and the present-climate prediction are
+# scenario-invariant and dominate runtime on small SNP panels, so one job projects
+# N futures instead of N jobs each re-loading the same model.
 rule gradient_forest_offset:
-    """Calculate genetic offset between present and future climate."""
+    """Project one Gradient Forest model onto every future scenario."""
     input:
         gf             = mala_model('gradient_forest', '{run_label}', '{spatial_tag}', 'adaptive'),
-        future_all     = O['climate_future_all'],
+        future_all     = [climate_future_all(s) for s in SCENARIO_NAMES],
         present_all    = O['climate_all'],
         present_raster = W['climate_raster'],
         samples        = W['metadata_climate_valid']
     output:
-        raster      = mala_offset_raster('gradient_forest', '{run_label}', '{spatial_tag}'),
-        map_values  = mala_offset_map_values('gradient_forest', '{run_label}', '{spatial_tag}'),
-        site_values = mala_offset_site_values('gradient_forest', '{run_label}', '{spatial_tag}')
+        raster      = expand(mala_offset_raster('gradient_forest', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        map_values  = expand(mala_offset_map_values('gradient_forest', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        site_values = expand(mala_offset_site_values('gradient_forest', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES)
     params:
-        predictors = PREDICTORS_SELECTED
+        predictors = PREDICTORS_SELECTED,
+        scenarios  = ','.join(SCENARIO_NAMES),
+        future_arg = lambda wc, input:  ','.join(input.future_all),
+        raster_arg = lambda wc, output: ','.join(output.raster),
+        map_arg    = lambda wc, output: ','.join(output.map_values),
+        site_arg   = lambda wc, output: ','.join(output.site_values)
     log: f"{LOGDIR}maladaptation/gradient_forest_offset_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/gradient_forest_offset.R \
-            {input.gf} {params.predictors} {input.future_all} {input.present_all} \
+            {input.gf} {params.predictors} {params.future_arg} {input.present_all} \
             {input.present_raster} {input.samples} \
-            {output.raster} {output.map_values} {output.site_values} > {log} 2>&1
+            {params.raster_arg} {params.map_arg} {params.site_arg} \
+            {params.scenarios} > {log} 2>&1
         """
 
 # Geometric Genetic Offset (Gain et al. 2023, MBE) — single-call rule.
@@ -206,33 +222,41 @@ rule geometric_offset:
         removed     = W['removed_full'],
         sigsnps     = lambda wc: snp_set_file(wc.run_label),
         env_site_pres  = O['climate_site'],
-        env_site_fut   = O['climate_future_site'],
+        env_site_fut   = [climate_future_site(s) for s in SCENARIO_NAMES],
         env_all_pres   = O['climate_all'],
-        env_all_fut    = O['climate_future_all'],
+        env_all_fut    = [climate_future_all(s) for s in SCENARIO_NAMES],
         pres_raster    = W['climate_raster'],
         samples        = W['metadata_climate_valid']
     output:
-        site_values = mala_offset_site_values('geometric_offset', '{run_label}', '{spatial_tag}'),
-        map_values  = mala_offset_map_values('geometric_offset', '{run_label}', '{spatial_tag}'),
-        raster      = mala_offset_raster('geometric_offset', '{run_label}', '{spatial_tag}'),
+        site_values = expand(mala_offset_site_values('geometric_offset', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        map_values  = expand(mala_offset_map_values('geometric_offset', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        raster      = expand(mala_offset_raster('geometric_offset', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        # Scenario-free: predictor importance describes the fit, not the projection.
         importance  = mala_importance('geometric_offset', '{run_label}', '{spatial_tag}')
     wildcard_constraints:
         spatial_tag = r"nospatial"   # geometric_offset is nospatial-only
     params:
         predictors = PREDICTORS_SELECTED,
         k          = lambda wc: GO_K if GO_K != '' else K_BEST,
-        scale      = GO_SCALE
+        scale      = GO_SCALE,
+        scenarios  = ','.join(SCENARIO_NAMES),
+        fut_site_arg = lambda wc, input:  ','.join(input.env_site_fut),
+        fut_all_arg  = lambda wc, input:  ','.join(input.env_all_fut),
+        site_arg     = lambda wc, output: ','.join(output.site_values),
+        map_arg      = lambda wc, output: ','.join(output.map_values),
+        raster_arg   = lambda wc, output: ','.join(output.raster)
     log: f"{LOGDIR}maladaptation/geometric_offset_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/geometric_offset.R \
             {input.lfmm_full} {input.vcfsnp} {input.removed} {input.sigsnps} \
-            {input.env_site_pres} {input.env_site_fut} \
-            {input.env_all_pres} {input.env_all_fut} \
+            {input.env_site_pres} {params.fut_site_arg} \
+            {input.env_all_pres} {params.fut_all_arg} \
             {input.pres_raster} {input.samples} \
             {params.predictors} {params.k} {params.scale} \
-            {output.site_values} {output.map_values} \
-            {output.raster} {output.importance} > {log} 2>&1
+            {params.site_arg} {params.map_arg} \
+            {params.raster_arg} {output.importance} \
+            {params.scenarios} > {log} 2>&1
         """
 
 # RDA Genetic Offset (Capblancq & Forester 2021) — single-call rule.
@@ -249,48 +273,59 @@ rule rda_offset:
         removed       = W['removed_full'],
         sigsnps       = lambda wc: snp_set_file(wc.run_label),
         env_site_pres = O['climate_site'],
-        env_site_fut  = O['climate_future_site'],
+        env_site_fut  = [climate_future_site(s) for s in SCENARIO_NAMES],
         env_all_pres  = O['climate_all'],
-        env_all_fut   = O['climate_future_all'],
+        env_all_fut   = [climate_future_all(s) for s in SCENARIO_NAMES],
         pres_raster   = W['climate_raster'],
         samples       = W['metadata_climate_valid'],
         pca           = W['pca_projections'],
         samples_order = W['samples_order'],
         climate_valid = W['climate_valid_samples']
     output:
-        site_values = mala_offset_site_values('rda_offset', '{run_label}', '{spatial_tag}'),
-        map_values  = mala_offset_map_values('rda_offset', '{run_label}', '{spatial_tag}'),
-        raster      = mala_offset_raster('rda_offset', '{run_label}', '{spatial_tag}'),
-        importance  = mala_importance('rda_offset', '{run_label}', '{spatial_tag}'),
-        diagnostics = f"{mala_table_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_offset_diagnostics.tsv",
-        screeplot     = f"{mala_plot_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.png",
-        screeplot_svg = f"{mala_plot_dir('rda_offset', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.svg"
+        site_values = expand(mala_offset_site_values('{{rda_method}}', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        map_values  = expand(mala_offset_map_values('{{rda_method}}', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        raster      = expand(mala_offset_raster('{{rda_method}}', '{{run_label}}', '{{spatial_tag}}', '{scenario}'), scenario=SCENARIO_NAMES),
+        # Scenario-free: the RDA is fitted on present climate; the future only
+        # enters the projection, so importance/diagnostics/screeplot are written once.
+        importance  = mala_importance('{rda_method}', '{run_label}', '{spatial_tag}'),
+        diagnostics = f"{mala_table_dir('{rda_method}', '{run_label}', '{spatial_tag}')}rda_offset_diagnostics.tsv",
+        screeplot     = f"{mala_plot_dir('{rda_method}', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.png",
+        screeplot_svg = f"{mala_plot_dir('{rda_method}', '{run_label}', '{spatial_tag}')}rda_axis_screeplot.svg"
     wildcard_constraints:
-        spatial_tag = r"nospatial"   # rda_offset is nospatial-only (B7 — no Condition() by default)
+        spatial_tag = r"nospatial",  # rda_offset is nospatial-only (B7 — no Condition() by default)
+        # One rule serves both registered RDA methods; they differ only in params.
+        rda_method  = r"rda_offset|rda_offset_corrected"
     params:
         predictors   = PREDICTORS_SELECTED,
-        axes         = RDO_AXES,
-        axis_alpha   = RDO_AXIS_ALPHA,
-        permutations = RDO_PERMUTATIONS,
-        condition_pcs = RDO_CONDITION_PCS,
-        seed         = RDO_SEED,
-        plot_dir     = lambda wc: mala_plot_dir('rda_offset', wc.run_label, wc.spatial_tag)
+        axes         = lambda wc: rdo_cfg(wc.rda_method)['axes'],
+        axis_alpha   = lambda wc: rdo_cfg(wc.rda_method)['axis_alpha'],
+        permutations = lambda wc: rdo_cfg(wc.rda_method)['permutations'],
+        condition_pcs = lambda wc: rdo_cfg(wc.rda_method)['condition_pcs'],
+        seed         = lambda wc: rdo_cfg(wc.rda_method)['seed'],
+        plot_dir     = lambda wc: mala_plot_dir(wc.rda_method, wc.run_label, wc.spatial_tag),
+        scenarios    = ','.join(SCENARIO_NAMES),
+        fut_site_arg = lambda wc, input:  ','.join(input.env_site_fut),
+        fut_all_arg  = lambda wc, input:  ','.join(input.env_all_fut),
+        site_arg     = lambda wc, output: ','.join(output.site_values),
+        map_arg      = lambda wc, output: ','.join(output.map_values),
+        raster_arg   = lambda wc, output: ','.join(output.raster)
     threads: CPU
-    log: f"{LOGDIR}maladaptation/rda_offset_{{run_label}}_{{spatial_tag}}.log"
+    log: f"{LOGDIR}maladaptation/{{rda_method}}_{{run_label}}_{{spatial_tag}}.log"
     shell:
         """
         Rscript /pipeline/scripts/rda_offset.R \
             {input.lfmm_full} {input.vcfsnp} {input.removed} {input.sigsnps} \
-            {input.env_site_pres} {input.env_site_fut} \
-            {input.env_all_pres} {input.env_all_fut} \
+            {input.env_site_pres} {params.fut_site_arg} \
+            {input.env_all_pres} {params.fut_all_arg} \
             {input.pres_raster} {input.samples} \
             {params.predictors} {params.axes} {params.axis_alpha} \
             {params.permutations} {params.condition_pcs} \
             {input.pca} {input.samples_order} {input.climate_valid} \
             {params.seed} {threads} \
-            {output.site_values} {output.map_values} \
-            {output.raster} {output.importance} \
-            {output.diagnostics} {params.plot_dir} > {log} 2>&1
+            {params.site_arg} {params.map_arg} \
+            {params.raster_arg} {output.importance} \
+            {output.diagnostics} {params.plot_dir} \
+            {params.scenarios} > {log} 2>&1
         """
 
 # Cumulative importance plot
@@ -355,22 +390,22 @@ rule plot_gf_offset_piemap:
     """Plot genetic offset piemap for any maladaptation method, optionally scaled by a population statistic."""
     wildcard_constraints: size_trait = "notrait|tajima_d|pi_diversity"
     input:
-        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
+        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag, wc.scenario),
         samples       = W['metadata_climate_valid'],
         clusters      = clusters_table(K_BEST),
         trait_file    = _piemap_trait_input
-    output: mala_offset_piemap('{method}', '{run_label}', '{spatial_tag}', '{size_trait}')
+    output: mala_offset_piemap('{method}', '{run_label}', '{spatial_tag}', '{size_trait}', '{scenario}')
     params:
         pie_alpha       = PIEMAP_ALPHA,
         pop_label       = PIEMAP_SHOW_LABELS,
         pop_label_size  = PIEMAP_LABEL_SIZE,
         pie_scale       = PIEMAP_PIE_SCALE,
-        plot_dir        = lambda wc: mala_plot_dir(wc.method, wc.run_label, wc.spatial_tag),
+        plot_dir        = lambda wc: mala_offset_plot_dir(wc.method, wc.run_label, wc.spatial_tag, wc.scenario),
         inter_dir       = INTER,
         regionmap_extent = REGIONMAP_EXTENT,
         trait_path      = _piemap_trait_path,
         output_prefix   = _piemap_output_prefix
-    log: f"{LOGDIR}maladaptation/plot_offset_piemap_{{method}}_{{run_label}}_{{spatial_tag}}_{{size_trait}}.log"
+    log: f"{LOGDIR}maladaptation/plot_offset_piemap_{{method}}_{{run_label}}_{{spatial_tag}}_{{scenario}}_{{size_trait}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_piemap.R \
@@ -386,19 +421,19 @@ rule plot_gf_offset_piemap_points:
     """Points ('clear map') companion for the genetic offset piemap — trait-independent
     (points only mark sample locations), one per method/run_label/spatial_tag."""
     input:
-        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag),
+        offset_raster = lambda wc: mala_offset_raster(wc.method, wc.run_label, wc.spatial_tag, wc.scenario),
         samples       = W['metadata_climate_valid'],
         clusters      = clusters_table(K_BEST)
-    output: mala_offset_piemap_points('{method}', '{run_label}', '{spatial_tag}')
+    output: mala_offset_piemap_points('{method}', '{run_label}', '{spatial_tag}', '{scenario}')
     params:
         pie_alpha       = PIEMAP_ALPHA,
         pop_label       = PIEMAP_SHOW_LABELS,
         pop_label_size  = PIEMAP_LABEL_SIZE,
         pie_scale       = PIEMAP_PIE_SCALE,
-        plot_dir        = lambda wc: mala_plot_dir(wc.method, wc.run_label, wc.spatial_tag),
+        plot_dir        = lambda wc: mala_offset_plot_dir(wc.method, wc.run_label, wc.spatial_tag, wc.scenario),
         inter_dir       = INTER,
         regionmap_extent = REGIONMAP_EXTENT
-    log: f"{LOGDIR}maladaptation/plot_offset_piemap_points_{{method}}_{{run_label}}_{{spatial_tag}}.log"
+    log: f"{LOGDIR}maladaptation/plot_offset_piemap_points_{{method}}_{{run_label}}_{{spatial_tag}}_{{scenario}}.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_piemap.R \

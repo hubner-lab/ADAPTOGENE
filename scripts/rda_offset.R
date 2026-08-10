@@ -29,9 +29,9 @@ VCFSNP         <- args[2]   # *.vcfsnp for the full marker set (space-sep, no he
 REMOVED        <- args[3]   # removed SNPs table (no header)
 CANDIDATE_SNPS <- args[4]   # curated snp_set_file(run_label): selected_snps.tsv, SNPID column
 ENV_SITE_PRES  <- args[5]   # climate_present_site.tsv (per-sample rows, unscaled — B11 needs raw values)
-ENV_SITE_FUT   <- args[6]   # climate_future_..._site.tsv
+ENV_SITE_FUT   <- args[6] %>% str_split(',') %>% unlist   # climate_future_..._site.tsv, ONE PER SCENARIO
 ENV_ALL_PRES   <- args[7]   # climate_present_all.tsv (per raster-cell rows, has ID column)
-ENV_ALL_FUT    <- args[8]   # climate_future_..._all.tsv
+ENV_ALL_FUT    <- args[8] %>% str_split(',') %>% unlist   # climate_future_..._all.tsv, ONE PER SCENARIO
 PRES_RASTER    <- args[9]   # present climate raster (.tif, spatial template)
 SAMPLES        <- args[10]  # metadata_climate_valid.tsv (site, sample, latitude, longitude, ...)
 PREDICTORS     <- args[11] %>% str_split(',') %>% unlist
@@ -44,15 +44,32 @@ SAMPLES_ORDER  <- args[17]  # full-cohort sample order — only read if CONDITIO
 CLIMATE_VALID  <- args[18]  # plink --keep list (FID IID) — only read if CONDITION_PCS > 0
 SEED           <- as.numeric(args[19])
 CPU            <- as.numeric(args[20])
-OUT_SITE_TSV   <- args[21]
-OUT_MAP_TSV    <- args[22]
-OUT_RASTER_TIF <- args[23]
-OUT_IMPORTANCE <- args[24]
-OUT_DIAGNOSTICS<- args[25]
-PLOT_DIR       <- args[26]
+OUT_SITE_TSV   <- args[21] %>% str_split(',') %>% unlist   # ONE PER SCENARIO
+OUT_MAP_TSV    <- args[22] %>% str_split(',') %>% unlist   # ONE PER SCENARIO
+OUT_RASTER_TIF <- args[23] %>% str_split(',') %>% unlist   # ONE PER SCENARIO
+OUT_IMPORTANCE <- args[24]  # scenario-free — describes the fit, not the projection
+OUT_DIAGNOSTICS<- args[25]  # scenario-free
+PLOT_DIR       <- args[26]  # scenario-free
+SCENARIOS      <- if (length(args) >= 27 && nzchar(args[27])) {
+    args[27] %>% str_split(',') %>% unlist
+} else {
+    paste0('scenario_', seq_along(ENV_SITE_FUT))
+}
 ################################################################################
+# The RDA is fitted on PRESENT climate only; a future scenario enters solely at
+# the projection step (section 9). So the fit, its axis selection, its weights
+# and its diagnostics are computed ONCE and every scenario is projected from
+# them — which is the whole point of accepting scenario lists here.
+N_SCEN <- length(ENV_SITE_FUT)
+stopifnot(length(ENV_ALL_FUT)    == N_SCEN,
+          length(OUT_SITE_TSV)   == N_SCEN,
+          length(OUT_MAP_TSV)    == N_SCEN,
+          length(OUT_RASTER_TIF) == N_SCEN,
+          length(SCENARIOS)      == N_SCEN)
 
-dir.create(dirname(OUT_SITE_TSV), recursive = TRUE, showWarnings = FALSE)
+for (p in unique(dirname(c(OUT_SITE_TSV, OUT_MAP_TSV, OUT_RASTER_TIF, OUT_DIAGNOSTICS)))) {
+    dir.create(p, recursive = TRUE, showWarnings = FALSE)
+}
 dir.create(PLOT_DIR, recursive = TRUE, showWarnings = FALSE)
 
 set.seed(SEED)
@@ -165,18 +182,17 @@ if (ncol(Y_cand) < 3) {
 #    capture the constants, apply identically to present AND future.
 ################################################################################
 env_site_pres_raw <- fread(ENV_SITE_PRES) %>% dplyr::select(!!PREDICTORS)
-env_site_fut_raw  <- fread(ENV_SITE_FUT)  %>% dplyr::select(!!PREDICTORS)
 env_all_pres  <- fread(ENV_ALL_PRES) %>% dplyr::select(ID, !!PREDICTORS)
-env_all_fut   <- fread(ENV_ALL_FUT)  %>% dplyr::select(ID, !!PREDICTORS)
 
 n_samples <- nrow(env_site_pres_raw)
 add_diag("n_samples", n_samples)
-if (nrow(env_site_fut_raw) != n_samples || nrow(Y_cand) != n_samples) {
+add_diag("n_scenarios", N_SCEN)
+if (nrow(Y_cand) != n_samples) {
     stop(paste0('FATAL: Sample-count mismatch -- env_site_pres has ', n_samples,
-                ' rows, env_site_fut has ', nrow(env_site_fut_raw), ' rows, genotype matrix ',
-                'has ', nrow(Y_cand), ' rows. These must match (all subset to the same ',
-                'climate-valid sample set). Re-run subset_lfmm_climate / ',
-                'filter_climate_valid_samples and check for a stale intermediate file.'))
+                ' rows, genotype matrix has ', nrow(Y_cand), ' rows. These must match ',
+                '(both subset to the same climate-valid sample set). Re-run ',
+                'subset_lfmm_climate / filter_climate_valid_samples and check for a ',
+                'stale intermediate file.'))
 }
 
 Env_scaled <- scale(as.matrix(env_site_pres_raw), center = TRUE, scale = TRUE)
@@ -308,49 +324,65 @@ project_scores <- function(env_df, center, scale) {
     z %*% B
 }
 
-# Sites (present/future) — B11 constants applied to BOTH.
+# Present-side scores and the raster/sample scaffolding are scenario-invariant.
 sp_site <- project_scores(env_site_pres_raw, center_env, scale_env)
-sf_site <- project_scores(env_site_fut_raw,  center_env, scale_env)
-offset_site <- sqrt(rowSums(sweep((sp_site - sf_site), 2, w, `*`)^2))
-
-# Raster cells — B14: identical NA mask across present + future.
-ok <- complete.cases(env_all_pres[, -1]) & complete.cases(env_all_fut[, -1])
-env_all_pres_ok <- env_all_pres[ok, ]
-env_all_fut_ok  <- env_all_fut[ok, ]
-message(paste0('INFO: Non-NA raster cells: ', sum(ok)))
-
-sp_land <- project_scores(env_all_pres_ok[, -1], center_env, scale_env)
-sf_land <- project_scores(env_all_fut_ok[,  -1], center_env, scale_env)
-offset_landscape <- sqrt(rowSums(sweep((sp_land - sf_land), 2, w, `*`)^2))
-
-################################################################################
-# 10. Write site TSV (byte-compatible with GF/GeoOff output)
-################################################################################
+clim_pres <- rast(PRES_RASTER)
 samples <- fread(SAMPLES,
                  colClasses = c('site' = 'character', 'sample' = 'character',
                                 'latitude' = 'numeric', 'longitude' = 'numeric'))
-go_site <- samples[, c('site', 'sample')] %>%
-    unique() %>%
-    cbind(genetic_offset = offset_site) %>%
-    dplyr::arrange(desc(genetic_offset))
-fwrite(go_site, OUT_SITE_TSV, sep = '\t')
-message(paste0('INFO: Saved site GO values: ', OUT_SITE_TSV))
-message(paste0('INFO: Site offset range: ', round(min(offset_site), 4), ' - ', round(max(offset_site), 4)))
+site_ids <- samples[, c('site', 'sample')] %>% unique()
 
 ################################################################################
-# 11. Write raster + map TSV (mirrors geometric_offset.R:186-204)
+# 10-11. Per scenario: project the future, write site TSV + raster + map TSV
 ################################################################################
-clim_pres   <- rast(PRES_RASTER)
-rast_offset <- clim_pres[[PREDICTORS[1]]]
-rast_offset[] <- NA
-rast_offset[env_all_pres_ok$ID] <- offset_landscape
-writeRaster(rast_offset, filename = OUT_RASTER_TIF, overwrite = TRUE,
-            gdal = c('INTERLEAVE=BAND', 'COMPRESS=LZW'))
-message(paste0('INFO: Saved offset raster: ', OUT_RASTER_TIF))
+for (i in seq_len(N_SCEN)) {
+    message(paste0('INFO: [', i, '/', N_SCEN, '] scenario ', SCENARIOS[i]))
 
-GO_matrix <- matrix(values(rast_offset), ncol = ncol(rast_offset), byrow = TRUE)
-GO_matrix %>% as.data.table() %>% fwrite(OUT_MAP_TSV, sep = '\t', col.names = FALSE)
-message(paste0('INFO: Saved map GO values: ', OUT_MAP_TSV))
+    env_site_fut_raw <- fread(ENV_SITE_FUT[i]) %>% dplyr::select(!!PREDICTORS)
+    env_all_fut      <- fread(ENV_ALL_FUT[i])  %>% dplyr::select(ID, !!PREDICTORS)
+
+    if (nrow(env_site_fut_raw) != n_samples) {
+        stop(paste0('FATAL: Sample-count mismatch -- env_site_pres has ', n_samples,
+                    ' rows but ', ENV_SITE_FUT[i], ' has ', nrow(env_site_fut_raw), '.'))
+    }
+
+    # Sites (present/future) — B11 constants applied to BOTH.
+    sf_site <- project_scores(env_site_fut_raw, center_env, scale_env)
+    offset_site <- sqrt(rowSums(sweep((sp_site - sf_site), 2, w, `*`)^2))
+
+    # Raster cells — B14: identical NA mask across present + future.
+    ok <- complete.cases(env_all_pres[, -1]) & complete.cases(env_all_fut[, -1])
+    env_all_pres_ok <- env_all_pres[ok, ]
+    env_all_fut_ok  <- env_all_fut[ok, ]
+    message(paste0('INFO: Non-NA raster cells: ', sum(ok)))
+
+    sp_land <- project_scores(env_all_pres_ok[, -1], center_env, scale_env)
+    sf_land <- project_scores(env_all_fut_ok[,  -1], center_env, scale_env)
+    offset_landscape <- sqrt(rowSums(sweep((sp_land - sf_land), 2, w, `*`)^2))
+
+    # ---- Write site TSV (byte-compatible with GF/GeoOff output) ----
+    go_site <- site_ids %>%
+        cbind(genetic_offset = offset_site) %>%
+        dplyr::arrange(desc(genetic_offset))
+    fwrite(go_site, OUT_SITE_TSV[i], sep = '\t')
+    message(paste0('INFO: Saved site GO values: ', OUT_SITE_TSV[i]))
+    message(paste0('INFO: Site offset range: ', round(min(offset_site), 4), ' - ',
+                   round(max(offset_site), 4)))
+
+    # ---- Write raster + map TSV (mirrors geometric_offset.R) ----
+    # rast_offset is re-derived from clim_pres each iteration: terra SpatRasters
+    # wrap external pointers, so reusing a hoisted template risks mutating it.
+    rast_offset <- clim_pres[[PREDICTORS[1]]]
+    rast_offset[] <- NA
+    rast_offset[env_all_pres_ok$ID] <- offset_landscape
+    writeRaster(rast_offset, filename = OUT_RASTER_TIF[i], overwrite = TRUE,
+                gdal = c('INTERLEAVE=BAND', 'COMPRESS=LZW'))
+    message(paste0('INFO: Saved offset raster: ', OUT_RASTER_TIF[i]))
+
+    GO_matrix <- matrix(values(rast_offset), ncol = ncol(rast_offset), byrow = TRUE)
+    GO_matrix %>% as.data.table() %>% fwrite(OUT_MAP_TSV[i], sep = '\t', col.names = FALSE)
+    message(paste0('INFO: Saved map GO values: ', OUT_MAP_TSV[i]))
+}
 
 ################################################################################
 # 12. Importance plot — per-predictor contribution: sum of |biplot loading|

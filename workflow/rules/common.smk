@@ -278,6 +278,44 @@ YEAR = _future.get('year', '2061-2080')
 MODELS_STR = _future.get('models', '')
 MODELS_LIST = [m.strip() for m in MODELS_STR.split(',') if m.strip()] if MODELS_STR else []
 
+# SCENARIOS — one entry per future-climate projection.
+#
+# WorldClim always yields exactly one, named for the SSP/year it downloads.
+# Climate.source: custom yields one per entry of Climate.custom.future_tables
+# (or the single future_table), named after that table's basename. This is what
+# lets one model fit project onto N futures in a single job: the offset rules
+# below declare all scenarios as outputs, so the model loads once and projects
+# N times instead of being re-fit per future.
+#
+# DEFAULT_SCENARIO reproduces the historic filenames exactly
+# (climate_future_year{YEAR}_ssp{SSP}_all.tsv), so a single-future project's
+# climate outputs are byte-identical to what it produced before scenarios existed.
+DEFAULT_SCENARIO = f"year{YEAR}_ssp{SSP}"
+
+def _resolve_scenarios():
+    """Map scenario name -> source env table ('' when WorldClim supplies it)."""
+    if CLIMATE_SOURCE != 'custom':
+        return {DEFAULT_SCENARIO: ''}
+    tables = _clim_custom.get('future_tables')
+    if tables:
+        if isinstance(tables, str):
+            tables = [t.strip() for t in tables.split(',') if t.strip()]
+        out = {}
+        for t in tables:
+            name = os.path.splitext(os.path.basename(str(t)))[0]
+            if name in out:
+                raise ValueError(
+                    f"Climate.custom.future_tables has two entries whose basename is "
+                    f"{name!r}; scenario names must be unique."
+                )
+            out[name] = f"{INDIR}{t}"
+        return out
+    single = _clim_custom.get('future_table', '')
+    return {DEFAULT_SCENARIO: f"{INDIR}{single}"} if single else {}
+
+SCENARIOS = _resolve_scenarios()
+SCENARIO_NAMES = list(SCENARIOS)
+
 # GRADIENT FOREST parameters
 _mala_cfg = config.get('Maladaptation', {})
 _gf = _mala_cfg.get('methods', {}).get('gradient_forest', {})
@@ -314,12 +352,53 @@ GO_SCALE = str(_go.get('scale', True)).upper()  # 'TRUE'/'FALSE' for R
 
 # RDA OFFSET parameters (docs/rda_research.md Part B — second, candidate-only,
 # uncorrected-by-default RDA fit; NOT a reuse of the GEA-scan RDA object)
+# Two registered methods share this engine and script — 'rda_offset' (canonical,
+# condition_pcs 0) and 'rda_offset_corrected' (Condition()-corrected). Parameters
+# are therefore looked up PER METHOD at rule time rather than held in one global,
+# so a single invocation can run both.
+def rdo_cfg(method):
+    """RDA-offset parameters for one registered method name."""
+    c = _mala_cfg.get('methods', {}).get(method, {})
+    # rda_offset_corrected defaults to the uncorrected method's settings except
+    # condition_pcs, which is what distinguishes it.
+    base = _mala_cfg.get('methods', {}).get('rda_offset', {}) if method != 'rda_offset' else {}
+    def g(key, default):
+        return c.get(key, base.get(key, default))
+    return {
+        'axes':          str(g('axes', 'auto')),        # 'auto' | integer >= 2
+        'axis_alpha':    float(g('axis_alpha', 0.05)),
+        'permutations':  int(g('permutations', 999)),
+        # 0 = canonical (B7); >0 = documented deviation. The corrected variant is
+        # meaningless at 0, so it defaults to 1 rather than inheriting 0.
+        'condition_pcs': int(g('condition_pcs', 1 if method == 'rda_offset_corrected' else 0)),
+        'seed':          int(g('seed', 42)),
+    }
+
 _rdo = _mala_cfg.get('methods', {}).get('rda_offset', {})
 RDO_AXES = str(_rdo.get('axes', 'auto'))              # 'auto' | integer >= 2
 RDO_AXIS_ALPHA = float(_rdo.get('axis_alpha', 0.05))
 RDO_PERMUTATIONS = int(_rdo.get('permutations', 999))
 RDO_CONDITION_PCS = int(_rdo.get('condition_pcs', 0))  # 0 = canonical (B7); >0 = documented deviation
 RDO_SEED = int(_rdo.get('seed', 42))
+
+# SIMULATION / BENCHMARK declaration.
+#
+# A declared flag, not a name convention. The de-facto rule was "project name starts
+# with MVP", which is exactly the kind of implicit convention that silently mixed two
+# datasets under the name TEST in 2026-07 (see CLAUDE.md). A flag is greppable, shows
+# up in a config diff, and survives renaming.
+#
+# Absence means `enabled: false` and is NOT a misconfiguration — a real dataset simply
+# has no truth set — so no warning is emitted for a config that lacks the block.
+_sim = config.get('Simulation', {}) or {}
+SIM_ENABLED = bool(_sim.get('enabled', False))
+SIM_SOURCE  = str(_sim.get('source', ''))
+SIM_TRUTH   = f"{INDIR}{_sim['truth_table']}" if _sim.get('truth_table') else ''
+_sim_fit    = _sim.get('fitness', {}) or {}
+SIM_FITNESS_IDENTITY = f"{INDIR}{_sim_fit['identity_table']}" if _sim_fit.get('identity_table') else ''
+SIM_FITNESS_GARDENS  = f"{INDIR}{_sim_fit['gardens']}"        if _sim_fit.get('gardens')        else ''
+if not isinstance(_sim.get('enabled', False), bool):
+    raise ValueError(f"Simulation.enabled must be true or false; got {_sim.get('enabled')!r}")
 
 # Raw SNP-sets config (cheap parse — actual glob/validate happens only inside get_targets)
 SNP_SETS_CFG = _mala_cfg.get('snp_sets', 'all')
@@ -1251,14 +1330,24 @@ def resolve_active_snp_sets():
         )
     return names
 
-def mala_offset_raster(method, run_label, spatial_tag):
-    return f"{mala_inter_dir(method, run_label, spatial_tag)}offset_raster.tif"
+# Offset products are per-SCENARIO: one model/fit projected onto N futures.
+# The model itself, and the fit-level plots derived from it (cumulative and
+# overall importance, the RDA screeplot/diagnostics), depend on present climate
+# and the SNP panel only — they stay scenario-free and are written once.
+def mala_offset_plot_dir(method, run_label, spatial_tag, scenario):
+    return f"{mala_plot_dir(method, run_label, spatial_tag)}{scenario}/"
 
-def mala_offset_map_values(method, run_label, spatial_tag):
-    return f"{mala_table_dir(method, run_label, spatial_tag)}genetic_offset_map.tsv"
+def mala_offset_table_dir(method, run_label, spatial_tag, scenario):
+    return f"{mala_table_dir(method, run_label, spatial_tag)}{scenario}/"
 
-def mala_offset_site_values(method, run_label, spatial_tag):
-    return f"{mala_table_dir(method, run_label, spatial_tag)}genetic_offset_site.tsv"
+def mala_offset_raster(method, run_label, spatial_tag, scenario):
+    return f"{mala_inter_dir(method, run_label, spatial_tag)}{scenario}/offset_raster.tif"
+
+def mala_offset_map_values(method, run_label, spatial_tag, scenario):
+    return f"{mala_offset_table_dir(method, run_label, spatial_tag, scenario)}genetic_offset_map.tsv"
+
+def mala_offset_site_values(method, run_label, spatial_tag, scenario):
+    return f"{mala_offset_table_dir(method, run_label, spatial_tag, scenario)}genetic_offset_site.tsv"
 
 def mala_cumimp(method, run_label, spatial_tag):
     return f"{mala_plot_dir(method, run_label, spatial_tag)}cumulative_importance.png"
@@ -1266,13 +1355,25 @@ def mala_cumimp(method, run_label, spatial_tag):
 def mala_importance(method, run_label, spatial_tag):
     return f"{mala_plot_dir(method, run_label, spatial_tag)}overall_importance.png"
 
-def mala_offset_piemap(method, run_label, spatial_tag, size_trait):
+def mala_offset_piemap(method, run_label, spatial_tag, size_trait, scenario):
     """size_trait: 'notrait' | 'tajima_d' | 'pi_diversity'"""
-    return f"{mala_plot_dir(method, run_label, spatial_tag)}genetic_offset_piemap_{size_trait}.png"
+    return f"{mala_offset_plot_dir(method, run_label, spatial_tag, scenario)}genetic_offset_piemap_{size_trait}.png"
 
-def mala_offset_piemap_points(method, run_label, spatial_tag):
-    """Points ('clear map') companion — trait-independent, one per method/run_label/spatial_tag."""
-    return f"{mala_plot_dir(method, run_label, spatial_tag)}genetic_offset_piemap_points.png"
+def mala_offset_piemap_points(method, run_label, spatial_tag, scenario):
+    """Points ('clear map') companion — trait-independent, one per method/run_label/spatial_tag/scenario."""
+    return f"{mala_offset_plot_dir(method, run_label, spatial_tag, scenario)}genetic_offset_piemap_points.png"
+
+# Future-climate paths, addressed by scenario.
+# DEFAULT_SCENARIO reproduces the pre-scenario filenames exactly, so a
+# single-future project keeps writing where it always did.
+def climate_future_raster(scenario):
+    return f"{MOD_CLIMATE}rasters/future/climate_future_{scenario}_rasterstack.tif"
+
+def climate_future_all(scenario):
+    return f"{MOD_CLIMATE}tables/future/climate_future_{scenario}_all.tsv"
+
+def climate_future_site(scenario):
+    return f"{MOD_CLIMATE}tables/future/climate_future_{scenario}_site.tsv"
 
 # Maladaptation paths
 def add_maladaptation_paths():
@@ -1286,11 +1387,13 @@ def add_maladaptation_paths():
         for model in MODELS_LIST:
             W[f'climate_future_{model}'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_{model}.tif"
 
-    # Merged future climate (both sources — identical output paths)
-    W['climate_future_raster'] = f"{MOD_CLIMATE}rasters/future/climate_future_year{YEAR}_ssp{SSP}_rasterstack.tif"
-    O['climate_future_all'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_all.tsv"
-    O['climate_future_site'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_site.tsv"
-    O['climate_future_na_excluded'] = f"{MOD_CLIMATE}tables/future/climate_future_year{YEAR}_ssp{SSP}_na_excluded.tsv"
+    # Merged future climate (both sources — identical output paths).
+    # The O/W entries name the DEFAULT scenario; the climate_future_* functions
+    # above address any scenario. WorldClim only ever has the default one.
+    W['climate_future_raster'] = climate_future_raster(DEFAULT_SCENARIO)
+    O['climate_future_all'] = climate_future_all(DEFAULT_SCENARIO)
+    O['climate_future_site'] = climate_future_site(DEFAULT_SCENARIO)
+    O['climate_future_na_excluded'] = f"{MOD_CLIMATE}tables/future/climate_future_{DEFAULT_SCENARIO}_na_excluded.tsv"
 
     # Future climate density plot (method-agnostic)
     O['density_future'] = f"{MOD_CLIMATE}plots/density_plot_future_ssp{SSP}_{YEAR}.png"
@@ -1908,12 +2011,21 @@ def get_targets(mode):
         # Resolve saved SNP sets (glob/validate happens here, not at module top level)
         ACTIVE_SNP_SETS = resolve_active_snp_sets()
 
-        targets = [
-            # Future climate (method-agnostic)
-            O['climate_future_site'],
-            O['climate_future_all'],
-            W['climate_future_raster'],
-        ]
+        if not SCENARIOS:
+            raise ValueError(
+                "No future-climate scenario resolved. Set Climate.custom.future_table "
+                "(one future) or Climate.custom.future_tables (a list) when "
+                "Climate.source is 'custom'."
+            )
+
+        # Future climate (method-agnostic) — one staged future per scenario
+        targets = []
+        for scenario in SCENARIO_NAMES:
+            targets += [
+                climate_future_site(scenario),
+                climate_future_all(scenario),
+                climate_future_raster(scenario),
+            ]
         if MALA_EMIT_PLOTS:
             targets.append(O['density_future'])
 
@@ -1924,32 +2036,35 @@ def get_targets(mode):
                     # Separate model artifact (GF only — geometric_offset is single-call)
                     if _mflags['builds_model']:
                         targets.append(mala_model(method, set_name, spatial_tag, 'adaptive'))
-                    # Core offset outputs (all methods) — tables always
-                    targets += [
-                        mala_offset_map_values(method, set_name, spatial_tag),
-                        mala_offset_site_values(method, set_name, spatial_tag),
-                    ]
-                    # Plots — skipped entirely under Maladaptation.emit_plots: false.
+                    # Fit-level plots — scenario-free, derived from the model/fit alone.
+                    # Skipped entirely under Maladaptation.emit_plots: false.
                     # NOTE mala_importance() is a PLOT (overall_importance.png), not a table,
                     # so it belongs here despite the name.
                     if MALA_EMIT_PLOTS:
-                        targets += [
-                            mala_importance(method, set_name, spatial_tag),
-                            mala_offset_piemap(method, set_name, spatial_tag, 'notrait'),
-                            mala_offset_piemap_points(method, set_name, spatial_tag),
-                        ]
+                        targets.append(mala_importance(method, set_name, spatial_tag))
                         # Cumulative importance (GF only)
                         if _mflags['supports_cumulative_importance']:
                             targets.append(mala_cumimp(method, set_name, spatial_tag))
                     # Random/neutral model (GF + config flag)
                     if _mflags['supports_random_model'] and GF_RANDOM_MODEL:
                         targets.append(mala_model(method, set_name, spatial_tag, 'random'))
-                    # Pop-stats scaled piemaps (all methods, optional)
-                    if CALC_POP_STATS and MALA_EMIT_PLOTS:
+                    # Offset products — one set per scenario
+                    for scenario in SCENARIO_NAMES:
                         targets += [
-                            mala_offset_piemap(method, set_name, spatial_tag, 'tajima_d'),
-                            mala_offset_piemap(method, set_name, spatial_tag, 'pi_diversity'),
+                            mala_offset_map_values(method, set_name, spatial_tag, scenario),
+                            mala_offset_site_values(method, set_name, spatial_tag, scenario),
                         ]
+                        if MALA_EMIT_PLOTS:
+                            targets += [
+                                mala_offset_piemap(method, set_name, spatial_tag, 'notrait', scenario),
+                                mala_offset_piemap_points(method, set_name, spatial_tag, scenario),
+                            ]
+                            # Pop-stats scaled piemaps (all methods, optional)
+                            if CALC_POP_STATS:
+                                targets += [
+                                    mala_offset_piemap(method, set_name, spatial_tag, 'tajima_d', scenario),
+                                    mala_offset_piemap(method, set_name, spatial_tag, 'pi_diversity', scenario),
+                                ]
 
         targets.append(W['summary_done'])
         return targets

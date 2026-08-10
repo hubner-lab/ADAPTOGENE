@@ -185,31 +185,40 @@ elif MODE == 'maladaptation':
         for s in (_summary_sets or ['_placeholder'])
         for t in mala_spatial_tags(m)
     ]
-    # Offset-site TSVs for all methods
+    # Offset-site TSVs for all methods × scenarios
     _summary_offset_sites = [
-        mala_offset_site_values(m, s, t)
+        mala_offset_site_values(m, s, t, sc)
         for m in ACTIVE_MALA_METHODS
         for s in (_summary_sets or ['_placeholder'])
         for t in mala_spatial_tags(m)
+        for sc in SCENARIO_NAMES
     ]
 
     rule write_summary:
-        """Write maladaptation mode summary to Pipeline_summary.tsv (one row per method × SNP set × spatial tag)."""
+        """Write maladaptation mode summary to Pipeline_summary.tsv (one row per method × SNP set × spatial tag × scenario).
+
+        The offset paths go through a MANIFEST FILE, not the command line. Once
+        offsets gained the scenario dimension this list became methods × sets ×
+        scenarios — 1176 paths (~130 KB) on a 42-scenario sweep, which overflows
+        the shell and fails the rule with exit 126."""
         input:
             mala_adaptive = _summary_adaptive,
             offset_site   = _summary_offset_sites
         output: W['summary_done']
         params:
-            summary_tsv     = O['summary'],
-            offset_site_str = ' '.join(_summary_offset_sites)
+            summary_tsv = O['summary'],
+            manifest    = f"{INTER}flags/summary_offset_sites.txt"
         log: f"{LOGDIR}maladaptation/write_summary.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/write_summary.R \
-                maladaptation {params.summary_tsv} \
-                "{params.offset_site_str}" > {log} 2>&1
-            touch {output}
-            """
+        run:
+            import os
+            os.makedirs(os.path.dirname(params.manifest), exist_ok=True)
+            with open(params.manifest, 'w') as fh:
+                fh.write("\n".join(input.offset_site) + "\n")
+            shell(
+                "Rscript /pipeline/scripts/write_summary.R "
+                "maladaptation {params.summary_tsv} {params.manifest} > {log} 2>&1"
+            )
+            shell("touch {output}")
 
 elif MODE == 'gwas':
     rule write_summary:

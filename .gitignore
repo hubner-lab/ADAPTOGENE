@@ -96,3 +96,15 @@ benchmarks/mvp_eval/offset08/_v1_singleaxis/
 benchmarks/mvp_eval/offset09/garden_performance.tsv
 benchmarks/mvp_eval/offset09/source_performance.tsv
 benchmarks/mvp_eval/offset09/garden_fitness_*.tsv
+
+# Group 1 expansion (2026-08) — regenerable intermediates, same convention as above.
+# Run logs and the byte-comparison reference snapshot are reproducible from the
+# pipeline; the summary tables, claims and final figures are the deliverable.
+benchmarks/mvp_eval/gate/
+benchmarks/mvp_eval/offset09/sweeplogs/
+benchmarks/mvp_eval/offset09/_gate_reference_1232218/
+benchmarks/mvp_eval/offset09/_gate_reference_1232218.md5
+benchmarks/mvp_eval/offset09/_gate_reference_1232218.provenance
+# Superseded partial-data figure sets — figures_FINAL_32seeds_112gardens/ replaces them.
+benchmarks/mvp_eval/figures_prelim/
+benchmarks/mvp_seeds.tsv.bak14
