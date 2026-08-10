@@ -1,0 +1,8 @@
+set	markers	pct_causal	pct_linked	pct_noise	useful	accuracy
+truth	42	100	0	0	100	0.714
+best	151	6	83	9	91	0.704
+solo_rda	99	6	77	13	87	0.701
+intersect3	39	6	92	0	100	0.699
+solo_emmax	11	20	64	7	93	0.697
+union	224	5	73	20	80	0.629
+solo_lfmm	197	6	76	19	81	0.611
