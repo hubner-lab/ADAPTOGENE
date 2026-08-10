@@ -229,6 +229,16 @@ GEAxGWAS:
   pairwise:
     window_size: 25000
     min_snps: 2
+
+# Declares this project as a SIMULATED benchmark replicate, not a real dataset.
+# The Shiny app hides simulated projects from the ordinary project selector and
+# surfaces them only in benchmark mode. A declared flag rather than a name
+# convention: "starts with MVP" is the implicit kind of rule that let two datasets
+# share the name TEST in 2026-07 (CLAUDE.md).
+Simulation:
+  enabled: true
+  source: "MVP / Lotterhos 2023"
+  truth_table: "truth_any.tsv"
 ',
     seed, arm, arch, fst, r2t, r2s, n_causal,
     p, p, p, p,           # Input.dir, vcf, metadata, project_name

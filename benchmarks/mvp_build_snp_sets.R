@@ -101,8 +101,14 @@ MAN   <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_seeds.tsv"),
 SEEDS <- if (SEEDS_A == "all") MAN$seed else strsplit(SEEDS_A, ",", fixed = TRUE)[[1]]
 
 # ---- default rung per (seed, method), unioned over the two cell manifests
+# Group 1's 18 new seeds are written to their own manifest so a seed-scoped
+# regeneration cannot truncate the one describing the runs that produced
+# benchmarks/mvp_eval/sweep/. It must be listed here too, or default_cell()
+# silently resolves nothing for every new seed and the panels come out empty --
+# after the upstream hours have already been spent.
 cell_files <- c(file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_j07.tsv"),
-                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_p11.tsv"))
+                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_p11.tsv"),
+                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_group1.tsv"))
 CELLS <- rbindlist(lapply(cell_files[file.exists(cell_files)],
                           fread, colClasses = c("seed" = "character")), fill = TRUE)
 DEFCELL <- unique(CELLS[is_default == TRUE, .(seed, method, cell, param, value)])
@@ -179,8 +185,16 @@ for (s in SEEDS) {
     # union: any of the three, exact position
     cs0 <- combine_support(sub_parts, 0)
     sets[["union"]] <- if (nrow(cs0)) cs0[n_methods >= 1, snp] else character(0)
-    # solo: LFMM alone
+    # solo: LFMM alone (kept under its historical name so journals 08/09 still resolve)
     sets[["solo"]]  <- if (!is.null(parts[[SOLO]])) parts[[SOLO]] else character(0)
+    # One panel per GEA method at its OWN verbatim operating point. These are what
+    # make "combining methods helps" a measured claim rather than an assumption:
+    # each is the same scan, same calibration, just without the agreement step, so
+    # the only thing separating them from `best`/`intersect3` is the combination rule.
+    for (m in SUBSET) {
+        sets[[paste0("solo_", tolower(m))]] <-
+            if (!is.null(parts[[m]])) parts[[m]] else character(0)
+    }
     # ceiling: causal loci that survived filtering (i.e. are in the tested universe)
     sets[["truth"]] <- intersect(TR[category == "causal", key], universe)
     # `all` -- every SNP the GEA actually tested. This is the "all" marker panel of
@@ -224,7 +238,8 @@ for (s in SEEDS) {
             next
         }
         n <- write_set(proj, nm, keys,
-                       if (nm %in% c("best", "union", "solo")) pmin_all else NULL)
+                       if (nm %in% c("best", "union", "solo") || startsWith(nm, "solo_"))
+                           pmin_all else NULL)
         nc <- sum(keys %in% TR[category == "causal", key])
         nl <- sum(keys %in% TR[category == "linked_neutral", key])
         nb <- sum(keys %in% TR[category == "background_neutral", key])
@@ -235,17 +250,20 @@ for (s in SEEDS) {
         man[[length(man) + 1L]] <- list(
             name = nm, n_snps = n, created = format(Sys.time(), "%Y-%m-%dT%H:%M:%S"),
             source_module = "benchmark_offset08",
-            threshold_type = if (nm %in% c("best", "union", "solo"))
+            threshold_type = if (nm %in% c("best", "union", "solo") || startsWith(nm, "solo_"))
                 paste(vapply(POINTS[intersect(SUBSET, names(parts))],
                              function(x) paste(x, collapse = "_"), character(1)),
                       collapse = ";") else "none",
             threshold_value = 0,
             regime = "snp",
-            strategy = switch(nm, best = "at_least_2_5kb", union = "union", solo = "solo",
+            strategy = if (startsWith(nm, "solo_")) "single_method" else
+                       switch(nm, best = "at_least_2_5kb", union = "union", solo = "solo",
                               truth = "causal_loci", "random_background"),
             traits = c("bio_1", "bio_2"),
             methods = if (nm %in% c("best", "union")) names(sub_parts)
-                      else if (nm == "solo") SOLO else character(0))
+                      else if (nm == "solo") SOLO
+                      else if (startsWith(nm, "solo_")) toupper(sub("^solo_", "", nm))
+                      else character(0))
     }
     man_f <- file.path(PIPELINE_ROOT, paste0(proj, "_results"),
                        "_intermediate", "snp_sets", "manifest.json")

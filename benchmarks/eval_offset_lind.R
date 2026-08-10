@@ -48,7 +48,15 @@ MARKER_SET <- c(all         = "all",
                 best        = "gea_best",
                 union       = "gea_union",
                 intersect3  = "gea_strict",
-                rand_best1  = "random_matched")
+                rand_best1  = "random_matched",
+                # Single-method panels: same scan, same verbatim operating points as
+                # best/union/intersect3, agreement step removed. They are what turns
+                # "combining methods helps" into a measured contrast rather than an
+                # assumption. A panel absent from this map is SILENTLY SKIPPED by the
+                # loop below, so anything new must be registered here.
+                solo_lfmm   = "gea_lfmm_only",
+                solo_rda    = "gea_rda_only",
+                solo_emmax  = "gea_emmax_only")
 METHOD_LABEL <- c(gradient_forest = "GFoffset", geometric_offset = "LFMM2offset",
                   rda_offset = "RDA-uncorrected", rda_corrected = "RDA-corrected")
 

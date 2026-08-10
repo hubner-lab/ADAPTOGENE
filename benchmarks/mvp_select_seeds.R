@@ -77,6 +77,54 @@ message(sprintf("  %d seeds verified against the Sec 8.2 rule, all %s / %s",
                 nrow(primary), primary$demog_level[1],
                 paste(unique(primary$demog_level_sub), collapse = ",")))
 
+# ---------------------------------------------------------------- group 1 -------
+# GROUP 1: extend the SS-Mtn panel to PER_STRATUM seeds in each architecture level.
+#
+# Why the band widens from [0.30, 0.60] to [0.20, 0.60]: the 12 transcribed seeds were
+# picked under the narrower rule and all 12 remain inside the wider one, so nothing is
+# dropped -- the widening only enlarges the pool to draw from (55 -> 82 seeds).
+#
+# Why stratify on ARCHITECTURE and not on R^2: measured across the 14-seed panel, within
+# the band R^2 explains little of the offset accuracy (rho -0.06..-0.24) while architecture
+# swings Kendall's tau by 0.3-0.4. Architecture is the axis the claim rests on, so it is
+# the axis that gets balanced.
+#
+# Selection is DETERMINISTIC -- no sample(). Within each stratum the in-band pool is sorted
+# by R^2(PC1~temp) and the new seeds are taken at evenly spaced rank positions, so the
+# masking band stays evenly covered and re-running reproduces the manifest exactly.
+PER_STRATUM <- as.integer(Sys.getenv("MVP_PER_STRATUM", "10"))
+BAND_LO <- 0.20
+BAND_HI <- 0.60
+
+message("== group 1 expansion ==")
+pool <- d[demog_level == "SS-Mtn" & meanFst >= 0.05 &
+          r2_pc1_temp >= BAND_LO & r2_pc1_temp <= BAND_HI & r2_pc1_sal <= 0.20]
+message(sprintf("  in-band SS-Mtn pool [%.2f, %.2f]: %d seeds", BAND_LO, BAND_HI, nrow(pool)))
+
+if (!all(PRIMARY_SEEDS %in% pool$seed)) {
+  stop("Widening the band dropped a transcribed primary seed -- refusing to proceed: ",
+       paste(setdiff(PRIMARY_SEEDS, pool$seed), collapse = ", "))
+}
+
+pick_stratum <- function(lvl) {
+  have  <- primary[arch_level == lvl]$seed
+  avail <- pool[arch_level == lvl & !seed %in% have][order(r2_pc1_temp)]
+  need  <- PER_STRATUM - length(have)
+  if (need <= 0L) return(avail[0L])
+  if (nrow(avail) < need) {
+    stop(sprintf("stratum %s: need %d more seeds but only %d available in band",
+                 lvl, need, nrow(avail)))
+  }
+  idx <- unique(round(seq(1, nrow(avail), length.out = need)))
+  message(sprintf("  %-18s have %d, adding %d of %d available",
+                  lvl, length(have), need, nrow(avail)))
+  avail[idx]
+}
+
+strata <- sort(unique(primary$arch_level))
+expansion <- rbindlist(lapply(strata, pick_stratum))
+message(sprintf("  expansion: %d seeds", nrow(expansion)))
+
 # ---------------------------------------------------------------- controls ------
 # Degenerate arm: same demography sub-level and architecture as a primary seed, but the
 # Est-Clines landscape, where R^2(PC1~temp) ~ 0.96. Expectation when these are run: structure
@@ -107,7 +155,7 @@ if (nrow(controls) != 2L || anyNA(controls$seed)) {
 message(sprintf("  picked %s", paste(controls$seed, collapse = ", ")))
 
 # ---------------------------------------------------------------- manifest ------
-mk <- function(x, arm) {
+mk <- function(x, arm, added) {
   data.table(
     seed            = as.integer(x$seed),
     arm             = arm,
@@ -133,11 +181,34 @@ mk <- function(x, arm) {
     n_causal_maf01  = x$num_causal_postfilter,
     n_causal_temp   = x$num_causal_temp,
     n_causal_sal    = x$num_causal_sal,
-    final_LA        = round(x$final_LA, 4)
+    final_LA        = round(x$final_LA, 4),
+    # Cohort bookkeeping: `group` names the panel this seed belongs to, `added` records
+    # whether it came from the original 14-seed transcription or the Group 1 expansion.
+    #
+    # APPENDED AT THE END ON PURPOSE. Several consumers read this manifest by COLUMN
+    # POSITION, not by name -- mvp_run_sweep.sh's kbest_of() takes `$11`. Inserting these
+    # after `arm` shifted every later column right by two, so k_best silently became
+    # ispleiotropy and the harvest would have looked for {method}_pvalues_K1.tsv. New
+    # columns go last; never in the middle.
+    group           = "group1",
+    added           = added
   )
 }
-manifest <- rbind(mk(primary, "primary"), mk(controls, "control_degenerate"))
+manifest <- rbind(
+  mk(primary,   "primary",            "initial"),
+  mk(expansion, "primary",            "group1_expansion"),
+  mk(controls,  "control_degenerate", "initial")
+)
 setorder(manifest, arm, -meanFst)
+
+# The panel must be balanced by construction, not by hope -- check it here rather than
+# discovering an unbalanced stratum after 18 seeds have been fetched and run.
+.bal <- manifest[arm == "primary", .N, by = arch_level]
+if (any(.bal$N != PER_STRATUM)) {
+  print(.bal)
+  stop(sprintf("architecture strata are not balanced at %d each", PER_STRATUM))
+}
+if (anyDuplicated(manifest$seed)) stop("duplicate seed in manifest")
 
 dir.create(dirname(OUT_TSV), showWarnings = FALSE, recursive = TRUE)
 fwrite(manifest, OUT_TSV, sep = "\t")
