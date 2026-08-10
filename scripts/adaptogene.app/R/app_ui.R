@@ -21,10 +21,22 @@ app_ui <- function(request) {
             htmltools::tags$script(src = "www/config-dirty.js")
         ),
 
-        # ── Navbar right: project selector + dark mode toggle ──────────────────
+        # ── Navbar right: benchmark switch + project selector + dark mode toggle ──
+        # The switch decides WHICH projects the selector offers, never how a module
+        # renders. Off (the default) is ordinary analysis: simulated benchmark
+        # replicates are hidden entirely, so a user doing real work never sees them
+        # or a benchmark control. On: only simulated projects, with a badge so the
+        # mode is never ambiguous. Internal scaffolding is hidden in both.
         nav_item(
             htmltools::div(
                 class = "d-flex align-items-center gap-3",
+                htmltools::span(
+                    id    = "benchmark_badge",
+                    class = "badge bg-warning text-dark",
+                    style = "display: none;",
+                    "BENCHMARK"
+                ),
+                bslib::input_switch("benchmark_mode", "Benchmark", value = FALSE),
                 shiny::selectInput(
                     "project_selector",
                     label    = NULL,

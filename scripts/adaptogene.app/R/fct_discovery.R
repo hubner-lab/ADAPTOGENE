@@ -1,9 +1,89 @@
 #' Discover all available projects from the pipeline path
 #' @noRd
-find_projects <- function(pipeline_path = get_pipeline_path()) {
-    dirs <- list.dirs(pipeline_path, full.names = FALSE, recursive = FALSE)
-    projects <- gsub("_results$", "", dirs[grepl("_results$", dirs)])
-    sort(projects)
+#' Discover every results directory, tagged
+#'
+#' Returns one row per `*_results/` directory with:
+#'   name         project name (directory minus the `_results` suffix)
+#'   is_simulated declared by `Simulation.enabled` in that project's own config
+#'   sim_source   free-text provenance for the UI badge
+#'   is_internal  scaffolding that should never be user-visible (clone lanes)
+#'
+#' `is_simulated` is read from a DECLARED FLAG, never guessed from the name. The
+#' de-facto "starts with MVP" convention is exactly what let two different datasets
+#' share the name TEST in 2026-07. `is_internal` likewise comes from an explicit
+#' `.internal` marker file rather than a name pattern, because `grepl("p[0-9]+$")`
+#' would also swallow a legitimately-named project.
+#'
+#' A project with no config of its own is NOT simulated — absence means false. Note
+#' this deliberately does not use read_project_config(), which falls back to a shared
+#' config.yaml; that fallback would let one project's Simulation block leak onto
+#' every project that lacks its own config.
+#' @noRd
+discover_projects <- function(pipeline_path = get_pipeline_path()) {
+    dirs  <- list.dirs(pipeline_path, full.names = FALSE, recursive = FALSE)
+    dirs  <- dirs[grepl("_results$", dirs)]
+    names <- sort(gsub("_results$", "", dirs))
+    empty <- data.frame(name = character(0), is_simulated = logical(0),
+                        sim_source = character(0), is_internal = logical(0),
+                        stringsAsFactors = FALSE)
+    if (!length(names)) return(empty)
+
+    cfg_files <- file.path(pipeline_path, paste0("config_", names, ".yaml"))
+    res_dirs  <- file.path(pipeline_path, paste0(names, "_results"))
+    # Fingerprint over the project set, its configs AND its marker files, so the cache
+    # turns over when a project appears, disappears, has its Simulation block edited, or
+    # gets marked internal/simulated -- without re-parsing ~100 YAML files every render.
+    fp <- paste0(length(names), "_",
+                 sum(file.exists(cfg_files)), "_",
+                 as.integer(max(c(0, file.mtime(cfg_files[file.exists(cfg_files)])))), "_",
+                 sum(file.exists(file.path(res_dirs, ".internal"))), "_",
+                 sum(file.exists(file.path(res_dirs, ".simulation"))))
+
+    load_cached("discover_projects", function() {
+        rows <- lapply(seq_along(names), function(i) {
+            sim <- FALSE; src <- ""
+            res_dir <- file.path(pipeline_path, paste0(names[i], "_results"))
+            if (file.exists(cfg_files[i])) {
+                cfg <- tryCatch(yaml::read_yaml(cfg_files[i]), error = function(e) list())
+                blk <- cfg[["Simulation"]]
+                if (is.list(blk)) {
+                    sim <- isTRUE(blk[["enabled"]])
+                    src <- if (!is.null(blk[["source"]])) as.character(blk[["source"]]) else ""
+                }
+            }
+            # Fallback marker for results trees that have NO config_{project}.yaml of
+            # their own -- sweep variants whose configs live under compound filenames
+            # (config_MVP1232218M05_c1_p11.yaml and friends). The config flag is still
+            # the primary declaration; this only covers trees it cannot reach, and it
+            # is never consulted to override an existing config.
+            if (!sim && file.exists(file.path(res_dir, ".simulation"))) {
+                sim <- TRUE
+                src <- tryCatch(trimws(readLines(file.path(res_dir, ".simulation"), n = 1)),
+                                error = function(e) "")
+            }
+            data.frame(name = names[i], is_simulated = sim, sim_source = src,
+                       is_internal = file.exists(file.path(res_dir, ".internal")),
+                       stringsAsFactors = FALSE)
+        })
+        do.call(rbind, rows)
+    }, fingerprint = fp)
+}
+
+#' Project names for the selector
+#'
+#' Analysis mode (the default) shows only real datasets; benchmark mode shows only
+#' simulated ones. Internal scaffolding is hidden in both. `all = TRUE` returns every
+#' name regardless -- used for duplicate-name checks when creating a project, which
+#' must see names the selector hides.
+#' @noRd
+find_projects <- function(pipeline_path = get_pipeline_path(),
+                          benchmark_mode = FALSE, all = FALSE) {
+    p <- discover_projects(pipeline_path)
+    if (!nrow(p)) return(character(0))
+    if (all) return(sort(p$name))
+    p <- p[!p$is_internal, , drop = FALSE]
+    p <- p[if (isTRUE(benchmark_mode)) p$is_simulated else !p$is_simulated, , drop = FALSE]
+    sort(p$name)
 }
 
 #' Find K values for a project (from PreStructure/plots/K{k}/ directories)

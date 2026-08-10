@@ -15,6 +15,29 @@ app_server <- function(input, output, session) {
     # Track the last valid project for reverting selector after modal cancel
     prev_project <- shiny::reactiveVal(NULL)
 
+    # ── Benchmark mode ────────────────────────────────────────────────────────
+    # Repopulates the project selector from the other pool and shows the navbar
+    # badge. Modules are untouched: the mode only decides which projects exist to
+    # choose from, so the real-data layout is byte-identical to before.
+    benchmark_mode <- shiny::reactive(isTRUE(input$benchmark_mode))
+
+    shiny::observeEvent(input$benchmark_mode, {
+        bm       <- isTRUE(input$benchmark_mode)
+        projects <- find_projects(get_pipeline_path(), benchmark_mode = bm)
+        shinyjs::runjs(sprintf(
+            "var b=document.getElementById('benchmark_badge'); if(b) b.style.display='%s';",
+            if (bm) "inline-block" else "none"))
+        choices <- c(
+            if (!bm) c("+ New Project" = "__new__") else character(0),
+            if (length(projects)) setNames(projects, projects) else character(0)
+        )
+        # No project in this pool: leave the selector empty rather than silently
+        # falling back to a project from the other mode, which would show benchmark
+        # data under an analysis layout (or the reverse).
+        shiny::updateSelectInput(session, "project_selector", choices = choices,
+                                 selected = if (length(projects)) projects[1] else character(0))
+    }, ignoreInit = TRUE)
+
     # Populate config_state on project switch; intercept __new__ to open modal
     shiny::observeEvent(input$project_selector, {
         shiny::req(input$project_selector)
@@ -42,7 +65,10 @@ app_server <- function(input, output, session) {
     mod_create_project_server(
         "create_project",
         pipeline_path_rv     = shiny::reactive(get_pipeline_path()),
-        existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path())),
+        # Duplicate-name check must see EVERY project, including simulated ones and
+        # internal clone lanes the selector hides -- otherwise a new project could be
+        # created onto an existing results tree.
+        existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path(), all = TRUE)),
         on_created = function(new_project) {
             pip      <- get_pipeline_path()
             projects <- find_projects(pip)

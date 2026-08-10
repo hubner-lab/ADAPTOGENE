@@ -484,25 +484,63 @@ gf_importance_path <- function(project, suffix, type = "overall", method = "grad
              paste0(type, "_importance.png"))
 }
 
+#' Scenario names available for one method/SNP-set, newest layout only
+#'
+#' Offset products gained a {scenario} level when the pipeline learned to project
+#' one model onto several futures. Returns character(0) for a pre-scenario tree.
+#' @noRd
+find_offset_scenarios <- function(project, suffix, method = "gradient_forest") {
+    base <- mod_path(project, MOD_MALAD, "tables", method, suffix)
+    if (!dir.exists(base)) return(character(0))
+    d <- list.dirs(base, full.names = FALSE, recursive = FALSE)
+    sort(d[nzchar(d)])
+}
+
+#' Resolve one offset artefact, tolerating the pre-scenario layout
+#'
+#' Offsets moved from `{suffix}/{file}` to `{suffix}/{scenario}/{file}`. Results
+#' trees written before that change have no scenario directory, so this is the
+#' single place that knows about both shapes:
+#'   - an explicit `scenario` wins when that file exists;
+#'   - otherwise the flat legacy path is used when it exists;
+#'   - otherwise the first available scenario is used, so a scenario-era tree
+#'     renders without the caller having to pick one.
+#' When nothing exists it returns the modern shape, so "missing" reads as the
+#' location the pipeline would write today.
+#' @noRd
+mala_offset_file <- function(project, kind, method, suffix, fname, scenario = NULL) {
+    base <- mod_path(project, MOD_MALAD, kind, method, suffix)
+    if (!is.null(scenario) && nzchar(scenario)) {
+        p <- file.path(base, scenario, fname)
+        if (file.exists(p)) return(p)
+    }
+    legacy <- file.path(base, fname)
+    if (file.exists(legacy)) return(legacy)
+    scen <- find_offset_scenarios(project, suffix, method)
+    if (length(scen)) return(file.path(base, scen[1], fname))
+    if (!is.null(scenario) && nzchar(scenario)) file.path(base, scenario, fname) else legacy
+}
+
 #' GF genetic offset piemap path
 #' @noRd
-gf_offset_piemap_path <- function(project, suffix, variant = "base", method = "gradient_forest") {
+gf_offset_piemap_path <- function(project, suffix, variant = "base", method = "gradient_forest",
+                                  scenario = NULL) {
     # "base" maps to "notrait" suffix; other variants used as-is
     piemap_variant <- if (is.null(variant) || variant == "base" || !nzchar(variant)) "notrait" else variant
     fname <- paste0("genetic_offset_piemap_", piemap_variant, ".png")
-    mod_path(project, MOD_MALAD, "plots", method, suffix, fname)
+    mala_offset_file(project, "plots", method, suffix, fname, scenario)
 }
 
 #' GF site offset table path
 #' @noRd
-gf_site_table_path <- function(project, suffix, method = "gradient_forest") {
-    mod_path(project, MOD_MALAD, "tables", method, suffix, "genetic_offset_site.tsv")
+gf_site_table_path <- function(project, suffix, method = "gradient_forest", scenario = NULL) {
+    mala_offset_file(project, "tables", method, suffix, "genetic_offset_site.tsv", scenario)
 }
 
 #' GF map offset table path (landscape cells)
 #' @noRd
-gf_map_table_path <- function(project, suffix, method = "gradient_forest") {
-    mod_path(project, MOD_MALAD, "tables", method, suffix, "genetic_offset_map.tsv")
+gf_map_table_path <- function(project, suffix, method = "gradient_forest", scenario = NULL) {
+    mala_offset_file(project, "tables", method, suffix, "genetic_offset_map.tsv", scenario)
 }
 
 # ─── Model comparison paths ───────────────────────────────────────────────────
