@@ -1,0 +1,47 @@
+# Phase-1 garden set: the 42 gardens the journal-09 sweep actually ran.
+# 30 landscape demes (every 3rd, deme_001..deme_088) + all 12 climate-novelty gardens.
+# Transcribed from the pre-112 gardens_1232218.tsv rather than re-derived: the stride
+# rule alone yields 46 (it runs to deme_100), so the original set is authoritative.
+# Garden IDs are structural (same demes in every replicate), so this list applies to all seeds.
+deme_001
+deme_004
+deme_007
+deme_010
+deme_013
+deme_016
+deme_019
+deme_022
+deme_025
+deme_028
+deme_031
+deme_034
+deme_037
+deme_040
+deme_043
+deme_046
+deme_049
+deme_052
+deme_055
+deme_058
+deme_061
+deme_064
+deme_067
+deme_070
+deme_073
+deme_076
+deme_079
+deme_082
+deme_085
+deme_088
+novel_0.00
+novel_1.72
+novel_2.35
+novel_2.74
+novel_3.13
+novel_3.53
+novel_3.92
+novel_4.31
+novel_4.70
+novel_5.09
+novel_5.48
+novel_5.88

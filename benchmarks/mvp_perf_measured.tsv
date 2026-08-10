@@ -1,0 +1,30 @@
+metric	stage	variant	value	unit	n	source
+garden_wall_time	offset_sweep	old_driver	917	s	845	median over 845 completed gardens in benchmarks/mvp_eval/offset09/runlogs/*.log
+garden_wall_time_mean	offset_sweep	old_driver	1088	s	845	mean over the same 845 gardens
+garden_wall_time_min	offset_sweep	old_driver	410	s	845	min over the same 845 gardens
+garden_wall_time_max	offset_sweep	old_driver	5832	s	845	max over the same 845 gardens
+compute_per_seed	offset_sweep	old_driver	38514	s	42	median 917 s x 42 gardens (phase-1 garden set)
+compute_per_seed	offset_sweep	new_prebatch	7519	s	42	sum of per-job durations, seed 1232218, 42 scenarios, snakemake log 2026-08-07T140411
+compute_per_seed	offset_sweep	new_postbatch	4164	s	42	as above with gradient_forest_offset total replaced by the batched-predict measurement
+wall_per_seed	offset_sweep	new_prebatch	2334	s	42	seed 1232218 start 17:04:09 -> end 17:43:03
+rule_total	gradient_forest_offset	new_prebatch	3604	s	7	sum of 7 panel jobs, 42 scenarios each
+rule_total	gradient_forest_offset	new_postbatch	249	s	7	same 7 jobs after stacking all scenarios into one predict() call
+rule_max	gradient_forest_offset	new_prebatch	2300	s	1	slowest single job (neutral_all panel, 849 MB forest)
+rule_max	gradient_forest_offset	new_postbatch	128	s	1	same job after batching
+rule_median	gradient_forest_offset	new_prebatch	36	s	7	median of the 7 panel jobs
+rule_median	gradient_forest_offset	new_postbatch	11	s	7	median of the 7 panel jobs
+rule_total	geometric_offset	new_prebatch	2362	s	7	sum of 7 panel jobs; LEA::genetic.gap() refits LFMM2 per scenario so this is unchanged by batching
+rule_median	geometric_offset	new_prebatch	338	s	7	median of the 7 panel jobs
+rule_total	rda_offset	new_prebatch	1302	s	14	7 panels x 2 registered RDA methods, one fit then N projections
+rule_median	rda_offset	new_prebatch	27	s	14	median of the 14 jobs
+rule_total	stage_custom_climate_future	new_prebatch	251	s	41	one job per scenario
+invocations_per_seed	offset_sweep	old_driver	84	count	42	2 Snakemake invocations per garden x 42 gardens
+invocations_per_seed	offset_sweep	new	1	count	112	one invocation covers every scenario and all four offset methods
+offset_jobs_per_seed	offset_sweep	old_driver	1764	count	42	42 gardens x 2 passes x 21 offset jobs
+offset_jobs_per_seed	offset_sweep	new	28	count	112	7 panels x 4 methods, each multi-output over all scenarios
+clone_lanes_per_seed	offset_sweep	old_driver	4	count	14	mvp_clone_project.sh lanes required for garden-level parallelism
+clone_lanes_per_seed	offset_sweep	new	0	count	32	no lanes; the scenario dimension replaces them
+straggler_wall	phase_D	new	886	s	3	3 seeds (1231288, 1231578, 1232568) end to end on the new driver
+gate_files_compared	validation	new	1176	count	1176	genetic_offset_site.tsv, 42 gardens x 7 panels x 4 methods, seed 1232218
+gate_byte_identical	validation	new	1176	count	1176	byte-identical to the old-driver reference; max abs diff 0.000e+00
+model_size	gradient_forest_model	neutral_all	849	MB	1	adaptive_model.qs, 4910-SNP panel, seed 1232218
