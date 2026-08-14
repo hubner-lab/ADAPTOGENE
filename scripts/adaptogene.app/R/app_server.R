@@ -61,6 +61,33 @@ app_server <- function(input, output, session) {
         config_state$working <- cfg
     }, ignoreInit = FALSE)
 
+    # ── Module bar ────────────────────────────────────────────────────────────
+    # Replaces the navbar's flat tab strip with modules grouped by analysis
+    # stage. The nav links still exist (hidden in custom.scss) and the bar drives
+    # them with a synthetic click — see inst/app/www/module-bar.js for why
+    # nav_select() cannot be used against bslib's nav markup.
+    #
+    # `active_module` is tracked here rather than read from `input$main_tabs`
+    # because that input is produced by the same binding whose selector does not
+    # match bslib's markup, so it cannot be relied on either.
+    active_module <- shiny::reactiveVal("home")
+
+    output$module_bar <- shiny::renderUI({
+        module_bar_ui(active = active_module())
+    })
+
+    # One observer per module, created once at startup — the bar re-renders on
+    # every click, so per-render observers would pile up.
+    for (.module_id in module_registry()$id) {
+        local({
+            mid <- .module_id
+            shiny::observeEvent(input[[module_input_id(mid)]], {
+                active_module(mid)
+                session$sendCustomMessage("module_bar_select", list(value = mid))
+            }, ignoreInit = TRUE)
+        })
+    }
+
     # Create project module
     mod_create_project_server(
         "create_project",
