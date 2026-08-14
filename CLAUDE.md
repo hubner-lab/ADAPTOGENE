@@ -448,9 +448,33 @@ docker run --user $(id -u):$(id -g) --rm -e USER=pipeline -p 3838:3838 -v $PWD:/
 
 ### Visual Testing
 
-**Do NOT use `playwright-cli` for this project.** The Shiny app is too complex for automated UI testing — state management, reactive dependencies, and selectize.js dropdowns make playwright-cli more friction than value here.
+**Playwright is allowed and encouraged for layout/visual checks — no need to ask per session.**
+(Reversed 2026-08-14: the old blanket ban cost more than it saved. One 40-line script caught two
+layout bugs — a flex-shrunk nav bar and a 12px page-level horizontal scroll — that parse checks,
+Sass compilation and HTML inspection all passed clean.)
 
-**Instead:** the user tests manually in the browser and sends screenshots when something needs review. Wait for the user to report what they see before making UI fixes.
+**How to invoke:** the `playwright-cli` wrapper named in the global CLAUDE.md is *not* on PATH on
+this machine. Use plain `playwright` (1.58.0) or, for anything involving clicks and assertions,
+the Python API — `python3` + `from playwright.sync_api import sync_playwright`. Browsers are
+cached at `~/.cache/ms-playwright/`.
+
+**What it is good for:** anything measurable in the DOM or visible in a screenshot — element
+geometry, overflow/scroll behaviour at several viewport widths, computed styles, which pane is
+active, whether a control is visible. Prefer *asserting* over eyeballing: screenshot for the look,
+`page.evaluate()` for the facts.
+
+**What it is still bad for:** deep stateful flows. The app's reactive dependencies and selectize.js
+dropdowns make long scripted journeys brittle (a known one: the project dropdown ignores
+`Shiny.setInputValue()` — you must click the container, wait for the option refs, then click the
+option). Keep scripts short and single-purpose; do not build a UI regression suite out of them.
+
+**Gotcha — scope your selectors.** The app nests navsets inside module panels, so a bare
+`.tab-content > .tab-pane.active` matches an inner tabset, not the main one. Read
+`#main_tabs`'s `data-tabsetid` and query
+`.tab-content[data-tabsetid="<id>"] > .tab-pane.active` instead.
+
+The user still reviews the actual design — send screenshots and wait for the verdict on anything
+aesthetic. Playwright replaces the *mechanical* half of that loop, not the judgement half.
 
 ### Architecture
 
