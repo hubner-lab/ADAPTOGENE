@@ -106,9 +106,22 @@ SEEDS <- if (SEEDS_A == "all") MAN$seed else strsplit(SEEDS_A, ",", fixed = TRUE
 # benchmarks/mvp_eval/sweep/. It must be listed here too, or default_cell()
 # silently resolves nothing for every new seed and the panels come out empty --
 # after the upstream hours have already been spent.
+#
+# The list is EXPLICIT, not a glob over mvp_sweep_cells_*.tsv: the _m05 / _p11ibs / _repair
+# manifests describe different arms and carry their own is_default rows for the same
+# (seed, method), which would make default_cell()'s uniqueness check fail. Each new cohort
+# adds one line here (or is passed via MVP_CELL_FILES for a one-off).
 cell_files <- c(file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_j07.tsv"),
                 file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_p11.tsv"),
-                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_group1.tsv"))
+                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_group1.tsv"),
+                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_group2.tsv"),
+                file.path(PIPELINE_ROOT, "benchmarks/mvp_sweep_cells_group3.tsv"))
+extra_cells <- Sys.getenv("MVP_CELL_FILES", "")
+if (nzchar(extra_cells)) {
+    cell_files <- c(cell_files, strsplit(extra_cells, ",", fixed = TRUE)[[1]])
+}
+message("cell manifests: ",
+        paste(basename(cell_files[file.exists(cell_files)]), collapse = ", "))
 CELLS <- rbindlist(lapply(cell_files[file.exists(cell_files)],
                           fread, colClasses = c("seed" = "character")), fill = TRUE)
 DEFCELL <- unique(CELLS[is_default == TRUE, .(seed, method, cell, param, value)])
