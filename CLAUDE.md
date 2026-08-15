@@ -133,6 +133,7 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
 Config uses nested YAML groups. Old flat `UPPER_SNAKE_CASE` keys are auto-migrated via `_migrate_config()` with deprecation warnings.
 
 1. **input** - `dir`, `vcf`, `metadata`, `gff` + top-level `project_name`, `cpu`
+1b. **Regime** - `mode`: `standard` (geography + climate: structure, GEA, maladaptation) or `gwas_only` (no coordinates: Home/Processing/PreStructure/Structure/GWAS). Declared once at project creation and **hard-validated** in `common.smk` — an unknown value raises at parse time. `Climate.enabled` is **derived** from it (`gwas_only` forces `false`) on every write the Shiny app makes, and forced to `False` in `common.smk` for a hand-written CLI config; it is no longer user-editable in the app. A project predating the key is read as `gwas_only` only when it sets `Climate.enabled: false` explicitly, else `standard`.
 2. **filter** - `maf`, `snp_miss`, `sample_miss`
 3. **ld** - `window`, `step`, `r2`
 4. **snmf** - `k_start`, `k_end`, `k_best`, `ploidy`, `repeats`
