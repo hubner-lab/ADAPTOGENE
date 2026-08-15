@@ -5,6 +5,7 @@ data/
 TEST_results/
 TEST_logs/
 SIMDATA_results/
+SIMDATA_results_flat_old/
 SIMDATA_logs/
 .snakemake/
 .claude

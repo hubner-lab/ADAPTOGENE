@@ -100,9 +100,11 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
   snakemake -n -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
 ```
 
-**Pipeline modes**: `processing`, `prestructure`, `structure`, `climate`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+**Pipeline modes**: `processing`, `prestructure`, `structure`, `climate`, `traits`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
 
 *`climate` — predictor characterization: correlation heatmap, density plots, invariant-predictor detection, plus the shared spatial artifacts — dbMEM eigenvectors + climate/structure/geography variance partitioning (`climate/{plots,tables}/{spatial,varpart}/`). The dbMEM/varpart products are reused by the spatial Gradient Forest, so **run `mode=climate` before requesting a spatial (or `both`) Gradient Forest in `mode=maladaptation`** — there is no config-time guard for this ordering anymore (varpart is now unconditional inside `mode=climate`, no `enabled` switch). WorldClim download / custom-climate staging stays in `mode=structure` (climate_site feeds Structure's own piemaps); the climate/structure boundary is "predictor characterization" vs "raw data acquisition".*
+
+*`traits` — the phenotypic counterpart of `mode=climate`: per-trait density plots, a traits-only correlogram, a pairs grid, and trait summary / invariant-trait tables (`Traits/{plots,tables}/`). **Runs in both regimes and needs no coordinates and no climate** — that is the point: `mode=climate` raises when `Climate.enabled: false`, so in `gwas_only` (where traits are the only factors a project has) trait characterization used to be unreachable. The one climate-dependent product is the joint traits x climate correlogram (`correlation_heatmap_traits_climate.png`), emitted only when `Climate.enabled: true`, which means `mode=structure` (climate extraction) must have run first; the Shiny Phenotypic tab toggles between the two correlograms and hides the toggle when the joint one is absent. `Traits.pairs_max_factors` (default 8) caps the pairs grid — above it the rule writes a placeholder PNG+SVG instead of an unreadable k x k grid. Phenotype density moved here from `mode=climate`; the climate correlogram is climate-only now.*
 
 *`pregea` (optional, added alongside RDA integration) — LD-pruned-only hyperparameter exploration: LFMM-K / EMMAX-#PC / RDA Condition()-PC ladders, now ONE decision (LFMM/EMMAX/RDA always run together, no per-block switches). EMMAX #PCs and RDA Condition()-PCs sweep ONE shared range (`PreGEA.n_pcs_max`). Predictor characterization + dbMEM/varpart moved out to `mode=climate`. Writes `PreGEA/tables/pregea_recommendations.tsv`, one row per (method, param); the Shiny GEA tab's method editor reads it for pre-fill/Apply badges. See `docs/rda_research.md` Part C for the design rationale.*
 
@@ -170,6 +172,10 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   ├── tables/varpart/                    # variance_partition, climate_confounding, px_per_variable, dbmem_selected, dbmem_selection_path
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
+├── Traits/                                # mode=traits — phenotypic factor characterization, BOTH regimes
+│   ├── plots/                             # density_plot_phenotypes, correlation_heatmap_traits,
+│   │                                      # correlation_heatmap_traits_climate (standard only), trait_pairs
+│   └── tables/                            # trait_summary.tsv, trait_invariant.tsv
 ├── Structure/
 │   ├── plots/piemap/                      # piemap_{bio}.png/svg/qs + _points.png/svg/qs (clear-map companion) + zoom/
 │   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
@@ -213,9 +219,9 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 
 ### Workflow Dependencies
 
-**Pipeline flow**: Processing → PreStructure → Structure → Climate → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
+**Pipeline flow**: Processing → PreStructure → Structure → Climate / Traits → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
 
-(Climate and PreGEA are both siblings off Structure — neither is a hard input to the other; the spatial Gradient Forest in Maladaptation depends on Climate's dbMEM/varpart outputs.)
+(Climate, Traits and PreGEA are all siblings — none is a hard input to another; the spatial Gradient Forest in Maladaptation depends on Climate's dbMEM/varpart outputs. Traits needs only Processing's `metadata.tsv`, except for its optional joint traits x climate correlogram, which needs Structure's climate extraction.)
 
 Each mode is run separately via `--config mode=<MODE>`.
 
@@ -230,10 +236,17 @@ Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand
 | | **SIMDATA** |
 |---|---|
 | **Config** | `config_SIMDATA.yaml` |
-| **Size** | 51 samples / 9 sites raw (47 samples after filtering), 354 SNPs, 5 chr |
+| **Size** | 51 samples / 9 sites raw (50 samples after filtering), 350 SNPs raw / 337 filtered / 230 LD-pruned, 5 chr, 3 traits (height, flowering_time, disease_score) |
 | **Speed** | Seconds to ~2 min |
 | **Purpose** | Primary testing dataset — all routine development |
 | **Features** | 3 original pops (Negev/TelAviv/Galilee) + 6 preGEA sites added by `scripts/add_pregea_sites.R` (spatially IDW-interpolated genotypes/phenotypes, inside the original coordinate bounding box so `Climate.climate_extent: auto` reuses the cached WorldClim raster), missing data test, climate-associated SNPs, GO terms, relatedness-test duplicate samples (`*_DUP`, `scripts/add_related_samples.R`) |
+
+**Rebuilding SIMDATA from scratch** (it is gitignored — `data/` and `config_*.yaml` both are — so a fresh clone has no fixture; rebuilt 2026-08-15 after exactly that):
+1. `Rscript scripts/generate_simdata.R data/` — writes **only** `data/SIMDATA.vcf` and `data/SIMDATA.gff3`
+2. **Write `data/SIMDATA_metadata.tsv` by hand** — the generator does not produce it. Columns must be exactly `site sample latitude longitude height flowering_time disease_score` (both injector scripts below hardcode those trait names), sample names `NEG01-10`/`TAV01-10`/`GAL01-10`, and coordinates **identical within a site** (Negev 30.854/34.7826, TelAviv 32.0837/34.7817, Galilee 33.0128/35.4985) — `add_pregea_sites.R:74` asserts exactly 3 distinct `(site, lat, lon)` triples and dies otherwise
+3. `Rscript scripts/add_related_samples.R` **then** `Rscript scripts/add_pregea_sites.R` — that order matters: the second excludes `_DUP` samples from its IDW anchor set
+4. Write `config_SIMDATA.yaml` from `scripts/adaptogene.app/inst/config_default.yaml`; `sNMF.k_best: 3` is ground truth (3 simulated ancestral populations), not a cross-entropy guess
+5. WorldClim: `data/wc2.1_30s/` is a cached 11 GB global extract — as long as it is present, `mode=structure` does no download
 
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
