@@ -200,6 +200,46 @@ if (setequal(gmat_mutname, muts$mutname) && !anyDuplicated(gmat_mutname)) {
 message("INFO: locus join mode: ", locus_join)
 prov$locus_join_mode <- locus_join
 
+# --- drop loci that fall outside the documented genome --------------------------------
+# The simulated genome is N_LG * LG_LEN = 20 * 50,000 = 1,000,000 sites, and pos_pyslim is
+# 1-based (contract 1 below proves that against both the LG column and mutname). So the
+# valid range is 1 .. 1,000,000, and a locus outside it has no linkage group under the
+# (k-1)*50000+1 .. k*50000 layout. Contract 1 refuses to guess a coordinate system, so
+# without this guard the whole replicate fails to convert.
+#
+# Measured across all 92 benchmark seeds, exactly TWO such loci exist, one per end, each in
+# a different replicate and each NON-CAUSAL:
+#   seed 1232620  "1-0"          pos 0          -> LG 0, categorised neutral-linked
+#   seed 1233058  "21-1000001"   pos 1,000,001  -> LG 21, categorised neutral
+# Both are single off-by-one boundary artefacts, 1 locus out of 25,576 and 11,247.
+#
+# They are DROPPED rather than remapped. Remapping either one (to LG 1 pos 1, or LG 20 pos
+# 50,000) would change the coordinate contract that every truth join rests on, for the sake
+# of one non-causal locus in one replicate -- and in the pos-1000001 case it would also
+# collide with a real locus if one already sits at that position.
+#
+# The drop happens WHILE muts and gmat are still row-aligned, so the identical mask goes to
+# both -- the same discipline contract 3 uses for duplicate collapse. The counts are written
+# to the provenance for every seed (0 almost everywhere), so any count table can see that
+# these two replicates carry one locus fewer than the deposit reports.
+GENOME_LEN  <- N_LG * LG_LEN
+out_of_range <- muts$pos_pyslim < 1L | muts$pos_pyslim > GENOME_LEN
+prov$n_loci_below_start <- sum(muts$pos_pyslim < 1L)
+prov$n_loci_past_end    <- sum(muts$pos_pyslim > GENOME_LEN)
+if (any(out_of_range)) {
+  print(muts[out_of_range, .(mutname, LG, pos_pyslim, causal)])
+  message("NOTE: dropping ", sum(out_of_range), " locus/loci outside the genome ",
+          "(1 .. ", GENOME_LEN, ") -- no linkage group exists for them under the ",
+          "1-based layout. This seed's SNP count will be ", sum(out_of_range),
+          " below the deposit's published figure.")
+  if (any(as.logical(muts$causal[out_of_range]))) {
+    stop("ERROR: a CAUSAL locus sits outside the genome -- refusing to drop it silently.")
+  }
+  muts <- muts[!out_of_range]
+  gmat <- gmat[!out_of_range]
+  if (nrow(gmat) != nrow(muts)) stop("ERROR: muts/Gmat misaligned after the out-of-range drop")
+}
+
 # --- individuals: join Gmat columns to ind rows by indID ------------------------------
 ind_ids <- as.character(ind$indID)
 if (setequal(gmat_indid, ind_ids) && !anyDuplicated(gmat_indid)) {

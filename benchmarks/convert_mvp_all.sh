@@ -2,20 +2,36 @@
 # convert_mvp_all.sh -- run convert_mvp.R over every seed in the manifest whose three raw
 # members are present, then roll the per-seed provenance rows up into one table.
 #
-# Seeds are independent, so conversions run in parallel. Re-running is cheap and idempotent:
-# a seed whose outputs already exist is converted again from the same inputs.
+# Seeds are independent, so conversions run in parallel. Re-converting a seed is cheap in
+# CPU but NOT free: it rewrites data/mvp/MVP{seed}/, and those files are Snakemake inputs.
+# A bumped mtime re-runs `processing` and everything downstream on a replicate that was
+# already finished and scored. So once the manifest holds more than one cohort, always pass
+# the seeds being added -- the default of "every seed in the manifest" is only correct while
+# the whole panel is new.
 #
-# Usage:  benchmarks/convert_mvp_all.sh [JOBS]
+# Usage:  benchmarks/convert_mvp_all.sh [JOBS] [SEEDS_CSV|all]
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JOBS="${1:-8}"
+SEEDS_ARG="${2:-all}"
 SEEDS_TSV="$ROOT/benchmarks/mvp_seeds.tsv"
 RAW="$ROOT/data/mvp/raw"
 DOCKER=(nix shell nixpkgs#docker-client -c docker run --user "$(id -u):$(id -g)" --rm
         -e USER=pipeline -v "$ROOT:/pipeline" adaptogene:latest)
 
-mapfile -t SEEDS < <(awk 'NR>1 {print $1}' "$SEEDS_TSV")
+if [[ "$SEEDS_ARG" == "all" ]]; then
+  mapfile -t SEEDS < <(awk 'NR>1 {print $1}' "$SEEDS_TSV")
+  echo "scope: ALL ${#SEEDS[@]} manifest seeds -- this rewrites finished replicates' inputs" >&2
+else
+  IFS=',' read -r -a SEEDS <<< "$SEEDS_ARG"
+  # A typo'd seed would silently convert nothing; fail instead.
+  for s in "${SEEDS[@]}"; do
+    awk -v s="$s" 'NR>1 && $1==s {f=1} END{exit !f}' "$SEEDS_TSV" ||
+      { echo "ERROR: seed $s is not in $SEEDS_TSV" >&2; exit 1; }
+  done
+  echo "scope: ${#SEEDS[@]} requested seed(s)"
+fi
 ready=(); skipped=()
 for s in "${SEEDS[@]}"; do
   if [[ -s "$RAW/genotypes/${s}_Rout_Gmat_sample.txt.gz" &&

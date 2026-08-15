@@ -109,3 +109,25 @@ benchmarks/mvp_eval/offset09/_gate_reference_1232218.provenance
 benchmarks/mvp_eval/figures_prelim/
 benchmarks/mvp_seeds.tsv.bak14
 benchmarks/mvp_eval/figures/
+
+# --- MVP panel expansion to 50 (offset10/) and 92 (offset11/) replicates -------------
+# Same convention as the offset09/ rules above: the harvested per-garden offsets and the
+# raw scorer output are bulk intermediates (11 GB and 9.4 GB), regenerable from the
+# {PROJECT}_results/ trees by mvp_garden_sweep.sh + eval_offset_lind.R. The SUMMARY tables
+# beside them -- panel medians, panel PR, coverage, offset exclusions, the comparison
+# tables -- are the deliverable and stay tracked.
+benchmarks/mvp_eval/offset10/gardens/
+benchmarks/mvp_eval/offset11/gardens/
+benchmarks/mvp_eval/offset10/sweeplogs/
+benchmarks/mvp_eval/offset11/sweeplogs/
+benchmarks/mvp_eval/offset10/garden_performance.tsv
+benchmarks/mvp_eval/offset11/garden_performance.tsv
+benchmarks/mvp_eval/offset10/source_performance.tsv
+benchmarks/mvp_eval/offset11/source_performance.tsv
+benchmarks/mvp_eval/offset10/garden_fitness_*.tsv
+benchmarks/mvp_eval/offset11/garden_fitness_*.tsv
+# Per-seed upstream sweep logs, same as mvp_eval/runlogs/ above.
+benchmarks/mvp_eval/runlogs_group2/
+benchmarks/mvp_eval/runlogs_group3/
+# Manifest snapshots taken before each expansion -- recoverable from git history.
+benchmarks/mvp_seeds.tsv.bak*

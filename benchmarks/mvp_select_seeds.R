@@ -77,12 +77,45 @@ message(sprintf("  %d seeds verified against the Sec 8.2 rule, all %s / %s",
                 nrow(primary), primary$demog_level[1],
                 paste(unique(primary$demog_level_sub), collapse = ",")))
 
-# ---------------------------------------------------------------- group 1 -------
-# GROUP 1: extend the SS-Mtn panel to PER_STRATUM seeds in each architecture level.
+# ---------------------------------------------------- previously selected panel ----
+# APPEND-ONLY SELECTION. Every seed already in the manifest has been fetched, converted,
+# swept and scored -- dropping one silently invalidates hours of compute and every summary
+# built from it. The naive path does exactly that: pick_stratum() takes evenly spaced ranks
+# out of the pool, so raising PER_STRATUM 10 -> 16 RE-PICKS rather than extends (measured:
+# 4 highly-polygenic, 2 mod-polygenic and 2 oligogenic seeds of the group-1 panel fall out).
+#
+# So the seeds already on disk are the fixed point: they are carried through verbatim with
+# their own arm/group/added tags, and the expansion only fills the gap between what exists
+# and PER_STRATUM. Re-running with an unchanged PER_STRATUM is a no-op.
+PREV <- if (file.exists(OUT_TSV)) fread(OUT_TSV) else NULL
+if (!is.null(PREV)) {
+  message(sprintf("== existing manifest: %d seeds (%d primary, %d control) ==",
+                  nrow(PREV), sum(PREV$arm == "primary"), sum(PREV$arm != "primary")))
+  gone <- setdiff(PREV$seed, d$seed)
+  if (length(gone)) stop("Manifest seeds absent from the deposit summary: ",
+                         paste(gone, collapse = ", "))
+} else {
+  message("== no existing manifest -- building from scratch ==")
+}
+# Primaries already committed to. Union with the transcribed set so a fresh build behaves
+# exactly as before this change.
+HELD_PRIMARY <- if (is.null(PREV)) {
+  PRIMARY_SEEDS
+} else {
+  union(PRIMARY_SEEDS, PREV[arm == "primary"]$seed)
+}
+held <- d[seed %in% HELD_PRIMARY]
+
+# ---------------------------------------------------------------- expansion -----
+# Extend the SS-Mtn panel to PER_STRATUM seeds in each architecture level.
 #
 # Why the band widens from [0.30, 0.60] to [0.20, 0.60]: the 12 transcribed seeds were
 # picked under the narrower rule and all 12 remain inside the wider one, so nothing is
 # dropped -- the widening only enlarges the pool to draw from (55 -> 82 seeds).
+#
+# BAND_HI/BAND_LO are overridable because 30 per stratum does not fit [0.20, 0.60]: the
+# in-band pool is 22 oligogenic / 27 mod-polygenic / 33 highly-polygenic. meanFst and
+# R^2(PC1~sal) are non-binding inside SS-Mtn -- only the temp band moves the count.
 #
 # Why stratify on ARCHITECTURE and not on R^2: measured across the 14-seed panel, within
 # the band R^2 explains little of the offset accuracy (rho -0.06..-0.24) while architecture
@@ -93,27 +126,42 @@ message(sprintf("  %d seeds verified against the Sec 8.2 rule, all %s / %s",
 # by R^2(PC1~temp) and the new seeds are taken at evenly spaced rank positions, so the
 # masking band stays evenly covered and re-running reproduces the manifest exactly.
 PER_STRATUM <- as.integer(Sys.getenv("MVP_PER_STRATUM", "10"))
-BAND_LO <- 0.20
-BAND_HI <- 0.60
+BAND_LO <- as.numeric(Sys.getenv("MVP_BAND_LO", "0.20"))
+BAND_HI <- as.numeric(Sys.getenv("MVP_BAND_HI", "0.60"))
+# Cohort tags for the rows this run ADDS. Existing rows keep whatever they were tagged with.
+COHORT     <- Sys.getenv("MVP_COHORT",     "group1")
+COHORT_TAG <- Sys.getenv("MVP_COHORT_TAG", "group1_expansion")
 
-message("== group 1 expansion ==")
+message(sprintf("== expansion to %d per stratum, band [%.2f, %.2f], cohort %s/%s ==",
+                PER_STRATUM, BAND_LO, BAND_HI, COHORT, COHORT_TAG))
 pool <- d[demog_level == "SS-Mtn" & meanFst >= 0.05 &
           r2_pc1_temp >= BAND_LO & r2_pc1_temp <= BAND_HI & r2_pc1_sal <= 0.20]
 message(sprintf("  in-band SS-Mtn pool [%.2f, %.2f]: %d seeds", BAND_LO, BAND_HI, nrow(pool)))
+print(pool[, .N, by = arch_level][order(arch_level)])
 
 if (!all(PRIMARY_SEEDS %in% pool$seed)) {
   stop("Widening the band dropped a transcribed primary seed -- refusing to proceed: ",
        paste(setdiff(PRIMARY_SEEDS, pool$seed), collapse = ", "))
 }
+# A held seed outside the current band is kept anyway (it is already computed), but it is
+# not silently ignored either -- narrowing the band after a cohort has run is a mistake.
+out_of_band <- setdiff(HELD_PRIMARY, pool$seed)
+if (length(out_of_band)) {
+  message("  NOTE: ", length(out_of_band), " already-selected primary seed(s) fall outside ",
+          "the current band and are kept regardless: ", paste(out_of_band, collapse = ", "))
+}
 
 pick_stratum <- function(lvl) {
-  have  <- primary[arch_level == lvl]$seed
+  have  <- held[arch_level == lvl]$seed
   avail <- pool[arch_level == lvl & !seed %in% have][order(r2_pc1_temp)]
   need  <- PER_STRATUM - length(have)
-  if (need <= 0L) return(avail[0L])
+  if (need <= 0L) {
+    message(sprintf("  %-18s have %d, adding 0 (already at or above target)", lvl, length(have)))
+    return(avail[0L])
+  }
   if (nrow(avail) < need) {
-    stop(sprintf("stratum %s: need %d more seeds but only %d available in band",
-                 lvl, need, nrow(avail)))
+    stop(sprintf("stratum %s: need %d more seeds but only %d available in band [%.2f, %.2f]",
+                 lvl, need, nrow(avail), BAND_LO, BAND_HI))
   }
   idx <- unique(round(seq(1, nrow(avail), length.out = need)))
   message(sprintf("  %-18s have %d, adding %d of %d available",
@@ -121,7 +169,7 @@ pick_stratum <- function(lvl) {
   avail[idx]
 }
 
-strata <- sort(unique(primary$arch_level))
+strata <- sort(unique(held$arch_level))
 expansion <- rbindlist(lapply(strata, pick_stratum))
 message(sprintf("  expansion: %d seeds", nrow(expansion)))
 
@@ -129,6 +177,11 @@ message(sprintf("  expansion: %d seeds", nrow(expansion)))
 # Degenerate arm: same demography sub-level and architecture as a primary seed, but the
 # Est-Clines landscape, where R^2(PC1~temp) ~ 0.96. Expectation when these are run: structure
 # correction destroys the signal, reproducing the Laruson collapse on purpose.
+#
+# Derived from the 12 TRANSCRIBED primaries only, never from the expanded panel: the Fst
+# window below is a function of that set, so letting it grow with the panel would re-pick
+# controls that have already been run. Once a manifest exists its controls are carried
+# through unchanged and this block only re-verifies them.
 message("== degenerate controls ==")
 fst_lo <- min(primary$meanFst); fst_hi <- max(primary$meanFst)
 cand <- d[demog_level == "Est-Clines" &
@@ -154,8 +207,20 @@ if (nrow(controls) != 2L || anyNA(controls$seed)) {
 }
 message(sprintf("  picked %s", paste(controls$seed, collapse = ", ")))
 
+# Controls are append-only too. If the manifest already carries some, they win, and a
+# re-derivation that disagrees is a loud failure rather than a silent swap.
+if (!is.null(PREV) && any(PREV$arm != "primary")) {
+  prev_ctrl <- PREV[arm != "primary"]$seed
+  if (!setequal(prev_ctrl, controls$seed)) {
+    stop("Re-derived controls (", paste(sort(controls$seed), collapse = ", "),
+         ") disagree with the manifest's (", paste(sort(prev_ctrl), collapse = ", "),
+         ") -- refusing to swap a control that has already been run.")
+  }
+  message("  match the existing manifest")
+}
+
 # ---------------------------------------------------------------- manifest ------
-mk <- function(x, arm, added) {
+mk <- function(x, arm, added, group = COHORT) {
   data.table(
     seed            = as.integer(x$seed),
     arm             = arm,
@@ -190,15 +255,39 @@ mk <- function(x, arm, added) {
     # after `arm` shifted every later column right by two, so k_best silently became
     # ispleiotropy and the harvest would have looked for {method}_pvalues_K1.tsv. New
     # columns go last; never in the middle.
-    group           = "group1",
+    group           = group,
     added           = added
   )
 }
-manifest <- rbind(
-  mk(primary,   "primary",            "initial"),
-  mk(expansion, "primary",            "group1_expansion"),
-  mk(controls,  "control_degenerate", "initial")
-)
+
+if (is.null(PREV)) {
+  # Fresh build: unchanged behaviour.
+  manifest <- rbind(
+    mk(primary,   "primary",            "initial"),
+    mk(expansion, "primary",            "group1_expansion"),
+    mk(controls,  "control_degenerate", "initial")
+  )
+} else {
+  # Append: every existing row is REBUILT from the same deposit inputs (so a column added
+  # later is filled in consistently) but keeps its own arm/group/added tags. Rebuilding and
+  # then verifying is stronger than copying -- if the deposit or the derivation ever moved,
+  # the check below fails loudly instead of leaving two eras of rows in one file.
+  kept <- rbindlist(lapply(seq_len(nrow(PREV)), function(i) {
+    r <- PREV[i]
+    mk(d[seed == r$seed], r$arm, r$added, group = r$group)
+  }))
+  cmp <- intersect(names(PREV), names(kept))
+  same <- vapply(cmp, function(cl) isTRUE(all.equal(kept[[cl]], PREV[[cl]],
+                                                    check.attributes = FALSE)), logical(1))
+  if (!all(same)) {
+    stop("Rebuilt rows differ from the existing manifest in column(s): ",
+         paste(cmp[!same], collapse = ", "),
+         " -- the deposit or the derivation moved; refusing to rewrite.")
+  }
+  message(sprintf("== %d existing rows reproduced exactly (%d columns checked) ==",
+                  nrow(kept), length(cmp)))
+  manifest <- rbind(kept, mk(expansion, "primary", COHORT_TAG, group = COHORT))
+}
 setorder(manifest, arm, -meanFst)
 
 # The panel must be balanced by construction, not by hope -- check it here rather than
@@ -209,6 +298,15 @@ if (any(.bal$N != PER_STRATUM)) {
   stop(sprintf("architecture strata are not balanced at %d each", PER_STRATUM))
 }
 if (anyDuplicated(manifest$seed)) stop("duplicate seed in manifest")
+
+# Append-only, enforced: nothing that was in the manifest may leave it.
+if (!is.null(PREV)) {
+  lost <- setdiff(PREV$seed, manifest$seed)
+  if (length(lost)) stop("Selection dropped already-computed seed(s): ",
+                         paste(lost, collapse = ", "))
+  message(sprintf("== append-only check passed: %d kept + %d new = %d ==",
+                  nrow(PREV), nrow(manifest) - nrow(PREV), nrow(manifest)))
+}
 
 dir.create(dirname(OUT_TSV), showWarnings = FALSE, recursive = TRUE)
 fwrite(manifest, OUT_TSV, sep = "\t")
