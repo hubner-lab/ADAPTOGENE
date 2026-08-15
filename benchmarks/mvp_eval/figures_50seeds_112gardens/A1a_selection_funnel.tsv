@@ -1,0 +1,4 @@
+stage	n	note
+deposited	2250	Lotterhos 2023 corpus
+meet criteria	55	Fst >= 0.05, R2(PC1~temp) in [0.30,0.60], R2(PC1~Env2) <= 0.20
+converted	50	48 primary + 2 degenerate controls

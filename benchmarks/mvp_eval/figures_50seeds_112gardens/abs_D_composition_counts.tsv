@@ -1,0 +1,55 @@
+panel	arch	causal	linked	background	total
+"≥2 methods
+agree"	"mod-polygenic
+(~42 causal loci)"	10	123.5	6	145
+"all 3
+agree"	"mod-polygenic
+(~42 causal loci)"	6	82.5	0	87.5
+"EMMAX
+only"	"mod-polygenic
+(~42 causal loci)"	6	14.5	0.5	21.5
+"LFMM
+only"	"mod-polygenic
+(~42 causal loci)"	12.5	145	33	195.5
+"RDA
+only"	"mod-polygenic
+(~42 causal loci)"	8	83.5	6	99
+"union
+(any method)"	"mod-polygenic
+(~42 causal loci)"	14	171.5	42.5	224
+"≥2 methods
+agree"	"oligogenic
+(~7 causal loci)"	6	132	8	155.5
+"all 3
+agree"	"oligogenic
+(~7 causal loci)"	4.5	70	0	74.5
+"EMMAX
+only"	"oligogenic
+(~7 causal loci)"	5	14	0.5	19.5
+"LFMM
+only"	"oligogenic
+(~7 causal loci)"	7	162.5	26	196
+"RDA
+only"	"oligogenic
+(~7 causal loci)"	5	83.5	9.5	99
+"union
+(any method)"	"oligogenic
+(~7 causal loci)"	7	180	33	218
+"≥2 methods
+agree"	"highly-polygenic
+(~410 causal loci)"	18.5	117.5	14	155.5
+"all 3
+agree"	"highly-polygenic
+(~410 causal loci)"	3	14	0	18
+"EMMAX
+only"	"highly-polygenic
+(~410 causal loci)"	2.5	3	1.5	6.5
+"LFMM
+only"	"highly-polygenic
+(~410 causal loci)"	19.5	134.5	42.5	197
+"RDA
+only"	"highly-polygenic
+(~410 causal loci)"	12	71	14.5	99
+"union
+(any method)"	"highly-polygenic
+(~410 causal loci)"	24	164	54.5	235

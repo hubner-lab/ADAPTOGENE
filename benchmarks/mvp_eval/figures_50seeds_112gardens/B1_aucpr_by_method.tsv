@@ -1,0 +1,299 @@
+seed	method	arch	control	arm	auc_pr
+1231288	BLINK	oligogenic	FALSE	MAF > 0.01 (primary)	0.726730724704793
+1231578	BLINK	highly polygenic	TRUE	MAF > 0.01 (primary)	0.100511427549412
+1231798	BLINK	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0947802968223674
+1231858	BLINK	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.022230348079761
+1231993	BLINK	oligogenic	FALSE	MAF > 0.01 (primary)	0.86010546018992
+1232218	BLINK	oligogenic	FALSE	MAF > 0.01 (primary)	0.509924287648492
+1232398	BLINK	oligogenic	FALSE	MAF > 0.01 (primary)	0.620577927928244
+1232548	BLINK	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0516314825220349
+1232568	BLINK	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.362316223092015
+1232578	BLINK	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.160163171434211
+1232908	BLINK	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0555867596033865
+1232923	BLINK	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0813138629892386
+1233133	BLINK	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0745842535714253
+1233208	BLINK	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.123773974566169
+1231288	CMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.524027167998799
+1231578	CMLM	highly polygenic	TRUE	MAF > 0.01 (primary)	0.0970824779751412
+1231798	CMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0855808968317357
+1231858	CMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0430829899242425
+1231993	CMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.771149861878453
+1232218	CMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.50594385687546
+1232398	CMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.383450282930884
+1232548	CMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.029264014614398
+1232568	CMLM	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.203853641219634
+1232578	CMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.123394756979111
+1232908	CMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0643129895090914
+1232923	CMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0719793062629673
+1233133	CMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0631656319932848
+1233208	CMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.014685086085257
+1231288	ECMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.687899840063974
+1231578	ECMLM	highly polygenic	TRUE	MAF > 0.01 (primary)	0.11711092929398
+1231798	ECMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.108810066059757
+1231858	ECMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0487779701983361
+1231993	ECMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.850641025641026
+1232218	ECMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.503475375756259
+1232398	ECMLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.901818181818182
+1232548	ECMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0827848649593087
+1232568	ECMLM	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.362722677281558
+1232578	ECMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.161258895235314
+1232908	ECMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0681975340472563
+1232923	ECMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0998782016058576
+1233133	ECMLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0661804950883075
+1233208	ECMLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0912886344850449
+1231288	EMMAX	oligogenic	FALSE	MAF > 0.01 (primary)	0.687899840063974
+1231578	EMMAX	highly polygenic	TRUE	MAF > 0.01 (primary)	0.117110919002249
+1231798	EMMAX	highly polygenic	FALSE	MAF > 0.01 (primary)	0.108809531750672
+1231858	EMMAX	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0487779701983361
+1231993	EMMAX	oligogenic	FALSE	MAF > 0.01 (primary)	0.850641025641026
+1232218	EMMAX	oligogenic	FALSE	MAF > 0.01 (primary)	0.503475375756259
+1232398	EMMAX	oligogenic	FALSE	MAF > 0.01 (primary)	0.901818181818182
+1232548	EMMAX	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0827848205310751
+1232568	EMMAX	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.362722677281558
+1232578	EMMAX	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.161258895235314
+1232908	EMMAX	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0681974444280684
+1232923	EMMAX	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0998782064784275
+1233133	EMMAX	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0661807090704514
+1233208	EMMAX	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0912886344850449
+1231288	FarmCPU	oligogenic	FALSE	MAF > 0.01 (primary)	0.719936239620403
+1231578	FarmCPU	highly polygenic	TRUE	MAF > 0.01 (primary)	0.12209009958967
+1231798	FarmCPU	highly polygenic	FALSE	MAF > 0.01 (primary)	0.105932469427111
+1231858	FarmCPU	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0153342438274338
+1231993	FarmCPU	oligogenic	FALSE	MAF > 0.01 (primary)	0.970486111111111
+1232218	FarmCPU	oligogenic	FALSE	MAF > 0.01 (primary)	0.52278056414269
+1232398	FarmCPU	oligogenic	FALSE	MAF > 0.01 (primary)	0.620903274993601
+1232548	FarmCPU	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.13827899671477
+1232568	FarmCPU	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.22768416813177
+1232578	FarmCPU	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.115103864595651
+1232908	FarmCPU	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0490715270780379
+1232923	FarmCPU	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0909436899383335
+1233133	FarmCPU	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0650063115616423
+1233208	FarmCPU	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.105150577769902
+1231288	GLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.760418007810824
+1231578	GLM	highly polygenic	TRUE	MAF > 0.01 (primary)	0.0958931203968867
+1231798	GLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.143710289391932
+1231858	GLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0268861031559915
+1231993	GLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.635005777822166
+1232218	GLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.519013235754878
+1232398	GLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.802335189742261
+1232548	GLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.181520748069657
+1232568	GLM	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.112910481677
+1232578	GLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.149290800248659
+1232908	GLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0529947130825103
+1232923	GLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0949701794586142
+1233133	GLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0653604333374179
+1233208	GLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0674137306999433
+1231288	LFMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.701583210603829
+1231578	LFMM	highly polygenic	TRUE	MAF > 0.01 (primary)	0.135816462981319
+1231798	LFMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.17951479652871
+1231858	LFMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.200492952302409
+1231993	LFMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.766124976049052
+1232218	LFMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.68644544431946
+1232398	LFMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.886166007905138
+1232548	LFMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.322977757606675
+1232568	LFMM	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.317116221146027
+1232578	LFMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.489607185405375
+1232908	LFMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0642555025204507
+1232923	LFMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.159609808356905
+1233133	LFMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0798159850648474
+1233208	LFMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.206460019521144
+1231288	MLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.687899840063974
+1231578	MLM	highly polygenic	TRUE	MAF > 0.01 (primary)	0.11711092929398
+1231798	MLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.108810066059757
+1231858	MLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0487779701983361
+1231993	MLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.850641025641026
+1232218	MLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.503475375756259
+1232398	MLM	oligogenic	FALSE	MAF > 0.01 (primary)	0.901818181818182
+1232548	MLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0827848649593087
+1232568	MLM	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.362722677281558
+1232578	MLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.161258895235314
+1232908	MLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0681975340472563
+1232923	MLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0998782016058576
+1233133	MLM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0661804950883075
+1233208	MLM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0912886344850449
+1231288	MLMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.727042991109487
+1231798	MLMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.108810330749131
+1231858	MLMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.050068831953128
+1232218	MLMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.503746149266482
+1232398	MLMM	oligogenic	FALSE	MAF > 0.01 (primary)	0.595794106027001
+1232548	MLMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0835169317832222
+1232578	MLMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.19493876309946
+1232908	MLMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0681975340472563
+1232923	MLMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0998782016058576
+1233133	MLMM	highly polygenic	FALSE	MAF > 0.01 (primary)	0.066180494997645
+1233208	MLMM	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0890144645830686
+1231288	RDA	oligogenic	FALSE	MAF > 0.01 (primary)	0.537873857120719
+1231578	RDA	highly polygenic	TRUE	MAF > 0.01 (primary)	0.205571760156961
+1231798	RDA	highly polygenic	FALSE	MAF > 0.01 (primary)	0.147459177228116
+1231858	RDA	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0362925909545259
+1231993	RDA	oligogenic	FALSE	MAF > 0.01 (primary)	0.695562487830207
+1232218	RDA	oligogenic	FALSE	MAF > 0.01 (primary)	0.523166967601628
+1232398	RDA	oligogenic	FALSE	MAF > 0.01 (primary)	0.698024633954921
+1232548	RDA	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.222302319194276
+1232568	RDA	moderately polygenic	TRUE	MAF > 0.01 (primary)	0.290391929005296
+1232578	RDA	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.106859002483178
+1232908	RDA	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0554468382923398
+1232923	RDA	highly polygenic	FALSE	MAF > 0.01 (primary)	0.129787070313202
+1233133	RDA	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0681653980282564
+1233208	RDA	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0310090287721736
+1231288	SUPER	oligogenic	FALSE	MAF > 0.01 (primary)	0.642113095238095
+1231798	SUPER	highly polygenic	FALSE	MAF > 0.01 (primary)	0.133145880723379
+1231858	SUPER	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0441199868818317
+1231993	SUPER	oligogenic	FALSE	MAF > 0.01 (primary)	0.561980676328503
+1232218	SUPER	oligogenic	FALSE	MAF > 0.01 (primary)	0.538871620594858
+1232398	SUPER	oligogenic	FALSE	MAF > 0.01 (primary)	0.654691993625829
+1232548	SUPER	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.161342017819436
+1232578	SUPER	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.206754260805204
+1232908	SUPER	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0580817310975404
+1232923	SUPER	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0981222917733301
+1233133	SUPER	highly polygenic	FALSE	MAF > 0.01 (primary)	0.0657976108996924
+1233208	SUPER	moderately polygenic	FALSE	MAF > 0.01 (primary)	0.0573229598808441
+1231288	BLINK	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.7713199513382
+1231578	BLINK	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.105276222568737
+1231798	BLINK	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0982835565239633
+1231858	BLINK	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0563752226355609
+1231993	BLINK	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.72285673998872
+1232218	BLINK	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.630747126436782
+1232398	BLINK	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.66769693358041
+1232548	BLINK	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.216644148652452
+1232568	BLINK	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.383271128296411
+1232578	BLINK	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.317295987438855
+1232908	BLINK	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0404436943425696
+1232923	BLINK	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0762225074870195
+1233133	BLINK	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0437533558917245
+1233208	BLINK	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.126225700738306
+1231288	CMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.462948143259174
+1231578	CMLM	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.0841218955816457
+1231798	CMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0643460384929038
+1231858	CMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0432224478489906
+1231993	CMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.892156862745098
+1232218	CMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.265963104991146
+1232398	CMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.37595661690963
+1232548	CMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0409995899516754
+1232568	CMLM	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.157665057515225
+1232578	CMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.252043967169935
+1232908	CMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0554624525421604
+1232923	CMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0728455003836374
+1233133	CMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0453650672557412
+1233208	CMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0196292056108834
+1231288	ECMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.722653442575823
+1231578	ECMLM	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.105107888551884
+1231798	ECMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.112795951535136
+1231858	ECMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.110647134510979
+1231993	ECMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.944444444444444
+1232218	ECMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.608519967194499
+1232398	ECMLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.962654320987654
+1232548	ECMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.25347817413407
+1232568	ECMLM	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.480818223581822
+1232578	ECMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.252043967169935
+1232908	ECMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0635153719501657
+1232923	ECMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0940338585595783
+1233133	ECMLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0476216831543731
+1233208	ECMLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.146196042686343
+1231288	EMMAX	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.722653442575823
+1231578	EMMAX	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.105107692841661
+1231798	EMMAX	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.112797325003269
+1231858	EMMAX	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.110646699487216
+1231993	EMMAX	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.944444444444444
+1232218	EMMAX	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.608519967194499
+1232398	EMMAX	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.962654320987654
+1232548	EMMAX	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.253478259605471
+1232568	EMMAX	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.480818223581822
+1232578	EMMAX	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.252043967169935
+1232908	EMMAX	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0635154194102925
+1232923	EMMAX	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0940340208727171
+1233133	EMMAX	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0476209609366043
+1233208	EMMAX	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.146193464256363
+1231288	FarmCPU	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.699509803921569
+1231578	FarmCPU	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.104351785056585
+1231798	FarmCPU	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.108207196582105
+1231858	FarmCPU	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0563172014690429
+1231993	FarmCPU	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.976190476190476
+1232218	FarmCPU	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.606060814214407
+1232398	FarmCPU	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.577423516282274
+1232548	FarmCPU	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.224398578028713
+1232568	FarmCPU	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.305957154498155
+1232578	FarmCPU	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.221227595641316
+1232908	FarmCPU	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0406924187893945
+1232923	FarmCPU	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0907979874411966
+1233133	FarmCPU	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0434104460047205
+1233208	FarmCPU	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0833441930081763
+1231288	GLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.760044188615617
+1231578	GLM	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.078465482506797
+1231798	GLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.161740595020713
+1231858	GLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0541649440858268
+1231993	GLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.835570469798658
+1232218	GLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.631932773109244
+1232398	GLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.811524670985617
+1232548	GLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.283315492507065
+1232568	GLM	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.117041663068661
+1232578	GLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.224136977691942
+1232908	GLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0372287393994764
+1232923	GLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0884880629031626
+1233133	GLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0438695321261584
+1233208	GLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0864939022148313
+1231288	LFMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.710108604845447
+1231578	LFMM	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.188117084021253
+1231798	LFMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.233889761009035
+1231858	LFMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.326214788251621
+1231993	LFMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	1
+1232218	LFMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.814925373134328
+1232398	LFMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	1
+1232548	LFMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.51766498439554
+1232568	LFMM	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.542289470592215
+1232578	LFMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.680568510223003
+1232908	LFMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0663178319804254
+1232923	LFMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.206919055099861
+1233133	LFMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0726054589453889
+1233208	LFMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.261264653725244
+1231288	MLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.722653442575823
+1231578	MLM	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.105107888551884
+1231798	MLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.112795951535136
+1231858	MLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.110647134510979
+1231993	MLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.944444444444444
+1232218	MLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.608519967194499
+1232398	MLM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.962654320987654
+1232548	MLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.25347817413407
+1232568	MLM	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.480818223581822
+1232578	MLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.252043967169935
+1232908	MLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0635153719501657
+1232923	MLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0940338585595783
+1233133	MLM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0476216831543731
+1233208	MLM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.146196042686343
+1231288	MLMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.771828358208955
+1231798	MLMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.112795951535136
+1231858	MLMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.122075960371478
+1232218	MLMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.607029942347034
+1232398	MLMM	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.541115195681
+1232548	MLMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.25347817413407
+1232578	MLMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.312012729372144
+1232908	MLMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0635153719501657
+1232923	MLMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0940338585595783
+1233133	MLMM	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0476215282498161
+1233208	MLMM	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.141341204673028
+1231288	RDA	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.509181929181929
+1231578	RDA	highly polygenic	TRUE	MAF > 0.05 (sensitivity)	0.244763826678818
+1231798	RDA	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.171298068258332
+1231858	RDA	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0614776478517148
+1231993	RDA	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.788596130094689
+1232218	RDA	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.629251336898396
+1232398	RDA	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.767993787971829
+1232548	RDA	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.340482658310133
+1232568	RDA	moderately polygenic	TRUE	MAF > 0.05 (sensitivity)	0.359164633952863
+1232578	RDA	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.254793507472084
+1232908	RDA	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0408817632871448
+1232923	RDA	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.163974092800115
+1233133	RDA	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0455052669993871
+1233208	RDA	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0451681732002084
+1231288	SUPER	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.673084886128364
+1231798	SUPER	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.152985888736927
+1231858	SUPER	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.120477306009631
+1231993	SUPER	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.834722222222222
+1232218	SUPER	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.646153846153846
+1232398	SUPER	oligogenic	FALSE	MAF > 0.05 (sensitivity)	0.739783408895661
+1232548	SUPER	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.261744859850128
+1232578	SUPER	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.333642270419481
+1232908	SUPER	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.0391287453158291
+1232923	SUPER	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.107861014652658
+1233133	SUPER	highly polygenic	FALSE	MAF > 0.05 (sensitivity)	0.047425874826967
+1233208	SUPER	moderately polygenic	FALSE	MAF > 0.05 (sensitivity)	0.140935937312726

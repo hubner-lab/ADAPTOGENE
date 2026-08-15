@@ -1,0 +1,73 @@
+arch	panel	markers	causal	linked	noise	usable	accuracy
+"oligogenic
+(~7 causal loci)"	"≥2 methods
+agree"	155	6	132	8	138	0.733
+"oligogenic
+(~7 causal loci)"	"all 3
+agree"	74	4	70	0	74	0.716
+"oligogenic
+(~7 causal loci)"	"EMMAX
+only"	19	5	14	0	18	0.708
+"oligogenic
+(~7 causal loci)"	"RDA
+only"	99	5	83	9	89	0.7
+"oligogenic
+(~7 causal loci)"	"true QTNs
+(oracle)"	8	8	0	0	8	0.672
+"oligogenic
+(~7 causal loci)"	"union
+(any method)"	218	7	180	33	187	0.62
+"oligogenic
+(~7 causal loci)"	"LFMM
+only"	196	7	162	26	168	0.607
+"oligogenic
+(~7 causal loci)"	"random
+(size-matched)"	155	0	0	155	0	0.564
+"mod-polygenic
+(~42 causal loci)"	"EMMAX
+only"	21	6	14	0	20	0.749
+"mod-polygenic
+(~42 causal loci)"	"all 3
+agree"	87	6	82	0	87	0.744
+"mod-polygenic
+(~42 causal loci)"	"RDA
+only"	99	8	83	6	93	0.743
+"mod-polygenic
+(~42 causal loci)"	"≥2 methods
+agree"	145	10	123	6	133	0.721
+"mod-polygenic
+(~42 causal loci)"	"true QTNs
+(oracle)"	61	61	0	0	61	0.692
+"mod-polygenic
+(~42 causal loci)"	"union
+(any method)"	224	14	171	42	188	0.632
+"mod-polygenic
+(~42 causal loci)"	"LFMM
+only"	195	12	145	33	155	0.624
+"mod-polygenic
+(~42 causal loci)"	"random
+(size-matched)"	145	0	0	145	0	0.598
+"highly-polygenic
+(~410 causal loci)"	"true QTNs
+(oracle)"	422	422	0	0	422	0.716
+"highly-polygenic
+(~410 causal loci)"	"≥2 methods
+agree"	155	18	117	14	135	0.714
+"highly-polygenic
+(~410 causal loci)"	"RDA
+only"	99	12	71	14	83	0.668
+"highly-polygenic
+(~410 causal loci)"	"union
+(any method)"	235	24	164	54	188	0.666
+"highly-polygenic
+(~410 causal loci)"	"LFMM
+only"	197	19	134	42	154	0.644
+"highly-polygenic
+(~410 causal loci)"	"EMMAX
+only"	6	2	3	1	4	0.628
+"highly-polygenic
+(~410 causal loci)"	"all 3
+agree"	18	3	14	0	17	0.62
+"highly-polygenic
+(~410 causal loci)"	"random
+(size-matched)"	155	0	0	155	0	0.603
