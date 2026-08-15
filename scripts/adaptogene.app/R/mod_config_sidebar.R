@@ -78,6 +78,15 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
 
             cfg <- if (!is.null(proj)) shiny::isolate(config_state$working) else list()
 
+            # Regime filtering happens HERE, on a local copy -- not on `entries`
+            # above, which is built once at server init and is what the per-entry
+            # observers and input_ids key off. A section dropped here simply never
+            # renders; its inputs read NULL, nothing collects them, and the values
+            # on disk are left untouched.
+            hidden  <- hidden_sidebar_sections(config_regime(cfg))
+            entries <- if (length(hidden))
+                Filter(function(e) !isTRUE(e$section %in% hidden), entries) else entries
+
             if (length(entries) == 0)
                 return(htmltools::p(class = "text-muted small p-2",
                                     "No configuration parameters for this tab."))

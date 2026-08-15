@@ -59,6 +59,15 @@ app_server <- function(input, output, session) {
         config_state$project <- proj
         config_state$saved   <- cfg
         config_state$working <- cfg
+
+        # The bar re-renders for the new regime, but the active pane does not move
+        # on its own -- switching from a standard project while sitting on GEA
+        # would leave the GEA pane visible with no button for it anywhere. Send the
+        # user home whenever the current module is out of regime.
+        if (!active_module() %in% module_ids_for_regime(config_regime(cfg))) {
+            active_module("home")
+            session$sendCustomMessage("module_bar_select", list(value = "home"))
+        }
     }, ignoreInit = FALSE)
 
     # ── Module bar ────────────────────────────────────────────────────────────
@@ -72,8 +81,11 @@ app_server <- function(input, output, session) {
     # match bslib's markup, so it cannot be relied on either.
     active_module <- shiny::reactiveVal("home")
 
+    # Regime comes from `saved`, not `working`: the bar reflects what is on disk,
+    # and `working` mutates on every sidebar keystroke.
     output$module_bar <- shiny::renderUI({
-        module_bar_ui(active = active_module())
+        module_bar_ui(active = active_module(),
+                      regime = config_regime(config_state$saved))
     })
 
     # One observer per module, created once at startup — the bar re-renders on

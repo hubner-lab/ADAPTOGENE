@@ -9,8 +9,33 @@ mod_home_ui <- function(id) {
     shiny::uiOutput(ns("home_content"))
 }
 
-.mod_home_dashboard_ui <- function(ns) {
+#' Read-only regime badge
+#'
+#' The regime is declared at project creation and is not editable afterwards, so
+#' this is a statement of fact rather than a control.
+#' @noRd
+.regime_badge <- function(regime) {
+    gwas_only <- identical(regime, "gwas_only")
+    htmltools::div(
+        class = "mb-2",
+        htmltools::span(
+            class = paste("badge", if (gwas_only) "bg-secondary" else "bg-primary"),
+            if (gwas_only) "GWAS-only project" else "Standard project"
+        ),
+        htmltools::span(
+            class = "text-muted small ms-2",
+            if (gwas_only)
+                "No coordinates — climate, GEA and maladaptation are not part of this project."
+            else
+                "Geography and climate — all modules available."
+        )
+    )
+}
+
+.mod_home_dashboard_ui <- function(ns, regime = "standard") {
     htmltools::tagList(
+        .regime_badge(regime),
+
         # Value box row
         bslib::layout_column_wrap(
             width = "200px",
@@ -83,9 +108,13 @@ mod_home_server <- function(id, project_data) {
         })
 
         # ── Dashboard vs Getting Started ───────────────────────────────────────
+        # Declared at project creation; drives which modules this tab talks about.
+        regime <- shiny::reactive(config_regime(project_data()$config))
+
         output$home_content <- shiny::renderUI({
             pd <- project_data()
             st <- check_module_status(pd$name, summary_data())
+            gwas_only <- identical(regime(), "gwas_only")
             if (!any(st)) {
                 # Empty project — show getting started guide
                 bslib::card(
@@ -94,6 +123,7 @@ mod_home_server <- function(id, project_data) {
                         " Getting Started"
                     ),
                     bslib::card_body(
+                        .regime_badge(regime()),
                         htmltools::tags$p(
                             class = "text-muted mb-3",
                             "Your project is set up. Follow these steps to run the pipeline:"
@@ -118,13 +148,22 @@ mod_home_server <- function(id, project_data) {
                             ),
                             htmltools::tags$li(
                                 htmltools::tags$strong("Select K"),
-                                " \u2014 Review the cross-entropy plot, set ", htmltools::tags$code("snmf.k_best"), " in the sidebar, then run Structure K to generate piemaps."
+                                if (gwas_only)
+                                    " \u2014 Review the cross-entropy plot, set snmf.k_best in the sidebar, then run Structure K."
+                                else
+                                    " \u2014 Review the cross-entropy plot, set snmf.k_best in the sidebar, then run Structure K to generate piemaps."
                             ),
-                            htmltools::tags$li(
+                            if (gwas_only) htmltools::tags$li(
+                                htmltools::tags$strong("Run GWAS"),
+                                " \u2014 Pick traits and association methods in the ", htmltools::tags$strong("GWAS"), " tab, then run."
+                            ) else htmltools::tags$li(
                                 htmltools::tags$strong("Run Association"),
                                 " \u2014 Configure climate predictors and association methods in the ", htmltools::tags$strong("Association"), " tab, then run."
                             ),
-                            htmltools::tags$li(
+                            if (gwas_only) htmltools::tags$li(
+                                htmltools::tags$strong("Explore results"),
+                                " \u2014 Drill into significant regions, genes, GO enrichment and haplotypes from the GWAS Manhattan plots."
+                            ) else htmltools::tags$li(
                                 htmltools::tags$strong("Explore results"),
                                 " \u2014 Continue with Phenotype Association, Overlapping Regions, Maladaptation, and Haplotype Analysis as your research requires."
                             )
@@ -133,7 +172,7 @@ mod_home_server <- function(id, project_data) {
                 )
             } else {
                 # Normal dashboard
-                .mod_home_dashboard_ui(ns)
+                .mod_home_dashboard_ui(ns, regime())
             }
         })
 
@@ -192,7 +231,11 @@ mod_home_server <- function(id, project_data) {
             sel <- selected_module()
             s   <- summary_data()
 
-            rows <- lapply(names(module_labels), function(nm) {
+            # Out-of-regime modules are omitted, not shown as "—": a dash reads as
+            # "not run yet", which is wrong when the module does not exist here.
+            shown <- intersect(names(module_labels), module_ids_for_regime(regime()))
+
+            rows <- lapply(shown, function(nm) {
                 ok     <- isTRUE(st[[nm]])
                 active <- identical(sel, nm)
 

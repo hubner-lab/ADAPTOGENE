@@ -133,8 +133,17 @@ def get_zoom_suffix():
     coords = str(REGIONMAP_EXTENT).replace('.', 'p').replace(',', '_')
     return f"_zoom_{coords}"
 
+# PROJECT REGIME -- declared once (at project creation in the app); Climate.enabled
+# is the derived value everything downstream already gates on. Forced in ONE
+# direction only: gwas_only turns climate off, standard leaves a hand-written
+# Climate.enabled alone rather than switching it back on.
+REGIME = _cfg('Regime', 'mode', 'standard')
+check_in_list(REGIME, ['standard', 'gwas_only'], 'Regime.mode')
+
 # CLIMATE parameters
 CLIMATE_ENABLED = _cfg_bool('Climate', 'enabled', True)
+if REGIME == 'gwas_only':
+    CLIMATE_ENABLED = False
 PREDICTORS_SELECTED = _cfg('Climate', 'predictors', '') if CLIMATE_ENABLED else ''
 CLIMATE_SOURCE = _cfg('Climate', 'source', 'worldclim')
 check_in_list(CLIMATE_SOURCE, ['worldclim', 'custom'], 'Climate.source')

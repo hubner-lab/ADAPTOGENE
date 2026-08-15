@@ -16,6 +16,14 @@ Input:
 project_name: ""                   # Output directory prefix: {project_name}_results/
 
 #-----------------------------------------------------------------------------
+# REGIME: which modules this project has at all (declared at creation)
+#-----------------------------------------------------------------------------
+Regime:
+  mode: standard                   # standard: geography + climate (structure, GEA, maladaptation)
+                                   # gwas_only: no coordinates (structure + GWAS only)
+                                   # Climate.enabled below is DERIVED from this on every save.
+
+#-----------------------------------------------------------------------------
 # FILTER: VCF quality filtering
 #-----------------------------------------------------------------------------
 Filter:

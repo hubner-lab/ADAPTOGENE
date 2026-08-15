@@ -58,6 +58,24 @@ module_registry <- function() {
 #' @noRd
 module_input_id <- function(id) paste0("mb_", id)
 
+#' Module ids reachable under a regime
+#' @noRd
+module_ids_for_regime <- function(regime = "standard") {
+    reg <- module_registry()
+    if (identical(regime, "gwas_only")) reg <- reg[reg$gwas_only, , drop = FALSE]
+    reg$id
+}
+
+#' Config-sidebar sections that do not apply under a regime
+#'
+#' Keyed by the schema entry's `section` label (fct_config_schema.R). LD Decay is
+#' deliberately NOT hidden in gwas_only: with a single site it degrades to the
+#' genome-wide "All" curve, which is still worth having.
+#' @noRd
+hidden_sidebar_sections <- function(regime = "standard") {
+    if (identical(regime, "gwas_only")) c("Map", "Piemap", "Pop Stats") else character(0)
+}
+
 #' Registry rows visible under a regime, split into groups (bar order preserved)
 #' @noRd
 module_groups <- function(regime = "standard") {

@@ -125,9 +125,9 @@ config_schema <- function() {
           "numeric", TRUE,
           min = 1, max = 20, step = 1,
           help = "Selected K for all downstream analysis. Review cross-entropy plot first."),
-        s("Climate.enabled",       "Disable climate",   "structure", "Climate",
-          "checkbox_invert", TRUE,
-          help = "For datasets without coordinates. Check to run GWAS analysis only — skips WorldClim download, GEA, and maladaptation."),
+        # Climate.enabled is no longer user-editable here -- it is derived from
+        # Regime.mode on every write (fct_config_writer.R). A project declares its
+        # regime at creation; see config_regime() in fct_config.R.
         s("Climate.predictors",    "Climate predictors", "gea", "Climate",
           "bio_chips", TRUE,
           help = "Click to toggle variables for GEA. Review piemaps in Structure first to drop collinear or low-variance predictors. Same list as the Climate tab's copy of this field — editing either updates both."),
