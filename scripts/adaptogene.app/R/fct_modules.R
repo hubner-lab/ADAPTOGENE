@@ -25,28 +25,31 @@ module_registry <- function() {
         id = c(
             "home", "processing",
             "prestructure", "structure",
-            "climate",
+            "climate", "traits",
             "pregea", "gea", "gwas", "gea_x_gwas",
             "maladaptation"
         ),
         label = c(
             "Home", "Processing",
             "PreStructure", "Structure",
-            "Environmental",
+            "Environmental", "Phenotypic",
             "PreGEA", "GEA", "GWAS", "GEAxGWAS",
             "Maladaptation"
         ),
         group = c(
             "Setup", "Setup",
             "Structure", "Structure",
-            "Factors",
+            "Factors", "Factors",
             "Association", "Association", "Association", "Association",
             "Maladaptation"
         ),
+        # Phenotypic survives gwas_only — it is the ONLY factor-characterization
+        # module such a project has (mode=climate raises without climate), and
+        # mode=traits needs neither coordinates nor climate.
         gwas_only = c(
             TRUE, TRUE,
             TRUE, TRUE,
-            FALSE,
+            FALSE, TRUE,
             FALSE, FALSE, TRUE, FALSE,
             FALSE
         ),

@@ -261,6 +261,15 @@ config_schema <- function() {
           min = 99, step = 100,
           help = "anova.cca permutation count for each testable variance fraction (999 = literature/production default; lower values run faster)"),
 
+        # ── TRAITS TAB (Phenotypic Factors, mode=traits) ──────────────────────
+        # Deliberately one knob: which figures get built is decided by the data
+        # (traits present) and the regime (climate correlogram only when there
+        # is climate), not by config.
+        s("Traits.pairs_max_factors", "Max traits in pairs plot", "traits", "Pairs plot",
+          "numeric", TRUE,
+          min = 2, step = 1,
+          help = "Above this many traits the pairs grid becomes unreadable (and quadratically expensive), so the pipeline writes a placeholder instead of the plot. Default 8."),
+
         # ── PREGEA TAB ────────────────────────────────────────────────────────
         # Focused hyperparameter-choice module: "how many K / how many PCs".
         # Predictor characterization (correlations, densities, varpart, dbMEM)

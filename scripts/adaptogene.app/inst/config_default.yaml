@@ -80,6 +80,13 @@ Climate:
   # badge in Shiny) instead of a config-time guard.
 
 #-----------------------------------------------------------------------------
+# TRAITS: phenotypic factor characterization (mode=traits)
+# Runs in both regimes — traits need no coordinates and no climate.
+#-----------------------------------------------------------------------------
+Traits:
+  pairs_max_factors: 8             # Above this many traits the pairs grid is replaced by a placeholder
+
+#-----------------------------------------------------------------------------
 # POPULATION STATS
 #-----------------------------------------------------------------------------
 Population:

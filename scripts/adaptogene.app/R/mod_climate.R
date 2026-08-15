@@ -20,11 +20,10 @@ mod_climate_ui <- function(id) {
             bslib::card_header("Predictors"),
             shiny::uiOutput(ns("climate_invariant_warning")),
             mod_image_card_ui(ns("climate_heatmap")),
-            bslib::layout_column_wrap(
-                width = 1 / 2,
-                mod_image_card_ui(ns("climate_density")),
-                mod_image_card_ui(ns("phenotype_density"))
-            )
+            # Phenotype density moved to the Phenotypic tab (mod_traits.R) in
+            # Phase 3 — it is a trait product, and mode=climate no longer
+            # builds it.
+            mod_image_card_ui(ns("climate_density"))
         ),
 
         bslib::card(
@@ -114,14 +113,6 @@ mod_climate_server <- function(id, project_data) {
                 suggestion = suggestion,
                 note       = shiny::reactive(help_note("climate_density"))
             )
-            mod_image_card_server("phenotype_density",
-                path       = shiny::reactive(phenotype_density_path(pd$name)),
-                title      = shiny::reactive("Phenotype Density"),
-                dl_name    = shiny::reactive("phenotype_density"),
-                suggestion = suggestion,
-                note       = shiny::reactive(help_note("phenotype_density"))
-            )
-
             output$climate_invariant_warning <- shiny::renderUI({
                 p <- climate_invariant_path(pd$name)
                 if (!file.exists(p)) return(NULL)

@@ -130,6 +130,18 @@ app_ui <- function(request) {
             )
         ),
 
+        bslib::nav_panel("Phenotypic", value = "traits",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_traits", "Traits Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_traits",
+                                                       btn_label = "Run Traits")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_traits_ui("traits")
+            )
+        ),
+
         bslib::nav_panel("PreGEA", value = "pregea",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(

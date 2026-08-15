@@ -4,6 +4,7 @@ MOD_PRESTRUCT <- "PreStructure"
 MOD_PREGEA    <- "PreGEA"
 MOD_STRUCT    <- "Structure"
 MOD_CLIMATE   <- "climate"
+MOD_TRAITS    <- "Traits"
 MOD_GEA       <- "GEA"
 MOD_GWAS      <- "GWAS"
 MOD_GEAXGWAS  <- "GEAxGWAS"
@@ -332,9 +333,34 @@ climate_density_path <- function(project, bio = NULL) {
 }
 
 #' Phenotype density plot path
+#' Produced by mode=traits since Phase 3 (was mode=climate) — it describes
+#' traits, and had to survive Climate.enabled: false.
 #' @noRd
 phenotype_density_path <- function(project) {
-    mod_path(project, MOD_CLIMATE, "plots", "density_plot_phenotypes.png")
+    mod_path(project, MOD_TRAITS, "plots", "density_plot_phenotypes.png")
+}
+
+# ─── Traits (mode=traits) ─────────────────────────────────────────────────────
+
+#' Generic Traits plot path: Traits/plots/{stem}.png
+#' @noRd
+trait_plot_path <- function(project, stem) {
+    mod_path(project, MOD_TRAITS, "plots", paste0(stem, ".png"))
+}
+
+#' Generic Traits table path: Traits/tables/{stem}.tsv
+#' @noRd
+trait_table_path <- function(project, stem) {
+    mod_path(project, MOD_TRAITS, "tables", paste0(stem, ".tsv"))
+}
+
+#' Trait correlogram path
+#' @param with_climate when TRUE, resolve the joint traits x climate correlogram
+#'   (standard regime only — absent when the project has no climate)
+#' @noRd
+trait_corr_path <- function(project, with_climate = FALSE) {
+    trait_plot_path(project, if (with_climate) "correlation_heatmap_traits_climate"
+                             else "correlation_heatmap_traits")
 }
 
 #' Climate invariant predictors file path

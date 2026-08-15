@@ -226,6 +226,7 @@ check_module_status <- function(project, summary_dt = NULL) {
         processing    = "processing",
         prestructure  = "prestructure",
         climate       = "climate",
+        traits        = "traits",
         structure     = "structure",
         pregea        = "pregea",
         gea           = "gea",
