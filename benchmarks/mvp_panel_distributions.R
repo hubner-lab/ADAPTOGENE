@@ -16,6 +16,9 @@
 suppressPackageStartupMessages({library(data.table); library(ggplot2)})
 PIPELINE_ROOT <- Sys.getenv("PIPELINE_ROOT", "/pipeline")
 source(file.path(PIPELINE_ROOT, "scripts/R/utils/theme_adaptogene.R"))
+# Which scored offset root to read. Defaults to offset09, the 32-replicate run, so an
+# unparameterised call reproduces the frozen figure set; a new cohort passes OFFSET_DIR.
+OFF <- Sys.getenv("OFFSET_DIR", "offset09")
 OUT <- Sys.getenv("FIG_OUT", file.path(PIPELINE_ROOT, "benchmarks/mvp_eval/figures"))
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
@@ -23,10 +26,10 @@ dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 # on chr:pos. NOT snp_sets_summary.tsv -- that file is overwritten by whichever
 # --sets run wrote it last, so it covered 32 replicates for the solo panels but
 # only 18 for the rest, which would compare panels on different replicate sets.
-SS <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_eval/offset09/panel_pr_recomputed.tsv"),
+SS <- fread(file.path(PIPELINE_ROOT, file.path("benchmarks/mvp_eval", OFF, "panel_pr_recomputed.tsv")),
             colClasses = c(seed = "character"))
 SS[, `:=`(n_snps = n, written = TRUE)]
-S  <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_eval/offset09/phase1_seed_medians_solo.tsv"),
+S  <- fread(file.path(PIPELINE_ROOT, file.path("benchmarks/mvp_eval", OFF, "phase1_seed_medians_solo.tsv")),
             colClasses = c(seed = "character"))
 LAB <- c(truth = "true QTNs\n(oracle)", intersect3 = "LFMM & RDA & EMMAX\n(all 3 agree)",
          best = "any 2 of\nLFMM/RDA/EMMAX", solo_emmax = "EMMAX\nonly",

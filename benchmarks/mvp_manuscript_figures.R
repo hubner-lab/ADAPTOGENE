@@ -39,7 +39,11 @@ suppressPackageStartupMessages({
 
 ROOT <- Sys.getenv("PIPELINE_ROOT", "/pipeline")
 EVAL <- file.path(ROOT, "benchmarks/mvp_eval")
-OUT  <- file.path(EVAL, "figures_ms")
+# Which scored offset root to read, and where the figures land. Both default to the values
+# that produced the 32-replicate figure set, so an unparameterised run reproduces it; a new
+# cohort passes OFFSET_DIR=offset10 FIG_OUT=... and cannot overwrite the frozen outputs.
+OFF  <- Sys.getenv("OFFSET_DIR", "offset09")
+OUT  <- Sys.getenv("FIG_OUT", file.path(EVAL, "figures_ms"))
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
 source(file.path(ROOT, "scripts/R/utils/theme_adaptogene.R"))
@@ -601,8 +605,8 @@ PANEL_MAP <- data.table(
     panel      = c("true QTNs (oracle)", "≥2 methods agree", "all 3 methods agree",
                    "any method (union)", "LFMM only", "RDA only", "EMMAX only"))
 
-tau  <- rd(EVAL, "offset09/phase1_seed_medians_solo.tsv")
-pr   <- rd(EVAL, "offset09/panel_pr_recomputed.tsv")
+tau  <- rd(EVAL, OFF, "phase1_seed_medians_solo.tsv")
+pr   <- rd(EVAL, OFF, "panel_pr_recomputed.tsv")
 psum <- rd(EVAL, "figures/panel_summary.tsv")
 ptst <- rd(EVAL, "figures/panel_paired_tests.tsv")
 abs_counts <- rd(EVAL, "figures/table_absolute_counts.tsv")
@@ -639,7 +643,7 @@ if (!is.null(tau)) {
         theme_adaptogene_grid(),
         "F1_offset_panel_by_architecture", 12, 5.6)
     reg("F1", "figure", "Offset accuracy by marker panel, architecture and offset method",
-        "offset09/phase1_seed_medians_solo.tsv; mvp_seeds.tsv",
+        paste0(OFF, "/phase1_seed_medians_solo.tsv; mvp_seeds.tsv"),
         sprintf("%d replicates x 112 gardens x 4 methods (INTERIM)", N_OFF))
 
     # F2 -- the same numbers as a distribution over replicates, not medians.
@@ -654,7 +658,7 @@ if (!is.null(tau)) {
         theme_adaptogene(),
         "F2_offset_distribution", 9, 5.4)
     reg("F2", "figure", "Spread of offset accuracy across replicates, per panel",
-        "offset09/phase1_seed_medians_solo.tsv",
+        paste0(OFF, "/phase1_seed_medians_solo.tsv"),
         sprintf("%d replicates x 4 methods (INTERIM)", N_OFF))
 
     # F3 -- paired difference from the oracle, within replicate. The comparison
@@ -674,7 +678,7 @@ if (!is.null(tau)) {
         theme_adaptogene_grid(),
         "F3_paired_vs_oracle", 13, 5.2)
     reg("F3", "figure", "Every panel scored against the true-QTN oracle, paired within replicate",
-        "offset09/phase1_seed_medians_solo.tsv",
+        paste0(OFF, "/phase1_seed_medians_solo.tsv"),
         sprintf("%d replicates x 4 methods (INTERIM)", N_OFF))
 
     # F4 -- stability. The argument for >=2 agree is the SPREAD across
@@ -711,7 +715,7 @@ if (!is.null(tau)) {
         "F4_panel_stability", 9.5, 5.2)
     reg("F4", "figure",
         "Architecture-to-architecture spread of each panel, under two aggregations that disagree",
-        "offset09/phase1_seed_medians_solo.tsv; figures/table_absolute_counts.tsv",
+        paste0(OFF, "/phase1_seed_medians_solo.tsv; figures/table_absolute_counts.tsv"),
         sprintf("%d replicates (INTERIM); see the aggregation column", N_OFF))
 
     # F5 -- detection versus prediction, PAIRED WITHIN REPLICATE.
@@ -788,7 +792,7 @@ if (!is.null(tau)) {
             "F5_detection_vs_prediction", 13, 5)
         reg("F5", "figure",
             "Detection metrics against prediction accuracy, one line per replicate",
-            "offset09/panel_pr_recomputed.tsv; phase1_seed_medians_solo.tsv",
+            paste0(OFF, "/panel_pr_recomputed.tsv; phase1_seed_medians_solo.tsv"),
             sprintf("%d replicates, %d points (INTERIM)", uniqueN(f5$seed), nrow(f5)))
     }
 
@@ -819,7 +823,7 @@ if (!is.null(tau)) {
         theme_adaptogene_grid(),
         "F6_what_predicts_accuracy", 13, 4.8)
     reg("F6", "figure", "Replicate properties against offset accuracy (local adaptation vs Fst)",
-        "offset09/phase1_seed_medians_solo.tsv; mvp_seeds.tsv",
+        paste0(OFF, "/phase1_seed_medians_solo.tsv; mvp_seeds.tsv"),
         sprintf("%d replicates x 7 panels (INTERIM)", N_OFF))
 
     # Cross-check the panel-name mapping against the independently built summary
@@ -830,7 +834,7 @@ if (!is.null(tau)) {
     #      is the real proof that marker_set -> panel is the right mapping.
     #  (b) panel_pr_recomputed covers more replicates, so its medians are
     #      expected to differ. A difference there is coverage, not a mis-mapping.
-    ss <- rd(EVAL, "offset09/snp_sets_summary.tsv")
+    ss <- rd(EVAL, OFF, "snp_sets_summary.tsv")
     if (!is.null(ss) && !is.null(psum)) {
         ssm <- merge(ss, PANEL_MAP[, .(set, panel)], by = "set")
         # Restrict to replicates that carry ALL SEVEN panels. That is the subset
@@ -908,7 +912,7 @@ if (!is.null(pr)) {
         "F8_panel_composition_absolute", 13.5, 5.4)
     reg("F8", "figure",
         "Absolute causal / linked / background composition of each offset marker panel, with the accuracy it achieves",
-        "offset09/panel_pr_recomputed.tsv; phase1_seed_medians_solo.tsv",
+        paste0(OFF, "/panel_pr_recomputed.tsv; phase1_seed_medians_solo.tsv"),
         "30 primary replicates, means (exact partition), INTERIM")
 
     # Per-replicate detail, so the spread behind those means is inspectable.
@@ -917,7 +921,7 @@ if (!is.null(pr)) {
          "T5b_offset_panel_composition_per_replicate")
 }
 
-novc <- rd(EVAL, "offset09/novelty_curve.tsv")
+novc <- rd(EVAL, OFF, "novelty_curve.tsv")
 if (!is.null(novc)) {
     emit(novc, "F7_climate_novelty_curve")
     nv <- merge(novc, PANEL_MAP[, .(marker_set, panel)], by = "marker_set", all.x = TRUE)
@@ -931,7 +935,7 @@ if (!is.null(novc)) {
         theme_adaptogene_grid(),
         "F7_climate_novelty", 13, 4.6)
     reg("F7", "figure", "Offset accuracy as climate moves outside the training range",
-        "offset09/novelty_curve.tsv", "12 replicates (earlier generation); open disagreement with the source paper")
+        paste0(OFF, "/novelty_curve.tsv"), "12 replicates (earlier generation); open disagreement with the source paper")
 }
 
 # =============================================================================
@@ -997,9 +1001,9 @@ if (!is.null(abs_counts)) emit(abs_counts, "T4a_offset_panel_composition")
 if (!is.null(psum))       emit(psum,       "T4b_offset_panel_summary")
 if (!is.null(ptst))       emit(ptst,       "T4c_offset_paired_tests")
 if (!is.null(pr))         emit(pr,         "T4d_offset_panel_precision_recall")
-strt <- rd(EVAL, "offset09/strata_tau.tsv")
+strt <- rd(EVAL, OFF, "strata_tau.tsv")
 if (!is.null(strt)) emit(strt, "T4e_offset_by_strata")
-mrk <- rd(EVAL, "offset09/marker_set_comparison_by_method.tsv")
+mrk <- rd(EVAL, OFF, "marker_set_comparison_by_method.tsv")
 if (!is.null(mrk)) emit(mrk, "T4f_offset_marker_set_contrasts")
 
 excl <- fread(file.path(ROOT, "benchmarks/mvp_method_exclusions.tsv"),
@@ -1007,7 +1011,7 @@ excl <- fread(file.path(ROOT, "benchmarks/mvp_method_exclusions.tsv"),
 emit(excl[!grepl("^#", seed)], "S1_method_exclusions")
 pub <- rd(ROOT, "benchmarks/mvp_published_baseline.tsv")
 if (!is.null(pub)) emit(pub, "S2a_published_baseline_detection")
-hvp <- rd(EVAL, "offset09/headline_vs_published.tsv")
+hvp <- rd(EVAL, OFF, "headline_vs_published.tsv")
 if (!is.null(hvp)) emit(hvp, "S2b_published_baseline_offset")
 hl <- rd(EVAL, "report06/headline.tsv")
 if (!is.null(hl)) emit(hl, "S4_single_replicate_best_combinations")

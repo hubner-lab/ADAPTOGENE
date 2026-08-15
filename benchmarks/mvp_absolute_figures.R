@@ -18,14 +18,17 @@
 suppressPackageStartupMessages({library(data.table); library(ggplot2)})
 PIPELINE_ROOT <- Sys.getenv("PIPELINE_ROOT", "/pipeline")
 source(file.path(PIPELINE_ROOT, "scripts/R/utils/theme_adaptogene.R"))
+# Which scored offset root to read. Defaults to offset09, the 32-replicate run, so an
+# unparameterised call reproduces the frozen figure set; a new cohort passes OFFSET_DIR.
+OFF <- Sys.getenv("OFFSET_DIR", "offset09")
 OUT <- Sys.getenv("FIG_OUT", file.path(PIPELINE_ROOT,
         "benchmarks/mvp_eval/figures_FINAL_32seeds_112gardens"))
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 
-D  <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_eval/offset09/panel_pr_recomputed.tsv"),
+D  <- fread(file.path(PIPELINE_ROOT, file.path("benchmarks/mvp_eval", OFF, "panel_pr_recomputed.tsv")),
             colClasses = c(seed = "character"))
 D[, n_background := n - n_causal - n_linked]
-S  <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_eval/offset09/phase1_seed_medians_solo.tsv"),
+S  <- fread(file.path(PIPELINE_ROOT, file.path("benchmarks/mvp_eval", OFF, "phase1_seed_medians_solo.tsv")),
             colClasses = c(seed = "character"))
 man <- fread(file.path(PIPELINE_ROOT, "benchmarks/mvp_seeds.tsv"), colClasses = c(seed = "character"))
 
@@ -56,10 +59,10 @@ M[, arch := factor(arch_level, levels = c("oliogenic","mod-polygenic","highly-po
 # order holds in every facet and panels stay comparable across them.
 DM <- M[!panel %in% c("true QTNs\n(oracle)", "random\n(size-matched)")]
 DM[, panel := droplevels(panel)]
-ordD <- DM[, .(u = median(n_causal + n_linked)), by = panel][order(u)]$panel
+ordD <- DM[, .(u = as.numeric(median(n_causal + n_linked))), by = panel][order(u)]$panel
 DM[, panel := factor(as.character(panel), levels = as.character(ordD))]
-CM <- DM[, .(causal = median(n_causal), linked = median(n_linked),
-            background = median(n_background), total = median(n)), by = .(panel, arch)]
+CM <- DM[, .(causal = as.numeric(median(n_causal)), linked = as.numeric(median(n_linked)),
+            background = as.numeric(median(n_background)), total = as.numeric(median(n))), by = .(panel, arch)]
 CL <- melt(CM, id.vars = c("panel","arch"), measure.vars = c("causal","linked","background"),
            variable.name = "category", value.name = "n")
 CL[, category := factor(category, levels = c("causal","linked","background"),
@@ -114,7 +117,7 @@ fwrite(E, file.path(OUT, "abs_E_size_vs_architecture.tsv"), sep = "\t")
 # ---- F: usable markers vs accuracy -----------------------------------------
 # "Usable" = causal + linked. Too few and the panel cannot span the gradient;
 # too many and background noise takes over.
-FF <- M[, .(usable = median(n_causal + n_linked), noise = median(n_background),
+FF <- M[, .(usable = as.numeric(median(n_causal + n_linked)), noise = as.numeric(median(n_background)),
             accuracy = median(accuracy)), by = .(panel, arch)]
 pF <- ggplot(FF, aes(usable, accuracy, colour = panel, shape = arch)) +
     geom_point(size = 3.4, alpha = 0.9) +
