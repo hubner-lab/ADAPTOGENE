@@ -108,6 +108,29 @@ elif MODE == 'climate':
             touch {output}
             """
 
+elif MODE == 'traits':
+    rule write_summary:
+        """Write traits mode summary. Climate correlogram path is passed as
+        'NULL' in gwas_only — its presence is itself a reported metric."""
+        input:
+            summary   = O['trait_summary'],
+            invariant = O['trait_invariant'],
+            pairs     = O['trait_pairs'],
+            corr      = O['trait_corr'],
+            corr_clim = O['trait_corr_climate'] if CLIMATE_ENABLED else [],
+        output: W['summary_done']
+        params:
+            summary_tsv = O['summary'],
+            corr_clim_p = lambda wc, input: input.corr_clim if CLIMATE_ENABLED else 'NULL',
+        log: f"{LOGDIR}traits/write_summary.log"
+        shell:
+            """
+            Rscript /pipeline/scripts/write_summary.R \
+                traits {params.summary_tsv} \
+                {input.summary} {input.invariant} {input.pairs} {params.corr_clim_p} > {log} 2>&1
+            touch {output}
+            """
+
 elif MODE == 'structure':
     rule write_summary:
         """Write structure mode summary to Pipeline_summary.tsv."""

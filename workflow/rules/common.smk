@@ -164,6 +164,14 @@ else:
     ALL_BIO = [f"bio_{i}" for i in range(1, 20)]
 ALL_BIO_STR = ",".join(ALL_BIO)
 
+# TRAITS parameters (mode=traits — phenotypic factor characterization).
+# Runs in BOTH regimes: traits need no coordinates and no climate.
+# Blank-but-present is treated as absent: the Shiny sidebar can write a null
+# when a numeric input is cleared, and _cfg only falls back on a MISSING key —
+# int(None) would raise at parse time for every mode, not just traits.
+_traits_pairs_max = _cfg('Traits', 'pairs_max_factors', 8)
+TRAITS_PAIRS_MAX = int(_traits_pairs_max) if _traits_pairs_max not in (None, '') else 8
+
 # POP parameters
 CALC_POP_STATS = _cfg_bool('Population', 'calc_stats', False)
 METRICS_WINSIZE = _cfg('Population', 'window_size', 10000)
@@ -762,6 +770,7 @@ MOD_PROCESSING = f"{OUTDIR}Processing/"
 MOD_PRESTRUCT  = f"{OUTDIR}PreStructure/"
 MOD_PREGEA     = f"{OUTDIR}PreGEA/"
 MOD_CLIMATE    = f"{OUTDIR}climate/"
+MOD_TRAITS     = f"{OUTDIR}Traits/"
 MOD_STRUCT     = f"{OUTDIR}Structure/"
 MOD_GEA        = f"{OUTDIR}GEA/"
 MOD_GWAS       = f"{OUTDIR}GWAS/"
@@ -1419,7 +1428,17 @@ def pop_diff_plot(k): return f"{MOD_PRESTRUCT}plots/K{k}/pop_diff_K{k}.png"
 
 # Templates for climate/trait-dependent outputs
 DENSITY_PLOT_COMBINED    = f"{MOD_CLIMATE}plots/density_plot_present.png"
-DENSITY_PLOT_PHENOTYPES  = f"{MOD_CLIMATE}plots/density_plot_phenotypes.png"
+
+# TRAITS module outputs (mode=traits). Unconditional — no CLIMATE_ENABLED gate:
+# the whole point is that a gwas_only project, which has no climate and may
+# have no usable coordinates, still gets its factors characterized. Only the
+# traits+climate correlogram is climate-dependent.
+DENSITY_PLOT_PHENOTYPES   = f"{MOD_TRAITS}plots/density_plot_phenotypes.png"
+O['trait_corr']           = f"{MOD_TRAITS}plots/correlation_heatmap_traits.png"
+O['trait_corr_climate']   = f"{MOD_TRAITS}plots/correlation_heatmap_traits_climate.png"
+O['trait_pairs']          = f"{MOD_TRAITS}plots/trait_pairs.png"
+O['trait_summary']        = f"{MOD_TRAITS}tables/trait_summary.tsv"
+O['trait_invariant']      = f"{MOD_TRAITS}tables/trait_invariant.tsv"
 def piemap_tajima(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_tajima_d.png"
 def piemap_diversity(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}_pi_diversity.png"
 def piemap_notrait(bio): return f"{MOD_STRUCT}plots/piemap/piemap_{bio}.png"
@@ -1708,6 +1727,9 @@ dirs_to_create = [
         f"{MOD_CLIMATE}tables/present/", f"{MOD_CLIMATE}tables/spatial/", f"{MOD_CLIMATE}tables/varpart/",
         f"{MOD_CLIMATE}rasters/present/", f"{LOGDIR}climate/" ] if CLIMATE_ENABLED else []),
     f"{MOD_STRUCT}plots/piemap/", f"{MOD_STRUCT}tables/",
+    # Traits (mode=traits) — unconditional, unlike the climate dirs above:
+    # phenotypic factors exist in both regimes.
+    f"{MOD_TRAITS}plots/", f"{MOD_TRAITS}tables/", f"{LOGDIR}traits/",
     # Log subdirectories
     f"{LOGDIR}processing/", f"{LOGDIR}prestructure/", f"{LOGDIR}structure/",
     f"{LOGDIR}gea/", f"{LOGDIR}GEA/", f"{LOGDIR}maladaptation/",
@@ -1951,8 +1973,23 @@ def get_targets(mode):
             O['climate_vp_path_png'], O['climate_vp_venn_png'],
             O['climate_vp_px_png'],
         ]
-        if META_HAS_PHENO:
-            targets += [DENSITY_PLOT_PHENOTYPES]
+        # Phenotype density moved to mode=traits (Phase 3) — climate mode is
+        # climate predictors only now.
+        targets.append(W['summary_done'])
+        return targets
+
+    elif mode == 'traits':
+        if not META_HAS_PHENO:
+            raise ValueError(
+                "traits mode requires phenotypic trait columns in the metadata "
+                "(columns 5+ after site/sample/latitude/longitude)")
+        targets = [
+            DENSITY_PLOT_PHENOTYPES, O['trait_corr'], O['trait_pairs'],
+            O['trait_summary'], O['trait_invariant'],
+        ]
+        # Traits x climate correlogram: the only climate-dependent product here.
+        if CLIMATE_ENABLED:
+            targets.append(O['trait_corr_climate'])
         targets.append(W['summary_done'])
         return targets
 
