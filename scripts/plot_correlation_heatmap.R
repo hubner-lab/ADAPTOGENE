@@ -57,7 +57,11 @@ traits <- traits %>% dplyr::select(all_of(non_constant_traits))
 # distinct SITES, anything involving a phenotype over SAMPLES. (Deduplicating the
 # whole table instead would be a silent no-op the moment phenotype columns exist,
 # since those vary within a site.)
-climate_cols <- intersect(colnames(climate), colnames(traits))
+climate_cols <- base::intersect(colnames(climate), colnames(traits))
+# The site vector is taken positionally from `samples`, which the calling rule
+# (climate.smk) guarantees is row-aligned to `climate` — a guarantee that has
+# been broken once before. Fail loudly rather than dedupe against the wrong sites.
+stopifnot(nrow(samples) == nrow(climate))
 site_rows    <- !duplicated(samples$site)
 
 traits_df  <- as.data.frame(traits)   # base-R `[` semantics: traits is a data.table,
