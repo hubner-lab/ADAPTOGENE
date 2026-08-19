@@ -274,6 +274,7 @@ GEA:
 | `GEA.region_r2_threshold` | r² level at which LD is considered background; Hill-Weir curve inverted at this value | `0.2` |
 | `GEA.region_ld_decay_group` | Sample group from LD decay table for distance computation | `"All"` |
 | `GEA.promoter_length` | Promoter length (bp) upstream of gene start for SNP counting | `3000` |
+| `GEA.combine_method` | How per-method sig-SNP tables merge into the **static** `selected_snps.tsv` (and what the pipeline derives from it): `All` (union over every configured method), `Overlap` (only SNPs called by ≥2 methods within `snp_clumping_distance`), `MethodOverlap` (as `Overlap`, same predictor required), or a single configured method name. Does not affect the Shiny filter bar's strategy — see **Combine strategy** below | `"All"` |
 | `GEA.scattermore_threshold` | SNP count above which scattermore is used for Manhattan background rendering | `30000` |
 
 **configs format**: Each entry specifies:
@@ -288,7 +289,12 @@ GEA:
 
 **RDA** is multivariate: it emits one p-value column (`climate_multivariate`, a pseudo-trait standing in for the whole predictor set) rather than one column per predictor, so the Bonferroni denominator stays the full marker count. Per-SNP diagnostics (Mahalanobis distance, q-value, axis loadings, per-predictor correlation, assigned predictor) live in a side table, `GEA/tables/methods/RDA/RDA_candidates_K{k}.tsv`. Model diagnostics (aliased terms, retained axis count, adj. R², GIF λ, marker-envelope status) are in `RDA_diagnostics_K{k}.tsv`; full/by-axis/by-margin ANOVA in `RDA_anova_K{k}.tsv`. Requires `Climate.enabled: yes` and ≥2 predictors.
 
-**Combine strategy** (set in Shiny, not config): `All` (union of all methods) or `MethodOverlap` (intersection).
+**Combine strategy** — there are two, and they are separate on purpose:
+
+- **Interactive (set in Shiny, not config)** — the GEA/GWAS filter bar's strategy selector: `All` (union of all methods), `Overlap` (≥2 methods agree within the SNP clumping distance), or `MethodOverlap` (same, plus the two methods must agree on the same predictor). It re-derives from the per-method sig-SNP tables, drives the live region table/rectangles, and is stamped as provenance onto any SNP set you save for maladaptation — so **every genetic-offset run already carries the strategy you picked there**. Persisted per project in `_intermediate/region_params.json`, not in this YAML.
+- **Static (config)** — `GEA.combine_method` / `GWAS.combine_method` (above). Governs the pipeline-written `selected_snps.tsv`, the `regions_*`/`genes_*`/enrichment tables Snakemake derives from it, the `mode=gea_x_gwas` pairwise overlap table, and the combined/Miami background superset. Default `All` is a plain union with no family-wise control across methods — with ~10 methods configured it is the least selective option, and it is deliberately the default because these tables are the recall-maximal superset the interactive path curates down from. Set it only if you want the *published static* tables themselves narrowed.
+
+Note that `Overlap` is a ≥2-of-N rule over whatever methods are configured — with 11 methods, ≥2-of-11 is much weaker than the ≥2-of-3 panel used in the MVP benchmark. To get that scheme, configure three methods, not eleven.
 
 ---
 
@@ -402,6 +408,7 @@ GWAS:
 | `GWAS.region_r2_threshold` | r² background threshold (defaults to `GEA.region_r2_threshold`) | inherited |
 | `GWAS.region_ld_decay_group` | LD decay group (defaults to `GEA.region_ld_decay_group`) | inherited |
 | `GWAS.combine_gap` | Gap for merging SNP sets (defaults to `GEA.combine_gap`) | inherited |
+| `GWAS.combine_method` | Same as `GEA.combine_method`, for the static GWAS tables. **Not** inherited from GEA — the two sources have different method sets, so a single-method name valid for one is invalid for the other | `"All"` |
 | `GWAS.promoter_length` | Promoter length (defaults to `GEA.promoter_length`) | inherited |
 
 **Missing value strategies**:
