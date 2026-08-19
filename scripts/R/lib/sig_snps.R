@@ -55,7 +55,16 @@ find_significant_snps_per_trait <- function(pvalues_dt, adjustment, value, cpu,
             return(NULL)
         }
 
-        mask <- pvalues_dt[[trait]] < result$threshold
+        # INCLUSIVE (<=). compute_pval_threshold() returns a cutoff that is
+        # itself a member of the intended call set for two of the four rules:
+        #   top  N -> max_pvalue_top() = the N-th smallest p, so `<` returns N-1
+        #   qval f -> max_pvalue_fdr() = the LARGEST p whose q < f, so `<` drops
+        #             the boundary SNP and every SNP tied with it
+        # bonf/custom are unaffected in practice (exact equality on continuous p)
+        # but `<=` is also the convention there, and it matches the Manhattan's
+        # `log10p >= threshold_log10` (plot_manhattan.R, io_pvalues.R) so the
+        # table and the plot agree on the boundary SNP.
+        mask <- pvalues_dt[[trait]] <= result$threshold
         mask[is.na(mask)] <- FALSE
 
         pvalues_dt[mask, list(SNPID, chr, pos,
