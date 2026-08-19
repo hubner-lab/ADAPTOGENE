@@ -203,6 +203,48 @@ if (any(!complete_rows)) {
   clust <- clust[complete_rows, ]
 }
 
+# SITE-LEVEL AGGREGATION. Every one of the three matrices below is per SAMPLE,
+# but IBD/IBE is a question about SITES: geographic coordinates and climate values
+# are identical for every sample sequenced at a site, so a 30-sample site
+# contributes 435 within-site pairs at distance ~0 to both the geographic and the
+# environmental matrix, and Mantel's permutation test counts those as independent
+# units — the p-value is inflated by sampling effort, not by geography. The same
+# imbalance also weights scale()'s centre and sd by sample size, and unlike the
+# other consumers of the climate table this one turns the scaled columns into a
+# EUCLIDEAN DISTANCE, where column scale is meaningful and the weighting is
+# therefore NOT absorbed (cf. the note in download_climate_present.R).
+# So: collapse to one row per site first, then scale. Ancestry is averaged per
+# site (Q rows sum to 1, so the mean is still a valid ancestry composition —
+# the standard population-level unit for a Hellinger distance); coordinates are
+# averaged too, in case a site's samples carry slightly jittered coordinates.
+site_vec <- geo_raw$site[complete_rows]
+stopifnot(length(site_vec) == nrow(env_raw), nrow(geo) == nrow(env_raw),
+          nrow(clust) == nrow(env_raw))
+
+site_levels <- unique(site_vec)
+n_sites     <- length(site_levels)
+agg_mean <- function(df) {
+    as.data.frame(do.call(rbind, lapply(site_levels, function(s)
+        colMeans(as.matrix(df[site_vec == s, , drop = FALSE]), na.rm = TRUE))))
+}
+message(sprintf('INFO: collapsing %d samples to %d sites for the Mantel tests',
+                length(site_vec), n_sites))
+env_raw <- agg_mean(env_raw)
+geo     <- agg_mean(geo)
+clust   <- agg_mean(clust)
+
+if (n_sites < 4) {
+    stop('ERROR: Mantel test needs at least 4 sites (', n_sites, ' present) — ',
+         'a distance matrix over 3 sites has 3 pairs and no permutation test is ',
+         'meaningful. Disable Population.calc_stats or add sites.')
+}
+if (n_sites < 8) {
+    message(sprintf(paste0('WARNING: only %d sites — %d pairwise distances, and the ',
+                           'permutation test cannot resolve p below 1/%d. Read the ',
+                           'variance components as descriptive, not as a test.'),
+                    n_sites, n_sites * (n_sites - 1) / 2, factorial(n_sites)))
+}
+
 env <- scale(env_raw)
 
 # Drop zero-variance predictors (scale() produces NaN when sd=0)
