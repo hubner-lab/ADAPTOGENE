@@ -47,6 +47,37 @@ Chromosome names are normalized automatically during processing (`chr1` → `1`)
 
 ---
 
+## Test Dataset
+
+`test_data/` ships a small synthetic dataset so the pipeline is runnable straight after
+cloning — no external data required. 51 samples across 9 sites (synthetic Israel-like
+coordinates), 354 SNPs across 5 chromosomes, 3 phenotype traits (`height`,
+`flowering_time`, `disease_score`), a GO-annotated GFF3, planted climate-associated
+SNPs, and `*_DUP` near-clone samples that exercise the relatedness/IBS filter.
+
+```bash
+docker run --user $(id -u):$(id -g) --rm --memory=20g -v $PWD:/pipeline adaptogene:latest \
+  snakemake -c4 -s Snakefile --config mode=processing \
+    --configfile test_data/config_testdata.yaml --scheduler greedy
+```
+
+Replace `mode=processing` with subsequent modes as needed (see Pipeline Modes below).
+
+**Note:** `test_data/config_testdata.yaml` sets `Map.resolution: 2.5` (2.5m WorldClim),
+not the `0.5` (30s) used by the pipeline's internal development config — at 30s a fresh
+clone would download 10.4 GB of rasters before producing any output. 2.5m is ~666 MB and
+still resolves the Israel bounding box at ~30x55 pixels, enough for piemaps and Gradient
+Forest. `mode=structure` triggers this download into `test_data/` (gitignored, not
+tracked).
+
+This dataset is generated, not hand-written. Regenerating it means running three scripts
+in order against `data/`, then copying the outputs into `test_data/`:
+`scripts/generate_simdata.R` (30 samples / 3 sites) →
+`scripts/add_related_samples.R` (+3 `*_DUP` samples) →
+`scripts/add_pregea_sites.R` (+18 IDW-interpolated samples across 6 more sites).
+
+---
+
 ## Quick Start
 
 ```bash

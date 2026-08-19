@@ -12,6 +12,7 @@ CLAUDE.md
 CLAUDE.local.md
 Snakefile_old
 config_*.yaml
+!test_data/config_testdata.yaml
 WBDC*
 ANALYSIS/
 TEMP/
@@ -25,3 +26,8 @@ workflow/methods/__pycache__/
 .understand-anything/
 graphify-out/
 docs/
+
+# Input.dir doubles as the WorldClim cache dir (common.smk:66 -> structure.smk:47,
+# maladaptation.smk:26) — a local run of config_testdata.yaml drops rasters here.
+test_data/wc2.1_*
+test_data/climate/
