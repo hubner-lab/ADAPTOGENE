@@ -433,6 +433,45 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         selected_zoom    <- shiny::reactive(input$zoom %||% "none")
         selected_points  <- shiny::reactive(isTRUE(input$points))
 
+        # geometric_offset writes a conditioning diagnostic (see section 10b of
+        # scripts/geometric_offset.R). Surface its headline number here rather
+        # than leaving it unseen inside a TSV — same reason mod_climate.R lifts
+        # dbmem_diagnostics.tsv's `status` into the tab. When it fires, BOTH the
+        # importance bars and the offset ranking are artefacts of the predictor
+        # block, so the text goes on both cards.
+        geometric_conditioning_note <- shiny::reactive({
+            if (!identical(selected_method(), "geometric_offset")) return(NULL)
+            suf <- selected_suffix()
+            if (is.null(suf)) return(NULL)
+            d <- load_geometric_offset_diagnostics(project_data()$name, suf)
+            if (length(d) == 0) return(NULL)
+            status <- d[["status"]] %||% ""
+            if (!identical(status, "ok")) {
+                return(paste0("Conditioning diagnostic: ", status,
+                              " (geometric_offset_diagnostics.tsv)."))
+            }
+            share <- suppressWarnings(as.numeric(d[["offset_share_from_null_directions"]]))
+            share_site <- suppressWarnings(as.numeric(d[["offset_share_from_null_directions_site"]]))
+            if (!is.finite(share)) return(NULL)
+            base <- paste0(
+                round(100 * share, 1), "% of the realised offset (",
+                round(100 * share_site, 1), "% at the sampled sites) comes from eigen-directions ",
+                "carrying < ", 100 * as.numeric(d[["env_var_tolerance"]] %||% 1e-3),
+                "% of the environmental variance each — ",
+                d[["n_predictors"]], " predictors on ", d[["n_distinct_env_rows"]],
+                " distinct environment rows, condition number ",
+                d[["env_cov_condition_number"]], "."
+            )
+            if (share > 0.5 || (is.finite(share_site) && share_site > 0.5)) {
+                paste0("ILL-CONDITIONED PREDICTOR BLOCK. ", base,
+                       " The ranking and the importance bars are then set by the environment, ",
+                       "not by the markers. Reduce/decorrelate Climate.predictors before ",
+                       "interpreting either. Full breakdown: geometric_offset_diagnostics.tsv.")
+            } else {
+                paste0("Conditioning OK. ", base)
+            }
+        })
+
         # ── Importance images ──────────────────────────────────────────────────
         shiny::observe({
             suf    <- shiny::req(selected_suffix())
@@ -443,7 +482,8 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                 path    = shiny::reactive(gf_importance_path(pd$name, suf, "overall", method = method)),
                 title   = shiny::reactive("Overall Variable Importance"),
                 dl_name = shiny::reactive(paste0("overall_importance_", suf)),
-                note    = shiny::reactive(help_note("overall_importance"))
+                note    = shiny::reactive(help_note("overall_importance",
+                                                    extra = geometric_conditioning_note()))
             )
             mod_image_card_server("cumulative_importance",
                 path    = shiny::reactive(gf_importance_path(pd$name, suf, "cumulative", method = method)),
@@ -499,7 +539,7 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                            "absolute magnitude — eigenvalue weighting + candidate-set size ",
                            "make the raw number non-comparable across runs/datasets. ",
                            "Unvalidated absent common-garden data (docs/rda_research.md B20–B21).")
-                else NULL))
+                else geometric_conditioning_note()))
         )
 
         # ── Site table ─────────────────────────────────────────────────────────
