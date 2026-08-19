@@ -274,7 +274,9 @@ cbind(sample = samples$sample, site_values) %>%
 # a distance between environments, a penalised/ridge fit, a PCA of the predictors.
 # Same test: the sample- and site-weighted environmental distance matrices are only
 # Spearman 0.95 apart. Do not add such a consumer without switching to a site-level
-# centre/sd first. (The screen in pregea_rda_setup.R had the related problem via
+# centre/sd first. The one distance consumer in the pipeline, mantel_test.R, reads
+# the UNSCALED climate_present_site.tsv and does its own scaling — which is exactly
+# why it had to be moved to site-level rows there (see that script's own note). (The screen in pregea_rda_setup.R had the related problem via
 # repeated ROWS rather than scale — correlation is unaffected by the z-scoring but
 # not by the duplication — and is now computed over distinct sites there, as is the
 # climate block of plot_correlation_heatmap.R.)
