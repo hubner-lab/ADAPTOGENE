@@ -484,6 +484,13 @@ gf_importance_path <- function(project, suffix, type = "overall", method = "grad
              paste0(type, "_importance.png"))
 }
 
+#' Geometric-offset conditioning diagnostics table (long key/value)
+#' @noRd
+geometric_offset_diagnostics_path <- function(project, suffix) {
+    mod_path(project, MOD_MALAD, "tables", "geometric_offset", suffix,
+             "geometric_offset_diagnostics.tsv")
+}
+
 #' GF genetic offset piemap path
 #' @noRd
 gf_offset_piemap_path <- function(project, suffix, variant = "base", method = "gradient_forest") {
