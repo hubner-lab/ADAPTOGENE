@@ -189,7 +189,49 @@ GFF_BIOTYPE = _cfg('GFF', 'biotype', 'biotype')
 # ASSOCIATION parameters
 _assoc = config.get('GEA', {})
 _gff = config.get('GFF', {})
-SIGSNPS_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
+# Combine strategy for the STATIC pipeline tables only.
+#
+# Scope, precisely — this key does NOT govern the Shiny analysis path:
+#   * governed here: {GEA,GWAS}/tables/selected_snps.tsv and everything the
+#     Snakemake DAG derives from it (regions_per_trait, regions_combined,
+#     genes_*, pipeline-side GO enrichment), plus the pairwise overlap table
+#     built by mode=gea_x_gwas (workflow/rules/gea_x_gwas.smk), and the
+#     combined/Miami background superset the Shiny overlay falls back to.
+#   * NOT governed here: the strategy the Shiny GEA/GWAS filter bar applies.
+#     That one is interactive (mod_gea.R / mod_gwas.R `input$combine_strategy`,
+#     persisted per-project in _intermediate/region_params.json), it re-derives
+#     from the per-method sig-SNP tables rather than from selected_snps.tsv, and
+#     it is what stamps `strategy` onto a saved SNP set — so every maladaptation
+#     run already carries a user-chosen strategy regardless of this key.
+#
+# scripts/R/lib/combine_sigsnps.R implements four strategies; until now only
+# 'All' (the plain union over every configured method) was reachable from config,
+# because this value was hardcoded and the comment here pointed at
+# Maladaptation.methods.gradient_forest.combine_method, which is a legacy no-op
+# (see _GF_LEGACY below). Default is unchanged, so no existing project's output
+# moves; 'All' is also the right default for the static tables, which are the
+# recall-maximal superset the interactive path curates down from.
+_COMBINE_STRATEGIES = {
+    'All':           'Union over every configured method (pipeline default)',
+    'Sum':           'alias of All',
+    'Union':         'canonical name for All',
+    'Overlap':       '>=2 methods call a SNP within snp_clumping_distance of each other',
+    'Cross-method':  'canonical name for Overlap',
+    'MethodOverlap': 'as Overlap, but the two methods must agree on the same trait',
+    'PairOverlap':   'alias of MethodOverlap',
+}
+
+
+def _parse_combine_method(group_dict, method_names, label, default='All'):
+    """Validate <group>.combine_method: a strategy name or a single method name."""
+    val = str(group_dict.get('combine_method', default)).strip()
+    if val not in _COMBINE_STRATEGIES and val not in method_names:
+        raise ValueError(
+            f"{label}.combine_method must be one of "
+            f"{sorted(_COMBINE_STRATEGIES)} (see scripts/R/lib/combine_sigsnps.R) "
+            f"or a single configured method name {sorted(method_names)}; got {val!r}"
+        )
+    return val
 
 _VALID_REGION_MODES = ('auto_per_chromosome', 'auto_genome_wide', 'auto')
 
@@ -291,7 +333,10 @@ if _GF_LEGACY:
     import sys; print(
         f"WARNING: Maladaptation.methods.gradient_forest keys {list(_GF_LEGACY)} are no longer "
         "used. SNP sets are now saved from the GEA tab in the Shiny app. "
-        "See Maladaptation.snp_sets in config.", file=sys.stderr)
+        "See Maladaptation.snp_sets in config. The strategy used when saving a set is "
+        "chosen interactively in that tab; the strategy for the STATIC pipeline tables "
+        "(selected_snps.tsv and friends) is GEA.combine_method / GWAS.combine_method "
+        "(default 'All').", file=sys.stderr)
 
 if SPATIAL_CORRECTION not in ('with', 'without', 'both'):
     raise ValueError(
@@ -488,8 +533,12 @@ def _validate_rda_semantics(configs, params):
 if GEA_CONFIGS:
     _validate_rda_semantics(GEA_CONFIGS, GEA_PARAMS)
 
+SIGSNPS_METHOD = _parse_combine_method(_assoc, set(GEA_CONFIGS), 'GEA')
+
 # Inherit from GEA.* with optional override
-PHENO_COMBINE_METHOD = 'All'  # pipeline always uses All; combine strategy moved to gradient_forest config
+# (combine_method is NOT inherited from GEA: the two sources have different method
+#  sets, so a single-method name valid for one is invalid for the other.)
+PHENO_COMBINE_METHOD = _parse_combine_method(_pheno, set(GWAS_CONFIGS), 'GWAS')
 _gwas_rdp = resolve_region_params(_pheno, defaults=_assoc)
 PHENO_CLUMPING_DISTANCE      = _gwas_rdp['clumping_distance']
 PHENO_CLUMPING_DISTANCE_MODE = _gwas_rdp['clumping_distance_mode']
