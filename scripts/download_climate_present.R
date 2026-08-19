@@ -255,5 +255,26 @@ cbind(sample = samples$sample, site_values) %>%
   fwrite(paste0(TABLES_DIR, 'climate_present_site.tsv'), sep = '\t')
 
 # Save site values scaled (with sample column)
+#
+# NOTE on the weighting: these rows are per SAMPLE, and a site's climate values are
+# repeated for every sample sequenced there, so scale()'s centre and sd are weighted
+# by sampling effort rather than by the environment. That is INERT for every current
+# consumer of this file, because per-column centring and scaling is an affine
+# transform and every consumer is invariant to one: EMMAX/GAPIT regress one trait
+# column at a time; lfmm.R re-scales and passes a single column; rda.R,
+# pregea_varpart.R (including compute_Px(), which re-scales internally and correlates)
+# and pregea_rda_setup.R use the block only through its column span. Verified on a
+# deliberately unbalanced design (9 sites, n 30/2/2/15/1/1/20/1/1): sample- vs
+# site-weighted z-scores give identical lm p-values, projection matrices equal to
+# 2e-15, and an identical constrained variance fraction. Re-scaling site-wise would
+# rewrite this file and force a re-run of every GEA rule for zero numeric change.
+#
+# It stops being inert for any consumer that reads predictor SCALE as meaningful —
+# a distance between environments, a penalised/ridge fit, a PCA of the predictors.
+# Same test: the sample- and site-weighted environmental distance matrices are only
+# Spearman 0.95 apart. Do not add such a consumer without switching to a site-level
+# centre/sd first. (The screen in pregea_rda_setup.R had the related problem via
+# repeated ROWS rather than scale — correlation is unaffected by the z-scoring but
+# not by the duplication — and is now computed site-wise there.)
 cbind(sample = samples$sample, site_values %>% dplyr::mutate_all(scale)) %>%
   fwrite(paste0(TABLES_DIR, 'climate_present_site_scaled.tsv'), sep = '\t')

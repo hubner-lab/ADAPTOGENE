@@ -44,8 +44,35 @@ std_devs <- apply(traits, 2, sd, na.rm = TRUE)
 non_constant_traits = names(std_devs)[!is.na(std_devs) & std_devs != 0]
 traits <- traits %>% dplyr::select(all_of(non_constant_traits))
 
-# Compute correlation matrix
-cor_matrix <- cor(traits, use = 'pairwise.complete.obs')
+# Compute correlation matrix.
+#
+# BLOCK-WISE WEIGHTING. `climate` has one row per SAMPLE but its values are a
+# property of the SITE (identical for every sample sequenced there), while the
+# phenotype columns from `samples` are genuinely per-sample. Correlating the whole
+# table over sample rows would weight each site by its sample size, so a site with
+# 30 individuals counts 30x against a site with 1 in every climate-vs-climate |r|
+# a user reads off this figure when curating predictors — and those |r| would then
+# disagree with the site-weighted collinearity screen in pregea_rda_setup.R.
+# Each pair is therefore correlated at its natural unit: climate-vs-climate over
+# distinct SITES, anything involving a phenotype over SAMPLES. (Deduplicating the
+# whole table instead would be a silent no-op the moment phenotype columns exist,
+# since those vary within a site.)
+climate_cols <- intersect(colnames(climate), colnames(traits))
+site_rows    <- !duplicated(samples$site)
+
+traits_df  <- as.data.frame(traits)   # base-R `[` semantics: traits is a data.table,
+                                     # whose `[` would treat a character j as an
+                                     # expression, not a column selection
+cor_matrix <- cor(traits_df, use = 'pairwise.complete.obs')
+if (length(climate_cols) > 1 && sum(site_rows) >= 3) {
+  cor_matrix[climate_cols, climate_cols] <-
+    cor(traits_df[site_rows, climate_cols, drop = FALSE], use = 'pairwise.complete.obs')
+  message('INFO: climate-vs-climate correlations computed over ', sum(site_rows),
+          ' distinct sites (', nrow(traits_df), ' samples); phenotype pairs over samples')
+} else if (length(climate_cols) > 1) {
+  message('WARNING: only ', sum(site_rows), ' site(s) — climate correlations left ',
+          'sample-weighted (a site-level correlation needs >= 3 sites)')
+}
 
 # Build the heatmap using ggcorrplot
 gHM <- ggcorrplot(cor_matrix,
