@@ -156,3 +156,9 @@ work/**/*.svg
 
 # Local, machine-specific run wrappers and scratch docs (see local/ below)
 local/
+
+# Retired Laruson benchmark -- local development history only (2026-08-20).
+# Disqualified as a GEA benchmark (CLAUDE.md "Retired: Laruson et al. 2022"); the
+# 18 tracked files were its README, converter and eval tables. Kept on disk, out of
+# git: MVP replaced it and nothing in the pipeline reads from here at runtime.
+_archive/
