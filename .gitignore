@@ -121,6 +121,9 @@ benchmarks/mvp_eval/offset10/gardens/
 benchmarks/mvp_eval/offset11/gardens/
 benchmarks/mvp_eval/offset10/sweeplogs/
 benchmarks/mvp_eval/offset11/sweeplogs/
+benchmarks/mvp_eval/offset10/sweeplogs_big/
+benchmarks/mvp_eval/offset11/sweeplogs_big/
+benchmarks/mvp_eval/offset11/sweeplogs_bigA/
 benchmarks/mvp_eval/offset10/garden_performance.tsv
 benchmarks/mvp_eval/offset11/garden_performance.tsv
 benchmarks/mvp_eval/offset10/source_performance.tsv
