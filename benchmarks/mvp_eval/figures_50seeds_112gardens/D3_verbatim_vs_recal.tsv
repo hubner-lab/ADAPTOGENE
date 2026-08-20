@@ -1,0 +1,15 @@
+scheme_id	label	arm	recal	verbatim
+B2	all 11, union, 0kb, bonf 0.05	base	0.0709	0.0223
+B2	all 11, union, 0kb, bonf 0.05	m05	0.083	0.0031
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	base	0.1553	0.0638
+S1	LFMM+RDA+EMMAX, at_least_2, 5kb	m05	0.216	0.0883
+S2	LFMM+EMMAX, union, 0kb	base	0.1603	0.0919
+S2	LFMM+EMMAX, union, 0kb	m05	0.2081	0.1571
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	base	0.1491	0.0712
+S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	m05	0.1694	0.0916
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	base	0.1553	0.056
+S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	m05	0.216	0.1341
+S5	LFMM+RDA, union, 0kb	base	0.1513	0.081
+S5	LFMM+RDA, union, 0kb	m05	0.2105	0.145
+S6	all 11, at_least_3, 5kb	base	0.0573	0.0232
+S6	all 11, at_least_3, 5kb	m05	0.0863	0.0136

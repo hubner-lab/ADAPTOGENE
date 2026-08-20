@@ -1,0 +1,15 @@
+panel	spread	worst	best	aggregation
+true QTNs (oracle)	0.0324679348327857	0.671352111168369	0.703820046001155	median over replicates and offset methods (this script)
+≥2 methods agree	0.0125795307749714	0.711269611551495	0.723849142326466	median over replicates and offset methods (this script)
+EMMAX only	0.109015787144673	0.629865900659626	0.738881687804299	median over replicates and offset methods (this script)
+LFMM only	0.0694624299103255	0.591154845174247	0.660617275084572	median over replicates and offset methods (this script)
+RDA only	0.0528903746923545	0.662003928706814	0.714894303399169	median over replicates and offset methods (this script)
+all 3 methods agree	0.105676002447453	0.637552792446916	0.743228794894369	median over replicates and offset methods (this script)
+any method (union)	0.0618813793647435	0.616573400809221	0.678454780173964	median over replicates and offset methods (this script)
+true QTNs (oracle)	0.0409999999999999	0.678	0.719	as published in figures/table_absolute_counts.tsv
+>=2 agree	0.011	0.703	0.714	as published in figures/table_absolute_counts.tsv
+all 3 agree	0.195	0.553	0.748	as published in figures/table_absolute_counts.tsv
+union	0.144	0.547	0.691	as published in figures/table_absolute_counts.tsv
+LFMM only	0.148	0.536	0.684	as published in figures/table_absolute_counts.tsv
+RDA only	0.0499999999999999	0.675	0.725	as published in figures/table_absolute_counts.tsv
+EMMAX only	0.114	0.625	0.739	as published in figures/table_absolute_counts.tsv

@@ -5,6 +5,7 @@ data/
 TEST_results/
 TEST_logs/
 SIMDATA_results/
+SIMDATA_results_flat_old/
 SIMDATA_logs/
 .snakemake/
 .claude
@@ -17,6 +18,7 @@ WBDC*
 ANALYSIS/
 TEMP/
 benchmarks/.cache/
+_archive/laruson/benchmarks/laruson_sweep/
 app_cache/
 *_results/
 *_logs/
@@ -31,3 +33,110 @@ docs/
 # maladaptation.smk:26) — a local run of config_testdata.yaml drops rasters here.
 test_data/wc2.1_*
 test_data/climate/
+# MVP benchmark: regenerable per-cell p-value tables (rebuild with
+# benchmarks/mvp_score_published.R / rda_param_sweep.R). Scored summaries stay tracked.
+benchmarks/mvp_eval/published/
+benchmarks/mvp_eval/rda_sweep/*/*_pvalues.tsv
+
+# MVP GEA parameter sweep (benchmarks/mvp_run_sweep.sh -> mvp_score_sweep.sh).
+# Harvested per-cell p-value tables + Manhattans (3.1 GB) and per-cell scoring output are
+# regenerable from the {PROJECT}_results/ trees; the aggregated summaries in
+# benchmarks/mvp_eval/report/ are the deliverable and stay tracked. Same convention as the
+# mvp_eval/published/ rule above.
+benchmarks/mvp_eval/params/
+benchmarks/mvp_eval/sweep/
+benchmarks/mvp_eval/runlogs/
+benchmarks/mvp_eval/_gridtest/
+benchmarks/mvp_eval/_smoke/
+benchmarks/mvp_eval/*.log
+benchmarks/mvp_eval/c1_memtrace.txt
+# 13 MB row-level join of every operating point; rebuild with benchmarks/mvp_sweep_report.R
+benchmarks/mvp_eval/report/mvp_sweep_all.tsv
+
+# Journal 06: 11-method portfolio sweep (benchmarks/mvp_journal06.sh).
+# Same convention as the mvp_eval/params/ + sweep/ rules above: per-cell p-value tables,
+# WZA tables, Manhattans and raw per-tag enumerations are regenerable from the
+# {PROJECT}_results/ trees (2.1 GB here), so only the aggregated summaries are tracked.
+# Tracked deliverables: report06/, report06_m05/, redundancy*/, profile*/, wza*/.
+benchmarks/mvp_eval/params06/
+benchmarks/mvp_eval/params06_ibs/
+benchmarks/mvp_eval/params06_m05/
+benchmarks/mvp_eval/sweep06/
+benchmarks/mvp_eval/sweep06_m05/
+benchmarks/mvp_eval/portfolio/
+benchmarks/mvp_eval/portfolio_m05/
+benchmarks/mvp_eval/runlogs06/
+benchmarks/mvp_eval/probe_p11/
+benchmarks/mvp_eval/_harness_test/
+
+# Journal 07: cross-seed transfer benchmark (benchmarks/mvp_journal07.sh).
+# Same convention as the params/ + sweep/ + journal-06 rules above: harvested per-cell p-value
+# tables (22 GB), per-cell threshold sweeps (437 MB), run/score logs and the full per-tag
+# portfolio enumerations (52 MB/arm) are all regenerable from the {PROJECT}_results/ trees.
+# Tracked deliverables: report07/, redundancy07*/, wza07*/, and the small per-seed
+# *_transfer.tsv / *_candidates.tsv summaries that carry the transferred-scheme results.
+benchmarks/mvp_eval/params07/
+benchmarks/mvp_eval/params07_m05/
+benchmarks/mvp_eval/sweep07/
+benchmarks/mvp_eval/sweep07_m05/
+benchmarks/mvp_eval/runlogs07/
+benchmarks/mvp_eval/runlogs07_m05/
+benchmarks/mvp_eval/scorelogs07/
+benchmarks/mvp_eval/scorelogs07_m05/
+benchmarks/mvp_eval/repairlogs/
+benchmarks/mvp_eval/axislogs/
+benchmarks/mvp_eval/_j07test/
+benchmarks/mvp_eval/portfolio07/*_portfolio.tsv
+benchmarks/mvp_eval/portfolio07_m05/*_portfolio.tsv
+benchmarks/mvp_eval/axis07/*_portfolio.tsv
+benchmarks/mvp_eval/axis07_m05/*_portfolio.tsv
+
+# Journal 08/09 offset-arm intermediates. Same convention as mvp_eval/params/ and
+# sweep/ above: the harvested per-garden offsets and the run logs are regenerable
+# intermediates (689 MB, 18k files); the small summary/comparison tables in
+# offset08/ and offset09/ are the deliverable and stay tracked.
+benchmarks/mvp_eval/offset09/gardens/
+benchmarks/mvp_eval/offset09/runlogs/
+benchmarks/mvp_eval/offset08/runlogs/
+benchmarks/mvp_eval/offset08/_v1_singleaxis/
+benchmarks/mvp_eval/offset09/garden_performance.tsv
+benchmarks/mvp_eval/offset09/source_performance.tsv
+benchmarks/mvp_eval/offset09/garden_fitness_*.tsv
+
+# Group 1 expansion (2026-08) — regenerable intermediates, same convention as above.
+# Run logs and the byte-comparison reference snapshot are reproducible from the
+# pipeline; the summary tables, claims and final figures are the deliverable.
+benchmarks/mvp_eval/gate/
+benchmarks/mvp_eval/offset09/sweeplogs/
+benchmarks/mvp_eval/offset09/_gate_reference_1232218/
+benchmarks/mvp_eval/offset09/_gate_reference_1232218.md5
+benchmarks/mvp_eval/offset09/_gate_reference_1232218.provenance
+# Superseded partial-data figure sets — figures_FINAL_32seeds_112gardens/ replaces them.
+benchmarks/mvp_eval/figures_prelim/
+benchmarks/mvp_seeds.tsv.bak14
+benchmarks/mvp_eval/figures/
+
+# --- MVP panel expansion to 50 (offset10/) and 92 (offset11/) replicates -------------
+# Same convention as the offset09/ rules above: the harvested per-garden offsets and the
+# raw scorer output are bulk intermediates (11 GB and 9.4 GB), regenerable from the
+# {PROJECT}_results/ trees by mvp_garden_sweep.sh + eval_offset_lind.R. The SUMMARY tables
+# beside them -- panel medians, panel PR, coverage, offset exclusions, the comparison
+# tables -- are the deliverable and stay tracked.
+benchmarks/mvp_eval/offset10/gardens/
+benchmarks/mvp_eval/offset11/gardens/
+benchmarks/mvp_eval/offset10/sweeplogs/
+benchmarks/mvp_eval/offset11/sweeplogs/
+benchmarks/mvp_eval/offset10/sweeplogs_big/
+benchmarks/mvp_eval/offset11/sweeplogs_big/
+benchmarks/mvp_eval/offset11/sweeplogs_bigA/
+benchmarks/mvp_eval/offset10/garden_performance.tsv
+benchmarks/mvp_eval/offset11/garden_performance.tsv
+benchmarks/mvp_eval/offset10/source_performance.tsv
+benchmarks/mvp_eval/offset11/source_performance.tsv
+benchmarks/mvp_eval/offset10/garden_fitness_*.tsv
+benchmarks/mvp_eval/offset11/garden_fitness_*.tsv
+# Per-seed upstream sweep logs, same as mvp_eval/runlogs/ above.
+benchmarks/mvp_eval/runlogs_group2/
+benchmarks/mvp_eval/runlogs_group3/
+# Manifest snapshots taken before each expansion -- recoverable from git history.
+benchmarks/mvp_seeds.tsv.bak*

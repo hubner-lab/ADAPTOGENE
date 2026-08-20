@@ -1,0 +1,10 @@
+estimand	quantity	spearman_rho	n_units	unit	claims_md_reported
+panel_level	rho_recall_accuracy	-0.428571428571429	6	panel	-0.79
+panel_level	rho_noise_accuracy	-0.485714285714286	6	panel	-0.63
+panel_level	rho_precision_accuracy		6	panel	
+pooled_seed_x_panel	rho_recall_accuracy	0.0731165211576666	288	seed x panel	-0.79
+pooled_seed_x_panel	rho_noise_accuracy	-0.283682042763989	288	seed x panel	-0.63
+pooled_seed_x_panel	rho_precision_accuracy	0.203748703403543	288	seed x panel	
+within_replicate_median	rho_recall_accuracy	-0.440423813605602	48	replicate	-0.79
+within_replicate_median	rho_noise_accuracy	-0.485714285714286	48	replicate	-0.63
+within_replicate_median	rho_precision_accuracy	0.388634148192643	48	replicate	

@@ -1,0 +1,22 @@
+property	panel	rho
+local adaptation (final_LA)	true QTNs (oracle)	0.316667215446506
+local adaptation (final_LA)	≥2 methods agree	0.459723091122223
+local adaptation (final_LA)	EMMAX only	-0.395155112155718
+local adaptation (final_LA)	LFMM only	0.579335550380169
+local adaptation (final_LA)	RDA only	-0.120731948244188
+local adaptation (final_LA)	all 3 methods agree	-0.262878753371283
+local adaptation (final_LA)	any method (union)	0.587106120990554
+mean Fst	true QTNs (oracle)	0.123245103215007
+mean Fst	≥2 methods agree	0.0367381041710244
+mean Fst	EMMAX only	-0.0334975629889506
+mean Fst	LFMM only	0.237073134690904
+mean Fst	RDA only	0.108304556705841
+mean Fst	all 3 methods agree	-0.127118219370701
+mean Fst	any method (union)	0.235262159356459
+causal loci in replicate	true QTNs (oracle)	-0.151192703049003
+causal loci in replicate	≥2 methods agree	-0.0213083200472744
+causal loci in replicate	EMMAX only	-0.370111329818984
+causal loci in replicate	LFMM only	-0.0407469111997938
+causal loci in replicate	RDA only	0.0515452133188417
+causal loci in replicate	all 3 methods agree	-0.271475534830989
+causal loci in replicate	any method (union)	-0.0388607089227061

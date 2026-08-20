@@ -1,0 +1,7 @@
+stat	phase	seconds
+total (7 panels)	per-scenario calls	3604
+total (7 panels)	one batched call	249
+slowest job (neutral_all)	per-scenario calls	2300
+slowest job (neutral_all)	one batched call	128
+median job	per-scenario calls	36
+median job	one batched call	11

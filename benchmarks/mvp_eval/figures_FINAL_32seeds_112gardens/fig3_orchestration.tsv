@@ -1,0 +1,7 @@
+quantity	variant	count
+Snakemake invocations	old driver	84
+Snakemake invocations	scenario pipeline	1
+offset jobs	old driver	1764
+offset jobs	scenario pipeline	28
+clone lanes	old driver	4
+clone lanes	scenario pipeline	0

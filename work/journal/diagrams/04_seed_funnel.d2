@@ -1,0 +1,34 @@
+direction: right
+
+all: "все реплики депозита\n**2250** сидов" {
+  shape: rectangle
+}
+fst: "meanFst >= 0.05\n**2250** (критерий не связывает)" {
+  shape: rectangle
+}
+align: "cor_PC1_temp^2 в [0.30, 0.60]\n**146**" {
+  shape: rectangle
+  style.fill: "#2a1f14"
+  style.stroke: "#d8a24a"
+}
+control: "cor_PC1_sal^2 <= 0.20\n**55** — все SS-Mtn" {
+  shape: rectangle
+  style.fill: "#2a1f14"
+  style.stroke: "#d8a24a"
+}
+strat: "стратификация по архитектуре,\nтоп-4 по meanFst в каждой\n**12** основных" {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+ctrl: "+ **2** вырожденных контроля\nEst-Clines, R2 ~ 0.92-0.94" {
+  shape: rectangle
+  style.fill: "#2a1418"
+  style.stroke: "#d64550"
+}
+
+all -> fst
+fst -> align: "отсеяно **2104**"
+align -> control: "отсеяно **91**"
+control -> strat: "27 highly / 16 mod / 12 oligo"
+strat -> ctrl: "инверсия критерия выравнивания"

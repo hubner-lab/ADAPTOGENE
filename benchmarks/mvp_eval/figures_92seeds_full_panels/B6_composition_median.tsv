@@ -1,0 +1,67 @@
+arm	arch	label	causal	linked_neutral	background_neutral	n_called	n_seeds
+base	oligogenic	EMMAX	4	9	0	12.5	4
+base	oligogenic	LFMM	4.5	24.5	0	29.5	4
+base	oligogenic	RDA	1	0	0	1.5	4
+base	oligogenic	GLM	7	2222.5	1834	4064.5	4
+base	oligogenic	MLM	3.5	9	0	12	4
+base	oligogenic	CMLM	3	10.5	1.5	14.5	4
+base	oligogenic	ECMLM	3.5	9	0	12	4
+base	oligogenic	SUPER	7	880.5	586.5	1491.5	4
+base	oligogenic	MLMM	4	0	0	4	3
+base	oligogenic	FarmCPU	5.5	14	13.5	32.5	4
+base	oligogenic	BLINK	5.5	14	13.5	33.5	4
+m05	oligogenic	EMMAX	4	8.5	0	12	4
+m05	oligogenic	LFMM	4.5	22.5	0	27.5	4
+m05	oligogenic	RDA	1	0	0	1.5	4
+m05	oligogenic	GLM	6	1779	1397	3182.5	4
+m05	oligogenic	MLM	4	8.5	0	12	4
+m05	oligogenic	CMLM	2.5	5	1	10	4
+m05	oligogenic	ECMLM	4	8.5	0	12	4
+m05	oligogenic	SUPER	5.5	658	396	1031.5	4
+m05	oligogenic	MLMM	4	0	0	4	3
+m05	oligogenic	FarmCPU	4.5	16	12.5	33	4
+m05	oligogenic	BLINK	5	17	13	35.5	4
+base	highly polygenic	EMMAX	0	0	0	0	4
+base	highly polygenic	LFMM	0.5	0	0	0.5	4
+base	highly polygenic	RDA	0	0	0	0	4
+base	highly polygenic	GLM	106	1463	1252	2868.5	4
+base	highly polygenic	MLM	0	0	0	0	4
+base	highly polygenic	CMLM	0	2	0.5	3	4
+base	highly polygenic	ECMLM	0	0	0	0	4
+base	highly polygenic	SUPER	75	836	717.5	1618.5	4
+base	highly polygenic	MLMM	0	0	0	0	4
+base	highly polygenic	FarmCPU	3	20.5	17.5	45	4
+base	highly polygenic	BLINK	1.5	21.5	17	43	4
+m05	highly polygenic	EMMAX	0	0	0	0	4
+m05	highly polygenic	LFMM	0.5	0	0	0.5	4
+m05	highly polygenic	RDA	0	0	0	0	4
+m05	highly polygenic	GLM	62.5	1241	1073	2421.5	4
+m05	highly polygenic	MLM	0	0	0	0	4
+m05	highly polygenic	CMLM	1	6	2.5	11	4
+m05	highly polygenic	ECMLM	0	0	0	0	4
+m05	highly polygenic	SUPER	49.5	792	670.5	1508.5	4
+m05	highly polygenic	MLMM	0	0	0	0	4
+m05	highly polygenic	FarmCPU	3.5	24.5	16	44	4
+m05	highly polygenic	BLINK	3	18.5	11	35.5	4
+base	moderately polygenic	EMMAX	1	1	0	2	4
+base	moderately polygenic	LFMM	4	3	0	7	4
+base	moderately polygenic	RDA	0	0	0	0	4
+base	moderately polygenic	GLM	18.5	798.5	719.5	1538.5	4
+base	moderately polygenic	MLM	1	0.5	0	1.5	4
+base	moderately polygenic	CMLM	0.5	1.5	1	3.5	4
+base	moderately polygenic	ECMLM	1	0.5	0	1.5	4
+base	moderately polygenic	SUPER	18	603.5	528.5	1153.5	4
+base	moderately polygenic	MLMM	1	0.5	0	1.5	4
+base	moderately polygenic	FarmCPU	3	13	14.5	34	4
+base	moderately polygenic	BLINK	2.5	13	12	29.5	4
+m05	moderately polygenic	EMMAX	1	0.5	0	1.5	4
+m05	moderately polygenic	LFMM	3.5	2.5	0	6	4
+m05	moderately polygenic	RDA	0	0	0	0	4
+m05	moderately polygenic	GLM	15.5	646	562	1227	4
+m05	moderately polygenic	MLM	1	0	0	1	4
+m05	moderately polygenic	CMLM	0	0.5	0	1	4
+m05	moderately polygenic	ECMLM	1	0	0	1	4
+m05	moderately polygenic	SUPER	14	449	356.5	821.5	4
+m05	moderately polygenic	MLMM	1	0	0	1	4
+m05	moderately polygenic	FarmCPU	3.5	12	13.5	34.5	4
+m05	moderately polygenic	BLINK	4.5	12.5	7	24	4

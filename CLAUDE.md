@@ -100,9 +100,11 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
   snakemake -n -s Snakefile --config mode=<MODE> --configfile config_SIMDATA.yaml --scheduler greedy
 ```
 
-**Pipeline modes**: `processing`, `prestructure`, `structure`, `climate`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
+**Pipeline modes**: `processing`, `prestructure`, `structure`, `climate`, `traits`, `pregea`, `gea`, `gwas`, `gea_x_gwas`, `maladaptation`
 
 *`climate` — predictor characterization: correlation heatmap, density plots, invariant-predictor detection, plus the shared spatial artifacts — dbMEM eigenvectors + climate/structure/geography variance partitioning (`climate/{plots,tables}/{spatial,varpart}/`). The dbMEM/varpart products are reused by the spatial Gradient Forest, so **run `mode=climate` before requesting a spatial (or `both`) Gradient Forest in `mode=maladaptation`** — there is no config-time guard for this ordering anymore (varpart is now unconditional inside `mode=climate`, no `enabled` switch). WorldClim download / custom-climate staging stays in `mode=structure` (climate_site feeds Structure's own piemaps); the climate/structure boundary is "predictor characterization" vs "raw data acquisition".*
+
+*`traits` — the phenotypic counterpart of `mode=climate`: per-trait density plots, a traits-only correlogram, a pairs grid, and trait summary / invariant-trait tables (`Traits/{plots,tables}/`). **Runs in both regimes and needs no coordinates and no climate** — that is the point: `mode=climate` raises when `Climate.enabled: false`, so in `gwas_only` (where traits are the only factors a project has) trait characterization used to be unreachable. The one climate-dependent product is the joint traits x climate correlogram (`correlation_heatmap_traits_climate.png`), emitted only when `Climate.enabled: true`, which means `mode=structure` (climate extraction) must have run first; the Shiny Phenotypic tab toggles between the two correlograms and hides the toggle when the joint one is absent. `Traits.pairs_max_factors` (default 8) caps the pairs grid — above it the rule writes a placeholder PNG+SVG instead of an unreadable k x k grid. Phenotype density moved here from `mode=climate`; the climate correlogram is climate-only now.*
 
 *`pregea` (optional, added alongside RDA integration) — LD-pruned-only hyperparameter exploration: LFMM-K / EMMAX-#PC / RDA Condition()-PC ladders, now ONE decision (LFMM/EMMAX/RDA always run together, no per-block switches). EMMAX #PCs and RDA Condition()-PCs sweep ONE shared range (`PreGEA.n_pcs_max`). Predictor characterization + dbMEM/varpart moved out to `mode=climate`. Writes `PreGEA/tables/pregea_recommendations.tsv`, one row per (method, param); the Shiny GEA tab's method editor reads it for pre-fill/Apply badges. See `docs/rda_research.md` Part C for the design rationale.*
 
@@ -133,6 +135,7 @@ docker run --user $(id -u):$(id -g) --rm -v $PWD:/pipeline adaptogene:latest \
 Config uses nested YAML groups. Old flat `UPPER_SNAKE_CASE` keys are auto-migrated via `_migrate_config()` with deprecation warnings.
 
 1. **input** - `dir`, `vcf`, `metadata`, `gff` + top-level `project_name`, `cpu`
+1b. **Regime** - `mode`: `standard` (geography + climate: structure, GEA, maladaptation) or `gwas_only` (no coordinates: Home/Processing/PreStructure/Structure/GWAS). Declared once at project creation and **hard-validated** in `common.smk` — an unknown value raises at parse time. `Climate.enabled` is **derived** from it (`gwas_only` forces `false`) on every write the Shiny app makes, and forced to `False` in `common.smk` for a hand-written CLI config; it is no longer user-editable in the app. A project predating the key is read as `gwas_only` only when it sets `Climate.enabled: false` explicitly, else `standard`.
 2. **filter** - `maf`, `snp_miss`, `sample_miss`
 3. **ld** - `window`, `step`, `r2`
 4. **snmf** - `k_start`, `k_end`, `k_best`, `ploidy`, `repeats`
@@ -169,6 +172,10 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 │   ├── tables/varpart/                    # variance_partition, climate_confounding, px_per_variable, dbmem_selected, dbmem_selection_path
 │   ├── tables/future/                     # climate_future_year{Y}_ssp{S}_site.tsv, _all.tsv
 │   └── rasters/{present,future}/          # WorldClim .tif rasters (terra)
+├── Traits/                                # mode=traits — phenotypic factor characterization, BOTH regimes
+│   ├── plots/                             # density_plot_phenotypes, correlation_heatmap_traits,
+│   │                                      # correlation_heatmap_traits_climate (standard only), trait_pairs
+│   └── tables/                            # trait_summary.tsv, trait_invariant.tsv
 ├── Structure/
 │   ├── plots/piemap/                      # piemap_{bio}.png/svg/qs + _points.png/svg/qs (clear-map companion) + zoom/
 │   ├── plots/piemap/{tajima_d,pi_diversity}/  # trait-scaled piemaps (optional)
@@ -212,9 +219,9 @@ Organized by **module** (matching pipeline modes). Each module owns its plots an
 
 ### Workflow Dependencies
 
-**Pipeline flow**: Processing → PreStructure → Structure → Climate → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
+**Pipeline flow**: Processing → PreStructure → Structure → Climate / Traits → PreGEA (optional) → GEA/GWAS → GEAxGWAS → Maladaptation
 
-(Climate and PreGEA are both siblings off Structure — neither is a hard input to the other; the spatial Gradient Forest in Maladaptation depends on Climate's dbMEM/varpart outputs.)
+(Climate, Traits and PreGEA are all siblings — none is a hard input to another; the spatial Gradient Forest in Maladaptation depends on Climate's dbMEM/varpart outputs. Traits needs only Processing's `metadata.tsv`, except for its optional joint traits x climate correlogram, which needs Structure's climate extraction.)
 
 Each mode is run separately via `--config mode=<MODE>`.
 
@@ -229,17 +236,34 @@ Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand
 | | **SIMDATA** |
 |---|---|
 | **Config** | `config_SIMDATA.yaml` |
-| **Size** | 51 samples / 9 sites raw (47 samples after filtering), 354 SNPs, 5 chr |
+| **Size** | 51 samples / 9 sites raw (50 samples after filtering), 350 SNPs raw / 337 filtered / 230 LD-pruned, 5 chr, 3 traits (height, flowering_time, disease_score) |
 | **Speed** | Seconds to ~2 min |
 | **Purpose** | Primary testing dataset — all routine development |
 | **Features** | 3 original pops (Negev/TelAviv/Galilee) + 6 preGEA sites added by `scripts/add_pregea_sites.R` (spatially IDW-interpolated genotypes/phenotypes, inside the original coordinate bounding box so `Climate.climate_extent: auto` reuses the cached WorldClim raster), missing data test, climate-associated SNPs, GO terms, relatedness-test duplicate samples (`*_DUP`, `scripts/add_related_samples.R`) |
 
 **`test_data/config_testdata.yaml` is a separate, tracked copy of SIMDATA for GitHub** (2026-08-19) — `data/` and `config_SIMDATA.yaml` are gitignored, so a fresh clone had no runnable dataset. `test_data/` ships copies of the SIMDATA VCF/metadata/GFF renamed to `testdata.*` (`project_name: testdata`), plus `config_testdata.yaml` (same as `config_SIMDATA.yaml` except `Map.resolution: 2.5` — avoids a 10.4 GB WorldClim download on first clone). **Do not confuse the two**: `config_SIMDATA.yaml` is the local working config (37 GB WorldClim cache in `data/`, 30s resolution) — never edit `test_data/*` expecting it to affect local SIMDATA runs, and never point local dev at `test_data/`. See README "Test Dataset" section.
+**Rebuilding SIMDATA from scratch** (it is gitignored — `data/` and `config_*.yaml` both are — so a fresh clone has no fixture; rebuilt 2026-08-15 after exactly that):
+1. `Rscript scripts/generate_simdata.R data/` — writes **only** `data/SIMDATA.vcf` and `data/SIMDATA.gff3`
+2. **Write `data/SIMDATA_metadata.tsv` by hand** — the generator does not produce it. Columns must be exactly `site sample latitude longitude height flowering_time disease_score` (both injector scripts below hardcode those trait names), sample names `NEG01-10`/`TAV01-10`/`GAL01-10`, and coordinates **identical within a site** (Negev 30.854/34.7826, TelAviv 32.0837/34.7817, Galilee 33.0128/35.4985) — `add_pregea_sites.R:74` asserts exactly 3 distinct `(site, lat, lon)` triples and dies otherwise
+3. `Rscript scripts/add_related_samples.R` **then** `Rscript scripts/add_pregea_sites.R` — that order matters: the second excludes `_DUP` samples from its IDW anchor set
+4. Write `config_SIMDATA.yaml` from `scripts/adaptogene.app/inst/config_default.yaml`; `sNMF.k_best: 3` is ground truth (3 simulated ancestral populations), not a cross-entropy guess
+5. WorldClim: `data/wc2.1_30s/` is a cached 11 GB global extract — as long as it is present, `mode=structure` does no download
 
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
 2. Test with SIMDATA (`config_SIMDATA.yaml`)
 3. Only spin up a real-data project (its own `config_<PROJECT>.yaml`) for validation the user explicitly requests
+
+### Retired: Láruson et al. 2022 — unusable as a GEA benchmark (2026-08-01)
+
+Archived to `_archive/laruson/`. **Do not revive it for GEA benchmarking.** Two disqualifying properties, both confirmed from the Dryad archive's own simulation parameters and from our runs:
+
+1. **No population structure.** SLiM parameters are `m = 0.2`, `n = 100` → Nm = 20 migrants/deme/generation, expected Fst ≈ 0.012. Measured: PC1 = 0.38% of variance, PC1–3 = 0.94%. Worse, **PC1/PC2 are just a rotation of the two environmental axes** (R²_env = 0.835 / 0.838; PC3 onward ≈ 0.006). There is no structure confounding the environment — the only structure present *is* the adaptive signal. Consequence: structure correction can only destroy signal (EMMAX `n_pcs` 0 → 3 collapses AUC-PR 0.580 → 0.052; RDA `condition_pcs` likewise), so the dataset cannot exercise or validate the pipeline's structure-correction machinery at all. It was built to test Gradient Forest genetic-offset prediction, not GEA.
+2. **Truth set incompatible with our MAF filter.** `causal_mutations_pos_filtered.txt` lists causal variants already MAF-filtered by the authors at **MAF ≥ 0.01** (minimum causal MAF is exactly 0.010000), but the shipped VCF is their *unfiltered* one. At our `Filter.maf: 0.05` only **28 of 102** causal loci are testable; at 0.01 all 102 are. Any recall figure against the 102 denominator is capped at ~27% by construction.
+
+Also: LD decays to r²=0.2 at **591 bp** (`r = 1e-5`, ≈5 Morgans over the 500 kb contig), so causal loci cannot be picked up via linked markers — and WZA is useless here (only 50 windows genome-wide).
+
+The reusable parts were kept out of the archive: `benchmarks/lib_detection.R`, `eval_detection.R`, `sweep_thresholds.R`, `sweep_rda.sh`, `score_ladders.sh` are dataset-agnostic (they take any wide p-value table + a `chr/pos/category` truth table) and should be reused by the next simulation benchmark.
 
 ### Testing Guidelines
 
@@ -260,6 +284,39 @@ Prefer Snakemake flags over manually removing files.
 1. **Do NOT read/view image files** (PNG, SVG, JPG) - User checks plots themselves
 2. **Do NOT modify `Snakefile_old`** - Reference only
 3. **Chromosome normalization** - Pipeline strips "chr" prefix early (chr1→1, chr2H→2H). Both VCF and GFF normalized in processing mode. All outputs use normalized names.
+4. **Log every manual workaround to `docs/pipeline_improvement_requests.md`** — see below. This is mandatory in every session, not optional.
+
+## MANDATORY: Log pipeline gaps as you hit them
+
+**Whenever you have to work *around* the pipeline, append an entry to
+[`docs/pipeline_improvement_requests.md`](docs/pipeline_improvement_requests.md) — in the same
+session, at the moment you hit it, not at the end.**
+
+The trigger is any of:
+
+- **You wrote a helper script to obtain something the pipeline already computed but never wrote to
+  disk.** (Canonical case: cross-entropy is rendered as a PNG only, and rule 1 forbids reading
+  plots — so `sNMF.k_best` could not be chosen from pipeline output at all without extracting the
+  values from the `.snmfProject` by hand.)
+- **You hand-built an output the pipeline cannot emit**, even though the logic exists somewhere in
+  the codebase (e.g. `combine_sigsnps()` implements the ≥2-method consensus rule, but
+  `SIGSNPS_METHOD` is hardcoded so batch mode can only union).
+- **A config value was accepted at parse time and rejected at run time**, after other rules had
+  already burned compute.
+- **An output is misleading, stale, or contradicts a sibling output** in the same directory.
+- **You needed a number to make a decision and no table contained it** — especially a dispersion
+  or uncertainty measure that turns "the minimum is at X" into "the minimum is inside the noise".
+- **Cross-run / cross-project comparison** — nothing in the pipeline compares two `_results/`
+  dirs, so every multi-arm design re-invents this.
+
+**Entry format:** what happened → why it cost something → what would fix it. Cite `file:line` when
+known. Tag `[workaround]` and name the script when a script was written — those are the strongest
+candidates, since the fix already exists and only needs adopting.
+
+**This file is a request queue, not a changelog.** Under `CLAUDE.local.md`'s USE-ONLY mode you log
+the request and move on; you do not implement it. The user decides later what graduates into the
+pipeline. Do not let a gap live only in the session transcript — that is exactly what this file
+exists to prevent.
 
 ## Common Development Tasks
 
@@ -406,9 +463,33 @@ docker run --user $(id -u):$(id -g) --rm -e USER=pipeline -p 3838:3838 -v $PWD:/
 
 ### Visual Testing
 
-**Do NOT use `playwright-cli` for this project.** The Shiny app is too complex for automated UI testing — state management, reactive dependencies, and selectize.js dropdowns make playwright-cli more friction than value here.
+**Playwright is allowed and encouraged for layout/visual checks — no need to ask per session.**
+(Reversed 2026-08-14: the old blanket ban cost more than it saved. One 40-line script caught two
+layout bugs — a flex-shrunk nav bar and a 12px page-level horizontal scroll — that parse checks,
+Sass compilation and HTML inspection all passed clean.)
 
-**Instead:** the user tests manually in the browser and sends screenshots when something needs review. Wait for the user to report what they see before making UI fixes.
+**How to invoke:** the `playwright-cli` wrapper named in the global CLAUDE.md is *not* on PATH on
+this machine. Use plain `playwright` (1.58.0) or, for anything involving clicks and assertions,
+the Python API — `python3` + `from playwright.sync_api import sync_playwright`. Browsers are
+cached at `~/.cache/ms-playwright/`.
+
+**What it is good for:** anything measurable in the DOM or visible in a screenshot — element
+geometry, overflow/scroll behaviour at several viewport widths, computed styles, which pane is
+active, whether a control is visible. Prefer *asserting* over eyeballing: screenshot for the look,
+`page.evaluate()` for the facts.
+
+**What it is still bad for:** deep stateful flows. The app's reactive dependencies and selectize.js
+dropdowns make long scripted journeys brittle (a known one: the project dropdown ignores
+`Shiny.setInputValue()` — you must click the container, wait for the option refs, then click the
+option). Keep scripts short and single-purpose; do not build a UI regression suite out of them.
+
+**Gotcha — scope your selectors.** The app nests navsets inside module panels, so a bare
+`.tab-content > .tab-pane.active` matches an inner tabset, not the main one. Read
+`#main_tabs`'s `data-tabsetid` and query
+`.tab-content[data-tabsetid="<id>"] > .tab-pane.active` instead.
+
+The user still reviews the actual design — send screenshots and wait for the verdict on anything
+aesthetic. Playwright replaces the *mechanical* half of that loop, not the judgement half.
 
 ### Architecture
 

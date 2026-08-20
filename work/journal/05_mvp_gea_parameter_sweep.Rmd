@@ -1,0 +1,712 @@
+---
+title: "05. Развёртка параметров GEA на бенчмарке MVP — ADAPTOGENE"
+subtitle: "14 реплик · 4 метода (EMMAX / LFMM / RDA / BLINK) · 5 рунгов коррекции структуры · сетка порогов × правила объединения"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда: контейнер adaptogene:latest (Docker) для всех R-скриптов и snakemake;
+# d2 CLI — с хоста.
+# Клиент docker: /snap/bin/docker на этой машине падает (setuid заблокирован, nosuid+NoNewPrivs),
+# поэтому каждый вызов обёрнут в `nix shell nixpkgs#docker-client -c docker ...` — см. CLAUDE.local.md.
+# Аргумент `-e USER=pipeline` обязателен: без него getpwuid() внутри snakemake падает под --user.
+#
+# Рендер: nix shell nixpkgs#docker-client -c docker run --rm --user $(id -u):$(id -g) -e USER=pipeline \
+#   -v /mnt/data/eugene/ADAPTOGENE:/mnt/data/eugene/ADAPTOGENE \
+#   adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/mnt/data/eugene/ADAPTOGENE/work/journal/05_mvp_gea_parameter_sweep.Rmd")'
+# (пути хоста монтируются 1:1, не в /pipeline — литеральные пути проверок файлов должны
+# резолвиться внутри контейнера так же, как снаружи, см. Стадию 01/02/04.)
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+```
+
+## Обзор
+
+Обзор файла: измерение компромисса «сколько истинных адаптивных локусов найдено / сколько
+ложноположительных» на 14 симуляционных репликах MVP — как функции метода GEA, рунга коррекции
+популяционной структуры, порога значимости и правила объединения методов. Заявка пайплайна
+состоит в том, что пользователь, который может гонять несколько методов, крутить их коррекцию
+структуры и объединять вызовы на пороге, выбранном по манхэттен-плоту, вытаскивает больше
+истинных локусов при той же цене ложных, чем любой одиночный метод на дефолтах.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/05_00_abstract.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path, "\n")
+}
+```
+
+---
+
+## 1. Что именно измеряется, и три конфигурации
+
+<div class="callout-method">
+Единица наблюдения — **операционная точка**: кортеж (реплика, метод, рунг, правило порога,
+правило объединения). Для каждой считаются `precision_strict`, `recall_testable`, `F1` и число
+вызовов, по таблице истины реплики.
+
+**Метрика точности — `precision_strict`.** Ложноположительными считаются ТОЛЬКО локусы категории
+`background_neutral` (группы сцепления 11–20). Это собственная конвенция исходной статьи
+(Lotterhos 2023, Methods: *«the performance statistics were calculated by only including truly
+neutral loci unaffected by selection on linkage groups 11 to 20 and the QTNs»*) и она же
+реализована в `benchmarks/lib_detection.R`. `precision_all` выводится рядом для прозрачности:
+примерно половина генома — `linked_neutral`, поэтому две метрики расходятся сильно.
+
+**Контракт скоринга** (`benchmarks/MVP_README.md:41-62`) — единственное, что здесь легко
+испортить необратимо, потому что неверная пара «таблица истины × предиктор» молча превращает
+настоящие детекции в ложноположительные:
+
+- EMMAX / LFMM / BLINK → `truth_temp.tsv` + `bio_1` (частично конфаундированная ось),
+  `truth_sal.tsv` + `bio_2` (ортогональный контроль), `truth_any.tsv` + `all`
+- RDA → **только** `truth_any.tsv` + `all`: `rda.R:689` пишет одну колонку
+  `climate_multivariate`, поосевого p-значения не существует
+
+**Три конфигурации, которые нельзя смешивать:**
+
+- **default** — ячейка `c3`, все методы на `sNMF.k_best`. То, что пайплайн делает, если
+  пользователь ничего не трогает.
+- **pregea** — каждый метод на рунге, который порекомендовал `mode=pregea`. Таблица истины не
+  используется. **Это достижимая конфигурация**, и именно на ней держится заявка.
+- **oracle** — каждый метод на рунге с максимальным AUC-PR *по таблице истины*. **Верхняя
+  граница и ничего больше**: у пользователя таблицы истины нет. Подавать её как
+  «производительность пайплайна» означало бы свести всё утверждение к «зная ответ, легче найти
+  ответ». Она нужна только чтобы измерить, сколько `pregea` оставляет на столе.
+</div>
+
+---
+
+## 2. Лестницы рунгов и генерация ячеек
+
+<div class="callout-method">
+**R 4.5 / data.table** в контейнере `adaptogene:latest`, скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_sweep_configs.R`.
+
+Причина, по которой развёртка вообще требует отдельных конфигов: пайплайн запрещает
+повторяющиеся имена методов внутри одного `GEA.configs` (`workflow/rules/common.smk:404`), а имя
+выходного файла `{method}_pvalues_K{k_best}.tsv` кодирует `sNMF.k_best` и **никогда** — сам
+развёртываемый параметр (`common.smk:1308`). Значит одна лестница = один прогон `mode=gea` на
+рунг, с выносом таблиц между прогонами.
+
+- `k` = `sNMF.k_best` реплики (2–7, из колонки `K` самого депозита, с полом 2)
+- **лестница `n_pcs`** (EMMAX `n_pcs`, RDA `condition_pcs`, BLINK `n_pcs` → число PC-ковариат):
+  `{0, round(k/2), k, 2k, min(20, 4k)}`
+- **лестница LFMM `K`**: `{k-2, k-1, k, k+2, k+4}`, обрезано в `[1,20]`, дедуплицировано и
+  дополнено вверх до 5 различных рунгов (при `k=2` иначе `c1` и `c2` схлопнулись бы на `K=1` и
+  ячейка молча пересчитывала бы ту же подгонку)
+- `c3` — дефолтный рунг пайплайна (сентинел `@k_best`, `workflow/methods/gea.py:43`)
+- `c1` (0 PC) — самый нагруженный рунг именно на этих данных: сиды отбирались по
+  R²(PC1~temp) ∈ [0.30, 0.60], то есть коррекции структуры есть что делать. Он же воспроизводит
+  нескорректированное плечо RDA у Lotterhos: при `condition_pcs=0` второй подгонки нет и правило
+  `pmax` вырождается в тождество
+
+Ячейка — приём амортизации счёта, а **не** совместная конфигурация под тестом: ячейка *i* просто
+ставит каждый метод на его собственный *i*-й рунг, чтобы один прогон дал по рунгу для каждого из
+четырёх методов. Лестницы скорятся независимо; смешанные наборы (`oracle`, `pregea`) снимают это
+ограничение.
+
+Каждый выходной конфиг — это базовый конфиг реплики с заменённым **только** блоком `GEA:`.
+`project_name` не меняется, поэтому upstream (`processing`→`prestructure`→`structure`) считается
+один раз на реплику и переиспользуется всеми ячейками. `Input.*` побайтово совпадает между
+ячейками одной реплики, поэтому предупреждение `CLAUDE.md` про два конфига с одним
+`project_name`, смотрящих на разные сырые данные, здесь не срабатывает — они смотрят на одни и
+те же данные намеренно.
+</div>
+
+```{r 02-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_sweep_configs.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_sweep_cells.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548_c1.yaml",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548_c5.yaml"))
+```
+
+```{bash 02-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_write_sweep_configs.R
+```
+
+```{r 02-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_sweep_cells.tsv"
+if (file.exists(f)) {
+  cl <- fread(f, colClasses = c(seed = "character"))
+  lad <- dcast(cl, seed + k_best ~ method + cell, value.var = "value")
+  cat("Строк в манифесте:", nrow(cl), "(ожидается 14 x 5 x 4 = 280)\n\n")
+  print(cl[, .(рунги = paste(value, collapse = ",")), by = .(seed, k_best, method)][
+            order(k_best, seed, method)][1:12])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+<div class="callout-result">
+Сгенерировано **70** конфигов (14 реплик × 5 ячеек), манифест — **280** строк
+(14 × 5 × 4 метода). Три гейта пройдены на всех 70: `project_name` и блок `Input` побайтово
+совпадают с базовым конфигом реплики, и `GEA` — **единственный** изменившийся ключ верхнего
+уровня.
+
+Примеры лестниц: `k=2` → `n_pcs` [0,1,2,4,8], LFMM K [1,2,4,6,8]; `k=5` (реплика 1232548) →
+`n_pcs` [0,2,5,10,20], LFMM K [3,4,5,7,9]; `k=7` (реплика 1232578) → `n_pcs` [0,4,7,14,20]
+(4k=28 обрезано до потолка 20), LFMM K [5,6,7,9,11].
+</div>
+
+---
+
+## 3. Расширение сетки порогов
+
+<div class="callout-method">
+Правка в `/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_thresholds.R`: константа `GRID` и вектор
+top-N для правила `rank_sum`. Больше в файле не изменено ничего.
+
+| правило | было | стало |
+|---|---|---|
+| `bonf` | 0.01 0.05 0.1 | + 0.5 **1** |
+| `qval` | 0.05 0.1 0.2 0.3 | + 0.4 0.5 |
+| `top` | 10 20 30 50 100 | + 200 500 **1000** |
+| `custom` | 1e-5 1e-4 1e-3 | + **1e-6** 1e-2 |
+| `rank_sum` top-N | …200 | + 500 1000 |
+
+Сетка намеренно уходит далеко за конвенциональную значимость. Посылка — что пользователь
+выбирает рабочую точку по манхэттен-плоту: сигнал климатической ассоциации шумный, и полезен не
+единственный уровень, на который попадает FDR 0.05, а форма всего компромисса. Верхние ступени
+нужны ещё и для того, чтобы полнота вообще была измерима: у реплик MVP до **395** каузальных
+локусов (1231798), поэтому потолок `top`-100 срезал бы recall примерно на 25 % по построению, а
+не по качеству метода. `bonf 1` — это линия «одно ожидаемое ложноположительное на геном»
+(порог = 1/n_tested).
+</div>
+
+```{r 03-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_thresholds.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/lib_detection.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/eval_detection.R"))
+```
+
+<div class="callout-result">
+Расширенная сетка проверена на уже собранных таблицах реплики 1232548 (`truth_any`, 70 каузальных
+из 10 325 SNP) — отрабатывает без ошибок.
+
+Отдельно **эмпирически закреплён путь с нулём каузальных локусов**: у четырёх однопризнаковых
+реплик (1231858, 1232908, 1233133, 1233208) на оси `bio_2` каузальных локусов **ноль**, что
+делает эту ось чистым контролем ложноположительных. `eval_detection.R:74` на таком входе падает
+специально, поэтому rank-режим для них пропускается; `sweep_thresholds.R` такой защиты не имеет
+и был прогнан на настоящей нулевой таблице истины — выходит с кодом 0, пишет сводную TSV,
+`precision`/`recall` корректно NaN, осмысленные колонки — `n_called` и `fp_background`, а
+Парето-фронт и график корректно не строятся.
+</div>
+
+---
+
+## 4. Два дефекта пайплайна, найденные развёрткой
+
+<div class="callout-method">
+Оба нашлись на смоук-тесте и оба исправлены после согласования (режим CLAUDE.local.md —
+«use-only»: находки докладываются, правки не делаются молча).
+
+**Дефект 1 — параметры `GEA.configs` не доходили до LFMM и до GAPIT-моделей.**
+`workflow/rules/gea.smk:221` передавал в `lfmm.R` глобальный `K_BEST` вместо
+`GEA_PARAMS['LFMM']['K']`; `gea.smk:348` — то же самое для `params.n_pcs` GAPIT-моделей. Те же
+строки на стороне GWAS (`gwas.smk:73,113,230,267`). Параметры при этом объявлены в реестре
+(`workflow/methods/gea.py`), валидируются по диапазону в `_coerce_param`, рекомендуются
+пользователю через `pregea_recommend.R` и подставляются в редакторе методов Shiny — то есть
+поверхность выглядит живой со всех сторон, кроме самого правила. Корректно работали только
+EMMAX (`gea.smk:182`) и RDA.
+
+*Доказательство до правки*: сухой прогон ячейки `c1` перезапускал `assoc_emmax_gea_trait`
+(«Params have changed since last execution: before: 5 now: 0») и `assoc_rda_gea`, но **не**
+`assoc_lfmm_gea_trait`, хотя LFMM K менялся 5 → 3.
+
+*Обходного пути через конфиг нет*: `sNMF.k_best` управляет ещё и импутацией (`gea.smk:42`), так
+что сдвиг `k_best` поменял бы импутированную матрицу генотипов, которая питает **все** методы, и
+смешал бы лестницу с изменением входных данных.
+
+**Дефект 2 — `scripts/gapit.R` падал при `n_pcs = 0`.** `pca_cols <- pca_raw[, 1:K_BEST]` при
+`K_BEST = 0` даёт `1:0` = `c(1, 0)`, то есть одну колонку, тогда как `paste0("PC", 1:0)` даёт два
+имени → `Can't assign 2 names to a 1-column data.table`. При этом `workflow/methods/gea.py:64`
+объявляет `n_pcs` с `min=0`, то есть конфиг легален, но неисполним. Задевает любого
+пользователя, поставившего `n_pcs: 0` любой GAPIT-модели, и в `mode=gea`, и в `mode=gwas`.
+EMMAX / LFMM / RDA нулевой рунг переваривают штатно.
+</div>
+
+```{r 04-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/workflow/rules/gea.smk",
+  "/mnt/data/eugene/ADAPTOGENE/scripts/gapit.R"))
+```
+
+```{bash 04-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Правка 1: gea.smk:221  k = K_BEST -> k = GEA_PARAMS.get('LFMM', {}).get('K', K_BEST)
+# Правка 2: gea.smk:348  k = K_BEST -> k = _gapit_shared_npcs()
+#           (новая функция: берёт n_pcs из GEA_PARAMS, жёстко падает, если две
+#            сконфигурированные GAPIT-модели просят разное — один вызов gapit.R
+#            принимает один скаляр и не может выразить помодельные значения)
+# Правка 3: gapit.R      pca_cols/myCV/CV защищены от K_BEST == 0 (CV = NULL,
+#                        PCA.total = 0 уже стоял -> подгонка только по родству)
+
+# Проверка, что триггер параметров теперь срабатывает:
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -n -s Snakefile --config mode=gea \
+    --configfile config_MVP1232548_c1.yaml --scheduler greedy
+```
+
+<div class="callout-result">
+После правки сухой прогон `c1` перезапускает `assoc_lfmm_gea_trait` с причиной
+«Params have changed since last execution: before: 5 now: 3», плюс `assoc_emmax_gea_trait`
+(5 → 0) и `assoc_rda_gea` (→ 0). Обратная совместимость сохранена: на `c3`, где все рунги равны
+`k_best`, LFMM/EMMAX/RDA корректно **не** перезапускаются — меняется только добавленный BLINK.
+</div>
+
+---
+
+## 5. Смоук-тест: воспроизведение пилота и подключение BLINK
+
+<div class="callout-method">
+Ячейка `c3` реплики 1232548 (`k_best = 5`) — то есть ровно дефолты пайплайна, на которых был
+посчитан опубликованный пилот, плюс добавленный четвёртым методом BLINK. Прогон
+`mode=gea`, контейнер `adaptogene:latest`, `--cpus=32 --memory=200g`, `snakemake -c8`.
+
+Смысл ячейки как теста: EMMAX/LFMM/RDA на `c3` стоят на тех же параметрах, что и пилот, поэтому
+любое расхождение в AUC-PR означало бы ошибку в тракте выноса таблиц или в генерации конфигов, а
+не научный результат.
+</div>
+
+```{r 05-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/params/MVP1232548/c3/EMMAX_pvalues.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/params/MVP1232548/c3/LFMM_pvalues.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/params/MVP1232548/c3/RDA_pvalues.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/params/MVP1232548/c3/BLINK_pvalues.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/sweep/MVP1232548/rank.tsv"))
+```
+
+```{bash 05-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  --cpus=32 --memory=200g -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c8 -s Snakefile --config mode=gea \
+    --configfile config_MVP1232548_c3.yaml --scheduler greedy
+```
+
+```{r 05-result, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/sweep/MVP1232548/rank.tsv"
+if (file.exists(f)) {
+  rk <- fread(f)
+  a  <- rk[metric == "auc_pr", .(config, auc_pr = round(as.numeric(value), 4))]
+  t  <- rk[metric == "n_causal_testable", .(config, testable = as.integer(value))]
+  print(merge(a, t, by = "config")[order(config)])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+<div class="callout-result">
+**Воспроизведение точное.** AUC-PR на `c3`: LFMM 0.2221 (temp) / 0.3959 (sal), EMMAX 0.0308 /
+0.1042, RDA 0.2223 (any) — против опубликованных в `benchmarks/MVP_README.md` пилотных
+0.222 / 0.396, 0.031 / 0.104, 0.222. Тракт выноса таблиц и генерация конфигов подтверждены.
+
+**Гейт склейки с истиной** пройден: `n_causal_testable` = 30 (temp) / 40 (sal) / 70 (any),
+ровно столько же каузальных локусов, сколько в таблицах истины реплики. Ни один каузальный локус
+не потерялся между VCF и скорингом.
+
+**BLINK подключён и работает**: заголовок `BLINK_pvalues_K5.tsv` — ровно
+`SNPID chr pos bio_1 bio_2`, без посторонних колонок GAPIT (это важно: `load_pvalues` считает
+признаком любую колонку, кроме структурных, и объединил бы вызовы по лишним). 10 325 SNP,
+полный набор. AUC-PR на `c3` — 0.0143 (temp) / 0.0623 (sal), худший из четырёх методов, чего и
+следует ожидать от многолокусной модели на конфаундированной оси.
+</div>
+
+---
+
+## 6. Потолок по ресурсам: OpenBLAS видит ядра хоста, а не контейнера
+
+<div class="callout-method">
+Первый прогон ячейки `c1` реплики 1232548 упёрся не в алгоритм, а в конфигурацию контейнера:
+одна подгонка `vegan::rda(Y ~ bio_1 + bio_2, scale = TRUE)` на матрице 1000 × 10 325
+**крутилась больше 27 минут и доросла до 81 ГБ резидентной памяти, так и не завершившись**, при
+этом контейнер держал всего ~450 % CPU из выделенных 32 ядер.
+
+Причина: `--cpus=N` **не меняет** то, что контейнер читает из `/proc/cpuinfo` — `nproc` внутри
+возвращает **192** (число ядер хоста). Образ слинкован с OpenBLAS-pthread
+(`/usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.26.so`), который поэтому
+порождает 192 потока, дерущихся за долю CPU контейнера, и каждый аллоцирует свои буферы —
+отсюда и время, и память.
+
+Замер внутри образа, `crossprod` + `svd` матрицы 1500 × 1500, `--cpus=32`:
+
+| `OPENBLAS_NUM_THREADS` | время |
+|---|---|
+| не задан (192 потока) | **52.65 с** |
+| 1 | 3.16 с |
+| 8 | 1.42 с |
+| 16 | **1.30 с — в 40 раз быстрее, чем не задан** |
+
+Лечится флагом `docker run`, а не правкой пайплайна:
+`-e OPENBLAS_NUM_THREADS=16 -e OMP_NUM_THREADS=16`.
+
+Значение **зафиксировано и одинаково во всех прогонах развёртки** (`BLAS_THREADS` в
+`benchmarks/mvp_run_sweep.sh`): число потоков BLAS может менять порядок суммирования с плавающей
+точкой, поэтому смешивать настройки внутри одного бенчмарка — дыра в воспроизводимости. Отсюда
+же требование проверить, что результаты от этого не поехали (ниже).
+</div>
+
+```{r 06-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_run_sweep.sh",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_score_sweep.sh",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_pick_bundles.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_sweep_report.R"))
+```
+
+```{bash 06-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Замер потоков BLAS внутри образа:
+for T in 1 8 16 32; do
+  nix shell nixpkgs#docker-client -c docker run --rm --user $(id -u):$(id -g) -e USER=pipeline \
+    --cpus=32 -e OPENBLAS_NUM_THREADS=$T -e OMP_NUM_THREADS=$T adaptogene:latest \
+    Rscript -e 'n<-1500; set.seed(1); A<-matrix(rnorm(n*n),n);
+                cat(round(system.time({svd(crossprod(A))})[["elapsed"]],2),"s\n")'
+done
+
+# Перепрогон ячейки c3 с исправленной многопоточностью — сверка с числами пилота:
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -e OPENBLAS_NUM_THREADS=16 -e OMP_NUM_THREADS=16 \
+  --cpus=32 --memory=200g -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c8 -s Snakefile --config mode=gea \
+    --configfile config_MVP1232548_c3.yaml --scheduler greedy
+```
+
+---
+
+## 7. Третий дефект: PopLDdecay падает на мономорфных субпопуляциях
+
+<div class="callout-method">
+`mode=structure` при `LDdecay.group_by: site` гоняет PopLDdecay по каждому дему × каждой
+хромосоме: 20 групп сцепления × 101 группа (All + 100 демов) ≈ **2 020 вызовов на реплику**.
+
+На данных MVP это гарантированно натыкается на вырожденный случай: дем — это 10 особей, а
+группа сцепления — 50 кб с ~250–500 SNP, поэтому часть сочетаний «дем × хромосома» полностью
+мономорфна. PopLDdecay отфильтровывает все сайты как небиаллельные/синглтонные, остаётся 0 SNP,
+и вместо пустого результата бинарник **падает с SIGSEGV** (`rc = 139`).
+
+Воспроизведено детерминированно на реплике 1232218, `deme_008`, группа сцепления 1:
+`total skip allelic sites number is :491` — то есть все 491 сайт хромосомы отброшены. Первый
+прогон и повтор упали в одной и той же точке; отдельно взятый вызов на дем с полиморфизмом
+отрабатывает штатно (`EXIT=0`), так что дело в данных субпопуляции, а не в окружении.
+
+Почему это блокирует развёртку, а не только графики LD: правило `ld_decay_run_chr` лежит **на
+критическом пути `mode=gea`** — `common.smk:1862` кладёт `O['ld_decay_table']` в цели GEA. В
+логе Snakemake это выглядит как `Error in rule ld_decay_run_chr: message: None`, без указания на
+настоящую причину.
+
+**Обход — только конфигом, без правки пайплайна.** `LDdecay.scope: "genome_wide"` убирает
+правило из DAG (`structure.smk:327` гейтит его по scope), сохраняя при этом `ld_decay_table` —
+единственный продукт LD-decay, который вообще читают правила GEA
+(`_assoc_downstream.smk:89-111`, группа `All`). Полногеномный прогон объединяет все 20 групп
+сцепления (5–13 тыс. SNP), поэтому ни один дем из 10 особей там не мономорфен — этот шаг штатно
+проходит на всех репликах. Поосевые кривые LD-decay — побочный продукт `mode=structure`, к
+бенчмарку GEA отношения не имеющий.
+
+Побочная выгода: с критического пути уходит ~2 000 вызовов PopLDdecay на реплику.
+</div>
+
+```{r 07-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232218_c1.yaml",
+  "/mnt/data/eugene/ADAPTOGENE/config_MVP1232218.yaml"))
+```
+
+```{bash 07-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Локализация: прогнать все 100 демов на группе сцепления 1 и найти ненулевой код возврата.
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest bash -c '
+D=/pipeline/MVP1232218_results/_intermediate/ld_decay/grpsite_min10_dist50
+for sl in $D/sample_lists/*.txt; do
+  g=$(basename "$sl" .txt); [ "$g" = manifest ] && continue; [ "$g" = All ] && continue
+  PopLDdecay -InVCF $D/chr_vcfs/1.vcf -OutStat /tmp/probe/${g}_1 \
+             -MaxDist 50 -MAF 0 -Miss 1 -Het 1 -SubPop "$sl" >/dev/null 2>&1 \
+    || { echo "NONZERO rc=$? group=$g"; break; }
+done'
+# -> NONZERO rc=139 group=deme_008
+```
+
+<div class="callout-result">
+После правки конфига DAG `mode=gea` содержит только `ld_decay_prepare`, `ld_decay_run_gw` и
+`ld_decay_analyze` — падающего `ld_decay_run_chr` в нём нет. Базовые конфиги реплик не тронуты
+(`scope: "both"` в них сохранён); правка живёт только в 70 сгенерированных конфигах ячеек, где
+от базового отличаются ровно два ключа верхнего уровня — `GEA` и `LDdecay`.
+</div>
+
+<div class="callout-note">
+**Замечание о воспроизводимости прогонов.** Upstream (`processing` / `prestructure` /
+`structure`) 13 реплик считался при незаданном числе потоков BLAS, как и upstream реплики
+1232548, посчитанный ранее — то есть все 14 согласованы между собой. Все прогоны `mode=gea`
+идут при `OPENBLAS_NUM_THREADS=16`. Следствие, которое стоит держать в голове: частичная
+пересборка upstream отдельной реплики в будущем придёт уже с 16 потоками и будет отличаться от
+соседей на уровне младших разрядов. Величина этого расхождения измерена в разделе 8.
+</div>
+
+---
+
+## 8. Стоимость RDA и две настройки, проверенные на нейтральность
+
+<div class="callout-method">
+После починки потоков BLAS одна ячейка всё равно шла больше часа. Профилирование
+(`/mnt/data/eugene/ADAPTOGENE/benchmarks/probe_rda_cost.R`, 1000 особей × 4000 SNP,
+16 потоков BLAS) показало, что дело не в линейной алгебре:
+
+| шаг | время |
+|---|---|
+| `rda()` — сама ординация | **4.5 с** |
+| `anova.cca` полная модель, `parallel=8` | 5.4 с |
+| `anova.cca by="axis"` — **однопоточно** | **112.1 с** |
+| `anova.cca by="margin"` — **однопоточно** | **88.2 с** |
+| **итого anova** | **205.7 с = 98 % стоимости** |
+
+Два дорогих вызова (`rda.R:323,328`) не получают аргумента `parallel=`, поэтому остаются
+однопоточными независимо от числа ядер контейнера. При `permutations: 999` этот блок — около
+35 мин на 4 тыс. SNP и ~90 мин на подгонку для полного набора 10–13 тыс. SNP, а ячейки c2–c5
+подгоняют **дважды**: ~3 часа на ячейку, что и наблюдалось.
+
+**Почему `permutations: 99` не меняет ни одного скорингового числа.** anova питает только
+`RDA_anova.tsv` (диагностика) и выбор `axes: auto`. При двух предикторах ранг связанной части
+равен 2, а `rda.R` ограничивает выбор рангом и снизу двойкой — то есть `K_sel` равен 2 при
+любом исходе теста. Это тот же фиксированный K, который использовали Lotterhos 2023
+(`rdadapt(rdaout, 2)`, `MVP_README.md:278`). Скорируемые p-значения приходят из `rdadapt` по
+этим осям, а не из перестановочного теста.
+</div>
+
+```{r 08-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/probe_rda_cost.R",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/ram_watchdog.sh",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_autoscore.sh"))
+```
+
+```{bash 08-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Профиль стоимости RDA:
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -e OPENBLAS_NUM_THREADS=16 -e OMP_NUM_THREADS=16 --cpus=16 --memory=40g \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/probe_rda_cost.R --snps=4000 --perms=99
+
+# Проверка нейтральности: тот же прогон ячейки c3 при 99 перестановках и 16 потоках BLAS,
+# сверка таблицы p-значений RDA с эталоном при 999 перестановках и незаданных потоках.
+```
+
+<div class="callout-result">
+**Обе настройки проверены сравнением, а не декларацией.** Ячейка `c3` реплики 1232548,
+прогнанная при `permutations: 99` и `OPENBLAS_NUM_THREADS=16`, против сохранённого эталона при
+999 перестановках и незаданном числе потоков — 10 325 SNP, ключи совпадают полностью:
+
+- максимальное абсолютное расхождение p-значений **1.2e-14**
+- максимальное относительное расхождение **2.4e-14**
+- **AUC-PR = 0.222302 против 0.222302** — совпадение до шестого знака
+
+Расхождение порядка 1e-14 — это шум двойной точности (eps ≈ 2.2e-16, накопленный по матричным
+операциям), он не может сдвинуть ни один ранг и ни одно пороговое решение. Одно сравнение
+закрывает сразу оба вопроса: и число потоков BLAS, и число перестановок нейтральны для
+скорируемого результата.
+
+Время ячейки: **>1 ч → ~8 мин**.
+</div>
+
+<div class="callout-note">
+**Сторожевой процесс по памяти.** Машина общая: на ней параллельно шла чужая сборка генома
+(NextDenovo, 15 процессов `minimap2-nd` от пользователя `nobody`, ~390 ГБ из 1007 ГБ). На время
+развёртки поднят `benchmarks/ram_watchdog.sh` с порогом 920 ГБ по метрике
+`MemTotal - MemAvailable`. Два структурных ограничения, а не соглашения: (1) кандидатами на
+остановку являются **только docker-контейнеры**, поэтому чужие процессы недостижимы для
+скрипта в принципе; (2) у контейнера должен совпадать `Config.User` с текущим uid. Остановка —
+`docker stop -t 10`, не `kill -9`, чтобы snakemake успел убрать частичные выходы; не более двух
+остановок за цикл опроса. За всю развёртку сторож не сработал ни разу.
+</div>
+
+---
+
+## 9. Лестница коррекции структуры: насколько дорог неверный рунг
+
+<div class="callout-method">
+Скоринг: `benchmarks/mvp_score_sweep.sh` (rank-режим `eval_detection.R` на каждую пару
+метод × ось, затем `sweep_thresholds.R` на связку методов внутри ячейки), агрегация —
+`benchmarks/mvp_sweep_report.R`. Оценка ранжирования — AUC-PR, потому что она не зависит от
+выбора порога и потому что для RDA порог на этих данных не срабатывает вовсе
+(`MVP_README.md:283-306`: `pmax` двух ~равномерных p-значений даёт корректный **порядок**, но
+не корректное p-значение).
+</div>
+
+```{r 09-check}
+check_files(c(
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/mvp_ladders.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/multimethod_advantage.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/published_comparison.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/fp_control_sal.tsv",
+  "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/ladder_aucpr.png"))
+```
+
+```{r 09-ladder, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/mvp_ladders.tsv"
+if (file.exists(f)) {
+  L <- fread(f, colClasses = c(seed = "character"))
+  # Во сколько раз лучший рунг метода лучше дефолтного (c3), по каждой реплике и оси.
+  d <- L[!is.na(auc_pr), .(
+          default_c3 = auc_pr[cell == "c3"][1],
+          best       = max(auc_pr),
+          best_cell  = cell[which.max(auc_pr)]),
+        by = .(seed, method, axis)][!is.na(default_c3) & default_c3 > 0]
+  d[, ratio := best / default_c3]
+  cat("Отношение (лучший рунг / дефолтный рунг) по AUC-PR, сводка по методам:\n\n")
+  print(d[, .(n = .N,
+              median_ratio = round(median(ratio), 2),
+              max_ratio    = round(max(ratio), 2),
+              default_is_best = sum(best_cell == "c3")), by = method][order(-median_ratio)])
+  cat("\nРеплик x осей, где дефолт НЕ является лучшим рунгом: ",
+      d[best_cell != "c3", .N], " из ", nrow(d), "\n", sep = "")
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+```{r 09-plot, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/ladder_aucpr.png"
+if (file.exists(p)) knitr::include_graphics(p) else cat("[ОТСУТСТВУЕТ]", p, "\n")
+```
+
+---
+
+## 10. Объединение методов: когда оно выигрывает, а когда мешает
+
+<div class="callout-method">
+Сравнение внутри каждой конфигурации отдельно (`default` / `pregea` / `oracle`): лучший
+одиночный метод против лучшего правила объединения, по F1 и по recall при precision ≥ 0.9.
+
+**Числа из ячейки `c3` НЕ являются свидетельством об объединении.** В `c3` все методы стоят на
+`k_best`, а это рунг, на котором EMMAX и RDA измеримо плохи, тогда как LFMM близок к своему
+лучшему. Объединять сильный метод с тремя искалеченными — арифметика, а не свойство
+объединения. Осмысленное сравнение — внутри `oracle` и `pregea`, где каждый метод стоит на
+своём рунге.
+
+Ведущие правила — `at_least_2` и `rank_sum`. Четырёхстороннее `intersection` с участием RDA
+вырождено здесь по построению: RDA почти никогда не вызывает SNP порогом, поэтому единогласие
+наследует этот ноль. `rank_sum` вообще не использует порогов и обходит проблему калибровки RDA.
+</div>
+
+```{r 10-advantage, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/multimethod_advantage.tsv"
+if (file.exists(f)) {
+  A <- fread(f, colClasses = c(seed = "character"))
+  cat("Доля (реплика x ось), где объединение бьёт лучший одиночный метод, по конфигурациям:\n\n")
+  print(A[!is.na(f1_gain), .(cells = .N,
+                             combine_wins = sum(f1_gain > 0),
+                             ties         = sum(f1_gain == 0),
+                             median_gain  = round(median(f1_gain), 3)),
+          by = config_group])
+  cat("\nПобеждающие правила:\n\n")
+  print(A[f1_gain > 0, .N, by = combine_f1_kind][order(-N)])
+  cat("\nСвязь с архитектурой (там, где объединение выигрывает):\n\n")
+  print(A[!is.na(f1_gain), .(cells = .N, wins = sum(f1_gain > 0)), by = arch_level][order(-wins)])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+```{r 10-plot, echo=FALSE}
+p <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/multimethod_advantage.png"
+if (file.exists(p)) knitr::include_graphics(p) else cat("[ОТСУТСТВУЕТ]", p, "\n")
+```
+
+---
+
+## 11. Достижимая рука: что рекомендует `mode=pregea`
+
+<div class="callout-method">
+`oracle` выбирает рунг каждого метода по таблице истины — это **верхняя граница**, недостижимая
+для пользователя. `pregea` берёт рунг из `PreGEA/tables/pregea_recommendations.tsv`, где таблица
+истины не используется вовсе. Разрыв между ними — цена незнания ответа; разрыв между `default`
+и `pregea` — то, что рекомендатель реально приносит.
+
+Ограничение, которое нужно называть: ладдеры PreGEA считаются на LD-профильтрованном наборе
+маркеров, где выживает примерно половина каузальных локусов (реплика 1232548: 30 → 14 по
+температурной оси). Поэтому PreGEA здесь **номинирует** рунг, а проверяется он всегда на полном
+наборе в продукционном `mode=gea`. Ни одно число recall из PreGEA не смешивается с продукционной
+поверхностью.
+
+BLINK собственной рекомендации не имеет (`pregea_recommend.R` выдаёт только LFMM.K,
+EMMAX.n_pcs, RDA.condition_pcs, RDA.axes, RDA.predictor_set) и наследует `EMMAX.n_pcs` — это
+буквально та же величина, число PC-ковариат. Помечено в `pregea_cells.tsv` колонкой `inherited`.
+</div>
+
+```{r 11-pregea, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/multimethod_advantage.tsv"
+if (file.exists(f)) {
+  A <- fread(f, colClasses = c(seed = "character"))
+  w <- dcast(A, seed + axis ~ config_group, value.var = "single_f1")
+  if (all(c("default", "pregea", "oracle") %in% names(w))) {
+    w <- w[!is.na(default) & !is.na(pregea) & !is.na(oracle) & oracle > default]
+    if (nrow(w)) {
+      w[, captured := (pregea - default) / (oracle - default)]
+      cat("Какую долю доступного улучшения (default -> oracle) забирает PreGEA:\n")
+      cat("  реплик x осей: ", nrow(w),
+          " | медиана доли: ", round(median(w$captured), 3),
+          " | доля случаев, где PreGEA >= default: ",
+          round(mean(w$pregea >= w$default), 3), "\n\n", sep = "")
+      print(w[order(-captured)][1:min(10, nrow(w)),
+              .(seed, axis, default = round(default,3), pregea = round(pregea,3),
+                oracle = round(oracle,3), captured = round(captured,2))])
+    } else cat("Нет реплик, где oracle > default — сравнивать нечего.\n")
+  } else cat("Не все три конфигурации присутствуют в таблице.\n")
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+---
+
+## 12. Контроль ложноположительных: оси без каузальных локусов
+
+<div class="callout-method">
+У четырёх однопризнаковых реплик (1231858, 1232908, 1233133, 1233208) на оси `bio_2`
+каузальных локусов ноль. Precision и recall там не определены по построению; осмысленная
+величина — сколько вызовов делает правило, когда **каждый** из них заведомо ложен.
+</div>
+
+```{r 12-fp, echo=FALSE}
+f <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/report/fp_control_sal.tsv"
+if (file.exists(f)) {
+  FP <- fread(f, colClasses = c(seed = "character"))
+  cat("Медиана числа вызовов на оси без каузальных локусов, по методу/правилу\n")
+  cat("(при qval 0.05 и bonf 0.05 — конвенциональные рабочие точки):\n\n")
+  print(FP[adjust %in% c("qval", "bonf") & value %in% c("0.05"),
+           .(operating_points = .N,
+             median_called = median(n_called),
+             max_called    = max(n_called)), by = .(kind, adjust)][order(-median_called)])
+} else cat("[ОТСУТСТВУЕТ]", f, "\n")
+```
+
+---
+
+```{r session-info}
+sessionInfo()
+```

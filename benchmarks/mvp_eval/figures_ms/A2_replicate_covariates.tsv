@@ -1,0 +1,121 @@
+seed	arch	property	value
+1231288	oligogenic	SNPs in replicate	11287
+1232578	moderately polygenic	SNPs in replicate	10145
+1232548	moderately polygenic	SNPs in replicate	10394
+1231858	moderately polygenic	SNPs in replicate	8526
+1232218	oligogenic	SNPs in replicate	9934
+1231993	oligogenic	SNPs in replicate	4985
+1232398	oligogenic	SNPs in replicate	9548
+1233208	moderately polygenic	SNPs in replicate	9672
+1232923	highly polygenic	SNPs in replicate	12185
+1231798	highly polygenic	SNPs in replicate	9916
+1232788	moderately polygenic	SNPs in replicate	9490
+1232908	highly polygenic	SNPs in replicate	11438
+1233133	highly polygenic	SNPs in replicate	10831
+1233328	oligogenic	SNPs in replicate	13025
+1232383	oligogenic	SNPs in replicate	10650
+1232368	moderately polygenic	SNPs in replicate	7426
+1231974	oligogenic	SNPs in replicate	24381
+1232698	highly polygenic	SNPs in replicate	10905
+1231468	moderately polygenic	SNPs in replicate	11287
+1231513	oligogenic	SNPs in replicate	9600
+1233100	oligogenic	SNPs in replicate	24981
+1231194	moderately polygenic	SNPs in replicate	24460
+1231585	highly polygenic	SNPs in replicate	26267
+1231600	highly polygenic	SNPs in replicate	26486
+1231465	moderately polygenic	SNPs in replicate	25451
+1233175	highly polygenic	SNPs in replicate	25631
+1232860	oligogenic	SNPs in replicate	25383
+1232515	highly polygenic	SNPs in replicate	26633
+1232740	highly polygenic	SNPs in replicate	25839
+1232335	moderately polygenic	SNPs in replicate	25664
+1231288	oligogenic	local adaptation (final_LA)	0.3917
+1232578	moderately polygenic	local adaptation (final_LA)	0.5488
+1232548	moderately polygenic	local adaptation (final_LA)	0.5458
+1231858	moderately polygenic	local adaptation (final_LA)	0.4728
+1232218	oligogenic	local adaptation (final_LA)	0.3674
+1231993	oligogenic	local adaptation (final_LA)	0.3667
+1232398	oligogenic	local adaptation (final_LA)	0.5462
+1233208	moderately polygenic	local adaptation (final_LA)	0.4674
+1232923	highly polygenic	local adaptation (final_LA)	0.5539
+1231798	highly polygenic	local adaptation (final_LA)	0.5459
+1232788	moderately polygenic	local adaptation (final_LA)	0.4088
+1232908	highly polygenic	local adaptation (final_LA)	0.4766
+1233133	highly polygenic	local adaptation (final_LA)	0.4687
+1233328	oligogenic	local adaptation (final_LA)	0.5389
+1232383	oligogenic	local adaptation (final_LA)	0.4672
+1232368	moderately polygenic	local adaptation (final_LA)	0.3832
+1231974	oligogenic	local adaptation (final_LA)	0.5228
+1232698	highly polygenic	local adaptation (final_LA)	0.5507
+1231468	moderately polygenic	local adaptation (final_LA)	0.3908
+1231513	oligogenic	local adaptation (final_LA)	0.3888
+1233100	oligogenic	local adaptation (final_LA)	0.5185
+1231194	moderately polygenic	local adaptation (final_LA)	0.555
+1231585	highly polygenic	local adaptation (final_LA)	0.4081
+1231600	highly polygenic	local adaptation (final_LA)	0.5585
+1231465	moderately polygenic	local adaptation (final_LA)	0.4101
+1233175	highly polygenic	local adaptation (final_LA)	0.5529
+1232860	oligogenic	local adaptation (final_LA)	0.4165
+1232515	highly polygenic	local adaptation (final_LA)	0.409
+1232740	highly polygenic	local adaptation (final_LA)	0.4122
+1232335	moderately polygenic	local adaptation (final_LA)	0.4083
+1231288	oligogenic	mean Fst	0.2174
+1232578	moderately polygenic	mean Fst	0.2046
+1232548	moderately polygenic	mean Fst	0.1978
+1231858	moderately polygenic	mean Fst	0.1952
+1232218	oligogenic	mean Fst	0.1925
+1231993	oligogenic	mean Fst	0.1923
+1232398	oligogenic	mean Fst	0.1853
+1233208	moderately polygenic	mean Fst	0.1821
+1232923	highly polygenic	mean Fst	0.1758
+1231798	highly polygenic	mean Fst	0.174
+1232788	moderately polygenic	mean Fst	0.1719
+1232908	highly polygenic	mean Fst	0.1717
+1233133	highly polygenic	mean Fst	0.1711
+1233328	oligogenic	mean Fst	0.1708
+1232383	oligogenic	mean Fst	0.1551
+1232368	moderately polygenic	mean Fst	0.1541
+1231974	oligogenic	mean Fst	0.1512
+1232698	highly polygenic	mean Fst	0.1499
+1231468	moderately polygenic	mean Fst	0.1461
+1231513	oligogenic	mean Fst	0.1452
+1233100	oligogenic	mean Fst	0.1415
+1231194	moderately polygenic	mean Fst	0.1411
+1231585	highly polygenic	mean Fst	0.139
+1231600	highly polygenic	mean Fst	0.1384
+1231465	moderately polygenic	mean Fst	0.1357
+1233175	highly polygenic	mean Fst	0.1345
+1232860	oligogenic	mean Fst	0.1324
+1232515	highly polygenic	mean Fst	0.1318
+1232740	highly polygenic	mean Fst	0.1311
+1232335	moderately polygenic	mean Fst	0.1276
+1231288	oligogenic	R2(PC1 ~ temp)	0.5712
+1232578	moderately polygenic	R2(PC1 ~ temp)	0.4333
+1232548	moderately polygenic	R2(PC1 ~ temp)	0.5726
+1231858	moderately polygenic	R2(PC1 ~ temp)	0.5206
+1232218	oligogenic	R2(PC1 ~ temp)	0.345
+1231993	oligogenic	R2(PC1 ~ temp)	0.418
+1232398	oligogenic	R2(PC1 ~ temp)	0.5026
+1233208	moderately polygenic	R2(PC1 ~ temp)	0.4506
+1232923	highly polygenic	R2(PC1 ~ temp)	0.3245
+1231798	highly polygenic	R2(PC1 ~ temp)	0.3973
+1232788	moderately polygenic	R2(PC1 ~ temp)	0.3611
+1232908	highly polygenic	R2(PC1 ~ temp)	0.3973
+1233133	highly polygenic	R2(PC1 ~ temp)	0.3103
+1233328	oligogenic	R2(PC1 ~ temp)	0.3642
+1232383	oligogenic	R2(PC1 ~ temp)	0.2529
+1232368	moderately polygenic	R2(PC1 ~ temp)	0.2469
+1231974	oligogenic	R2(PC1 ~ temp)	0.2291
+1232698	highly polygenic	R2(PC1 ~ temp)	0.4367
+1231468	moderately polygenic	R2(PC1 ~ temp)	0.5578
+1231513	oligogenic	R2(PC1 ~ temp)	0.5099
+1233100	oligogenic	R2(PC1 ~ temp)	0.241
+1231194	moderately polygenic	R2(PC1 ~ temp)	0.2071
+1231585	highly polygenic	R2(PC1 ~ temp)	0.3112
+1231600	highly polygenic	R2(PC1 ~ temp)	0.5868
+1231465	moderately polygenic	R2(PC1 ~ temp)	0.3213
+1233175	highly polygenic	R2(PC1 ~ temp)	0.4879
+1232860	oligogenic	R2(PC1 ~ temp)	0.5764
+1232515	highly polygenic	R2(PC1 ~ temp)	0.2067
+1232740	highly polygenic	R2(PC1 ~ temp)	0.3652
+1232335	moderately polygenic	R2(PC1 ~ temp)	0.2902

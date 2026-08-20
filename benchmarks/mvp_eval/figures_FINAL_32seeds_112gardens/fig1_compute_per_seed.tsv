@@ -1,0 +1,7 @@
+variant	rule	seconds
+"old driver
+(per-garden)"	all rules (median 917 s x 42 gardens)	38514
+scenario pipeline	gradient_forest_offset	249
+scenario pipeline	geometric_offset	2362
+scenario pipeline	rda_offset (x2 methods)	1302
+scenario pipeline	stage_custom_climate_future	251

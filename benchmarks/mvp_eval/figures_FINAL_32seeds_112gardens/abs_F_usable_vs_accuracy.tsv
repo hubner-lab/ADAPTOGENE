@@ -1,0 +1,73 @@
+panel	arch	usable	noise	accuracy
+"≥2 methods
+agree"	"mod-polygenic
+(~42 causal loci)"	133.5	17	0.710708404266751
+"all 3
+agree"	"mod-polygenic
+(~42 causal loci)"	36.5	0	0.743797968530585
+"random
+(size-matched)"	"mod-polygenic
+(~42 causal loci)"	0	150.5	0.487293522277984
+"EMMAX
+only"	"mod-polygenic
+(~42 causal loci)"	9.5	1	0.748811170384447
+"LFMM
+only"	"mod-polygenic
+(~42 causal loci)"	154.5	40.5	0.586031885057543
+"RDA
+only"	"mod-polygenic
+(~42 causal loci)"	81.5	17.5	0.732028210545893
+"true QTNs
+(oracle)"	"mod-polygenic
+(~42 causal loci)"	42.5	0	0.680649851904158
+"union
+(any method)"	"mod-polygenic
+(~42 causal loci)"	183.5	55	0.583343982894431
+"≥2 methods
+agree"	"oligogenic
+(~7 causal loci)"	131.5	6.5	0.720232099089893
+"all 3
+agree"	"oligogenic
+(~7 causal loci)"	80	0	0.71605615672016
+"random
+(size-matched)"	"oligogenic
+(~7 causal loci)"	0	140	0.485831940050158
+"EMMAX
+only"	"oligogenic
+(~7 causal loci)"	21	1	0.716480061256612
+"LFMM
+only"	"oligogenic
+(~7 causal loci)"	168.5	26	0.532793345465799
+"RDA
+only"	"oligogenic
+(~7 causal loci)"	90	9	0.685342310842091
+"true QTNs
+(oracle)"	"oligogenic
+(~7 causal loci)"	7.5	0	0.702127653029383
+"union
+(any method)"	"oligogenic
+(~7 causal loci)"	185.5	31	0.545891139687596
+"≥2 methods
+agree"	"highly-polygenic
+(~410 causal loci)"	124.5	21.5	0.72275024904788
+"all 3
+agree"	"highly-polygenic
+(~410 causal loci)"	17.5	0	0.51313744056136
+"random
+(size-matched)"	"highly-polygenic
+(~410 causal loci)"	0	158	0.649492668314772
+"EMMAX
+only"	"highly-polygenic
+(~410 causal loci)"	3.5	2.5	0.630828965779472
+"LFMM
+only"	"highly-polygenic
+(~410 causal loci)"	150.5	46.5	0.691220431440285
+"RDA
+only"	"highly-polygenic
+(~410 causal loci)"	80.5	18	0.674135173236898
+"true QTNs
+(oracle)"	"highly-polygenic
+(~410 causal loci)"	410.5	0	0.718692173015062
+"union
+(any method)"	"highly-polygenic
+(~410 causal loci)"	185.5	59.5	0.699102785568236

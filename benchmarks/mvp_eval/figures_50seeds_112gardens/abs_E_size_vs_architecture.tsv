@@ -1,0 +1,55 @@
+panel	arch	markers	accuracy
+"≥2 methods
+agree"	"mod-polygenic
+(~42 causal loci)"	145	0.721050776096234
+"all 3
+agree"	"mod-polygenic
+(~42 causal loci)"	87.5	0.743797968530585
+"EMMAX
+only"	"mod-polygenic
+(~42 causal loci)"	21.5	0.748811170384447
+"LFMM
+only"	"mod-polygenic
+(~42 causal loci)"	195.5	0.624309019143719
+"RDA
+only"	"mod-polygenic
+(~42 causal loci)"	99	0.74329463627539
+"union
+(any method)"	"mod-polygenic
+(~42 causal loci)"	224	0.632403564344515
+"≥2 methods
+agree"	"oligogenic
+(~7 causal loci)"	155.5	0.732788507860349
+"all 3
+agree"	"oligogenic
+(~7 causal loci)"	74.5	0.71605615672016
+"EMMAX
+only"	"oligogenic
+(~7 causal loci)"	19.5	0.707694870449702
+"LFMM
+only"	"oligogenic
+(~7 causal loci)"	196	0.606872738093233
+"RDA
+only"	"oligogenic
+(~7 causal loci)"	99	0.699571562686173
+"union
+(any method)"	"oligogenic
+(~7 causal loci)"	218	0.620102204731374
+"≥2 methods
+agree"	"highly-polygenic
+(~410 causal loci)"	155.5	0.714471482614692
+"all 3
+agree"	"highly-polygenic
+(~410 causal loci)"	18	0.620215967075062
+"EMMAX
+only"	"highly-polygenic
+(~410 causal loci)"	6.5	0.628170860503569
+"LFMM
+only"	"highly-polygenic
+(~410 causal loci)"	197	0.643876871430922
+"RDA
+only"	"highly-polygenic
+(~410 causal loci)"	99	0.66803655269894
+"union
+(any method)"	"highly-polygenic
+(~410 causal loci)"	235	0.665980339646806

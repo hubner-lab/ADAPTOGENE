@@ -1,0 +1,14 @@
+seed	method	reason
+# Declared (seed, method) pairs that cannot run, with the reason. Two effects:
+#   1. mvp_write_sweep_configs.R omits the method from that seed's GEA.configs, so the
+#      mode=gea run does not abort on a target it can never produce.
+#   2. mvp_run_sweep.sh treats a missing p-value table as FATAL *unless* it is declared
+#      here -- so a known gap stays distinguishable from a silent failure.
+# Currently empty. The previous entry (1231858 BLINK) was removed once the underlying
+# GAPIT.Genotype.View crash was fixed at source via Geno.View.output = FALSE in
+# scripts/gapit.R; all 14 replicates now run all four methods.
+1231578	MLMM	GAPIT MLMM aborts with "the leading minor of order 1 is not positive" -- the variance-component fit is not positive definite. Est-Clines control: R2(PC1~temp)=0.92, so the environment and PC1 are nearly the same variable and the kinship+covariate system is collinear by construction. Fails on the maf 0.01 arm; the maf 0.05 arm reached c5, i.e. dropping low-frequency SNPs improves conditioning enough for it to fit. Excluded on both arms so the ladder is one method set throughout. Both Est-Clines seeds are controls and take no part in any cross-seed vote.
+1232568	MLMM	Same failure and same reason as 1231578 (R2(PC1~temp)=0.94), observed on the maf 0.05 arm at c1. SUPER also reports a failure on these two seeds ("invalid value specified for graphical parameter yaxp") but still writes its results table, so it is NOT excluded.
+1232568	SUPER	Declared by j07 repair round 1: GAPIT SUPER did not produce a results table for this seed (see MVP1232568*_logs/gea/gapit_gea_bio_*.log). Keyed on seed, so it applies to both MAF arms -- a seed whose arms carried different method sets could not support the paired arm comparison.
+1231578	SUPER	Declared by j07 repair round 1: GAPIT SUPER did not produce a results table for this seed (see MVP1231578*_logs/gea/gapit_gea_bio_*.log). Keyed on seed, so it applies to both MAF arms -- a seed whose arms carried different method sets could not support the paired arm comparison.
+1231993	MLMM	Declared by j07 repair round 1: GAPIT MLMM did not produce a results table for this seed (see MVP1231993*_logs/gea/gapit_gea_bio_*.log). Keyed on seed, so it applies to both MAF arms -- a seed whose arms carried different method sets could not support the paired arm comparison.

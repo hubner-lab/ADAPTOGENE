@@ -1,0 +1,62 @@
+direction: right
+
+base: {
+  label: "исходная точка — ARM B\n**58** образцов · **11** сайтов\nEMMAX **133** SNP · FDR **0.17%**"
+  style.fill: "#1f3d3a"
+}
+
+deltas: {
+  label: "четыре изменения\nпредикторы **4** -> **18**\nk_best **5** -> **3**\nn_pcs **0** vs **3**\nметоды -> только EMMAX"
+  style.fill: "#3d3a1f"
+}
+
+armPC0: {
+  label: "решающая рука PC0\nTrifolium86FinalPC0\nEMMAX n_pcs **0**"
+  style.fill: "#1f2d3d"
+}
+
+armPC3: {
+  label: "решающая рука PC3\nTrifolium86FinalPC3\nEMMAX n_pcs **3**"
+  style.fill: "#1f2d3d"
+}
+
+armMAF: {
+  label: "побочная рука\nTrifolium86FinalPC3MAF02\nmaf **0.2** · LFMM сохранена"
+  style.fill: "#2d2d2d"
+}
+
+null_model: {
+  label: "нулевая модель\nперестановка меток **11** сайтов\n**18** розыгрышей на руку"
+  style.fill: "#3d1f2d"
+}
+
+sets: {
+  label: "наборы SNP и контроли\nручной шаг\nemmax + MAF-matched + plain"
+  style.fill: "#2d1f3d"
+}
+
+malad: {
+  label: "maladaptation\n**3** метода\ngeometric · GF · RDA"
+  style.fill: "#1f3d3a"
+}
+
+decision: {
+  label: "решение\nодна рука · один набор · один метод\nкритерий — только FDR"
+  style.fill: "#3d3a1f"
+}
+
+banding: {
+  label: "ответ вне решения\nполосы LFMM —\nчастотные или импутационные?"
+  style.fill: "#2d2d2d"
+}
+
+base -> deltas
+deltas -> armPC0
+deltas -> armPC3
+deltas -> armMAF
+armPC0 -> null_model
+armPC3 -> null_model
+null_model -> sets
+sets -> malad
+malad -> decision
+armMAF -> banding

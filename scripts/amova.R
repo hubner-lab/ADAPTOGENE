@@ -19,6 +19,50 @@ INTER_DIR = args[6]
 RANDOM_N = 10000
 set.seed(42)
 
+#=============================================================================
+# SINGLE-SITE GUARD
+#=============================================================================
+# AMOVA partitions variance BETWEEN and WITHIN populations. With one population
+# there is no between-population stratum: df_between = n_pop - 1 = 0, the results
+# table below indexes rows that do not exist, and randtest() has nothing to
+# permute. Keying on the site count (not on coordinate spread) follows the same
+# reasoning as MIN_SITES in pregea_dbmem.R.
+#
+# Write every declared output and exit 0 rather than stop(): population stats are
+# an opt-in extra and must not take the whole structure mode down with them.
+site_check <- fread(SAMPLES, colClasses = c("site" = "character", "sample" = "character"))
+n_sites <- length(unique(site_check$site))
+if (n_sites < 2) {
+  message(paste0("WARNING: AMOVA skipped -- ", n_sites,
+                 " sampling site(s) in the metadata, need >= 2. ",
+                 "There is no between-population stratum to partition."))
+
+  data.table(
+    Parameter = c('status', 'n_sites',
+                  'Between_populations_var_percent',
+                  'Within_populations_var_percent',
+                  'Phi-samples-total', 'p-value', 'Nperm',
+                  'df_between', 'df_within', 'df_total'),
+    Value = c('skipped_single_site', as.character(n_sites),
+              rep(NA_character_, 8))
+  ) %>%
+    fwrite(paste0(TABLES_DIR, 'amova.tsv'), sep = '\t')
+
+  skip_plot <- ggplot() +
+    annotate("text", x = 0, y = 0, size = 5, colour = "grey50",
+             label = paste0("AMOVA unavailable\n(", n_sites,
+                            " sampling site, need >= 2)")) +
+    theme_void()
+  ggsave(paste0(PLOT_DIR, "amova.png"), skip_plot, width = 7, height = 7, dpi = 150)
+  ggsave(paste0(PLOT_DIR, "amova.svg"), skip_plot, width = 7, height = 7,
+         device = svglite::svglite, bg = 'transparent')
+  qsave(list(AMOVA = NULL, AMOVAsignif = NULL, status = 'skipped_single_site'),
+        paste0(INTER_DIR, 'amova_result.qs'))
+  qsave(skip_plot, paste0(INTER_DIR, 'amova_plot.qs'))
+
+  quit(status = 0)
+}
+
 # Read VCF file and convert to genind format
 vcf <- vcfR::read.vcfR(VCF)
 

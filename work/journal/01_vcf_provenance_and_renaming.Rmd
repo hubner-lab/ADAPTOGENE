@@ -1,0 +1,341 @@
+---
+title: "01. Происхождение и подготовка VCF — Trifolium israeliticum"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда рендеринга: контейнер adaptogene:latest (Docker), тот же образ, что используется
+# для всего пайплайна ADAPTOGENE — R 4.5, rmarkdown 2.31 предустановлены.
+# Рендер: docker run --rm -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/pipeline/work/journal/01_vcf_provenance_and_renaming.Rmd")'
+# Инструменты вне R (bcftools, python3) — из PATH хоста напрямую (не в Docker),
+# см. CLAUDE.local.md проекта: bcftools 1.13 / htslib 1.18 системные, доступны без обёртки.
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+```
+
+## Обзор
+
+Обзор файла: происхождение исходных VCF (64 и 86 образцов), нормализация хромосом,
+обнаружение het-коллапса генотипов.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/01_00_abstract.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+---
+
+## Шаг 1. Обнаружение исходных VCF и проверка происхождения
+
+```{r step1-check}
+check_files(c(
+  vcf64_input   = "/mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz",
+  vcf86_raw     = "/mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz",
+  vcf64_dupcopy = "/mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/filtered_dataset/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz",
+  meta64        = "/mnt/data/eugene/PopGenPipe/data/Trifolium_location_64.tsv",
+  meta86        = "/mnt/data/eugene/PopGenPipe/data/Trifolium_location_86.tsv"
+))
+```
+
+```{bash step1-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31 (только проверочные команды, без модификации файлов)
+
+# число образцов в каждом VCF
+zcat /mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz \
+  | grep -m1 '^#CHROM' | tr '\t' '\n' | tail -n +10 | wc -l
+# -> 64
+
+zcat /mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz \
+  | grep -m1 '^#CHROM' | tr '\t' '\n' | tail -n +10 | wc -l
+# -> 86
+
+# идентичность 64-образцового VCF и его копии в архиве NOGA_trifolium_data
+md5sum \
+  /mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/filtered_dataset/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz \
+  /mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz
+# -> оба e868da26ccc7aa40cb7e6f1524177b67 (идентичны)
+
+# число сайтов на хромосому — 86-образцовый (raw_dataset) и 64-образцовый (SamplesMiss08) VCF
+bcftools view /mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz \
+  | grep -v '^#' | cut -f1 | uniq -c
+# -> 1007284 Chr_1 / 1813641 Chr_2 / 1096887 Chr_3 / 1060436 Chr_4 / 1209213 Chr_5 /
+#     976332 Chr_6 / 12913 Chr_0   (итого 7 176 706, идентично 64-образцовому VCF)
+```
+
+<div class="callout-method">
+**bcftools v1.13**, **zcat/md5sum/comm** (GNU coreutils). Задача — установить происхождение
+и связь между двумя VCF-файлами Trifolium: `Trifol_maf005_minDP3_SamplesMiss08.vcf.gz`
+(64 образца, используется как основной вход) и `Trifol_maf005_minDP3.vcf.gz` (86 образцов,
+каталог `raw_dataset`, обнаружен позже по запросу пользователя).
+
+- Подсчёт образцов в строке `#CHROM` каждого VCF (`grep -m1 '^#CHROM' | tr '\t' '\n' | tail -n +10 | wc -l`) —
+  подтверждает 64 vs 86.
+- `md5sum` двух копий 64-образцового файла (`data/` и архив `TEMP/NOGA_trifolium_data/filtered_dataset/`) —
+  побайтовая идентичность подтверждает, что оба — один и тот же файл, что делает
+  `NOGA_trifolium_data` достоверным источником происхождения обеих версий.
+- `bcftools view | uniq -c` на 86-образцовом `raw_dataset` VCF — подсчёт сайтов на хромосому.
+  Число сайтов **идентично** 64-образцовому VCF (7 176 706 суммарно) — то есть оба файла
+  происходят от одного и того же набора вызванных вариантов (joint genotyping), и различаются
+  только тем, какие ОБРАЗЦЫ включены в столбцы, а не тем, какие САЙТЫ вызваны. Это подтверждает
+  гипотезу: `SamplesMiss08` — это шаг фильтрации ОБРАЗЦОВ (сохранены только образцы с
+  долей пропусков ≤0.8) поверх `raw_dataset`, без повторной фильтрации сайтов.
+
+Первая попытка подсчёта сайтов на 86-образцовом файле дала неверный частичный результат
+(только хромосома `Chr_1`, 572 082 сайта) из-за обрыва конвейера под конкурентной нагрузкой
+на хосте (несколько параллельных задач сканирования VCF одновременно) — повтор в изоляции дал
+полный и корректный результат, показанный выше.
+</div>
+
+<div class="callout-result">
+- `Trifol_maf005_minDP3_SamplesMiss08.vcf.gz` (64 образца): **7 163 793** сайта (Chr_1-6, без Chr_0)
+- `Trifol_maf005_minDP3.vcf.gz` (86 образцов, `raw_dataset`): **7 176 706** сайтов (Chr_1-6 + Chr_0),
+  из них **7 163 793** на Chr_1-6 — идентично 64-образцовому набору сайтов
+- Метаданные: `Trifolium_location_64.tsv` (**64** строки) — точное подмножество
+  `Trifolium_location_86.tsv` (**86** строк)
+- 64-образцовый VCF использует ровно те же образцы, что перечислены в `Trifolium_location_64.tsv`
+  (проверено `comm` — пустая симметрическая разность)
+</div>
+
+<div class="callout-conclusion">
+`raw_dataset/Trifol_maf005_minDP3.vcf.gz` (86 образцов) — это исходный набор ДО фильтрации
+образцов по доле пропусков, `data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz` (64 образца) —
+его подмножество ПОСЛЕ фильтрации `sample_miss<=0.8`, применённой выше по потоку (PopGenPipe,
+вне ADAPTOGENE). Оба файла — законные входы для ADAPTOGENE; выбор между ними влияет на
+компромисс между числом образцов/географическим покрытием сайтов и числом SNP, проходящих
+фильтр по доле пропусков на сайт (см. Шаг 04_2, план `stateful-purring-horizon.md`).
+</div>
+
+---
+
+## Шаг 2. Нормализация хромосом — 64-образцовый VCF
+
+```{r step2-check}
+check_files(c(
+  input     = "/mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz",
+  chrmap    = "/mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt",
+  output    = "/mnt/data/eugene/ADAPTOGENE/data/Trifolium_chr1-6.vcf.gz"
+))
+```
+
+```{bash step2-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31
+printf 'Chr_1\t1\nChr_2\t2\nChr_3\t3\nChr_4\t4\nChr_5\t5\nChr_6\t6\n' \
+  > /mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt
+
+bcftools view -t ^Chr_0 -Ou \
+    /mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz \
+  | bcftools annotate --rename-chrs /mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt \
+    --threads 16 -Oz \
+    -o /mnt/data/eugene/ADAPTOGENE/data/Trifolium_chr1-6.vcf.gz
+```
+
+<div class="callout-method">
+**bcftools v1.13** (`bcftools view`, `bcftools annotate`). Вход: `Trifol_maf005_minDP3_SamplesMiss08.vcf.gz`
+(64 образца, **7 163 793 + 12 913 = 7 176 706** сайтов, хромосомы `Chr_1`–`Chr_6` + `Chr_0` +
+две органеллы без вариантов).
+
+- `-t ^Chr_0` — исключить безымянный scaffold-контиг `Chr_0` (19.2 Мб, **12 913** SNP,
+  **0.18%** от общего числа, без аннотации в GFF3 → регионы без генов на выходе).
+  Символ `^` инвертирует список целей (все контиги КРОМЕ `Chr_0`); индекс не требуется —
+  `-t` (в отличие от `-r`) работает потоково по несортированному/неиндексированному входу.
+- `--rename-chrs trifolium_chrmap.txt` — переименование `Chr_1..Chr_6` → `1..6`. Причина:
+  а) нормализация хромосом ADAPTOGENE (`sed 's/^chr//'`, `processing.smk`) регистрозависима
+     и НЕ трогает `Chr_1` (только `chr1`), поэтому подчёркивание `Chr_1` дошло бы до конца
+     пайплайна нетронутым; б) три места в коде ADAPTOGENE предполагают имя хромосомы БЕЗ
+     подчёркивания: `run_enrichment.R` (извлечение трейта из `region_id` через
+     `sub("^[^_]+_...")`), `fct_regions.R` `.parse_region_id()` (разбор по первому `_`),
+     `manhattan_utils.R` (сортировка хромосом через `str_extract(.,"\\d+")`, `Chr_0` встал бы
+     раньше `Chr_1`). Переименование на входе устраняет все три источника поломки без
+     изменения кода пайплайна.
+- `-Ou` (bcftools view) / `-Oz` (bcftools annotate) — промежуточный BCF без сжатия между
+  двумя вызовами bcftools (быстрее, чем промежуточный VCF.gz), финальный вывод — bgzip VCF.
+</div>
+
+<div class="callout-result">
+- Вход: **7 176 706** сайтов, **64** образца (`SamplesMiss08` VCF, Chr_1-6 + Chr_0 + органеллы)
+- Выход: **7 163 793** сайта, **64** образца (Chr_1-6 only), **1**–**6** — единственные значения
+  CHROM в теле файла
+- Удалено: **12 913** сайтов Chr_0 (**0.18%**)
+- Заголовок `##contig=` по-прежнему перечисляет `Chr_0`/`Chr_1`.../`final_res.*` без переименования
+  (`--rename-chrs` меняет только строки, совпавшие с картой; ничто ниже по потоку не читает
+  словарь контигов заголовка — расхождение косметическое)
+- Файл: `/mnt/data/eugene/ADAPTOGENE/data/Trifolium_chr1-6.vcf.gz`
+</div>
+
+---
+
+## Шаг 3. Нормализация хромосом — 86-образцовый VCF (с обрывом и повтором)
+
+```{r step3-check}
+check_files(c(
+  input   = "/mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz",
+  chrmap  = "/mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt",
+  output  = "/mnt/data/eugene/ADAPTOGENE/data/Trifolium86_chr1-6.vcf.gz",
+  meta86  = "/mnt/data/eugene/ADAPTOGENE/data/Trifolium_location_86.tsv"
+))
+```
+
+```{bash step3-cmd, eval=FALSE}
+# [ПЕРВАЯ ПОПЫТКА, 2026-07-31, ~15:57] — оборвана конкурентной нагрузкой на хосте
+# (несколько параллельных задач: Docker-сборка образа, переименование 64-образцового VCF,
+# фоновые скрипты подсчёта сайтов), первая стадия конвейера (bcftools view) была прервана
+# по SIGKILL/OOM, вторая (bcftools annotate) записала валидный, но УСЕЧЁННЫЙ bgzip-файл
+# только с хромосомой "1" (572 082 сайта из ожидаемых 7 163 793). НЕ ИСПОЛЬЗОВАТЬ.
+#
+# bcftools view -t ^Chr_0 -Ou \
+#     /mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz \
+#   | bcftools annotate --rename-chrs /mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt \
+#     -Oz -o /mnt/data/eugene/ADAPTOGENE/data/Trifolium86_chr1-6.vcf.gz
+#
+# [ПОВТОР, 2026-07-31, ~17:52] — та же команда в изоляции (без конкурентных тяжёлых задач),
+# с явной проверкой PIPESTATUS обеих стадий конвейера.
+rm -f /mnt/data/eugene/ADAPTOGENE/data/Trifolium86_chr1-6.vcf.gz
+
+bcftools view -t ^Chr_0 -Ou \
+    /mnt/data/eugene/PopGenPipe/TEMP/NOGA_trifolium_data/raw_dataset/Trifol_maf005_minDP3.vcf.gz \
+  | bcftools annotate --rename-chrs /mnt/data/eugene/ADAPTOGENE/data/trifolium_chrmap.txt \
+    --threads 16 -Oz \
+    -o /mnt/data/eugene/ADAPTOGENE/data/Trifolium86_chr1-6.vcf.gz
+echo PIPE_STATUS=${PIPESTATUS[@]}
+# -> PIPE_STATUS=0 0
+
+cp /mnt/data/eugene/PopGenPipe/data/Trifolium_location_86.tsv \
+   /mnt/data/eugene/ADAPTOGENE/data/Trifolium_location_86.tsv
+```
+
+<div class="callout-method">
+**bcftools v1.13**, идентичные флаги Шагу 2, применённые к 86-образцовому `raw_dataset` VCF
+вместо 64-образцового. Мотивация переименования та же (см. Шаг 2).
+
+Первая попытка (см. закомментированный блок в чанке) дала молчаливо усечённый результат —
+конвейер `bcftools view | bcftools annotate` под конкурентной дисковой/CPU нагрузкой потерял
+данные на первой стадии, но вторая стадия успешно записала валидный BGZF-файл из того, что
+успело дойти до неё, с нулевым кодом возврата (стандартный код возврата bash-конвейера — это
+код возврата ПОСЛЕДНЕЙ команды, а не всех стадий). Обнаружено сверкой числа сайтов на выходе
+(**572 082**, только `Chr_1`) с ожидаемым (**7 163 793**, `Chr_1`–`Chr_6`) — расхождение
+слишком велико для случайного варианта фильтрации. Устранено повтором в изоляции с явной
+проверкой `PIPESTATUS` каждой стадии.
+</div>
+
+<div class="callout-result">
+- Первая попытка: **572 082** сайта, только `Chr_1` — ОШИБОЧНО, файл удалён и не использовался
+- Повтор: **7 163 793** сайта, `1`–`6` — единственные значения CHROM (идентично 64-образцовому
+  набору сайтов, как и ожидалось из Шага 1)
+- Образцов в выходном VCF: **86**
+- Метаданные `Trifolium_location_86.tsv` скопированы, **87** строк (**86** образцов + заголовок),
+  точное соответствие списку образцов VCF (проверено `comm` — пустая симметрическая разность
+  в обе стороны)
+- Файл: `/mnt/data/eugene/ADAPTOGENE/data/Trifolium86_chr1-6.vcf.gz`
+</div>
+
+<details class="callout-note">
+<summary>Примечание</summary>
+Общий урок сессии: любая фоновая команда, запущенная параллельно с другой тяжёлой дисковой
+задачей на этом хосте (в частности, во время активной сборки Docker-образа), рискует быть
+прервана без явной ошибки в конвейере. Правило для этого проекта — тяжёлые
+однократные преобразования VCF запускать в изоляции и всегда сверять итоговое число сайтов/
+образцов с независимо известным ожидаемым значением, а не доверять только коду возврата
+обёртывающего скрипта.
+</details>
+
+---
+
+## Шаг 4. Обнаружение het-коллапса генотипов
+
+```{r step4-check}
+check_files(c(
+  vcf64 = "/mnt/data/eugene/ADAPTOGENE/data/Trifolium_chr1-6.vcf.gz",
+  vcf_raw = "/mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz",
+  het_script = "/mnt/data/eugene/PopGenPipe/data/replaceHetOnMaxAD_VCF.py"
+))
+```
+
+```{bash step4-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31 (только чтение/проверка, без модификации файлов)
+
+# прямая инспекция генотипов в исходном VCF (до какой-либо обработки ADAPTOGENE)
+zcat /mnt/data/eugene/PopGenPipe/data/Trifol_maf005_minDP3_SamplesMiss08.vcf.gz \
+  | grep -v '^#' | head -50000 | cut -f10-20 | tr '\t' '\n' | cut -d: -f1 \
+  | sort | uniq -c | sort -rn
+# -> 230167 0/0 ; 219613 ./. ; 62572 1|1 ; 37634 1/1 ; 14 0|0
+#    (НИ ОДНОГО 0/1 или 1/0 среди ~550000 генотипов)
+
+cat /mnt/data/eugene/PopGenPipe/data/replaceHetOnMaxAD_VCF.py
+```
+
+<div class="callout-method">
+**zcat/grep/cut/sort/uniq** (GNU coreutils) для прямой инспекции поля GT; **чтение исходного
+кода** `replaceHetOnMaxAD_VCF.py` (обнаружен в том же каталоге, что входные файлы Trifolium)
+для установления механизма.
+
+- Выборка 50 000 строк тела VCF × 11 столбцов образцов (~550 000 генотипов) — поле GT (первое
+  до `:`) содержит только `0/0`, `1/1`, `./.` (и фазированный вариант `1|1`/`0|0`) — ни одного
+  гетерозиготного вызова.
+- Скрипт `replaceHetOnMaxAD_VCF.py`: для каждого генотипа, который НЕ является `0/0`/`1/1`/`./.`
+  (то есть гетерозиготного), читает поле AD (Allelic Depth) и принудительно заменяет генотип на
+  гомозиготный по аллелю с БОЛЬШИМ количеством прочтений (`ADs[0] > ADs[1]` → `0/0`,
+  `ADs[0] < ADs[1]` → `1/1`), либо на `./.` при равных/отсутствующих глубинах.
+
+Это объясняет отсутствие гетерозигот на уровне ВХОДНОГО файла (до ADAPTOGENE) — коллапс
+применён выше по потоку (PopGenPipe), как приём для генотипирования при низкой глубине
+(`minDP3` в имени файла — минимум 3 прочтения, недостаточно для надёжного различения
+гетерозиготы от ошибки секвенирования). Пользователь подтвердил (2026-07-31), что это
+намеренное решение для данного датасета.
+</div>
+
+<div class="callout-result">
+- Гетерозиготных генотипов (`0/1`, `1/0`) в выборке 50 000 строк × 11 образцов: **0**
+- Гомозиготных: **0/0 → 230 167**, **1/1 → 37 634**, **1|1 → 62 572**, **0|0 → 14**
+- Пропущенных (`./.`): **219 613**
+- Впоследствии подтверждено на полном отфильтрованном наборе (41 образец, Шаг 05):
+  `obs_het = 0` и `F_inbreeding = 1` для **всех 48/48** проверенных образцов без исключения
+</div>
+
+<div class="callout-conclusion">
+Het-коллапс — не артефакт ADAPTOGENE и не ошибка данного пайплайна, а намеренное решение
+выше по потоку. Прямое следствие: любая статистика, зависящая от гетерозиготности
+(`Filter.het_outlier_sd`, IBS-родство в PLINK — метрика, которой проект уже заменил PI_HAT
+2026-07-14 именно из-за вырождения PI_HAT при сильном самоопылении, см. примечание в Стадии 02
+Шаг 6 — наблюдаемая гетерозиготность в Population-статистике Structure) либо не имеет сигнала
+для действия (het_outlier_sd — не применяется, оставлен `null`), либо систематически смещена
+и требует альтернативной проверки (см. Шаг 05_3 — прямая проверка дискордантности по
+противоположным гомозиготам). Знание зафиксировано в памяти сессии
+(`project_trifolium_dataset.md`), чтобы не быть заново открытым в будущих сессиях.
+</div>
+
+---
+
+```{r sessioninfo}
+sessionInfo()
+```

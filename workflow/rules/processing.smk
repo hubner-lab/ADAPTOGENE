@@ -436,8 +436,15 @@ rule filter_coord_samples:
 # Maladaptation's geometric_offset.
 _LFMM_CLIMATE_SOURCES = {
     'lfmm_imp':      W['lfmm_imp'],       # GEA-LFMM, LD-pruned imputed
-    'lfmm_imp_full': W['lfmm_imp_full'],  # GEA-LFMM (full) + Maladaptation geometric_offset
-    'lfmm_full':     W['lfmm_full'],      # Maladaptation gradient_forest (raw, unimputed)
+    'lfmm_imp_full': W['lfmm_imp_full'],  # GEA-LFMM (full) + ALL Maladaptation methods
+                                          # (gradient_forest, geometric_offset, rda_offset)
+    'lfmm_full':     W['lfmm_full'],      # [UNUSED since 2026-08-10] was Maladaptation
+                                          # gradient_forest. GF now takes the imputed matrix like
+                                          # every other consumer -- feeding it the raw matrix meant
+                                          # gradientForest() read LEA's missing code 9 as a
+                                          # genotype (bug O, docs/pipeline_improvement_requests.md).
+                                          # Plumbing kept so the variant stays buildable on demand;
+                                          # no rule requests it, so it is no longer produced.
 }
 
 rule subset_lfmm_climate:

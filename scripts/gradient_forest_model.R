@@ -61,13 +61,54 @@ if (MODEL_TYPE == 'adaptive') {
   snp_subset <- lfmm_dt[, ..mask_adaptive]
   message(paste0('INFO: Using ', ncol(snp_subset), ' adaptive SNPs'))
 } else if (MODEL_TYPE == 'random') {
-  n_random <- min(max(n_adaptive, 300), ncol(lfmm_dt))
+  # [CHANGED 2026-08-10] Size-matched to the adaptive set. Was
+  # min(max(n_adaptive, 300), ncol(lfmm_dt)) -- a 300-SNP floor, so a 185-SNP curated set was
+  # "controlled" by a 300-SNP random model, 62% larger than the thing it controls for. The
+  # neutral model only means anything as a like-for-like comparison, and nothing recorded the
+  # size difference downstream. See docs/pipeline_improvement_requests.md request M.
+  n_random <- min(n_adaptive, ncol(lfmm_dt))
+  if (n_random < 50) {
+    message(paste0('WARNING: random model has only ', n_random, ' SNPs (matched to the adaptive ',
+                   'set). Gradient Forest turnover functions are unstable at this size; the ',
+                   'previous 300-SNP floor existed to avoid this, and was removed because it ',
+                   'broke the size match. Treat this neutral model as indicative only.'))
+  }
+  # [CHANGED 2026-08-10] Seed derived from the run label. Previously the global set.seed(42) at
+  # the top of this script was the only seed, and the sampling pool is the full matrix regardless
+  # of {run_label} -- so EVERY random_model.qs in a project was the identical draw. Verified on
+  # Trifolium86FinalPC3: the three run_labels' response column sets were identical(), 300/300
+  # overlap. The pipeline reported three neutral models and had one. The spatial tag is stripped
+  # so that {label}_nospatial and {label}_spatial share a draw, keeping the spatial-correction
+  # comparison like-for-like.
+  run_label <- sub('_(no)?spatial$', '', basename(dirname(OUTPUT)))
+  set.seed(42L + sum(utf8ToInt(run_label)))
   random_cols <- sample(names(lfmm_dt), n_random)
   snp_subset <- lfmm_dt[, ..random_cols]
-  message(paste0('INFO: Using ', ncol(snp_subset), ' random SNPs'))
+  message(paste0('INFO: Using ', ncol(snp_subset), ' random SNPs (size-matched to the ',
+                 n_adaptive, '-SNP adaptive set; run_label "', run_label, '", seed ',
+                 42L + sum(utf8ToInt(run_label)), ')'))
 } else {
   stop(paste0('ERROR: Unknown MODEL_TYPE: ', MODEL_TYPE))
 }
+
+# Guard: these columns become gradientForest() RESPONSE variables, and gradientForest() has no
+# na.action. An unimputed LFMM file encodes a missing call as the literal 9, which would enter the
+# regression forest as a genotype 3.5x further from the reference homozygote than the real
+# alternate homozygote is -- so the forest learns which samples were CALLED, not which carry the
+# allele. Checked on the subset actually passed to the model. Same guard as scripts/rda_offset.R:106.
+# Keyed on the sentinel 9 rather than on `max > 2`, so a legitimately polyploid dataset
+# (sNMF.ploidy > 2, dosages 3,4,...) is not falsely rejected. 9 is LFMM's reserved missing code,
+# so it is never a valid dosage in this format regardless of ploidy.
+subset_mat <- as.matrix(snp_subset)
+if (any(subset_mat == 9, na.rm = TRUE)) {
+  frac9 <- mean(subset_mat == 9, na.rm = TRUE)
+  stop(sprintf(paste0('Gradient Forest: genotype matrix contains the LFMM missing code 9 in ',
+                      '%.1f%% of cells - this is an UNIMPUTED LFMM file. gradientForest() has no ',
+                      'na.action and would read 9 as a genotype, so the forest learns which ',
+                      'samples were CALLED rather than which carry the allele. Requires an ',
+                      'imputed matrix (*_imp*). Check the Snakemake input wiring.'), 100 * frac9))
+}
+rm(subset_mat)
 
 # Compute maxLevel for gradient forest
 maxLevel <- log2(0.368 * nrow(lfmm_dt) / 2)

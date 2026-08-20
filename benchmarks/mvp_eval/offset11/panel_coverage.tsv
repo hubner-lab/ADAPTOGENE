@@ -1,0 +1,13 @@
+set	n_seeds_gea	n_empty	n_seeds_offset	median_n_snps
+all	92	0	92	12394
+best	92	0	92	156
+intersect3	92	1	89	60
+neutral_all	92	0	92	6215
+rand_best1	92	0	92	156
+rand_solo1	92	0	92	196
+rand_union1	92	0	92	222
+solo_emmax	92	0	90	14
+solo_lfmm	92	0	92	196
+solo_rda	92	0	92	99
+truth	92	0	92	62
+union	92	0	92	222

@@ -1,0 +1,53 @@
+seed	method	axis	published	ours_default_c3	ours_pregea	caveat
+1231288	LFMM	any		0.701583210603829	0.701583210603829	""
+1231288	LFMM	sal	0.866468607	0.802631578947368	0.802631578947368	""
+1231288	LFMM	temp	0.000260579	0.513333333333333	0.513333333333333	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1231288	RDA	any	0.543365149	0.537873857120719	0.506252811515969	""
+1231578	LFMM	any		0.135816462981319	0.135816462981319	""
+1231578	LFMM	sal	0.210477862	0.217509340744274	0.217509340744274	""
+1231578	LFMM	temp	0.06518919	0.0328096747900343	0.0328096747900343	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1231578	RDA	any	0.092803712	0.205571760156961	0.179679168828075	""
+1231798	LFMM	any		0.17951479652871	0.17951479652871	""
+1231798	LFMM	sal	0.162844319	0.16428684167593	0.16428684167593	""
+1231798	LFMM	temp	0.039804694	0.107101297017744	0.107101297017744	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1231798	RDA	any	0.09260806	0.147459177228116	0.131443419399956	""
+1231858	LFMM	any		0.200492952302409	0.187646536436133	""
+1231858	LFMM	temp	0.013309332	0.265642353249659	0.222377817052675	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1231858	RDA	any	0.013085525	0.0362925909545259	0.116035317625153	""
+1231993	LFMM	any		0.766124976049052	0.766124976049052	""
+1231993	LFMM	sal	0.699791042	0.671510496367499	0.671510496367499	""
+1231993	LFMM	temp	0.699791042	0.229290117890132	0.229290117890132	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1231993	RDA	any	0.633187523	0.695562487830207	0.72961112674735	""
+1232218	LFMM	any		0.68644544431946	0.683912747102931	""
+1232218	LFMM	sal	0.527932685	0.529659858874975	0.528705582327872	""
+1232218	LFMM	temp	0.527932685	0.167831490442318	0.167626504095206	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232218	RDA	any	0.408963677	0.523166967601628	0.676570197044335	""
+1232398	LFMM	any		0.886166007905138	0.850266971777269	""
+1232398	LFMM	sal	0.966347704	1	0.968253968253968	""
+1232398	LFMM	temp	0.000386731	0.673333333333333	0.671071953010279	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232398	RDA	any	0.559404691	0.698024633954921	0.865627996164909	""
+1232548	LFMM	any		0.322977757606675	0.316824700565503	""
+1232548	LFMM	sal	0.392429767	0.395857112820624	0.37807727475309	""
+1232548	LFMM	temp	0.078252335	0.222087142948506	0.240477083867481	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232548	RDA	any	0.073812042	0.222302319194276	0.202570833386168	""
+1232568	LFMM	any		0.317116221146027	0.280336982636566	""
+1232568	LFMM	sal	0.297955221	0.437873678903754	0.379765506684648	""
+1232568	LFMM	temp	0.297955221	0.0748476564384745	0.110477712910212	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232568	RDA	any	0.135987708	0.290391929005296	0.293105972068218	""
+1232578	LFMM	any		0.489607185405375	0.489607185405375	""
+1232578	LFMM	sal	0.405869463	0.436289606994031	0.436289606994031	""
+1232578	LFMM	temp	0.405869463	0.226902616857562	0.226902616857562	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232578	RDA	any	0.210584889	0.106859002483178	0.374867084737669	""
+1232908	LFMM	any		0.0642555025204507	0.0642555025204507	""
+1232908	LFMM	temp	0.04712938	0.0734518382600103	0.0734518382600103	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232908	RDA	any	0.033219317	0.0554468382923398	0.0664951869338838	""
+1232923	LFMM	any		0.159609808356905	0.16396554581456	""
+1232923	LFMM	sal	0.141107063	0.143935351899957	0.139180418703624	""
+1232923	LFMM	temp	0.030420214	0.109827195282193	0.117251287493296	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1232923	RDA	any	0.075617409	0.129787070313202	0.124018019768107	""
+1233133	LFMM	any		0.0798159850648474	0.0792694619575616	""
+1233133	LFMM	temp	0.061553564	0.0931672305005482	0.0904792191011442	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1233133	RDA	any	0.042020971	0.0681653980282564	0.0713088727814456	""
+1233208	LFMM	any		0.206460019521144	0.193099424817205	""
+1233208	LFMM	temp	0.016651671	0.234577098768744	0.214772947542148	published temp AUC-PR not reproducible from the deposit's own temp p-value column — column swap suspected (MVP_README.md:220); compare against the re-scored value instead
+1233208	RDA	any	0.019423856	0.0310090287721736	0.117889846866489	""

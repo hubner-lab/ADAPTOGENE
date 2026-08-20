@@ -1,0 +1,2501 @@
+seed	panel	method_label	arch	accuracy
+1231123	true QTNs (oracle)	GFoffset	highly polygenic	0.735440947276211
+1231123	true QTNs (oracle)	LFMM2offset	highly polygenic	0.713714779038067
+1231123	true QTNs (oracle)	RDA-corrected	highly polygenic	0.489838551320538
+1231123	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.638238315076809
+1231123	≥2 methods agree	GFoffset	highly polygenic	0.841635208851434
+1231123	≥2 methods agree	LFMM2offset	highly polygenic	0.845087029973382
+1231123	≥2 methods agree	RDA-corrected	highly polygenic	0.489343130478405
+1231123	≥2 methods agree	RDA-uncorrected	highly polygenic	0.843400862493291
+1231123	EMMAX only	GFoffset	highly polygenic	0.765898192469869
+1231123	EMMAX only	LFMM2offset	highly polygenic	0.486258996264143
+1231123	EMMAX only	RDA-corrected	highly polygenic	0.489343130478405
+1231123	EMMAX only	RDA-uncorrected	highly polygenic	0.536129496648995
+1231123	LFMM only	GFoffset	highly polygenic	0.641835680381033
+1231123	LFMM only	LFMM2offset	highly polygenic	0.669113273859942
+1231123	LFMM only	RDA-corrected	highly polygenic	0.489343130478405
+1231123	LFMM only	RDA-uncorrected	highly polygenic	0.593224913632672
+1231123	RDA only	GFoffset	highly polygenic	0.805492611221625
+1231123	RDA only	LFMM2offset	highly polygenic	0.792050166847391
+1231123	RDA only	RDA-corrected	highly polygenic	0.489343130478405
+1231123	RDA only	RDA-uncorrected	highly polygenic	0.761816188857571
+1231123	all 3 methods agree	GFoffset	highly polygenic	0.765289047565996
+1231123	all 3 methods agree	LFMM2offset	highly polygenic	0.765554731771273
+1231123	all 3 methods agree	RDA-corrected	highly polygenic	0.489343130478405
+1231123	all 3 methods agree	RDA-uncorrected	highly polygenic	0.624755627731045
+1231123	any method (union)	GFoffset	highly polygenic	0.65280028865075
+1231123	any method (union)	LFMM2offset	highly polygenic	0.687255848051854
+1231123	any method (union)	RDA-corrected	highly polygenic	0.489343130478405
+1231123	any method (union)	RDA-uncorrected	highly polygenic	0.601835165026694
+1231150	true QTNs (oracle)	GFoffset	highly polygenic	0.818893799106835
+1231150	true QTNs (oracle)	LFMM2offset	highly polygenic	0.751843295658553
+1231150	true QTNs (oracle)	RDA-corrected	highly polygenic	0.501327872984933
+1231150	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.690113966261355
+1231150	≥2 methods agree	GFoffset	highly polygenic	0.803056031606133
+1231150	≥2 methods agree	LFMM2offset	highly polygenic	0.78246149381603
+1231150	≥2 methods agree	RDA-corrected	highly polygenic	0.501227198838295
+1231150	≥2 methods agree	RDA-uncorrected	highly polygenic	0.839071965747763
+1231150	EMMAX only	GFoffset	highly polygenic	0.708029426601918
+1231150	EMMAX only	LFMM2offset	highly polygenic	0.782301775194592
+1231150	EMMAX only	RDA-corrected	highly polygenic	0.501227198838295
+1231150	EMMAX only	RDA-uncorrected	highly polygenic	0.657809283344828
+1231150	LFMM only	GFoffset	highly polygenic	0.701734929261895
+1231150	LFMM only	LFMM2offset	highly polygenic	0.624018793579077
+1231150	LFMM only	RDA-corrected	highly polygenic	0.501327872984933
+1231150	LFMM only	RDA-uncorrected	highly polygenic	0.615082013010981
+1231150	RDA only	GFoffset	highly polygenic	0.689755079485723
+1231150	RDA only	LFMM2offset	highly polygenic	0.789815972112125
+1231150	RDA only	RDA-corrected	highly polygenic	0.501327872984933
+1231150	RDA only	RDA-uncorrected	highly polygenic	0.561542661492983
+1231150	all 3 methods agree	GFoffset	highly polygenic	0.677978278010841
+1231150	all 3 methods agree	LFMM2offset	highly polygenic	0.774429184403564
+1231150	all 3 methods agree	RDA-corrected	highly polygenic	0.501227198838295
+1231150	all 3 methods agree	RDA-uncorrected	highly polygenic	0.630519334580727
+1231150	any method (union)	GFoffset	highly polygenic	0.747826893654966
+1231150	any method (union)	LFMM2offset	highly polygenic	0.631886313617771
+1231150	any method (union)	RDA-corrected	highly polygenic	0.500817785130387
+1231150	any method (union)	RDA-uncorrected	highly polygenic	0.668501971515647
+1231168	true QTNs (oracle)	GFoffset	highly polygenic	0.491173840823069
+1231168	true QTNs (oracle)	LFMM2offset	highly polygenic	0.482541447750996
+1231168	true QTNs (oracle)	RDA-corrected	highly polygenic	0.72827962831468
+1231168	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.480398294616661
+1231168	≥2 methods agree	GFoffset	highly polygenic	0.507620753227644
+1231168	≥2 methods agree	LFMM2offset	highly polygenic	0.53534478667898
+1231168	≥2 methods agree	RDA-corrected	highly polygenic	0.72325456494854
+1231168	≥2 methods agree	RDA-uncorrected	highly polygenic	0.524580987664459
+1231168	LFMM only	GFoffset	highly polygenic	0.416249017646668
+1231168	LFMM only	LFMM2offset	highly polygenic	0.449732540838185
+1231168	LFMM only	RDA-corrected	highly polygenic	0.722293960270203
+1231168	LFMM only	RDA-uncorrected	highly polygenic	0.386761859871683
+1231168	RDA only	GFoffset	highly polygenic	0.680617905927625
+1231168	RDA only	LFMM2offset	highly polygenic	0.682418245603277
+1231168	RDA only	RDA-corrected	highly polygenic	0.724067089864238
+1231168	RDA only	RDA-uncorrected	highly polygenic	0.712881355176954
+1231168	any method (union)	GFoffset	highly polygenic	0.431883736846079
+1231168	any method (union)	LFMM2offset	highly polygenic	0.457045265079457
+1231168	any method (union)	RDA-corrected	highly polygenic	0.724067089864238
+1231168	any method (union)	RDA-uncorrected	highly polygenic	0.402039473165848
+1231194	true QTNs (oracle)	GFoffset	moderately polygenic	0.707623329999336
+1231194	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.746608603847219
+1231194	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.622546091758383
+1231194	≥2 methods agree	GFoffset	moderately polygenic	0.712699537531613
+1231194	≥2 methods agree	LFMM2offset	moderately polygenic	0.734779018942306
+1231194	≥2 methods agree	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.587049251590947
+1231194	EMMAX only	GFoffset	moderately polygenic	0.664374041824341
+1231194	EMMAX only	LFMM2offset	moderately polygenic	0.521844127106277
+1231194	EMMAX only	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	EMMAX only	RDA-uncorrected	moderately polygenic	0.510062515828674
+1231194	LFMM only	GFoffset	moderately polygenic	0.680617905927625
+1231194	LFMM only	LFMM2offset	moderately polygenic	0.766507337373742
+1231194	LFMM only	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	LFMM only	RDA-uncorrected	moderately polygenic	0.646769832894662
+1231194	RDA only	GFoffset	moderately polygenic	0.672495973875983
+1231194	RDA only	LFMM2offset	moderately polygenic	0.588219906100985
+1231194	RDA only	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	RDA only	RDA-uncorrected	moderately polygenic	0.508843728455129
+1231194	all 3 methods agree	GFoffset	moderately polygenic	0.674526456888894
+1231194	all 3 methods agree	LFMM2offset	moderately polygenic	0.579483268106301
+1231194	all 3 methods agree	RDA-corrected	moderately polygenic	0.509145336239947
+1231194	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.510062515828674
+1231194	any method (union)	GFoffset	moderately polygenic	0.698892253043821
+1231194	any method (union)	LFMM2offset	moderately polygenic	0.778645993567388
+1231194	any method (union)	RDA-corrected	moderately polygenic	0.508843728455129
+1231194	any method (union)	RDA-uncorrected	moderately polygenic	0.662749655414012
+1231198	true QTNs (oracle)	GFoffset	moderately polygenic	0.650160660733967
+1231198	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.69247494762444
+1231198	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.467896725747985
+1231198	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.595256225921915
+1231198	≥2 methods agree	GFoffset	moderately polygenic	0.743359831026561
+1231198	≥2 methods agree	LFMM2offset	moderately polygenic	0.729892037559379
+1231198	≥2 methods agree	RDA-corrected	moderately polygenic	0.474092918492898
+1231198	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.694567079595729
+1231198	EMMAX only	GFoffset	moderately polygenic	0.823970006639112
+1231198	EMMAX only	LFMM2offset	moderately polygenic	0.801758960563829
+1231198	EMMAX only	RDA-corrected	moderately polygenic	0.464357989320728
+1231198	EMMAX only	RDA-uncorrected	moderately polygenic	0.770407567155922
+1231198	LFMM only	GFoffset	moderately polygenic	0.682851437241827
+1231198	LFMM only	LFMM2offset	moderately polygenic	0.70086257206735
+1231198	LFMM only	RDA-corrected	moderately polygenic	0.467682782523461
+1231198	LFMM only	RDA-uncorrected	moderately polygenic	0.619220735276982
+1231198	RDA only	GFoffset	moderately polygenic	0.823157813433948
+1231198	RDA only	LFMM2offset	moderately polygenic	0.765804426857743
+1231198	RDA only	RDA-corrected	moderately polygenic	0.474186972150922
+1231198	RDA only	RDA-uncorrected	moderately polygenic	0.721263601094566
+1231198	all 3 methods agree	GFoffset	moderately polygenic	0.717369648461307
+1231198	all 3 methods agree	LFMM2offset	moderately polygenic	0.699749614543501
+1231198	all 3 methods agree	RDA-corrected	moderately polygenic	0.48557030157445
+1231198	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.636407727183033
+1231198	any method (union)	GFoffset	moderately polygenic	0.703156267370933
+1231198	any method (union)	LFMM2offset	moderately polygenic	0.710524376185223
+1231198	any method (union)	RDA-corrected	moderately polygenic	0.478254584606764
+1231198	any method (union)	RDA-uncorrected	moderately polygenic	0.629781900628377
+1231288	true QTNs (oracle)	GFoffset	oligogenic	0.617860191265223
+1231288	true QTNs (oracle)	LFMM2offset	oligogenic	0.615674219862188
+1231288	true QTNs (oracle)	RDA-corrected	oligogenic	0.680599497839981
+1231288	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.594542167431274
+1231288	≥2 methods agree	GFoffset	oligogenic	0.782379177105075
+1231288	≥2 methods agree	LFMM2offset	oligogenic	0.739825027893804
+1231288	≥2 methods agree	RDA-corrected	oligogenic	0.682118269332463
+1231288	≥2 methods agree	RDA-uncorrected	oligogenic	0.723827876392357
+1231288	EMMAX only	GFoffset	oligogenic	0.753943796836459
+1231288	EMMAX only	LFMM2offset	oligogenic	0.754048524722303
+1231288	EMMAX only	RDA-corrected	oligogenic	0.680740618866719
+1231288	EMMAX only	RDA-uncorrected	oligogenic	0.680395637726474
+1231288	LFMM only	GFoffset	oligogenic	0.418000089948661
+1231288	LFMM only	LFMM2offset	oligogenic	0.489494760338326
+1231288	LFMM only	RDA-corrected	oligogenic	0.682118269332463
+1231288	LFMM only	RDA-uncorrected	oligogenic	0.382496761717341
+1231288	RDA only	GFoffset	oligogenic	0.776082771474167
+1231288	RDA only	LFMM2offset	oligogenic	0.757299609711675
+1231288	RDA only	RDA-corrected	oligogenic	0.682118269332463
+1231288	RDA only	RDA-uncorrected	oligogenic	0.691870867442785
+1231288	all 3 methods agree	GFoffset	oligogenic	0.774051672883552
+1231288	all 3 methods agree	LFMM2offset	oligogenic	0.75608045284066
+1231288	all 3 methods agree	RDA-corrected	oligogenic	0.682118269332463
+1231288	all 3 methods agree	RDA-uncorrected	oligogenic	0.687072351137735
+1231288	any method (union)	GFoffset	oligogenic	0.427749363183616
+1231288	any method (union)	LFMM2offset	oligogenic	0.491932078647064
+1231288	any method (union)	RDA-corrected	oligogenic	0.682118269332463
+1231288	any method (union)	RDA-uncorrected	oligogenic	0.404842928034796
+1231300	true QTNs (oracle)	GFoffset	oligogenic	0.765724168662029
+1231300	true QTNs (oracle)	LFMM2offset	oligogenic	0.833090528526393
+1231300	true QTNs (oracle)	RDA-corrected	oligogenic	0.541928185728422
+1231300	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.679541714792298
+1231300	≥2 methods agree	GFoffset	oligogenic	0.803299492588414
+1231300	≥2 methods agree	LFMM2offset	oligogenic	0.829772045078203
+1231300	≥2 methods agree	RDA-corrected	oligogenic	0.507974426203503
+1231300	≥2 methods agree	RDA-uncorrected	oligogenic	0.669939461550042
+1231300	EMMAX only	GFoffset	oligogenic	0.727133295440335
+1231300	EMMAX only	LFMM2offset	oligogenic	0.686105103909902
+1231300	EMMAX only	RDA-corrected	oligogenic	0.509607572083949
+1231300	EMMAX only	RDA-uncorrected	oligogenic	0.503930578949261
+1231300	LFMM only	GFoffset	oligogenic	0.742163425010889
+1231300	LFMM only	LFMM2offset	oligogenic	0.818185185234809
+1231300	LFMM only	RDA-corrected	oligogenic	0.523942581844832
+1231300	LFMM only	RDA-uncorrected	oligogenic	0.656646284467903
+1231300	RDA only	GFoffset	oligogenic	0.735460799661858
+1231300	RDA only	LFMM2offset	oligogenic	0.75207135530702
+1231300	RDA only	RDA-corrected	oligogenic	0.508791379394973
+1231300	RDA only	RDA-uncorrected	oligogenic	0.554809807604062
+1231300	all 3 methods agree	GFoffset	oligogenic	0.724695977131596
+1231300	all 3 methods agree	LFMM2offset	oligogenic	0.778272683150911
+1231300	all 3 methods agree	RDA-corrected	oligogenic	0.50848590935037
+1231300	all 3 methods agree	RDA-uncorrected	oligogenic	0.570771635254684
+1231300	any method (union)	GFoffset	oligogenic	0.751912698245843
+1231300	any method (union)	LFMM2offset	oligogenic	0.820122024158876
+1231300	any method (union)	RDA-corrected	oligogenic	0.524244269217686
+1231300	any method (union)	RDA-uncorrected	oligogenic	0.684290362533988
+1231318	true QTNs (oracle)	GFoffset	oligogenic	0.524041112473187
+1231318	true QTNs (oracle)	LFMM2offset	oligogenic	0.568100297394549
+1231318	true QTNs (oracle)	RDA-corrected	oligogenic	0.706520817864164
+1231318	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.536754078177024
+1231318	≥2 methods agree	GFoffset	oligogenic	0.549247124089431
+1231318	≥2 methods agree	LFMM2offset	oligogenic	0.580008475484721
+1231318	≥2 methods agree	RDA-corrected	oligogenic	0.725737821040842
+1231318	≥2 methods agree	RDA-uncorrected	oligogenic	0.59367140268828
+1231318	EMMAX only	GFoffset	oligogenic	0.779963440092948
+1231318	EMMAX only	LFMM2offset	oligogenic	0.678603333981518
+1231318	EMMAX only	RDA-corrected	oligogenic	0.706520817864164
+1231318	EMMAX only	RDA-uncorrected	oligogenic	0.688949999900132
+1231318	LFMM only	GFoffset	oligogenic	0.413459900221282
+1231318	LFMM only	LFMM2offset	oligogenic	0.441912004305273
+1231318	LFMM only	RDA-corrected	oligogenic	0.730089809053392
+1231318	LFMM only	RDA-uncorrected	oligogenic	0.342993583823343
+1231318	RDA only	GFoffset	oligogenic	0.683814702234213
+1231318	RDA only	LFMM2offset	oligogenic	0.666808610166436
+1231318	RDA only	RDA-corrected	oligogenic	0.715978673822987
+1231318	RDA only	RDA-uncorrected	oligogenic	0.711460611407524
+1231318	all 3 methods agree	GFoffset	oligogenic	0.763904771401954
+1231318	all 3 methods agree	LFMM2offset	oligogenic	0.590084805861306
+1231318	all 3 methods agree	RDA-corrected	oligogenic	0.710042295096327
+1231318	all 3 methods agree	RDA-uncorrected	oligogenic	0.610885350698376
+1231318	any method (union)	GFoffset	oligogenic	0.439275734699208
+1231318	any method (union)	LFMM2offset	oligogenic	0.459023085799561
+1231318	any method (union)	RDA-corrected	oligogenic	0.739299127504408
+1231318	any method (union)	RDA-uncorrected	oligogenic	0.372753944018017
+1231422	true QTNs (oracle)	GFoffset	moderately polygenic	0.728334256731024
+1231422	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.747623845353674
+1231422	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.673714263683729
+1231422	≥2 methods agree	GFoffset	moderately polygenic	0.706608088492881
+1231422	≥2 methods agree	LFMM2offset	moderately polygenic	0.767070333058236
+1231422	≥2 methods agree	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.582091280356091
+1231422	EMMAX only	GFoffset	moderately polygenic	0.662952703715303
+1231422	EMMAX only	LFMM2offset	moderately polygenic	0.620542960280593
+1231422	EMMAX only	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	EMMAX only	RDA-uncorrected	moderately polygenic	0.518187764985642
+1231422	LFMM only	GFoffset	moderately polygenic	0.689348982883141
+1231422	LFMM only	LFMM2offset	moderately polygenic	0.726545596898063
+1231422	LFMM only	RDA-corrected	moderately polygenic	0.521428037715436
+1231422	LFMM only	RDA-uncorrected	moderately polygenic	0.624425397713
+1231422	RDA only	GFoffset	moderately polygenic	0.667013669741124
+1231422	RDA only	LFMM2offset	moderately polygenic	0.629966020110925
+1231422	RDA only	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	RDA only	RDA-uncorrected	moderately polygenic	0.518187764985642
+1231422	all 3 methods agree	GFoffset	moderately polygenic	0.706608088492881
+1231422	all 3 methods agree	LFMM2offset	moderately polygenic	0.771538059107704
+1231422	all 3 methods agree	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.587699437724805
+1231422	any method (union)	GFoffset	moderately polygenic	0.696252625127037
+1231422	any method (union)	LFMM2offset	moderately polygenic	0.736554518312761
+1231422	any method (union)	RDA-corrected	moderately polygenic	0.522250389564126
+1231422	any method (union)	RDA-uncorrected	moderately polygenic	0.651035588702071
+1231435	true QTNs (oracle)	GFoffset	moderately polygenic	0.641429583778451
+1231435	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.658417267261837
+1231435	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.576571469966213
+1231435	≥2 methods agree	GFoffset	moderately polygenic	0.770568303399564
+1231435	≥2 methods agree	LFMM2offset	moderately polygenic	0.635671545280315
+1231435	≥2 methods agree	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.744880218447595
+1231435	EMMAX only	GFoffset	moderately polygenic	0.810771867055193
+1231435	EMMAX only	LFMM2offset	moderately polygenic	0.777832556447726
+1231435	EMMAX only	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	EMMAX only	RDA-uncorrected	moderately polygenic	0.747624695807156
+1231435	LFMM only	GFoffset	moderately polygenic	0.47614826652753
+1231435	LFMM only	LFMM2offset	moderately polygenic	0.424313354850995
+1231435	LFMM only	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	LFMM only	RDA-uncorrected	moderately polygenic	0.398675264917977
+1231435	RDA only	GFoffset	moderately polygenic	0.826203537953314
+1231435	RDA only	LFMM2offset	moderately polygenic	0.796762979970142
+1231435	RDA only	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	RDA only	RDA-uncorrected	moderately polygenic	0.767948120653195
+1231435	all 3 methods agree	GFoffset	moderately polygenic	0.803056031606132
+1231435	all 3 methods agree	LFMM2offset	moderately polygenic	0.660440667564238
+1231435	all 3 methods agree	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.783558452514597
+1231435	any method (union)	GFoffset	moderately polygenic	0.503559787201823
+1231435	any method (union)	LFMM2offset	moderately polygenic	0.44052253905905
+1231435	any method (union)	RDA-corrected	moderately polygenic	0.750213343524687
+1231435	any method (union)	RDA-uncorrected	moderately polygenic	0.428287811360807
+1231465	true QTNs (oracle)	GFoffset	moderately polygenic	0.748029941956256
+1231465	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.708812507436543
+1231465	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.74386589650183
+1231465	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.70466223313806
+1231465	≥2 methods agree	GFoffset	moderately polygenic	0.802040790099678
+1231465	≥2 methods agree	LFMM2offset	moderately polygenic	0.658201554350078
+1231465	≥2 methods agree	RDA-corrected	moderately polygenic	0.74427282277828
+1231465	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.755915646597886
+1231465	EMMAX only	GFoffset	moderately polygenic	0.808741384042283
+1231465	EMMAX only	LFMM2offset	moderately polygenic	0.724887875227766
+1231465	EMMAX only	RDA-corrected	moderately polygenic	0.744120403633176
+1231465	EMMAX only	RDA-uncorrected	moderately polygenic	0.751949799759756
+1231465	LFMM only	GFoffset	moderately polygenic	0.472696445405582
+1231465	LFMM only	LFMM2offset	moderately polygenic	0.421985283795873
+1231465	LFMM only	RDA-corrected	moderately polygenic	0.74386589650183
+1231465	LFMM only	RDA-uncorrected	moderately polygenic	0.384809259380136
+1231465	RDA only	GFoffset	moderately polygenic	0.820315137215873
+1231465	RDA only	LFMM2offset	moderately polygenic	0.715667731157687
+1231465	RDA only	RDA-corrected	moderately polygenic	0.74422288946571
+1231465	RDA only	RDA-uncorrected	moderately polygenic	0.754177888423714
+1231465	all 3 methods agree	GFoffset	moderately polygenic	0.817472460997798
+1231465	all 3 methods agree	LFMM2offset	moderately polygenic	0.678674903257632
+1231465	all 3 methods agree	RDA-corrected	moderately polygenic	0.74422288946571
+1231465	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.73459910788268
+1231465	any method (union)	GFoffset	moderately polygenic	0.511072574349592
+1231465	any method (union)	LFMM2offset	moderately polygenic	0.438154060789505
+1231465	any method (union)	RDA-corrected	moderately polygenic	0.744069694830181
+1231465	any method (union)	RDA-uncorrected	moderately polygenic	0.429216286716841
+1231468	true QTNs (oracle)	GFoffset	moderately polygenic	0.642444825284906
+1231468	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.510875040744371
+1231468	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.685378732599867
+1231468	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.571814409421632
+1231468	≥2 methods agree	GFoffset	moderately polygenic	0.631683265316481
+1231468	≥2 methods agree	LFMM2offset	moderately polygenic	0.550824556651101
+1231468	≥2 methods agree	RDA-corrected	moderately polygenic	0.685330309020387
+1231468	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.593303922883052
+1231468	EMMAX only	GFoffset	moderately polygenic	0.781735959970572
+1231468	EMMAX only	LFMM2offset	moderately polygenic	0.769415440905242
+1231468	EMMAX only	RDA-corrected	moderately polygenic	0.715021925813194
+1231468	EMMAX only	RDA-uncorrected	moderately polygenic	0.76708756236586
+1231468	LFMM only	GFoffset	moderately polygenic	0.381121661523315
+1231468	LFMM only	LFMM2offset	moderately polygenic	0.399925064333352
+1231468	LFMM only	RDA-corrected	moderately polygenic	0.684390003134589
+1231468	LFMM only	RDA-uncorrected	moderately polygenic	0.314714372240532
+1231468	RDA only	GFoffset	moderately polygenic	0.752700052885951
+1231468	RDA only	LFMM2offset	moderately polygenic	0.689302272148369
+1231468	RDA only	RDA-corrected	moderately polygenic	0.684966181590678
+1231468	RDA only	RDA-uncorrected	moderately polygenic	0.7640073899082
+1231468	all 3 methods agree	GFoffset	moderately polygenic	0.771380496604728
+1231468	all 3 methods agree	LFMM2offset	moderately polygenic	0.697267866633492
+1231468	all 3 methods agree	RDA-corrected	moderately polygenic	0.749403975154388
+1231468	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.746965901619561
+1231468	any method (union)	GFoffset	moderately polygenic	0.3973655256266
+1231468	any method (union)	LFMM2offset	moderately polygenic	0.408867165306185
+1231468	any method (union)	RDA-corrected	moderately polygenic	0.684922879857694
+1231468	any method (union)	RDA-uncorrected	moderately polygenic	0.335377155196383
+1231483	true QTNs (oracle)	GFoffset	oligogenic	0.858686739649446
+1231483	true QTNs (oracle)	LFMM2offset	oligogenic	0.86789875424567
+1231483	true QTNs (oracle)	RDA-corrected	oligogenic	0.647863233024664
+1231483	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.86789875424567
+1231483	≥2 methods agree	GFoffset	oligogenic	0.778865728991969
+1231483	≥2 methods agree	LFMM2offset	oligogenic	0.772136762336753
+1231483	≥2 methods agree	RDA-corrected	oligogenic	0.0500550121282796
+1231483	≥2 methods agree	RDA-uncorrected	oligogenic	0.809395984282764
+1231483	EMMAX only	GFoffset	oligogenic	0.757077851082912
+1231483	EMMAX only	LFMM2offset	oligogenic	0.825629169343839
+1231483	EMMAX only	RDA-corrected	oligogenic	0.709400688297352
+1231483	EMMAX only	RDA-uncorrected	oligogenic	0.820333087925341
+1231483	LFMM only	GFoffset	oligogenic	0.787010730079466
+1231483	LFMM only	LFMM2offset	oligogenic	0.787069312896557
+1231483	LFMM only	RDA-corrected	oligogenic	0.053651266028768
+1231483	LFMM only	RDA-uncorrected	oligogenic	0.811803263051862
+1231483	RDA only	GFoffset	oligogenic	0.60680258101858
+1231483	RDA only	LFMM2offset	oligogenic	0.608680072805041
+1231483	RDA only	RDA-corrected	oligogenic	0.0447307740749698
+1231483	RDA only	RDA-uncorrected	oligogenic	0.675136204890528
+1231483	all 3 methods agree	GFoffset	oligogenic	0.81144573334196
+1231483	all 3 methods agree	LFMM2offset	oligogenic	0.855587741517446
+1231483	all 3 methods agree	RDA-corrected	oligogenic	0.702793256752808
+1231483	all 3 methods agree	RDA-uncorrected	oligogenic	0.86789875424567
+1231483	any method (union)	GFoffset	oligogenic	0.780087479155094
+1231483	any method (union)	LFMM2offset	oligogenic	0.798103170754044
+1231483	any method (union)	RDA-corrected	oligogenic	0.0546623807925438
+1231483	any method (union)	RDA-uncorrected	oligogenic	0.823760783942095
+1231498	true QTNs (oracle)	GFoffset	oligogenic	0.676963036504386
+1231498	true QTNs (oracle)	LFMM2offset	oligogenic	0.677710587627979
+1231498	true QTNs (oracle)	RDA-corrected	oligogenic	0.470655057417379
+1231498	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.608456770407194
+1231498	≥2 methods agree	GFoffset	oligogenic	0.782548153175736
+1231498	≥2 methods agree	LFMM2offset	oligogenic	0.810365770452611
+1231498	≥2 methods agree	RDA-corrected	oligogenic	0.470655057417379
+1231498	≥2 methods agree	RDA-uncorrected	oligogenic	0.738939143876243
+1231498	EMMAX only	GFoffset	oligogenic	0.670262442561781
+1231498	EMMAX only	LFMM2offset	oligogenic	0.813706879574328
+1231498	EMMAX only	RDA-corrected	oligogenic	0.470655057417379
+1231498	EMMAX only	RDA-uncorrected	oligogenic	0.691052440800139
+1231498	LFMM only	GFoffset	oligogenic	0.650972853939131
+1231498	LFMM only	LFMM2offset	oligogenic	0.703299649248641
+1231498	LFMM only	RDA-corrected	oligogenic	0.470655057417379
+1231498	LFMM only	RDA-uncorrected	oligogenic	0.596718389425083
+1231498	RDA only	GFoffset	oligogenic	0.701328832659313
+1231498	RDA only	LFMM2offset	oligogenic	0.72253778128339
+1231498	RDA only	RDA-corrected	oligogenic	0.470655057417379
+1231498	RDA only	RDA-uncorrected	oligogenic	0.604335346387406
+1231498	all 3 methods agree	GFoffset	oligogenic	0.792497519938998
+1231498	all 3 methods agree	LFMM2offset	oligogenic	0.842698819214088
+1231498	all 3 methods agree	RDA-corrected	oligogenic	0.47076240723002
+1231498	all 3 methods agree	RDA-uncorrected	oligogenic	0.835746808113993
+1231498	any method (union)	GFoffset	oligogenic	0.672902070478565
+1231498	any method (union)	LFMM2offset	oligogenic	0.716557455256143
+1231498	any method (union)	RDA-corrected	oligogenic	0.470655057417379
+1231498	any method (union)	RDA-uncorrected	oligogenic	0.610487419275371
+1231513	true QTNs (oracle)	GFoffset	oligogenic	0.695440431921872
+1231513	true QTNs (oracle)	LFMM2offset	oligogenic	0.580752742518946
+1231513	true QTNs (oracle)	RDA-corrected	oligogenic	0.685161635161337
+1231513	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.677913553001637
+1231513	≥2 methods agree	GFoffset	oligogenic	0.754121390994988
+1231513	≥2 methods agree	LFMM2offset	oligogenic	0.744934142826206
+1231513	≥2 methods agree	RDA-corrected	oligogenic	0.685161635161337
+1231513	≥2 methods agree	RDA-uncorrected	oligogenic	0.764789076899624
+1231513	EMMAX only	GFoffset	oligogenic	0.734019609167173
+1231513	EMMAX only	LFMM2offset	oligogenic	0.75163534505479
+1231513	EMMAX only	RDA-corrected	oligogenic	0.697216220156097
+1231513	EMMAX only	RDA-uncorrected	oligogenic	0.685127177791463
+1231513	LFMM only	GFoffset	oligogenic	0.367517425336814
+1231513	LFMM only	LFMM2offset	oligogenic	0.415204676926825
+1231513	LFMM only	RDA-corrected	oligogenic	0.685161635161337
+1231513	LFMM only	RDA-uncorrected	oligogenic	0.339854402528828
+1231513	RDA only	GFoffset	oligogenic	0.744375072533017
+1231513	RDA only	LFMM2offset	oligogenic	0.764086301056044
+1231513	RDA only	RDA-corrected	oligogenic	0.685161635161337
+1231513	RDA only	RDA-uncorrected	oligogenic	0.746461087732891
+1231513	all 3 methods agree	GFoffset	oligogenic	0.745187265738182
+1231513	all 3 methods agree	LFMM2offset	oligogenic	0.746203441846855
+1231513	all 3 methods agree	RDA-corrected	oligogenic	0.685161635161337
+1231513	all 3 methods agree	RDA-uncorrected	oligogenic	0.727209799548647
+1231513	any method (union)	GFoffset	oligogenic	0.374827164183292
+1231513	any method (union)	LFMM2offset	oligogenic	0.425210648713679
+1231513	any method (union)	RDA-corrected	oligogenic	0.685161635161337
+1231513	any method (union)	RDA-uncorrected	oligogenic	0.346092197104894
+1231528	true QTNs (oracle)	GFoffset	oligogenic	0.646302743009436
+1231528	true QTNs (oracle)	LFMM2offset	oligogenic	0.664848927618919
+1231528	true QTNs (oracle)	RDA-corrected	oligogenic	0.506406153708038
+1231528	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.5746588053585
+1231528	≥2 methods agree	GFoffset	oligogenic	0.751075666475622
+1231528	≥2 methods agree	LFMM2offset	oligogenic	0.745339189162104
+1231528	≥2 methods agree	RDA-corrected	oligogenic	0.506406153708038
+1231528	≥2 methods agree	RDA-uncorrected	oligogenic	0.731368350405442
+1231528	EMMAX only	GFoffset	oligogenic	0.762040274745339
+1231528	EMMAX only	LFMM2offset	oligogenic	0.747370584378979
+1231528	EMMAX only	RDA-corrected	oligogenic	0.506406153708038
+1231528	EMMAX only	RDA-uncorrected	oligogenic	0.6284937029201
+1231528	LFMM only	GFoffset	oligogenic	0.58559130092341
+1231528	LFMM only	LFMM2offset	oligogenic	0.621378429279137
+1231528	LFMM only	RDA-corrected	oligogenic	0.506406153708038
+1231528	LFMM only	RDA-uncorrected	oligogenic	0.566544118305219
+1231528	RDA only	GFoffset	oligogenic	0.717775745063889
+1231528	RDA only	LFMM2offset	oligogenic	0.747218746123185
+1231528	RDA only	RDA-corrected	oligogenic	0.506406153708038
+1231528	RDA only	RDA-uncorrected	oligogenic	0.577333597109608
+1231528	all 3 methods agree	GFoffset	oligogenic	0.707420281698045
+1231528	all 3 methods agree	LFMM2offset	oligogenic	0.767689879307818
+1231528	all 3 methods agree	RDA-corrected	oligogenic	0.506406153708038
+1231528	all 3 methods agree	RDA-uncorrected	oligogenic	0.614241652488189
+1231528	any method (union)	GFoffset	oligogenic	0.598180295603456
+1231528	any method (union)	LFMM2offset	oligogenic	0.644403617367428
+1231528	any method (union)	RDA-corrected	oligogenic	0.506406153708038
+1231528	any method (union)	RDA-uncorrected	oligogenic	0.564589132361047
+1231558	true QTNs (oracle)	GFoffset	highly polygenic	0.808944432343574
+1231558	true QTNs (oracle)	LFMM2offset	highly polygenic	0.835478744565247
+1231558	true QTNs (oracle)	RDA-corrected	highly polygenic	0.223398824546027
+1231558	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.858432573433682
+1231558	≥2 methods agree	GFoffset	highly polygenic	0.592291894866015
+1231558	≥2 methods agree	LFMM2offset	highly polygenic	0.606873025617403
+1231558	≥2 methods agree	RDA-corrected	highly polygenic	0.0252664884355348
+1231558	≥2 methods agree	RDA-uncorrected	highly polygenic	0.532203819781412
+1231558	LFMM only	GFoffset	highly polygenic	0.790670085227378
+1231558	LFMM only	LFMM2offset	highly polygenic	0.814305421836053
+1231558	LFMM only	RDA-corrected	highly polygenic	0.0252664884355348
+1231558	LFMM only	RDA-uncorrected	highly polygenic	0.850366285806949
+1231558	RDA only	GFoffset	highly polygenic	0.357365010272262
+1231558	RDA only	LFMM2offset	highly polygenic	0.425153662138357
+1231558	RDA only	RDA-corrected	highly polygenic	0.0250575336540025
+1231558	RDA only	RDA-uncorrected	highly polygenic	0.26772818843405
+1231558	any method (union)	GFoffset	highly polygenic	0.784172539586064
+1231558	any method (union)	LFMM2offset	highly polygenic	0.801256962397518
+1231558	any method (union)	RDA-corrected	highly polygenic	0.02505172160143
+1231558	any method (union)	RDA-uncorrected	highly polygenic	0.836258431392392
+1231585	true QTNs (oracle)	GFoffset	highly polygenic	0.502747593996659
+1231585	true QTNs (oracle)	LFMM2offset	highly polygenic	0.452982640500973
+1231585	true QTNs (oracle)	RDA-corrected	highly polygenic	0.726963599155894
+1231585	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.402606095727771
+1231585	≥2 methods agree	GFoffset	highly polygenic	0.746608603847219
+1231585	≥2 methods agree	LFMM2offset	highly polygenic	0.599317938296434
+1231585	≥2 methods agree	RDA-corrected	highly polygenic	0.727221606743204
+1231585	≥2 methods agree	RDA-uncorrected	highly polygenic	0.746762520996769
+1231585	EMMAX only	GFoffset	highly polygenic	0.745593362340764
+1231585	EMMAX only	LFMM2offset	highly polygenic	0.711453047252015
+1231585	EMMAX only	RDA-corrected	highly polygenic	0.726923895594904
+1231585	EMMAX only	RDA-uncorrected	highly polygenic	0.718937934336278
+1231585	LFMM only	GFoffset	highly polygenic	0.38964969017754
+1231585	LFMM only	LFMM2offset	highly polygenic	0.317900373266378
+1231585	LFMM only	RDA-corrected	highly polygenic	0.726460890848021
+1231585	LFMM only	RDA-uncorrected	highly polygenic	0.287783483181929
+1231585	RDA only	GFoffset	highly polygenic	0.813208446670686
+1231585	RDA only	LFMM2offset	highly polygenic	0.687412788221656
+1231585	RDA only	RDA-corrected	highly polygenic	0.725513189455806
+1231585	RDA only	RDA-uncorrected	highly polygenic	0.729444243066813
+1231585	all 3 methods agree	GFoffset	highly polygenic	0.74295373442398
+1231585	all 3 methods agree	LFMM2offset	highly polygenic	0.65415234073076
+1231585	all 3 methods agree	RDA-corrected	highly polygenic	0.745694741380749
+1231585	all 3 methods agree	RDA-uncorrected	highly polygenic	0.775062033839641
+1231585	any method (union)	GFoffset	highly polygenic	0.432695930051244
+1231585	any method (union)	LFMM2offset	highly polygenic	0.323361532105222
+1231585	any method (union)	RDA-corrected	highly polygenic	0.726664605429368
+1231585	any method (union)	RDA-uncorrected	highly polygenic	0.301976131143166
+1231600	true QTNs (oracle)	GFoffset	highly polygenic	0.793918858048035
+1231600	true QTNs (oracle)	LFMM2offset	highly polygenic	0.757224441710964
+1231600	true QTNs (oracle)	RDA-corrected	highly polygenic	0.491677460322229
+1231600	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.687115451568939
+1231600	≥2 methods agree	GFoffset	highly polygenic	0.781126815066699
+1231600	≥2 methods agree	LFMM2offset	highly polygenic	0.843106079247408
+1231600	≥2 methods agree	RDA-corrected	highly polygenic	0.491677460322229
+1231600	≥2 methods agree	RDA-uncorrected	highly polygenic	0.765071711921776
+1231600	EMMAX only	GFoffset	highly polygenic	0.809350528946155
+1231600	EMMAX only	LFMM2offset	highly polygenic	0.654953709573097
+1231600	EMMAX only	RDA-corrected	highly polygenic	0.491677460322229
+1231600	EMMAX only	RDA-uncorrected	highly polygenic	0.681569085845941
+1231600	LFMM only	GFoffset	highly polygenic	0.665592331632087
+1231600	LFMM only	LFMM2offset	highly polygenic	0.69592759029432
+1231600	LFMM only	RDA-corrected	highly polygenic	0.491677460322229
+1231600	LFMM only	RDA-uncorrected	highly polygenic	0.623281950085701
+1231600	RDA only	GFoffset	highly polygenic	0.68549106515861
+1231600	RDA only	LFMM2offset	highly polygenic	0.671683780670819
+1231600	RDA only	RDA-corrected	highly polygenic	0.491677460322229
+1231600	RDA only	RDA-uncorrected	highly polygenic	0.510874511142544
+1231600	all 3 methods agree	GFoffset	highly polygenic	0.718994034871635
+1231600	all 3 methods agree	LFMM2offset	highly polygenic	0.729769783270173
+1231600	all 3 methods agree	RDA-corrected	highly polygenic	0.491677460322229
+1231600	all 3 methods agree	RDA-uncorrected	highly polygenic	0.661860334526717
+1231600	any method (union)	GFoffset	highly polygenic	0.696658721729619
+1231600	any method (union)	LFMM2offset	highly polygenic	0.712729984497705
+1231600	any method (union)	RDA-corrected	highly polygenic	0.491677460322229
+1231600	any method (union)	RDA-uncorrected	highly polygenic	0.641154181125706
+1231603	true QTNs (oracle)	GFoffset	highly polygenic	0.789248747118341
+1231603	true QTNs (oracle)	LFMM2offset	highly polygenic	0.802657775910831
+1231603	true QTNs (oracle)	RDA-corrected	highly polygenic	0.468521246714885
+1231603	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.718068894247057
+1231603	≥2 methods agree	GFoffset	highly polygenic	0.828843165870097
+1231603	≥2 methods agree	LFMM2offset	highly polygenic	0.817530617668075
+1231603	≥2 methods agree	RDA-corrected	highly polygenic	0.439162212978181
+1231603	≥2 methods agree	RDA-uncorrected	highly polygenic	0.695262913820678
+1231603	EMMAX only	GFoffset	highly polygenic	0.677369133106969
+1231603	EMMAX only	LFMM2offset	highly polygenic	0.500515348069236
+1231603	EMMAX only	RDA-corrected	highly polygenic	0.45509837472867
+1231603	EMMAX only	RDA-uncorrected	highly polygenic	0.500109085611387
+1231603	LFMM only	GFoffset	highly polygenic	0.773614027918929
+1231603	LFMM only	LFMM2offset	highly polygenic	0.781445784335379
+1231603	LFMM only	RDA-corrected	highly polygenic	0.43938919592666
+1231603	LFMM only	RDA-uncorrected	highly polygenic	0.735131917476691
+1231603	RDA only	GFoffset	highly polygenic	0.778081090547333
+1231603	RDA only	LFMM2offset	highly polygenic	0.73238387185832
+1231603	RDA only	RDA-corrected	highly polygenic	0.4383702042849
+1231603	RDA only	RDA-uncorrected	highly polygenic	0.535330805441587
+1231603	all 3 methods agree	GFoffset	highly polygenic	0.740111058205905
+1231603	all 3 methods agree	LFMM2offset	highly polygenic	0.760571211791892
+1231603	all 3 methods agree	RDA-corrected	highly polygenic	0.453486097811456
+1231603	all 3 methods agree	RDA-uncorrected	highly polygenic	0.685021321606055
+1231603	any method (union)	GFoffset	highly polygenic	0.774629269425384
+1231603	any method (union)	LFMM2offset	highly polygenic	0.782117047085162
+1231603	any method (union)	RDA-corrected	highly polygenic	0.439162212978181
+1231603	any method (union)	RDA-uncorrected	highly polygenic	0.720450133607339
+1231660	true QTNs (oracle)	GFoffset	moderately polygenic	0.661328317304974
+1231660	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.73258816621104
+1231660	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.746766613696086
+1231660	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.590464460154395
+1231660	≥2 methods agree	GFoffset	moderately polygenic	0.810365770452611
+1231660	≥2 methods agree	LFMM2offset	moderately polygenic	0.778454908870296
+1231660	≥2 methods agree	RDA-corrected	moderately polygenic	0.741580138367915
+1231660	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.767179169621111
+1231660	EMMAX only	GFoffset	moderately polygenic	0.743765927629144
+1231660	EMMAX only	LFMM2offset	moderately polygenic	0.728877745278326
+1231660	EMMAX only	RDA-corrected	moderately polygenic	0.742493024281342
+1231660	EMMAX only	RDA-uncorrected	moderately polygenic	0.706752216719288
+1231660	LFMM only	GFoffset	moderately polygenic	0.447924552648073
+1231660	LFMM only	LFMM2offset	moderately polygenic	0.505901132257616
+1231660	LFMM only	RDA-corrected	moderately polygenic	0.742137992539153
+1231660	LFMM only	RDA-uncorrected	moderately polygenic	0.40489165823089
+1231660	RDA only	GFoffset	moderately polygenic	0.800416403689349
+1231660	RDA only	LFMM2offset	moderately polygenic	0.757089571747891
+1231660	RDA only	RDA-corrected	moderately polygenic	0.742137992539153
+1231660	RDA only	RDA-uncorrected	moderately polygenic	0.740007066970872
+1231660	all 3 methods agree	GFoffset	moderately polygenic	0.780720718464117
+1231660	all 3 methods agree	LFMM2offset	moderately polygenic	0.767898393953471
+1231660	all 3 methods agree	RDA-corrected	moderately polygenic	0.742493024281342
+1231660	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.742493024281342
+1231660	any method (union)	GFoffset	moderately polygenic	0.470056817488799
+1231660	any method (union)	LFMM2offset	moderately polygenic	0.515652432483094
+1231660	any method (union)	RDA-corrected	moderately polygenic	0.742493024281342
+1231660	any method (union)	RDA-uncorrected	moderately polygenic	0.425933148033768
+1231722	true QTNs (oracle)	GFoffset	oligogenic	0.713917827339358
+1231722	true QTNs (oracle)	LFMM2offset	oligogenic	0.718656271763881
+1231722	true QTNs (oracle)	RDA-corrected	oligogenic	0.513312615491461
+1231722	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.703587252551022
+1231722	≥2 methods agree	GFoffset	oligogenic	0.835543759812702
+1231722	≥2 methods agree	LFMM2offset	oligogenic	0.851149247029895
+1231722	≥2 methods agree	RDA-corrected	oligogenic	0.513312615491461
+1231722	≥2 methods agree	RDA-uncorrected	oligogenic	0.853093503841427
+1231722	EMMAX only	GFoffset	oligogenic	0.709450764710955
+1231722	EMMAX only	LFMM2offset	oligogenic	0.782962986698692
+1231722	EMMAX only	RDA-corrected	oligogenic	0.513103057362502
+1231722	EMMAX only	RDA-uncorrected	oligogenic	0.71026295791612
+1231722	LFMM only	GFoffset	oligogenic	0.600413826917658
+1231722	LFMM only	LFMM2offset	oligogenic	0.665728664660978
+1231722	LFMM only	RDA-corrected	oligogenic	0.513312615491461
+1231722	LFMM only	RDA-uncorrected	oligogenic	0.571899949266756
+1231722	RDA only	GFoffset	oligogenic	0.72000927637809
+1231722	RDA only	LFMM2offset	oligogenic	0.775763800234377
+1231722	RDA only	RDA-corrected	oligogenic	0.513312615491461
+1231722	RDA only	RDA-uncorrected	oligogenic	0.643063951151388
+1231722	all 3 methods agree	GFoffset	oligogenic	0.742750686122689
+1231722	all 3 methods agree	LFMM2offset	oligogenic	0.831888890389463
+1231722	all 3 methods agree	RDA-corrected	oligogenic	0.51321003400926
+1231722	all 3 methods agree	RDA-uncorrected	oligogenic	0.727534588802204
+1231722	any method (union)	GFoffset	oligogenic	0.602444309930568
+1231722	any method (union)	LFMM2offset	oligogenic	0.668708005618476
+1231722	any method (union)	RDA-corrected	oligogenic	0.513312615491461
+1231722	any method (union)	RDA-uncorrected	oligogenic	0.578805581773846
+1231723	true QTNs (oracle)	GFoffset	oligogenic	0.642444825284906
+1231723	true QTNs (oracle)	LFMM2offset	oligogenic	0.675069798724331
+1231723	true QTNs (oracle)	RDA-corrected	oligogenic	0.488428853356839
+1231723	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.610160145379628
+1231723	≥2 methods agree	GFoffset	oligogenic	0.766710385675034
+1231723	≥2 methods agree	LFMM2offset	oligogenic	0.806696411868655
+1231723	≥2 methods agree	RDA-corrected	oligogenic	0.487925068002411
+1231723	≥2 methods agree	RDA-uncorrected	oligogenic	0.73481995116053
+1231723	EMMAX only	GFoffset	oligogenic	0.724273290705202
+1231723	EMMAX only	LFMM2offset	oligogenic	0.817698215636599
+1231723	EMMAX only	RDA-corrected	oligogenic	0.488428853356839
+1231723	EMMAX only	RDA-uncorrected	oligogenic	0.796315874540063
+1231723	LFMM only	GFoffset	oligogenic	0.592291894866015
+1231723	LFMM only	LFMM2offset	oligogenic	0.623612365062584
+1231723	LFMM only	RDA-corrected	oligogenic	0.488737261207576
+1231723	LFMM only	RDA-uncorrected	oligogenic	0.501734135442781
+1231723	RDA only	GFoffset	oligogenic	0.782345104874445
+1231723	RDA only	LFMM2offset	oligogenic	0.821189474949328
+1231723	RDA only	RDA-corrected	oligogenic	0.488428853356839
+1231723	RDA only	RDA-uncorrected	oligogenic	0.720450299665984
+1231723	all 3 methods agree	GFoffset	oligogenic	0.686709354966357
+1231723	all 3 methods agree	LFMM2offset	oligogenic	0.766460193022764
+1231723	all 3 methods agree	RDA-corrected	oligogenic	0.488428853356839
+1231723	all 3 methods agree	RDA-uncorrected	oligogenic	0.599816168723234
+1231723	any method (union)	GFoffset	oligogenic	0.600007730315075
+1231723	any method (union)	LFMM2offset	oligogenic	0.625388767976458
+1231723	any method (union)	RDA-corrected	oligogenic	0.488428853356839
+1231723	any method (union)	RDA-uncorrected	oligogenic	0.521640995877353
+1231798	true QTNs (oracle)	GFoffset	highly polygenic	0.746405555545928
+1231798	true QTNs (oracle)	LFMM2offset	highly polygenic	0.757524740923828
+1231798	true QTNs (oracle)	RDA-corrected	highly polygenic	0.552654234074627
+1231798	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.692800804005089
+1231798	≥2 methods agree	GFoffset	highly polygenic	0.858691266159882
+1231798	≥2 methods agree	LFMM2offset	highly polygenic	0.866329510871345
+1231798	≥2 methods agree	RDA-corrected	highly polygenic	0.503359185274175
+1231798	≥2 methods agree	RDA-uncorrected	highly polygenic	0.87598435517164
+1231798	EMMAX only	GFoffset	highly polygenic	0.586809590731157
+1231798	EMMAX only	LFMM2offset	highly polygenic	0.503359185274175
+1231798	EMMAX only	RDA-corrected	highly polygenic	0.503359185274175
+1231798	EMMAX only	RDA-uncorrected	highly polygenic	0.508537435250572
+1231798	LFMM only	GFoffset	highly polygenic	0.710872102819993
+1231798	LFMM only	LFMM2offset	highly polygenic	0.754121390994988
+1231798	LFMM only	RDA-corrected	highly polygenic	0.503359185274175
+1231798	LFMM only	RDA-uncorrected	highly polygenic	0.698568296270334
+1231798	RDA only	GFoffset	highly polygenic	0.762040274745339
+1231798	RDA only	LFMM2offset	highly polygenic	0.784247122357068
+1231798	RDA only	RDA-corrected	highly polygenic	0.503359185274175
+1231798	RDA only	RDA-uncorrected	highly polygenic	0.680359028021744
+1231798	all 3 methods agree	GFoffset	highly polygenic	0.663764896920467
+1231798	all 3 methods agree	LFMM2offset	highly polygenic	0.511991412490981
+1231798	all 3 methods agree	RDA-corrected	highly polygenic	0.503359185274175
+1231798	all 3 methods agree	RDA-uncorrected	highly polygenic	0.508437465997281
+1231798	any method (union)	GFoffset	highly polygenic	0.73523789897492
+1231798	any method (union)	LFMM2offset	highly polygenic	0.781532911669281
+1231798	any method (union)	RDA-corrected	highly polygenic	0.503359185274175
+1231798	any method (union)	RDA-uncorrected	highly polygenic	0.718734305541554
+1231828	true QTNs (oracle)	GFoffset	highly polygenic	0.778487187149915
+1231828	true QTNs (oracle)	LFMM2offset	highly polygenic	0.796844148663636
+1231828	true QTNs (oracle)	RDA-corrected	highly polygenic	0.487823440196458
+1231828	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.70588028443354
+1231828	≥2 methods agree	GFoffset	highly polygenic	0.838183387729486
+1231828	≥2 methods agree	LFMM2offset	highly polygenic	0.849554092601785
+1231828	≥2 methods agree	RDA-corrected	highly polygenic	0.488327474333784
+1231828	≥2 methods agree	RDA-uncorrected	highly polygenic	0.845087029973382
+1231828	EMMAX only	GFoffset	highly polygenic	0.606505275956389
+1231828	EMMAX only	LFMM2offset	highly polygenic	0.669468420802164
+1231828	EMMAX only	RDA-corrected	highly polygenic	0.488327474333784
+1231828	EMMAX only	RDA-uncorrected	highly polygenic	0.660516041223109
+1231828	LFMM only	GFoffset	highly polygenic	0.666607573138542
+1231828	LFMM only	LFMM2offset	highly polygenic	0.724476339006493
+1231828	LFMM only	RDA-corrected	highly polygenic	0.488635633401622
+1231828	LFMM only	RDA-uncorrected	highly polygenic	0.619956831811523
+1231828	RDA only	GFoffset	highly polygenic	0.752090907982078
+1231828	RDA only	LFMM2offset	highly polygenic	0.78132986336799
+1231828	RDA only	RDA-corrected	highly polygenic	0.487823440196458
+1231828	RDA only	RDA-uncorrected	highly polygenic	0.747014700449801
+1231828	all 3 methods agree	GFoffset	highly polygenic	0.702547122467059
+1231828	all 3 methods agree	LFMM2offset	highly polygenic	0.660923134178392
+1231828	all 3 methods agree	RDA-corrected	highly polygenic	0.488327474333784
+1231828	all 3 methods agree	RDA-uncorrected	highly polygenic	0.595542340567862
+1231828	any method (union)	GFoffset	highly polygenic	0.69503433531929
+1231828	any method (union)	LFMM2offset	highly polygenic	0.738689720096867
+1231828	any method (union)	RDA-corrected	highly polygenic	0.487823440196458
+1231828	any method (union)	RDA-uncorrected	highly polygenic	0.631074120412607
+1231858	true QTNs (oracle)	GFoffset	moderately polygenic	0.813005398369395
+1231858	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.819467160745472
+1231858	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.204510688578502
+1231858	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.827218779459768
+1231858	≥2 methods agree	GFoffset	moderately polygenic	0.761025033238884
+1231858	≥2 methods agree	LFMM2offset	moderately polygenic	0.740314106507196
+1231858	≥2 methods agree	RDA-corrected	moderately polygenic	0.0307174372977172
+1231858	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.780227050297864
+1231858	EMMAX only	GFoffset	moderately polygenic	0.651378950541712
+1231858	EMMAX only	LFMM2offset	moderately polygenic	0.821462895385278
+1231858	EMMAX only	RDA-corrected	moderately polygenic	0.677711582759577
+1231858	EMMAX only	RDA-uncorrected	moderately polygenic	0.821630575059498
+1231858	LFMM only	GFoffset	moderately polygenic	0.778893283752497
+1231858	LFMM only	LFMM2offset	moderately polygenic	0.773884689714293
+1231858	LFMM only	RDA-corrected	moderately polygenic	0.0311238658142106
+1231858	LFMM only	RDA-uncorrected	moderately polygenic	0.815775015359599
+1231858	RDA only	GFoffset	moderately polygenic	0.531377404478698
+1231858	RDA only	LFMM2offset	moderately polygenic	0.571235279931379
+1231858	RDA only	RDA-corrected	moderately polygenic	0.0307174372977172
+1231858	RDA only	RDA-uncorrected	moderately polygenic	0.513312615491461
+1231858	all 3 methods agree	GFoffset	moderately polygenic	0.536859708613557
+1231858	all 3 methods agree	LFMM2offset	moderately polygenic	0.801352698105981
+1231858	all 3 methods agree	RDA-corrected	moderately polygenic	0.225724770461375
+1231858	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.813337440612509
+1231858	any method (union)	GFoffset	moderately polygenic	0.772192689809892
+1231858	any method (union)	LFMM2offset	moderately polygenic	0.763725803447054
+1231858	any method (union)	RDA-corrected	moderately polygenic	0.033824593611721
+1231858	any method (union)	RDA-uncorrected	moderately polygenic	0.806837241286934
+1231870	true QTNs (oracle)	GFoffset	moderately polygenic	0.721633662788419
+1231870	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.748335634668488
+1231870	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.49909272457342
+1231870	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.624222266484076
+1231870	≥2 methods agree	GFoffset	moderately polygenic	0.832294986992045
+1231870	≥2 methods agree	LFMM2offset	moderately polygenic	0.807281691911381
+1231870	≥2 methods agree	RDA-corrected	moderately polygenic	0.499296560695691
+1231870	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.77043217694075
+1231870	EMMAX only	GFoffset	moderately polygenic	0.712496489230321
+1231870	EMMAX only	LFMM2offset	moderately polygenic	0.708927988945468
+1231870	EMMAX only	RDA-corrected	moderately polygenic	0.499296560695691
+1231870	EMMAX only	RDA-uncorrected	moderately polygenic	0.565980412912415
+1231870	LFMM only	GFoffset	moderately polygenic	0.682648388940535
+1231870	LFMM only	LFMM2offset	moderately polygenic	0.715403513532417
+1231870	LFMM only	RDA-corrected	moderately polygenic	0.499296560695691
+1231870	LFMM only	RDA-uncorrected	moderately polygenic	0.624425397713
+1231870	RDA only	GFoffset	moderately polygenic	0.661937462208848
+1231870	RDA only	LFMM2offset	moderately polygenic	0.629910885520244
+1231870	RDA only	RDA-corrected	moderately polygenic	0.499296560695691
+1231870	RDA only	RDA-uncorrected	moderately polygenic	0.500209884141011
+1231870	all 3 methods agree	GFoffset	moderately polygenic	0.703765412274806
+1231870	all 3 methods agree	LFMM2offset	moderately polygenic	0.749351103501385
+1231870	all 3 methods agree	RDA-corrected	moderately polygenic	0.49909272457342
+1231870	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.592970337393386
+1231870	any method (union)	GFoffset	moderately polygenic	0.703968460576097
+1231870	any method (union)	LFMM2offset	moderately polygenic	0.727303830264819
+1231870	any method (union)	RDA-corrected	moderately polygenic	0.499296560695691
+1231870	any method (union)	RDA-uncorrected	moderately polygenic	0.65739986963692
+1231903	true QTNs (oracle)	GFoffset	moderately polygenic	0.686303258363775
+1231903	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.743815538810261
+1231903	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.551095024071363
+1231903	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.63197415123952
+1231903	≥2 methods agree	GFoffset	moderately polygenic	0.731583029551681
+1231903	≥2 methods agree	LFMM2offset	moderately polygenic	0.757573212116936
+1231903	≥2 methods agree	RDA-corrected	moderately polygenic	0.502546660358479
+1231903	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.688411734824124
+1231903	EMMAX only	GFoffset	moderately polygenic	0.789248747118341
+1231903	EMMAX only	LFMM2offset	moderately polygenic	0.745035197636143
+1231903	EMMAX only	RDA-corrected	moderately polygenic	0.635135086438428
+1231903	EMMAX only	RDA-uncorrected	moderately polygenic	0.687739778551358
+1231903	LFMM only	GFoffset	moderately polygenic	0.661328317304974
+1231903	LFMM only	LFMM2offset	moderately polygenic	0.700862986705515
+1231903	LFMM only	RDA-corrected	moderately polygenic	0.502546660358479
+1231903	LFMM only	RDA-uncorrected	moderately polygenic	0.601277048470311
+1231903	RDA only	GFoffset	moderately polygenic	0.811584060260358
+1231903	RDA only	LFMM2offset	moderately polygenic	0.818451587528483
+1231903	RDA only	RDA-corrected	moderately polygenic	0.590299351253734
+1231903	RDA only	RDA-uncorrected	moderately polygenic	0.74813231612784
+1231903	all 3 methods agree	GFoffset	moderately polygenic	0.708841619807082
+1231903	all 3 methods agree	LFMM2offset	moderately polygenic	0.73127242412713
+1231903	all 3 methods agree	RDA-corrected	moderately polygenic	0.497671510864298
+1231903	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.630796644569034
+1231903	any method (union)	GFoffset	moderately polygenic	0.669653297657908
+1231903	any method (union)	LFMM2offset	moderately polygenic	0.705127747381326
+1231903	any method (union)	RDA-corrected	moderately polygenic	0.502546660358479
+1231903	any method (union)	RDA-uncorrected	moderately polygenic	0.611987580091248
+1231915	true QTNs (oracle)	GFoffset	moderately polygenic	0.768131723784071
+1231915	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.723297732386287
+1231915	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.722095498737273
+1231915	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.707997191823903
+1231915	≥2 methods agree	GFoffset	moderately polygenic	0.76427380605954
+1231915	≥2 methods agree	LFMM2offset	moderately polygenic	0.696800942620463
+1231915	≥2 methods agree	RDA-corrected	moderately polygenic	0.762943044609363
+1231915	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.663223462437523
+1231915	EMMAX only	GFoffset	moderately polygenic	0.80650785272808
+1231915	EMMAX only	LFMM2offset	moderately polygenic	0.767474220823996
+1231915	EMMAX only	RDA-corrected	moderately polygenic	0.762379720248705
+1231915	EMMAX only	RDA-uncorrected	moderately polygenic	0.746810343125494
+1231915	LFMM only	GFoffset	moderately polygenic	0.452391615276477
+1231915	LFMM only	LFMM2offset	moderately polygenic	0.486296162044542
+1231915	LFMM only	RDA-corrected	moderately polygenic	0.777224489603085
+1231915	LFMM only	RDA-uncorrected	moderately polygenic	0.395293138516294
+1231915	RDA only	GFoffset	moderately polygenic	0.778690235451206
+1231915	RDA only	LFMM2offset	moderately polygenic	0.731936674434764
+1231915	RDA only	RDA-corrected	moderately polygenic	0.762896874252659
+1231915	RDA only	RDA-uncorrected	moderately polygenic	0.669927291932759
+1231915	all 3 methods agree	GFoffset	moderately polygenic	0.780111573560244
+1231915	all 3 methods agree	LFMM2offset	moderately polygenic	0.734780014073904
+1231915	all 3 methods agree	RDA-corrected	moderately polygenic	0.762849138409966
+1231915	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.687599209908427
+1231915	any method (union)	GFoffset	moderately polygenic	0.448939794154528
+1231915	any method (union)	LFMM2offset	moderately polygenic	0.495538778079719
+1231915	any method (union)	RDA-corrected	moderately polygenic	0.807484491429772
+1231915	any method (union)	RDA-uncorrected	moderately polygenic	0.388794265219335
+1231948	true QTNs (oracle)	GFoffset	oligogenic	0.754933584200152
+1231948	true QTNs (oracle)	LFMM2offset	oligogenic	0.801228596894513
+1231948	true QTNs (oracle)	RDA-corrected	oligogenic	0.354973891665943
+1231948	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.725178834731793
+1231948	≥2 methods agree	GFoffset	oligogenic	0.785593877695102
+1231948	≥2 methods agree	LFMM2offset	oligogenic	0.816014842057724
+1231948	≥2 methods agree	RDA-corrected	oligogenic	0.392685411585218
+1231948	≥2 methods agree	RDA-uncorrected	oligogenic	0.683866678748282
+1231948	EMMAX only	GFoffset	oligogenic	0.642241776983615
+1231948	EMMAX only	LFMM2offset	oligogenic	0.758502560099304
+1231948	EMMAX only	RDA-corrected	oligogenic	0.386013311662903
+1231948	EMMAX only	RDA-uncorrected	oligogenic	0.51706504926663
+1231948	LFMM only	GFoffset	oligogenic	0.794324954650618
+1231948	LFMM only	LFMM2offset	oligogenic	0.818858181696865
+1231948	LFMM only	RDA-corrected	oligogenic	0.392677076228402
+1231948	LFMM only	RDA-uncorrected	oligogenic	0.713453971648756
+1231948	RDA only	GFoffset	oligogenic	0.774426221124094
+1231948	RDA only	LFMM2offset	oligogenic	0.810787015369685
+1231948	RDA only	RDA-corrected	oligogenic	0.419903887069907
+1231948	RDA only	RDA-uncorrected	oligogenic	0.742089504137482
+1231948	all 3 methods agree	GFoffset	oligogenic	0.703156267370932
+1231948	all 3 methods agree	LFMM2offset	oligogenic	0.804689931344933
+1231948	all 3 methods agree	RDA-corrected	oligogenic	0.392677076228402
+1231948	all 3 methods agree	RDA-uncorrected	oligogenic	0.567200221218803
+1231948	any method (union)	GFoffset	oligogenic	0.760618936636302
+1231948	any method (union)	LFMM2offset	oligogenic	0.815441977984887
+1231948	any method (union)	RDA-corrected	oligogenic	0.404472216171787
+1231948	any method (union)	RDA-uncorrected	oligogenic	0.67324311036141
+1231974	true QTNs (oracle)	GFoffset	oligogenic	0.785752631637855
+1231974	true QTNs (oracle)	LFMM2offset	oligogenic	0.753109765280414
+1231974	true QTNs (oracle)	RDA-corrected	oligogenic	0.525499933691382
+1231974	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.754224308611349
+1231974	≥2 methods agree	GFoffset	oligogenic	0.643183919461641
+1231974	≥2 methods agree	LFMM2offset	oligogenic	0.640545112896322
+1231974	≥2 methods agree	RDA-corrected	oligogenic	0.525499933691382
+1231974	≥2 methods agree	RDA-uncorrected	oligogenic	0.526013027678912
+1231974	EMMAX only	GFoffset	oligogenic	0.647042616799743
+1231974	EMMAX only	LFMM2offset	oligogenic	0.632418221777297
+1231974	EMMAX only	RDA-corrected	oligogenic	0.525606683122961
+1231974	EMMAX only	RDA-uncorrected	oligogenic	0.538609708913401
+1231974	LFMM only	GFoffset	oligogenic	0.725232010229718
+1231974	LFMM only	LFMM2offset	oligogenic	0.753262992113231
+1231974	LFMM only	RDA-corrected	oligogenic	0.525499933691382
+1231974	LFMM only	RDA-uncorrected	oligogenic	0.689504896905693
+1231974	RDA only	GFoffset	oligogenic	0.643183919461641
+1231974	RDA only	LFMM2offset	oligogenic	0.580139507697875
+1231974	RDA only	RDA-corrected	oligogenic	0.525499933691382
+1231974	RDA only	RDA-uncorrected	oligogenic	0.525606683122961
+1231974	all 3 methods agree	GFoffset	oligogenic	0.641559204792966
+1231974	all 3 methods agree	LFMM2offset	oligogenic	0.555967315059817
+1231974	all 3 methods agree	RDA-corrected	oligogenic	0.525606683122961
+1231974	all 3 methods agree	RDA-uncorrected	oligogenic	0.525499933691382
+1231974	any method (union)	GFoffset	oligogenic	0.741479156916467
+1231974	any method (union)	LFMM2offset	oligogenic	0.756111561001925
+1231974	any method (union)	RDA-corrected	oligogenic	0.525499933691382
+1231974	any method (union)	RDA-uncorrected	oligogenic	0.71441125128921
+1231975	true QTNs (oracle)	GFoffset	oligogenic	0.62010951214289
+1231975	true QTNs (oracle)	LFMM2offset	oligogenic	0.767447645235827
+1231975	true QTNs (oracle)	RDA-corrected	oligogenic	0.532854145808273
+1231975	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.594240155139127
+1231975	≥2 methods agree	GFoffset	oligogenic	0.776253655835713
+1231975	≥2 methods agree	LFMM2offset	oligogenic	0.78794681507276
+1231975	≥2 methods agree	RDA-corrected	oligogenic	0.533042505360885
+1231975	≥2 methods agree	RDA-uncorrected	oligogenic	0.708404958642593
+1231975	EMMAX only	GFoffset	oligogenic	0.816051122888761
+1231975	EMMAX only	LFMM2offset	oligogenic	0.848335802794039
+1231975	EMMAX only	RDA-corrected	oligogenic	0.532854145808273
+1231975	EMMAX only	RDA-uncorrected	oligogenic	0.82149206235699
+1231975	LFMM only	GFoffset	oligogenic	0.677978278010841
+1231975	LFMM only	LFMM2offset	oligogenic	0.720506468994148
+1231975	LFMM only	RDA-corrected	oligogenic	0.532854145808273
+1231975	LFMM only	RDA-uncorrected	oligogenic	0.57608016522904
+1231975	RDA only	GFoffset	oligogenic	0.726709870320695
+1231975	RDA only	LFMM2offset	oligogenic	0.829490060503818
+1231975	RDA only	RDA-corrected	oligogenic	0.533042505360885
+1231975	RDA only	RDA-uncorrected	oligogenic	0.710118827772505
+1231975	all 3 methods agree	GFoffset	oligogenic	0.806913949330663
+1231975	all 3 methods agree	LFMM2offset	oligogenic	0.851496772261907
+1231975	all 3 methods agree	RDA-corrected	oligogenic	0.532429342969749
+1231975	all 3 methods agree	RDA-uncorrected	oligogenic	0.806174458605613
+1231975	any method (union)	GFoffset	oligogenic	0.686303258363775
+1231975	any method (union)	LFMM2offset	oligogenic	0.7319355134479
+1231975	any method (union)	RDA-corrected	oligogenic	0.532854145808273
+1231975	any method (union)	RDA-uncorrected	oligogenic	0.609236831288665
+1231977	true QTNs (oracle)	GFoffset	oligogenic	0.692464656860421
+1231977	true QTNs (oracle)	LFMM2offset	oligogenic	0.695124173915342
+1231977	true QTNs (oracle)	RDA-corrected	oligogenic	0.502800582090294
+1231977	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.584347950530992
+1231977	≥2 methods agree	GFoffset	oligogenic	0.66423809166875
+1231977	≥2 methods agree	LFMM2offset	oligogenic	0.691263460281786
+1231977	≥2 methods agree	RDA-corrected	oligogenic	0.503001453091866
+1231977	≥2 methods agree	RDA-uncorrected	oligogenic	0.563631199348986
+1231977	EMMAX only	GFoffset	oligogenic	0.71967587798045
+1231977	EMMAX only	LFMM2offset	oligogenic	0.674268344135643
+1231977	EMMAX only	RDA-corrected	oligogenic	0.502800582090294
+1231977	EMMAX only	RDA-uncorrected	oligogenic	0.543542078133747
+1231977	LFMM only	GFoffset	oligogenic	0.628294911532593
+1231977	LFMM only	LFMM2offset	oligogenic	0.682386729390423
+1231977	LFMM only	RDA-corrected	oligogenic	0.502800582090294
+1231977	LFMM only	RDA-uncorrected	oligogenic	0.548194569083566
+1231977	RDA only	GFoffset	oligogenic	0.776941283621106
+1231977	RDA only	LFMM2offset	oligogenic	0.673310668873357
+1231977	RDA only	RDA-corrected	oligogenic	0.502800582090294
+1231977	RDA only	RDA-uncorrected	oligogenic	0.545372122850258
+1231977	all 3 methods agree	GFoffset	oligogenic	0.655506132652621
+1231977	all 3 methods agree	LFMM2offset	oligogenic	0.683466182990059
+1231977	all 3 methods agree	RDA-corrected	oligogenic	0.502800582090294
+1231977	all 3 methods agree	RDA-uncorrected	oligogenic	0.548194320275533
+1231977	any method (union)	GFoffset	oligogenic	0.647383380079479
+1231977	any method (union)	LFMM2offset	oligogenic	0.678600957299108
+1231977	any method (union)	RDA-corrected	oligogenic	0.502800582090294
+1231977	any method (union)	RDA-uncorrected	oligogenic	0.559479920435018
+1231993	true QTNs (oracle)	GFoffset	oligogenic	0.59677497227754
+1231993	true QTNs (oracle)	LFMM2offset	oligogenic	0.539269816844438
+1231993	true QTNs (oracle)	RDA-corrected	oligogenic	0.68677313440855
+1231993	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.559957388883731
+1231993	≥2 methods agree	GFoffset	oligogenic	0.388706340472228
+1231993	≥2 methods agree	LFMM2offset	oligogenic	0.400004647014809
+1231993	≥2 methods agree	RDA-corrected	oligogenic	0.658131762626345
+1231993	≥2 methods agree	RDA-uncorrected	oligogenic	0.362356672000167
+1231993	EMMAX only	GFoffset	oligogenic	0.698370983901228
+1231993	EMMAX only	LFMM2offset	oligogenic	0.697937231834884
+1231993	EMMAX only	RDA-corrected	oligogenic	0.681186162273942
+1231993	EMMAX only	RDA-uncorrected	oligogenic	0.686129645312325
+1231993	LFMM only	GFoffset	oligogenic	0.317792324358895
+1231993	LFMM only	LFMM2offset	oligogenic	0.357211576868886
+1231993	LFMM only	RDA-corrected	oligogenic	0.663286736154767
+1231993	LFMM only	RDA-uncorrected	oligogenic	0.278226600982969
+1231993	RDA only	GFoffset	oligogenic	0.674394325158038
+1231993	RDA only	LFMM2offset	oligogenic	0.639101792258738
+1231993	RDA only	RDA-corrected	oligogenic	0.663963981107371
+1231993	RDA only	RDA-uncorrected	oligogenic	0.722995850718886
+1231993	all 3 methods agree	GFoffset	oligogenic	0.638226145020005
+1231993	all 3 methods agree	LFMM2offset	oligogenic	0.650871606752869
+1231993	all 3 methods agree	RDA-corrected	oligogenic	0.683346853644476
+1231993	all 3 methods agree	RDA-uncorrected	oligogenic	0.652454862898393
+1231993	any method (union)	GFoffset	oligogenic	0.32978065373049
+1231993	any method (union)	LFMM2offset	oligogenic	0.361902275817625
+1231993	any method (union)	RDA-corrected	oligogenic	0.657725202916273
+1231993	any method (union)	RDA-uncorrected	oligogenic	0.292716013793017
+1232020	true QTNs (oracle)	GFoffset	highly polygenic	0.774426221124094
+1232020	true QTNs (oracle)	LFMM2offset	highly polygenic	0.745897893354306
+1232020	true QTNs (oracle)	RDA-corrected	highly polygenic	0.502952922816327
+1232020	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.673952044324149
+1232020	≥2 methods agree	GFoffset	highly polygenic	0.77178659320731
+1232020	≥2 methods agree	LFMM2offset	highly polygenic	0.886239507519666
+1232020	≥2 methods agree	RDA-corrected	highly polygenic	0.502952922816327
+1232020	≥2 methods agree	RDA-uncorrected	highly polygenic	0.767874480284527
+1232020	EMMAX only	GFoffset	highly polygenic	0.725085483910367
+1232020	EMMAX only	LFMM2offset	highly polygenic	0.677036386004368
+1232020	EMMAX only	RDA-corrected	highly polygenic	0.502138449092786
+1232020	EMMAX only	RDA-uncorrected	highly polygenic	0.607362374483367
+1232020	LFMM only	GFoffset	highly polygenic	0.701328832659313
+1232020	LFMM only	LFMM2offset	highly polygenic	0.718125492348214
+1232020	LFMM only	RDA-corrected	highly polygenic	0.502952922816327
+1232020	LFMM only	RDA-uncorrected	highly polygenic	0.649207407641752
+1232020	RDA only	GFoffset	highly polygenic	0.684069727049573
+1232020	RDA only	LFMM2offset	highly polygenic	0.745390314039472
+1232020	RDA only	RDA-corrected	highly polygenic	0.502952922816327
+1232020	RDA only	RDA-uncorrected	highly polygenic	0.535753785748722
+1232020	all 3 methods agree	GFoffset	highly polygenic	0.70254712246706
+1232020	all 3 methods agree	LFMM2offset	highly polygenic	0.72082224685007
+1232020	all 3 methods agree	RDA-corrected	highly polygenic	0.502952922816327
+1232020	all 3 methods agree	RDA-uncorrected	highly polygenic	0.559869804706337
+1232020	any method (union)	GFoffset	highly polygenic	0.722445855993583
+1232020	any method (union)	LFMM2offset	highly polygenic	0.726655345410368
+1232020	any method (union)	RDA-corrected	highly polygenic	0.502952922816327
+1232020	any method (union)	RDA-uncorrected	highly polygenic	0.6882086035952
+1232023	true QTNs (oracle)	GFoffset	highly polygenic	0.733613512564591
+1232023	true QTNs (oracle)	LFMM2offset	highly polygenic	0.791399267888695
+1232023	true QTNs (oracle)	RDA-corrected	highly polygenic	0.497671510864298
+1232023	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.670129924220946
+1232023	≥2 methods agree	GFoffset	highly polygenic	0.79107618182996
+1232023	≥2 methods agree	LFMM2offset	highly polygenic	0.84104130022268
+1232023	≥2 methods agree	RDA-corrected	highly polygenic	0.470858188646302
+1232023	≥2 methods agree	RDA-uncorrected	highly polygenic	0.719400131474217
+1232023	EMMAX only	GFoffset	highly polygenic	0.617266835924815
+1232023	EMMAX only	LFMM2offset	highly polygenic	0.543985431059016
+1232023	EMMAX only	RDA-corrected	highly polygenic	0.470858188646302
+1232023	EMMAX only	RDA-uncorrected	highly polygenic	0.470858188646302
+1232023	LFMM only	GFoffset	highly polygenic	0.71615135865356
+1232023	LFMM only	LFMM2offset	highly polygenic	0.795096969425988
+1232023	LFMM only	RDA-corrected	highly polygenic	0.470858188646302
+1232023	LFMM only	RDA-uncorrected	highly polygenic	0.653745829490012
+1232023	RDA only	GFoffset	highly polygenic	0.703765412274806
+1232023	RDA only	LFMM2offset	highly polygenic	0.725201198426942
+1232023	RDA only	RDA-corrected	highly polygenic	0.470858188646302
+1232023	RDA only	RDA-uncorrected	highly polygenic	0.611393575587495
+1232023	all 3 methods agree	GFoffset	highly polygenic	0.66234355881143
+1232023	all 3 methods agree	LFMM2offset	highly polygenic	0.694826706672805
+1232023	all 3 methods agree	RDA-corrected	highly polygenic	0.470858188646302
+1232023	all 3 methods agree	RDA-uncorrected	highly polygenic	0.534938441293499
+1232023	any method (union)	GFoffset	highly polygenic	0.728740353333606
+1232023	any method (union)	LFMM2offset	highly polygenic	0.803626656632875
+1232023	any method (union)	RDA-corrected	highly polygenic	0.470858188646302
+1232023	any method (union)	RDA-uncorrected	highly polygenic	0.684425621774773
+1232065	true QTNs (oracle)	GFoffset	highly polygenic	0.498077483066964
+1232065	true QTNs (oracle)	LFMM2offset	highly polygenic	0.459826397125411
+1232065	true QTNs (oracle)	RDA-corrected	highly polygenic	0.804485458183413
+1232065	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.395699633944347
+1232065	≥2 methods agree	GFoffset	highly polygenic	0.528128631658041
+1232065	≥2 methods agree	LFMM2offset	highly polygenic	0.508038149032989
+1232065	≥2 methods agree	RDA-corrected	highly polygenic	0.754892758031096
+1232065	≥2 methods agree	RDA-uncorrected	highly polygenic	0.495233354589275
+1232065	EMMAX only	GFoffset	highly polygenic	0.756354922309189
+1232065	EMMAX only	LFMM2offset	highly polygenic	0.521101899085021
+1232065	EMMAX only	RDA-corrected	highly polygenic	0.742850904175811
+1232065	EMMAX only	RDA-uncorrected	highly polygenic	0.593300470479299
+1232065	LFMM only	GFoffset	highly polygenic	0.369344860048434
+1232065	LFMM only	LFMM2offset	highly polygenic	0.372208129173598
+1232065	LFMM only	RDA-corrected	highly polygenic	0.796763977545614
+1232065	LFMM only	RDA-uncorrected	highly polygenic	0.299274323109232
+1232065	RDA only	GFoffset	highly polygenic	0.601835165026695
+1232065	RDA only	LFMM2offset	highly polygenic	0.695744161333963
+1232065	RDA only	RDA-corrected	highly polygenic	0.754331515733041
+1232065	RDA only	RDA-uncorrected	highly polygenic	0.599901115973439
+1232065	all 3 methods agree	GFoffset	highly polygenic	0.714323923941941
+1232065	all 3 methods agree	LFMM2offset	highly polygenic	0.58104019114728
+1232065	all 3 methods agree	RDA-corrected	highly polygenic	0.774945638345835
+1232065	all 3 methods agree	RDA-uncorrected	highly polygenic	0.732491211500676
+1232065	any method (union)	GFoffset	highly polygenic	0.378888130209113
+1232065	any method (union)	LFMM2offset	highly polygenic	0.390369429983627
+1232065	any method (union)	RDA-corrected	highly polygenic	0.765601601815321
+1232065	any method (union)	RDA-uncorrected	highly polygenic	0.298663600953299
+1232098	true QTNs (oracle)	GFoffset	moderately polygenic	0.744375072533017
+1232098	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.772869254732593
+1232098	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.590052576250925
+1232098	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.688818086717733
+1232098	≥2 methods agree	GFoffset	moderately polygenic	0.807523094234536
+1232098	≥2 methods agree	LFMM2offset	moderately polygenic	0.838183387729486
+1232098	≥2 methods agree	RDA-corrected	moderately polygenic	0.59310408807118
+1232098	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.780271540964581
+1232098	EMMAX only	GFoffset	moderately polygenic	0.781735959970572
+1232098	EMMAX only	LFMM2offset	moderately polygenic	0.86139843089774
+1232098	EMMAX only	RDA-corrected	moderately polygenic	0.567689187135301
+1232098	EMMAX only	RDA-uncorrected	moderately polygenic	0.831076697184299
+1232098	LFMM only	GFoffset	moderately polygenic	0.761025033238884
+1232098	LFMM only	LFMM2offset	moderately polygenic	0.791805530346544
+1232098	LFMM only	RDA-corrected	moderately polygenic	0.5596565806059
+1232098	LFMM only	RDA-uncorrected	moderately polygenic	0.702547122467059
+1232098	RDA only	GFoffset	moderately polygenic	0.807726142535827
+1232098	RDA only	LFMM2offset	moderately polygenic	0.852976930524414
+1232098	RDA only	RDA-corrected	moderately polygenic	0.597939031008859
+1232098	RDA only	RDA-uncorrected	moderately polygenic	0.854805028657099
+1232098	all 3 methods agree	GFoffset	moderately polygenic	0.803868224811297
+1232098	all 3 methods agree	LFMM2offset	moderately polygenic	0.84099467584688
+1232098	all 3 methods agree	RDA-corrected	moderately polygenic	0.589831143057512
+1232098	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.731272424127131
+1232098	any method (union)	GFoffset	moderately polygenic	0.768537820386653
+1232098	any method (union)	LFMM2offset	moderately polygenic	0.793309713144162
+1232098	any method (union)	RDA-corrected	moderately polygenic	0.596758957494419
+1232098	any method (union)	RDA-uncorrected	moderately polygenic	0.706228373673649
+1232110	true QTNs (oracle)	GFoffset	moderately polygenic	0.636962521150048
+1232110	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.640845989621096
+1232110	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.75114136644598
+1232110	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.554751386191999
+1232110	≥2 methods agree	GFoffset	moderately polygenic	0.817066364395216
+1232110	≥2 methods agree	LFMM2offset	moderately polygenic	0.718377913554753
+1232110	≥2 methods agree	RDA-corrected	moderately polygenic	0.750986830204447
+1232110	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.79497686998024
+1232110	EMMAX only	GFoffset	moderately polygenic	0.801025548593222
+1232110	EMMAX only	LFMM2offset	moderately polygenic	0.773588811695896
+1232110	EMMAX only	RDA-corrected	moderately polygenic	0.751239913636706
+1232110	EMMAX only	RDA-uncorrected	moderately polygenic	0.750881959801063
+1232110	LFMM only	GFoffset	moderately polygenic	0.54132677124196
+1232110	LFMM only	LFMM2offset	moderately polygenic	0.512812581092275
+1232110	LFMM only	RDA-corrected	moderately polygenic	0.750281578933362
+1232110	LFMM only	RDA-uncorrected	moderately polygenic	0.493198010270912
+1232110	RDA only	GFoffset	moderately polygenic	0.819096847408127
+1232110	RDA only	LFMM2offset	moderately polygenic	0.77888333690041
+1232110	RDA only	RDA-corrected	moderately polygenic	0.75067923420796
+1232110	RDA only	RDA-uncorrected	moderately polygenic	0.778876707888492
+1232110	all 3 methods agree	GFoffset	moderately polygenic	0.808538335740991
+1232110	all 3 methods agree	LFMM2offset	moderately polygenic	0.791277688607585
+1232110	all 3 methods agree	RDA-corrected	moderately polygenic	0.75114136644598
+1232110	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.754005475169274
+1232110	any method (union)	GFoffset	moderately polygenic	0.560819408165901
+1232110	any method (union)	LFMM2offset	moderately polygenic	0.514740598987688
+1232110	any method (union)	RDA-corrected	moderately polygenic	0.750384964906469
+1232110	any method (union)	RDA-uncorrected	moderately polygenic	0.509967746311865
+1232113	true QTNs (oracle)	GFoffset	moderately polygenic	0.617672932527397
+1232113	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.695583660826675
+1232113	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.669727652217986
+1232113	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.570742889203598
+1232113	≥2 methods agree	GFoffset	moderately polygenic	0.647521032817183
+1232113	≥2 methods agree	LFMM2offset	moderately polygenic	0.674076476779839
+1232113	≥2 methods agree	RDA-corrected	moderately polygenic	0.654147519472639
+1232113	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.648235449243666
+1232113	EMMAX only	GFoffset	moderately polygenic	0.759806743431138
+1232113	EMMAX only	LFMM2offset	moderately polygenic	0.75442938422449
+1232113	EMMAX only	RDA-corrected	moderately polygenic	0.660175995522871
+1232113	EMMAX only	RDA-uncorrected	moderately polygenic	0.72497535603048
+1232113	LFMM only	GFoffset	moderately polygenic	0.512696960759921
+1232113	LFMM only	LFMM2offset	moderately polygenic	0.613971089519263
+1232113	LFMM only	RDA-corrected	moderately polygenic	0.644595788767567
+1232113	LFMM only	RDA-uncorrected	moderately polygenic	0.465887672374004
+1232113	RDA only	GFoffset	moderately polygenic	0.785796925996393
+1232113	RDA only	LFMM2offset	moderately polygenic	0.742290391840154
+1232113	RDA only	RDA-corrected	moderately polygenic	0.667771403490057
+1232113	RDA only	RDA-uncorrected	moderately polygenic	0.770476751309502
+1232113	all 3 methods agree	GFoffset	moderately polygenic	0.77381707622022
+1232113	all 3 methods agree	LFMM2offset	moderately polygenic	0.76349085796165
+1232113	all 3 methods agree	RDA-corrected	moderately polygenic	0.661260865308624
+1232113	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.733506867645297
+1232113	any method (union)	GFoffset	moderately polygenic	0.524473762234802
+1232113	any method (union)	LFMM2offset	moderately polygenic	0.614378853876717
+1232113	any method (union)	RDA-corrected	moderately polygenic	0.646803555039482
+1232113	any method (union)	RDA-uncorrected	moderately polygenic	0.466962456708107
+1232125	true QTNs (oracle)	GFoffset	moderately polygenic	0.698283108139947
+1232125	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.730202840446053
+1232125	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.516960975087033
+1232125	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.650293344947
+1232125	≥2 methods agree	GFoffset	moderately polygenic	0.801837741798386
+1232125	≥2 methods agree	LFMM2offset	moderately polygenic	0.769460955850538
+1232125	≥2 methods agree	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.677978278010841
+1232125	EMMAX only	GFoffset	moderately polygenic	0.719400131474217
+1232125	EMMAX only	LFMM2offset	moderately polygenic	0.701405839585612
+1232125	EMMAX only	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	EMMAX only	RDA-uncorrected	moderately polygenic	0.579858145621691
+1232125	LFMM only	GFoffset	moderately polygenic	0.690770320992178
+1232125	LFMM only	LFMM2offset	moderately polygenic	0.688536789677976
+1232125	LFMM only	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	LFMM only	RDA-uncorrected	moderately polygenic	0.583884194207485
+1232125	RDA only	GFoffset	moderately polygenic	0.758994550225973
+1232125	RDA only	LFMM2offset	moderately polygenic	0.797167630868692
+1232125	RDA only	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	RDA only	RDA-uncorrected	moderately polygenic	0.676312620648132
+1232125	all 3 methods agree	GFoffset	moderately polygenic	0.851178479012113
+1232125	all 3 methods agree	LFMM2offset	moderately polygenic	0.806101756125499
+1232125	all 3 methods agree	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.737163229765933
+1232125	any method (union)	GFoffset	moderately polygenic	0.702344074165768
+1232125	any method (union)	LFMM2offset	moderately polygenic	0.704746891968298
+1232125	any method (union)	RDA-corrected	moderately polygenic	0.516359583925324
+1232125	any method (union)	RDA-uncorrected	moderately polygenic	0.600659043928869
+1232128	true QTNs (oracle)	GFoffset	moderately polygenic	0.676556939901804
+1232128	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.716094428841871
+1232128	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.536536587087792
+1232128	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.602284093760262
+1232128	≥2 methods agree	GFoffset	moderately polygenic	0.780517670162826
+1232128	≥2 methods agree	LFMM2offset	moderately polygenic	0.782984537024406
+1232128	≥2 methods agree	RDA-corrected	moderately polygenic	0.514020651589395
+1232128	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.72146678610383
+1232128	EMMAX only	GFoffset	moderately polygenic	0.723867194102621
+1232128	EMMAX only	LFMM2offset	moderately polygenic	0.733135376535396
+1232128	EMMAX only	RDA-corrected	moderately polygenic	0.491274181919398
+1232128	EMMAX only	RDA-uncorrected	moderately polygenic	0.489127935349522
+1232128	LFMM only	GFoffset	moderately polygenic	0.71797879336518
+1232128	LFMM only	LFMM2offset	moderately polygenic	0.74909761499687
+1232128	LFMM only	RDA-corrected	moderately polygenic	0.512397923731729
+1232128	LFMM only	RDA-uncorrected	moderately polygenic	0.663967862345056
+1232128	RDA only	GFoffset	moderately polygenic	0.798385920676439
+1232128	RDA only	LFMM2offset	moderately polygenic	0.806799338409712
+1232128	RDA only	RDA-corrected	moderately polygenic	0.522144905614765
+1232128	RDA only	RDA-uncorrected	moderately polygenic	0.700110542851567
+1232128	all 3 methods agree	GFoffset	moderately polygenic	0.744172024231726
+1232128	all 3 methods agree	LFMM2offset	moderately polygenic	0.722851952596165
+1232128	all 3 methods agree	RDA-corrected	moderately polygenic	0.50945159009075
+1232128	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.509462785066325
+1232128	any method (union)	GFoffset	moderately polygenic	0.745390314039472
+1232128	any method (union)	LFMM2offset	moderately polygenic	0.75828887757405
+1232128	any method (union)	RDA-corrected	moderately polygenic	0.516458226336485
+1232128	any method (union)	RDA-uncorrected	moderately polygenic	0.679749883117871
+1232218	true QTNs (oracle)	GFoffset	oligogenic	0.769073911419759
+1232218	true QTNs (oracle)	LFMM2offset	oligogenic	0.696594578633725
+1232218	true QTNs (oracle)	RDA-corrected	oligogenic	0.707431895541225
+1232218	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.738003528413331
+1232218	≥2 methods agree	GFoffset	oligogenic	0.755406019625297
+1232218	≥2 methods agree	LFMM2offset	oligogenic	0.689322543527076
+1232218	≥2 methods agree	RDA-corrected	oligogenic	0.707431895541225
+1232218	≥2 methods agree	RDA-uncorrected	oligogenic	0.723965017364401
+1232218	EMMAX only	GFoffset	oligogenic	0.761321972790064
+1232218	EMMAX only	LFMM2offset	oligogenic	0.727755344524937
+1232218	EMMAX only	RDA-corrected	oligogenic	0.707695339641118
+1232218	EMMAX only	RDA-uncorrected	oligogenic	0.680547614323817
+1232218	LFMM only	GFoffset	oligogenic	0.442064500277617
+1232218	LFMM only	LFMM2offset	oligogenic	0.505204395762112
+1232218	LFMM only	RDA-corrected	oligogenic	0.706819347377642
+1232218	LFMM only	RDA-uncorrected	oligogenic	0.391428701850485
+1232218	RDA only	GFoffset	oligogenic	0.772745882349615
+1232218	RDA only	LFMM2offset	oligogenic	0.754543918037624
+1232218	RDA only	RDA-corrected	oligogenic	0.707431895541225
+1232218	RDA only	RDA-uncorrected	oligogenic	0.694509320654542
+1232218	all 3 methods agree	GFoffset	oligogenic	0.771521892039663
+1232218	all 3 methods agree	LFMM2offset	oligogenic	0.736572200339887
+1232218	all 3 methods agree	RDA-corrected	oligogenic	0.70661490098652
+1232218	all 3 methods agree	RDA-uncorrected	oligogenic	0.708979828064955
+1232218	any method (union)	GFoffset	oligogenic	0.464708321011727
+1232218	any method (union)	LFMM2offset	oligogenic	0.521836908567096
+1232218	any method (union)	RDA-corrected	oligogenic	0.706003353837674
+1232218	any method (union)	RDA-uncorrected	oligogenic	0.42542403083561
+1232233	true QTNs (oracle)	GFoffset	highly polygenic	0.8333102284985
+1232233	true QTNs (oracle)	LFMM2offset	highly polygenic	0.845197866051506
+1232233	true QTNs (oracle)	RDA-corrected	highly polygenic	0.05060035030342
+1232233	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.863361377089577
+1232233	≥2 methods agree	GFoffset	highly polygenic	0.708638571505791
+1232233	≥2 methods agree	LFMM2offset	highly polygenic	0.645163295291762
+1232233	≥2 methods agree	RDA-corrected	highly polygenic	0.0356645640686503
+1232233	≥2 methods agree	RDA-uncorrected	highly polygenic	0.710900807085518
+1232233	EMMAX only	GFoffset	highly polygenic	0.572596209640783
+1232233	EMMAX only	LFMM2offset	highly polygenic	0.318243030229604
+1232233	EMMAX only	RDA-corrected	highly polygenic	0.0505496527556661
+1232233	EMMAX only	RDA-uncorrected	highly polygenic	0.802774616708451
+1232233	LFMM only	GFoffset	highly polygenic	0.798792017279021
+1232233	LFMM only	LFMM2offset	highly polygenic	0.798508860901042
+1232233	LFMM only	RDA-corrected	highly polygenic	0.0356719225251386
+1232233	LFMM only	RDA-uncorrected	highly polygenic	0.851293712593649
+1232233	RDA only	GFoffset	highly polygenic	0.525895100343839
+1232233	RDA only	LFMM2offset	highly polygenic	0.539434701717535
+1232233	RDA only	RDA-corrected	highly polygenic	0.0356719225251386
+1232233	RDA only	RDA-uncorrected	highly polygenic	0.544917996384899
+1232233	all 3 methods agree	GFoffset	highly polygenic	0.609347952174464
+1232233	all 3 methods agree	LFMM2offset	highly polygenic	0.488228956305608
+1232233	all 3 methods agree	RDA-corrected	highly polygenic	0.035241302178474
+1232233	all 3 methods agree	RDA-uncorrected	highly polygenic	0.347435238598153
+1232233	any method (union)	GFoffset	highly polygenic	0.791279230131251
+1232233	any method (union)	LFMM2offset	highly polygenic	0.794782833751633
+1232233	any method (union)	RDA-corrected	highly polygenic	0.0356719225251386
+1232233	any method (union)	RDA-uncorrected	highly polygenic	0.84911810059592
+1232245	true QTNs (oracle)	GFoffset	highly polygenic	0.77564451093184
+1232245	true QTNs (oracle)	LFMM2offset	highly polygenic	0.764992208128549
+1232245	true QTNs (oracle)	RDA-corrected	highly polygenic	0.510671909515447
+1232245	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.681366783893348
+1232245	≥2 methods agree	GFoffset	highly polygenic	0.691379465896051
+1232245	≥2 methods agree	LFMM2offset	highly polygenic	0.803423193693419
+1232245	≥2 methods agree	RDA-corrected	highly polygenic	0.510671909515447
+1232245	≥2 methods agree	RDA-uncorrected	highly polygenic	0.59749102764188
+1232245	EMMAX only	GFoffset	highly polygenic	0.661734413907557
+1232245	EMMAX only	LFMM2offset	highly polygenic	0.517172108841021
+1232245	EMMAX only	RDA-corrected	highly polygenic	0.510463429445719
+1232245	EMMAX only	RDA-uncorrected	highly polygenic	0.50457797264772
+1232245	LFMM only	GFoffset	highly polygenic	0.715948310352269
+1232245	LFMM only	LFMM2offset	highly polygenic	0.734628754071047
+1232245	LFMM only	RDA-corrected	highly polygenic	0.510671909515447
+1232245	LFMM only	RDA-uncorrected	highly polygenic	0.706287282969454
+1232245	RDA only	GFoffset	highly polygenic	0.671277684068236
+1232245	RDA only	LFMM2offset	highly polygenic	0.711162432463635
+1232245	RDA only	RDA-corrected	highly polygenic	0.510463429445719
+1232245	RDA only	RDA-uncorrected	highly polygenic	0.518797158672414
+1232245	all 3 methods agree	GFoffset	highly polygenic	0.658688689388191
+1232245	all 3 methods agree	LFMM2offset	highly polygenic	0.715428188271043
+1232245	all 3 methods agree	RDA-corrected	highly polygenic	0.510671909515447
+1232245	all 3 methods agree	RDA-uncorrected	highly polygenic	0.514930492074122
+1232245	any method (union)	GFoffset	highly polygenic	0.743562879327853
+1232245	any method (union)	LFMM2offset	highly polygenic	0.742141541218816
+1232245	any method (union)	RDA-corrected	highly polygenic	0.510671909515447
+1232245	any method (union)	RDA-uncorrected	highly polygenic	0.70330014681444
+1232275	true QTNs (oracle)	GFoffset	highly polygenic	0.815238929683596
+1232275	true QTNs (oracle)	LFMM2offset	highly polygenic	0.690161176088305
+1232275	true QTNs (oracle)	RDA-corrected	highly polygenic	0.511078171973295
+1232275	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.674932553491475
+1232275	≥2 methods agree	GFoffset	highly polygenic	0.828030972664933
+1232275	≥2 methods agree	LFMM2offset	highly polygenic	0.749657337380736
+1232275	≥2 methods agree	RDA-corrected	highly polygenic	0.511078171973295
+1232275	≥2 methods agree	RDA-uncorrected	highly polygenic	0.832904131895918
+1232275	EMMAX only	GFoffset	highly polygenic	0.688333741376685
+1232275	EMMAX only	LFMM2offset	highly polygenic	0.693224502991421
+1232275	EMMAX only	RDA-corrected	highly polygenic	0.511078171973295
+1232275	EMMAX only	RDA-uncorrected	highly polygenic	0.557328383458092
+1232275	LFMM only	GFoffset	highly polygenic	0.734628754071046
+1232275	LFMM only	LFMM2offset	highly polygenic	0.623206610339454
+1232275	LFMM only	RDA-corrected	highly polygenic	0.511078171973295
+1232275	LFMM only	RDA-uncorrected	highly polygenic	0.663426593666447
+1232275	RDA only	GFoffset	highly polygenic	0.722242807692292
+1232275	RDA only	LFMM2offset	highly polygenic	0.823895518819836
+1232275	RDA only	RDA-corrected	highly polygenic	0.510869526048301
+1232275	RDA only	RDA-uncorrected	highly polygenic	0.652324076742809
+1232275	all 3 methods agree	GFoffset	highly polygenic	0.73726838198783
+1232275	all 3 methods agree	LFMM2offset	highly polygenic	0.610172985642742
+1232275	all 3 methods agree	RDA-corrected	highly polygenic	0.49970282315354
+1232275	all 3 methods agree	RDA-uncorrected	highly polygenic	0.614225407911252
+1232275	any method (union)	GFoffset	highly polygenic	0.762852467950503
+1232275	any method (union)	LFMM2offset	highly polygenic	0.62965278230357
+1232275	any method (union)	RDA-corrected	highly polygenic	0.511078171973295
+1232275	any method (union)	RDA-uncorrected	highly polygenic	0.688474552497766
+1232290	true QTNs (oracle)	GFoffset	highly polygenic	0.476351314828821
+1232290	true QTNs (oracle)	LFMM2offset	highly polygenic	0.43279396530165
+1232290	true QTNs (oracle)	RDA-corrected	highly polygenic	0.798711992129966
+1232290	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.377503297964997
+1232290	≥2 methods agree	GFoffset	highly polygenic	0.475539121623657
+1232290	≥2 methods agree	LFMM2offset	highly polygenic	0.466235735839079
+1232290	≥2 methods agree	RDA-corrected	highly polygenic	0.746913528754294
+1232290	≥2 methods agree	RDA-uncorrected	highly polygenic	0.421273895915161
+1232290	EMMAX only	GFoffset	highly polygenic	0.53949933653034
+1232290	EMMAX only	LFMM2offset	highly polygenic	0.56107479076856
+1232290	EMMAX only	RDA-corrected	highly polygenic	0.777906289981222
+1232290	EMMAX only	RDA-uncorrected	highly polygenic	0.577095821373661
+1232290	LFMM only	GFoffset	highly polygenic	0.347821740111582
+1232290	LFMM only	LFMM2offset	highly polygenic	0.365101229513353
+1232290	LFMM only	RDA-corrected	highly polygenic	0.745745453464569
+1232290	LFMM only	RDA-uncorrected	highly polygenic	0.280872854897137
+1232290	RDA only	GFoffset	highly polygenic	0.629246685700988
+1232290	RDA only	LFMM2offset	highly polygenic	0.603684285677969
+1232290	RDA only	RDA-corrected	highly polygenic	0.746560311789956
+1232290	RDA only	RDA-uncorrected	highly polygenic	0.504601990414334
+1232290	all 3 methods agree	GFoffset	highly polygenic	0.75655797061048
+1232290	all 3 methods agree	LFMM2offset	highly polygenic	0.622927637337001
+1232290	all 3 methods agree	RDA-corrected	highly polygenic	0.746255703654558
+1232290	all 3 methods agree	RDA-uncorrected	highly polygenic	0.76600786427317
+1232290	any method (union)	GFoffset	highly polygenic	0.369344860048434
+1232290	any method (union)	LFMM2offset	highly polygenic	0.380184123209117
+1232290	any method (union)	RDA-corrected	highly polygenic	0.746915533333403
+1232290	any method (union)	RDA-uncorrected	highly polygenic	0.292974681103585
+1232335	true QTNs (oracle)	GFoffset	moderately polygenic	0.58741873563503
+1232335	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.680379423816006
+1232335	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.747167619005321
+1232335	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.466879734574745
+1232335	≥2 methods agree	GFoffset	moderately polygenic	0.788842650515759
+1232335	≥2 methods agree	LFMM2offset	moderately polygenic	0.741270111501724
+1232335	≥2 methods agree	RDA-corrected	moderately polygenic	0.74041332942872
+1232335	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.779937515654906
+1232335	EMMAX only	GFoffset	moderately polygenic	0.820315137215873
+1232335	EMMAX only	LFMM2offset	moderately polygenic	0.815295310010012
+1232335	EMMAX only	RDA-corrected	moderately polygenic	0.74136553516432
+1232335	EMMAX only	RDA-uncorrected	moderately polygenic	0.818248207516661
+1232335	LFMM only	GFoffset	moderately polygenic	0.442239200211923
+1232335	LFMM only	LFMM2offset	moderately polygenic	0.483953731134567
+1232335	LFMM only	RDA-corrected	moderately polygenic	0.74136553516432
+1232335	LFMM only	RDA-uncorrected	moderately polygenic	0.393907144343823
+1232335	RDA only	GFoffset	moderately polygenic	0.819705992312
+1232335	RDA only	LFMM2offset	moderately polygenic	0.812542585259303
+1232335	RDA only	RDA-corrected	moderately polygenic	0.740451115598361
+1232335	RDA only	RDA-uncorrected	moderately polygenic	0.802204489247507
+1232335	all 3 methods agree	GFoffset	moderately polygenic	0.800010307086767
+1232335	all 3 methods agree	LFMM2offset	moderately polygenic	0.748950774878584
+1232335	all 3 methods agree	RDA-corrected	moderately polygenic	0.741167009087017
+1232335	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.797172733942142
+1232335	any method (union)	GFoffset	moderately polygenic	0.449955035660984
+1232335	any method (union)	LFMM2offset	moderately polygenic	0.501533081254601
+1232335	any method (union)	RDA-corrected	moderately polygenic	0.741010051507193
+1232335	any method (union)	RDA-uncorrected	moderately polygenic	0.408700032595497
+1232353	true QTNs (oracle)	GFoffset	moderately polygenic	0.702344074165769
+1232353	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.755444980524964
+1232353	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.503968578960948
+1232353	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.60797176817014
+1232353	≥2 methods agree	GFoffset	moderately polygenic	0.826203537953314
+1232353	≥2 methods agree	LFMM2offset	moderately polygenic	0.82559439304944
+1232353	≥2 methods agree	RDA-corrected	moderately polygenic	0.503968578960948
+1232353	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.812855854237366
+1232353	EMMAX only	GFoffset	moderately polygenic	0.788639602214468
+1232353	EMMAX only	LFMM2offset	moderately polygenic	0.766137409161957
+1232353	EMMAX only	RDA-corrected	moderately polygenic	0.491374442767647
+1232353	EMMAX only	RDA-uncorrected	moderately polygenic	0.721212739362058
+1232353	LFMM only	GFoffset	moderately polygenic	0.670465490863072
+1232353	LFMM only	LFMM2offset	moderately polygenic	0.734672640804932
+1232353	LFMM only	RDA-corrected	moderately polygenic	0.503968578960948
+1232353	LFMM only	RDA-uncorrected	moderately polygenic	0.594525426180217
+1232353	RDA only	GFoffset	moderately polygenic	0.728131208429732
+1232353	RDA only	LFMM2offset	moderately polygenic	0.871611008498491
+1232353	RDA only	RDA-corrected	moderately polygenic	0.503968578960948
+1232353	RDA only	RDA-uncorrected	moderately polygenic	0.755445040369111
+1232353	all 3 methods agree	GFoffset	moderately polygenic	0.829858407376552
+1232353	all 3 methods agree	LFMM2offset	moderately polygenic	0.739493618558349
+1232353	all 3 methods agree	RDA-corrected	moderately polygenic	0.53789149419129
+1232353	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.602009581139428
+1232353	any method (union)	GFoffset	moderately polygenic	0.687927644774103
+1232353	any method (union)	LFMM2offset	moderately polygenic	0.748285256139817
+1232353	any method (union)	RDA-corrected	moderately polygenic	0.503968578960948
+1232353	any method (union)	RDA-uncorrected	moderately polygenic	0.622190954194834
+1232368	true QTNs (oracle)	GFoffset	moderately polygenic	0.688536789677976
+1232368	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.717922278191657
+1232368	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.652120945513885
+1232368	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.668854359078873
+1232368	≥2 methods agree	GFoffset	moderately polygenic	0.592291894866015
+1232368	≥2 methods agree	LFMM2offset	moderately polygenic	0.600911261770218
+1232368	≥2 methods agree	RDA-corrected	moderately polygenic	0.652800288650751
+1232368	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.54773051959075
+1232368	EMMAX only	GFoffset	moderately polygenic	0.77564451093184
+1232368	EMMAX only	LFMM2offset	moderately polygenic	0.736397840444277
+1232368	EMMAX only	RDA-corrected	moderately polygenic	0.719351793563808
+1232368	EMMAX only	RDA-uncorrected	moderately polygenic	0.71221270597595
+1232368	LFMM only	GFoffset	moderately polygenic	0.578687658679514
+1232368	LFMM only	LFMM2offset	moderately polygenic	0.570275977494593
+1232368	LFMM only	RDA-corrected	moderately polygenic	0.609081671978827
+1232368	LFMM only	RDA-uncorrected	moderately polygenic	0.517677179565297
+1232368	RDA only	GFoffset	moderately polygenic	0.688130693075394
+1232368	RDA only	LFMM2offset	moderately polygenic	0.691115092618515
+1232368	RDA only	RDA-corrected	moderately polygenic	0.671617977602383
+1232368	RDA only	RDA-uncorrected	moderately polygenic	0.633011326939366
+1232368	all 3 methods agree	GFoffset	moderately polygenic	0.784172539586065
+1232368	all 3 methods agree	LFMM2offset	moderately polygenic	0.791518501883749
+1232368	all 3 methods agree	RDA-corrected	moderately polygenic	0.685063710662113
+1232368	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.780880354157921
+1232368	any method (union)	GFoffset	moderately polygenic	0.552494427812968
+1232368	any method (union)	LFMM2offset	moderately polygenic	0.584205414386008
+1232368	any method (union)	RDA-corrected	moderately polygenic	0.611106976669646
+1232368	any method (union)	RDA-uncorrected	moderately polygenic	0.49777363623605
+1232383	true QTNs (oracle)	GFoffset	oligogenic	0.8124693856618
+1232383	true QTNs (oracle)	LFMM2offset	oligogenic	0.836106689359407
+1232383	true QTNs (oracle)	RDA-corrected	oligogenic	0.0826054939102364
+1232383	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.848468263045666
+1232383	≥2 methods agree	GFoffset	oligogenic	0.746665069822091
+1232383	≥2 methods agree	LFMM2offset	oligogenic	0.702866413631856
+1232383	≥2 methods agree	RDA-corrected	oligogenic	0.0484758275443067
+1232383	≥2 methods agree	RDA-uncorrected	oligogenic	0.786938432718165
+1232383	EMMAX only	GFoffset	oligogenic	0.806764986765479
+1232383	EMMAX only	LFMM2offset	oligogenic	0.837620943024911
+1232383	EMMAX only	RDA-corrected	oligogenic	0.782197353881455
+1232383	EMMAX only	RDA-uncorrected	oligogenic	0.81969469428043
+1232383	LFMM only	GFoffset	oligogenic	0.780484006135997
+1232383	LFMM only	LFMM2offset	oligogenic	0.735006214113793
+1232383	LFMM only	RDA-corrected	oligogenic	0.0480775461621801
+1232383	LFMM only	RDA-uncorrected	oligogenic	0.801224419397135
+1232383	RDA only	GFoffset	oligogenic	0.445350570977105
+1232383	RDA only	LFMM2offset	oligogenic	0.487545545400118
+1232383	RDA only	RDA-corrected	oligogenic	0.0486706312645021
+1232383	RDA only	RDA-uncorrected	oligogenic	0.419240743955065
+1232383	all 3 methods agree	GFoffset	oligogenic	0.80289414465726
+1232383	all 3 methods agree	LFMM2offset	oligogenic	0.840348118855494
+1232383	all 3 methods agree	RDA-corrected	oligogenic	0.105756075886967
+1232383	all 3 methods agree	RDA-uncorrected	oligogenic	0.848468263045666
+1232383	any method (union)	GFoffset	oligogenic	0.773760964579618
+1232383	any method (union)	LFMM2offset	oligogenic	0.731421158805585
+1232383	any method (union)	RDA-corrected	oligogenic	0.048244179320776
+1232383	any method (union)	RDA-uncorrected	oligogenic	0.799716812020479
+1232398	true QTNs (oracle)	GFoffset	oligogenic	0.845696174877255
+1232398	true QTNs (oracle)	LFMM2offset	oligogenic	0.845371360092004
+1232398	true QTNs (oracle)	RDA-corrected	oligogenic	0.526608734065476
+1232398	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.854776259310416
+1232398	≥2 methods agree	GFoffset	oligogenic	0.801634693497095
+1232398	≥2 methods agree	LFMM2offset	oligogenic	0.828945209145304
+1232398	≥2 methods agree	RDA-corrected	oligogenic	0.542785835262065
+1232398	≥2 methods agree	RDA-uncorrected	oligogenic	0.81695788672387
+1232398	EMMAX only	GFoffset	oligogenic	0.765492095867287
+1232398	EMMAX only	LFMM2offset	oligogenic	0.826303588523117
+1232398	EMMAX only	RDA-corrected	oligogenic	0.517578371298869
+1232398	EMMAX only	RDA-uncorrected	oligogenic	0.791155308993031
+1232398	LFMM only	GFoffset	oligogenic	0.676150843299222
+1232398	LFMM only	LFMM2offset	oligogenic	0.746863130524113
+1232398	LFMM only	RDA-corrected	oligogenic	0.652254376075616
+1232398	LFMM only	RDA-uncorrected	oligogenic	0.641560775294087
+1232398	RDA only	GFoffset	oligogenic	0.708638571505791
+1232398	RDA only	LFMM2offset	oligogenic	0.686443488991424
+1232398	RDA only	RDA-corrected	oligogenic	0.532015061473357
+1232398	RDA only	RDA-uncorrected	oligogenic	0.564732814494618
+1232398	all 3 methods agree	GFoffset	oligogenic	0.798182872375147
+1232398	all 3 methods agree	LFMM2offset	oligogenic	0.809275018599146
+1232398	all 3 methods agree	RDA-corrected	oligogenic	0.554077649040304
+1232398	all 3 methods agree	RDA-uncorrected	oligogenic	0.767856841336205
+1232398	any method (union)	GFoffset	oligogenic	0.688739837979268
+1232398	any method (union)	LFMM2offset	oligogenic	0.767522578880198
+1232398	any method (union)	RDA-corrected	oligogenic	0.681691718832559
+1232398	any method (union)	RDA-uncorrected	oligogenic	0.656386037900228
+1232425	true QTNs (oracle)	GFoffset	oligogenic	0.77178659320731
+1232425	true QTNs (oracle)	LFMM2offset	oligogenic	0.723498626937819
+1232425	true QTNs (oracle)	RDA-corrected	oligogenic	0.49584332980398
+1232425	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.711423405708213
+1232425	≥2 methods agree	GFoffset	oligogenic	0.591682749962142
+1232425	≥2 methods agree	LFMM2offset	oligogenic	0.576349686635763
+1232425	≥2 methods agree	RDA-corrected	oligogenic	0.537485231733441
+1232425	≥2 methods agree	RDA-uncorrected	oligogenic	0.552968711219013
+1232425	EMMAX only	GFoffset	oligogenic	0.601429068424113
+1232425	EMMAX only	LFMM2offset	oligogenic	0.576349686635763
+1232425	EMMAX only	RDA-corrected	oligogenic	0.540051119702081
+1232425	EMMAX only	RDA-uncorrected	oligogenic	0.543671508512209
+1232425	LFMM only	GFoffset	oligogenic	0.571174871531745
+1232425	LFMM only	LFMM2offset	oligogenic	0.572423803108404
+1232425	LFMM only	RDA-corrected	oligogenic	0.546423005806106
+1232425	LFMM only	RDA-uncorrected	oligogenic	0.532227265490795
+1232425	RDA only	GFoffset	oligogenic	0.593510184673762
+1232425	RDA only	LFMM2offset	oligogenic	0.556352345537498
+1232425	RDA only	RDA-corrected	oligogenic	0.558349390300542
+1232425	RDA only	RDA-uncorrected	oligogenic	0.541123722940669
+1232425	all 3 methods agree	GFoffset	oligogenic	0.576860223967895
+1232425	all 3 methods agree	LFMM2offset	oligogenic	0.569057024265781
+1232425	all 3 methods agree	RDA-corrected	oligogenic	0.553735730047378
+1232425	all 3 methods agree	RDA-uncorrected	oligogenic	0.512447195064943
+1232425	any method (union)	GFoffset	oligogenic	0.58173338319888
+1232425	any method (union)	LFMM2offset	oligogenic	0.574775650088534
+1232425	any method (union)	RDA-corrected	oligogenic	0.547235530721803
+1232425	any method (union)	RDA-uncorrected	oligogenic	0.550170380995654
+1232473	true QTNs (oracle)	GFoffset	highly polygenic	0.812396253465521
+1232473	true QTNs (oracle)	LFMM2offset	highly polygenic	0.789857892022214
+1232473	true QTNs (oracle)	RDA-corrected	highly polygenic	0.475414737703712
+1232473	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.707243802954818
+1232473	≥2 methods agree	GFoffset	highly polygenic	0.729146449936188
+1232473	≥2 methods agree	LFMM2offset	highly polygenic	0.821868952227326
+1232473	≥2 methods agree	RDA-corrected	highly polygenic	0.469220095246309
+1232473	≥2 methods agree	RDA-uncorrected	highly polygenic	0.711568694921483
+1232473	EMMAX only	GFoffset	highly polygenic	0.62599791288033
+1232473	EMMAX only	LFMM2offset	highly polygenic	0.619626914807196
+1232473	EMMAX only	RDA-corrected	highly polygenic	0.468406905688443
+1232473	EMMAX only	RDA-uncorrected	highly polygenic	0.494422613643725
+1232473	LFMM only	GFoffset	highly polygenic	0.793918858048035
+1232473	LFMM only	LFMM2offset	highly polygenic	0.788436553913177
+1232473	LFMM only	RDA-corrected	highly polygenic	0.46871856461439
+1232473	LFMM only	RDA-uncorrected	highly polygenic	0.778761889969016
+1232473	RDA only	GFoffset	highly polygenic	0.649348467528802
+1232473	RDA only	LFMM2offset	highly polygenic	0.720968831987354
+1232473	RDA only	RDA-corrected	highly polygenic	0.468813500467376
+1232473	RDA only	RDA-uncorrected	highly polygenic	0.551794767405982
+1232473	all 3 methods agree	GFoffset	highly polygenic	0.660719172401101
+1232473	all 3 methods agree	LFMM2offset	highly polygenic	0.720562735384771
+1232473	all 3 methods agree	RDA-corrected	highly polygenic	0.468310294995829
+1232473	all 3 methods agree	RDA-uncorrected	highly polygenic	0.505390497563417
+1232473	any method (union)	GFoffset	highly polygenic	0.825391344748149
+1232473	any method (union)	LFMM2offset	highly polygenic	0.802571437431341
+1232473	any method (union)	RDA-corrected	highly polygenic	0.468406905688443
+1232473	any method (union)	RDA-uncorrected	highly polygenic	0.819229032157165
+1232503	true QTNs (oracle)	GFoffset	highly polygenic	0.80630480442679
+1232503	true QTNs (oracle)	LFMM2offset	highly polygenic	0.788191336918897
+1232503	true QTNs (oracle)	RDA-corrected	highly polygenic	0.484868012455705
+1232503	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.734470707852799
+1232503	≥2 methods agree	GFoffset	highly polygenic	0.759806743431138
+1232503	≥2 methods agree	LFMM2offset	highly polygenic	0.785551791929746
+1232503	≥2 methods agree	RDA-corrected	highly polygenic	0.473078947453315
+1232503	≥2 methods agree	RDA-uncorrected	highly polygenic	0.75452748759757
+1232503	EMMAX only	GFoffset	highly polygenic	0.709247716409664
+1232503	EMMAX only	LFMM2offset	highly polygenic	0.540956158756867
+1232503	EMMAX only	RDA-corrected	highly polygenic	0.476740104730061
+1232503	EMMAX only	RDA-uncorrected	highly polygenic	0.522250389564126
+1232503	LFMM only	GFoffset	highly polygenic	0.668028911247579
+1232503	LFMM only	LFMM2offset	highly polygenic	0.743156782725271
+1232503	LFMM only	RDA-corrected	highly polygenic	0.475326032960448
+1232503	LFMM only	RDA-uncorrected	highly polygenic	0.647521032817183
+1232503	RDA only	GFoffset	highly polygenic	0.69503433531929
+1232503	RDA only	LFMM2offset	highly polygenic	0.739855475257482
+1232503	RDA only	RDA-corrected	highly polygenic	0.473176553277527
+1232503	RDA only	RDA-uncorrected	highly polygenic	0.600616875218948
+1232503	all 3 methods agree	GFoffset	highly polygenic	0.690770320992178
+1232503	all 3 methods agree	LFMM2offset	highly polygenic	0.623484832531727
+1232503	all 3 methods agree	RDA-corrected	highly polygenic	0.473905157080166
+1232503	all 3 methods agree	RDA-uncorrected	highly polygenic	0.527066433580656
+1232503	any method (union)	GFoffset	highly polygenic	0.697673963236074
+1232503	any method (union)	LFMM2offset	highly polygenic	0.751635179199523
+1232503	any method (union)	RDA-corrected	highly polygenic	0.472674156940732
+1232503	any method (union)	RDA-uncorrected	highly polygenic	0.672633550819371
+1232515	true QTNs (oracle)	GFoffset	highly polygenic	0.442442248513214
+1232515	true QTNs (oracle)	LFMM2offset	highly polygenic	0.427390322757741
+1232515	true QTNs (oracle)	RDA-corrected	highly polygenic	0.802251513452982
+1232515	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.363069734301833
+1232515	≥2 methods agree	GFoffset	highly polygenic	0.329953489597969
+1232515	≥2 methods agree	LFMM2offset	highly polygenic	0.380918613222024
+1232515	≥2 methods agree	RDA-corrected	highly polygenic	0.751431882115333
+1232515	≥2 methods agree	RDA-uncorrected	highly polygenic	0.249545697779571
+1232515	EMMAX only	GFoffset	highly polygenic	0.627419250989368
+1232515	EMMAX only	LFMM2offset	highly polygenic	0.679399616119879
+1232515	EMMAX only	RDA-corrected	highly polygenic	0.752160026389812
+1232515	EMMAX only	RDA-uncorrected	highly polygenic	0.452853704024258
+1232515	LFMM only	GFoffset	highly polygenic	0.308633417962408
+1232515	LFMM only	LFMM2offset	highly polygenic	0.347425308501771
+1232515	LFMM only	RDA-corrected	highly polygenic	0.751431882115333
+1232515	LFMM only	RDA-uncorrected	highly polygenic	0.236802666115497
+1232515	RDA only	GFoffset	highly polygenic	0.440208717199013
+1232515	RDA only	LFMM2offset	highly polygenic	0.524938461786723
+1232515	RDA only	RDA-corrected	highly polygenic	0.758457094486462
+1232515	RDA only	RDA-uncorrected	highly polygenic	0.390121224809074
+1232515	all 3 methods agree	GFoffset	highly polygenic	0.475945218226239
+1232515	all 3 methods agree	LFMM2offset	highly polygenic	0.450601017992547
+1232515	all 3 methods agree	RDA-corrected	highly polygenic	0.751431882115333
+1232515	all 3 methods agree	RDA-uncorrected	highly polygenic	0.411468824942451
+1232515	any method (union)	GFoffset	highly polygenic	0.324674233764401
+1232515	any method (union)	LFMM2offset	highly polygenic	0.355276519388431
+1232515	any method (union)	RDA-corrected	highly polygenic	0.755459052737918
+1232515	any method (union)	RDA-uncorrected	highly polygenic	0.235787258753776
+1232548	true QTNs (oracle)	GFoffset	moderately polygenic	0.727115966923277
+1232548	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.725881512445696
+1232548	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.639326746414087
+1232548	≥2 methods agree	GFoffset	moderately polygenic	0.721024517884545
+1232548	≥2 methods agree	LFMM2offset	moderately polygenic	0.734672012536862
+1232548	≥2 methods agree	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.63829598515278
+1232548	EMMAX only	GFoffset	moderately polygenic	0.674729505190184
+1232548	EMMAX only	LFMM2offset	moderately polygenic	0.513021947167898
+1232548	EMMAX only	RDA-corrected	moderately polygenic	0.501531004213857
+1232548	EMMAX only	RDA-uncorrected	moderately polygenic	0.541721328487438
+1232548	LFMM only	GFoffset	moderately polygenic	0.644881404900399
+1232548	LFMM only	LFMM2offset	moderately polygenic	0.678597054476852
+1232548	LFMM only	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	LFMM only	RDA-uncorrected	moderately polygenic	0.550282499155666
+1232548	RDA only	GFoffset	moderately polygenic	0.793512761445452
+1232548	RDA only	LFMM2offset	moderately polygenic	0.784899596940794
+1232548	RDA only	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	RDA only	RDA-uncorrected	moderately polygenic	0.737772623452705
+1232548	all 3 methods agree	GFoffset	moderately polygenic	0.638180810957794
+1232548	all 3 methods agree	LFMM2offset	moderately polygenic	0.499195057544448
+1232548	all 3 methods agree	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.484671112213149
+1232548	any method (union)	GFoffset	moderately polygenic	0.640617390573287
+1232548	any method (union)	LFMM2offset	moderately polygenic	0.681644522613446
+1232548	any method (union)	RDA-corrected	moderately polygenic	0.484671112213149
+1232548	any method (union)	RDA-uncorrected	moderately polygenic	0.556058698805461
+1232578	true QTNs (oracle)	GFoffset	moderately polygenic	0.782345104874445
+1232578	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.728537305032315
+1232578	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.583596020699235
+1232578	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.724882435609076
+1232578	≥2 methods agree	GFoffset	moderately polygenic	0.690161176088305
+1232578	≥2 methods agree	LFMM2offset	moderately polygenic	0.709044668108373
+1232578	≥2 methods agree	RDA-corrected	moderately polygenic	0.682583249293165
+1232578	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.620032762626879
+1232578	EMMAX only	GFoffset	moderately polygenic	0.707014185095463
+1232578	EMMAX only	LFMM2offset	moderately polygenic	0.612214815964501
+1232578	EMMAX only	RDA-corrected	moderately polygenic	0.516765846383172
+1232578	EMMAX only	RDA-uncorrected	moderately polygenic	0.801962091792754
+1232578	LFMM only	GFoffset	moderately polygenic	0.663764896920467
+1232578	LFMM only	LFMM2offset	moderately polygenic	0.676898974916247
+1232578	LFMM only	RDA-corrected	moderately polygenic	0.641154264053339
+1232578	LFMM only	RDA-uncorrected	moderately polygenic	0.610283458770116
+1232578	RDA only	GFoffset	moderately polygenic	0.771989641508601
+1232578	RDA only	LFMM2offset	moderately polygenic	0.800500692755935
+1232578	RDA only	RDA-corrected	moderately polygenic	0.657529553486952
+1232578	RDA only	RDA-uncorrected	moderately polygenic	0.71412087564065
+1232578	all 3 methods agree	GFoffset	moderately polygenic	0.814832833081014
+1232578	all 3 methods agree	LFMM2offset	moderately polygenic	0.79891512335889
+1232578	all 3 methods agree	RDA-corrected	moderately polygenic	0.668623582806236
+1232578	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.559971498914815
+1232578	any method (union)	GFoffset	moderately polygenic	0.673714263683729
+1232578	any method (union)	LFMM2offset	moderately polygenic	0.684692062853593
+1232578	any method (union)	RDA-corrected	moderately polygenic	0.674323408587602
+1232578	any method (union)	RDA-uncorrected	moderately polygenic	0.621249056458613
+1232593	true QTNs (oracle)	GFoffset	moderately polygenic	0.443254441718379
+1232593	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.482327434333833
+1232593	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.629047106498025
+1232593	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.436732142187037
+1232593	≥2 methods agree	GFoffset	moderately polygenic	0.526707293549004
+1232593	≥2 methods agree	LFMM2offset	moderately polygenic	0.532378042906727
+1232593	≥2 methods agree	RDA-corrected	moderately polygenic	0.628104110398485
+1232593	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.470540336391135
+1232593	EMMAX only	GFoffset	moderately polygenic	0.764273806059541
+1232593	EMMAX only	LFMM2offset	moderately polygenic	0.735382433693523
+1232593	EMMAX only	RDA-corrected	moderately polygenic	0.627141581764572
+1232593	EMMAX only	RDA-uncorrected	moderately polygenic	0.652325071874407
+1232593	LFMM only	GFoffset	moderately polygenic	0.381527758125897
+1232593	LFMM only	LFMM2offset	moderately polygenic	0.437455354041836
+1232593	LFMM only	RDA-corrected	moderately polygenic	0.631151745931775
+1232593	LFMM only	RDA-uncorrected	moderately polygenic	0.313388012811779
+1232593	RDA only	GFoffset	moderately polygenic	0.770568303399564
+1232593	RDA only	LFMM2offset	moderately polygenic	0.713084486405878
+1232593	RDA only	RDA-corrected	moderately polygenic	0.625811193897258
+1232593	RDA only	RDA-uncorrected	moderately polygenic	0.71790017952491
+1232593	all 3 methods agree	GFoffset	moderately polygenic	0.78924874711834
+1232593	all 3 methods agree	LFMM2offset	moderately polygenic	0.731193203772248
+1232593	all 3 methods agree	RDA-corrected	moderately polygenic	0.626145035645779
+1232593	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.656387033031826
+1232593	any method (union)	GFoffset	moderately polygenic	0.386400917356883
+1232593	any method (union)	LFMM2offset	moderately polygenic	0.441631418725346
+1232593	any method (union)	RDA-corrected	moderately polygenic	0.618099649474541
+1232593	any method (union)	RDA-uncorrected	moderately polygenic	0.31741285455795
+1232620	true QTNs (oracle)	GFoffset	oligogenic	0.658888382795655
+1232620	true QTNs (oracle)	LFMM2offset	oligogenic	0.71506807612481
+1232620	true QTNs (oracle)	RDA-corrected	oligogenic	0.556974988467182
+1232620	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.672915006288105
+1232620	≥2 methods agree	GFoffset	oligogenic	0.833969081306708
+1232620	≥2 methods agree	LFMM2offset	oligogenic	0.780869975884616
+1232620	≥2 methods agree	RDA-corrected	oligogenic	0.556449249276449
+1232620	≥2 methods agree	RDA-uncorrected	oligogenic	0.816967158186926
+1232620	EMMAX only	GFoffset	oligogenic	0.808174129205892
+1232620	EMMAX only	LFMM2offset	oligogenic	0.834683389086053
+1232620	EMMAX only	RDA-corrected	oligogenic	0.555930960360436
+1232620	EMMAX only	RDA-uncorrected	oligogenic	0.791232809288237
+1232620	LFMM only	GFoffset	oligogenic	0.677777599688379
+1232620	LFMM only	LFMM2offset	oligogenic	0.668847825833055
+1232620	LFMM only	RDA-corrected	oligogenic	0.556974988467182
+1232620	LFMM only	RDA-uncorrected	oligogenic	0.619379692692067
+1232620	RDA only	GFoffset	oligogenic	0.773239233447306
+1232620	RDA only	LFMM2offset	oligogenic	0.84548529004837
+1232620	RDA only	RDA-corrected	oligogenic	0.556743399796682
+1232620	RDA only	RDA-uncorrected	oligogenic	0.676248217271059
+1232620	all 3 methods agree	GFoffset	oligogenic	0.818329622158969
+1232620	all 3 methods agree	LFMM2offset	oligogenic	0.776354843078543
+1232620	all 3 methods agree	RDA-corrected	oligogenic	0.556974988467182
+1232620	all 3 methods agree	RDA-uncorrected	oligogenic	0.785832044709122
+1232620	any method (union)	GFoffset	oligogenic	0.695651267285795
+1232620	any method (union)	LFMM2offset	oligogenic	0.681177681958038
+1232620	any method (union)	RDA-corrected	oligogenic	0.556449249276449
+1232620	any method (union)	RDA-uncorrected	oligogenic	0.62265938234307
+1232653	true QTNs (oracle)	GFoffset	oligogenic	0.801431645195805
+1232653	true QTNs (oracle)	LFMM2offset	oligogenic	0.782578553952004
+1232653	true QTNs (oracle)	RDA-corrected	oligogenic	0.498495378657482
+1232653	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.705034943759401
+1232653	≥2 methods agree	GFoffset	oligogenic	0.777878042246042
+1232653	≥2 methods agree	LFMM2offset	oligogenic	0.801392047259443
+1232653	≥2 methods agree	RDA-corrected	oligogenic	0.490048986909704
+1232653	≥2 methods agree	RDA-uncorrected	oligogenic	0.738637683015534
+1232653	EMMAX only	GFoffset	oligogenic	0.742344589520107
+1232653	EMMAX only	LFMM2offset	oligogenic	0.757225568358868
+1232653	EMMAX only	RDA-corrected	oligogenic	0.488524887168246
+1232653	EMMAX only	RDA-uncorrected	oligogenic	0.59147970166085
+1232653	LFMM only	GFoffset	oligogenic	0.695237383620581
+1232653	LFMM only	LFMM2offset	oligogenic	0.748385660030167
+1232653	LFMM only	RDA-corrected	oligogenic	0.501444272975425
+1232653	LFMM only	RDA-uncorrected	oligogenic	0.605657741054874
+1232653	RDA only	GFoffset	oligogenic	0.660922220702392
+1232653	RDA only	LFMM2offset	oligogenic	0.717494415854797
+1232653	RDA only	RDA-corrected	oligogenic	0.489538925800842
+1232653	RDA only	RDA-uncorrected	oligogenic	0.656520131883024
+1232653	all 3 methods agree	GFoffset	oligogenic	0.670465490863072
+1232653	all 3 methods agree	LFMM2offset	oligogenic	0.737569492223781
+1232653	all 3 methods agree	RDA-corrected	oligogenic	0.484230829871705
+1232653	all 3 methods agree	RDA-uncorrected	oligogenic	0.622876931542351
+1232653	any method (union)	GFoffset	oligogenic	0.699704446248985
+1232653	any method (union)	LFMM2offset	oligogenic	0.763258564553086
+1232653	any method (union)	RDA-corrected	oligogenic	0.503069322806818
+1232653	any method (union)	RDA-uncorrected	oligogenic	0.641082318950529
+1232698	true QTNs (oracle)	GFoffset	highly polygenic	0.702953219069641
+1232698	true QTNs (oracle)	LFMM2offset	highly polygenic	0.753664998791369
+1232698	true QTNs (oracle)	RDA-corrected	highly polygenic	0.726574789011146
+1232698	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.626050447544394
+1232698	≥2 methods agree	GFoffset	highly polygenic	0.665389283330796
+1232698	≥2 methods agree	LFMM2offset	highly polygenic	0.732342190543914
+1232698	≥2 methods agree	RDA-corrected	highly polygenic	0.721816772207236
+1232698	≥2 methods agree	RDA-uncorrected	highly polygenic	0.595580763205763
+1232698	EMMAX only	GFoffset	highly polygenic	0.682648388940535
+1232698	EMMAX only	LFMM2offset	highly polygenic	0.562342809636424
+1232698	EMMAX only	RDA-corrected	highly polygenic	0.846884154643552
+1232698	EMMAX only	RDA-uncorrected	highly polygenic	0.56244379457623
+1232698	LFMM only	GFoffset	highly polygenic	0.646505791310728
+1232698	LFMM only	LFMM2offset	highly polygenic	0.73167868658498
+1232698	LFMM only	RDA-corrected	highly polygenic	0.80033704196136
+1232698	LFMM only	RDA-uncorrected	highly polygenic	0.602444309930568
+1232698	RDA only	GFoffset	highly polygenic	0.776253655835714
+1232698	RDA only	LFMM2offset	highly polygenic	0.812450089956285
+1232698	RDA only	RDA-corrected	highly polygenic	0.642504077087254
+1232698	RDA only	RDA-uncorrected	highly polygenic	0.58347643905224
+1232698	all 3 methods agree	GFoffset	highly polygenic	0.635947279643592
+1232698	all 3 methods agree	LFMM2offset	highly polygenic	0.51229695934684
+1232698	all 3 methods agree	RDA-corrected	highly polygenic	0.519320761021624
+1232698	all 3 methods agree	RDA-uncorrected	highly polygenic	0.482436668694982
+1232698	any method (union)	GFoffset	highly polygenic	0.668435007850162
+1232698	any method (union)	LFMM2offset	highly polygenic	0.741022723115493
+1232698	any method (union)	RDA-corrected	highly polygenic	0.744628400973756
+1232698	any method (union)	RDA-uncorrected	highly polygenic	0.59883086286855
+1232728	true QTNs (oracle)	GFoffset	highly polygenic	0.699907494550276
+1232728	true QTNs (oracle)	LFMM2offset	highly polygenic	0.740262069425863
+1232728	true QTNs (oracle)	RDA-corrected	highly polygenic	0.503968578960948
+1232728	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.606346718338745
+1232728	≥2 methods agree	GFoffset	highly polygenic	0.801634693497095
+1232728	≥2 methods agree	LFMM2offset	highly polygenic	0.841166380587424
+1232728	≥2 methods agree	RDA-corrected	highly polygenic	0.503968578960948
+1232728	≥2 methods agree	RDA-uncorrected	highly polygenic	0.81200704971257
+1232728	EMMAX only	GFoffset	highly polygenic	0.803665176510006
+1232728	EMMAX only	LFMM2offset	highly polygenic	0.846907002145141
+1232728	EMMAX only	RDA-corrected	highly polygenic	0.503968578960948
+1232728	EMMAX only	RDA-uncorrected	highly polygenic	0.583991969539494
+1232728	LFMM only	GFoffset	highly polygenic	0.687724596472812
+1232728	LFMM only	LFMM2offset	highly polygenic	0.743714553968876
+1232728	LFMM only	RDA-corrected	highly polygenic	0.503968578960948
+1232728	LFMM only	RDA-uncorrected	highly polygenic	0.64562257059624
+1232728	RDA only	GFoffset	highly polygenic	0.714323923941941
+1232728	RDA only	LFMM2offset	highly polygenic	0.735720000166526
+1232728	RDA only	RDA-corrected	highly polygenic	0.503968578960948
+1232728	RDA only	RDA-uncorrected	highly polygenic	0.673786286341582
+1232728	all 3 methods agree	GFoffset	highly polygenic	0.707826378300626
+1232728	all 3 methods agree	LFMM2offset	highly polygenic	0.716906373264136
+1232728	all 3 methods agree	RDA-corrected	highly polygenic	0.503968578960948
+1232728	all 3 methods agree	RDA-uncorrected	highly polygenic	0.560879873678263
+1232728	any method (union)	GFoffset	highly polygenic	0.699907494550276
+1232728	any method (union)	LFMM2offset	highly polygenic	0.744781169135599
+1232728	any method (union)	RDA-corrected	highly polygenic	0.503968578960948
+1232728	any method (union)	RDA-uncorrected	highly polygenic	0.659770231545811
+1232740	true QTNs (oracle)	GFoffset	highly polygenic	0.525692052042548
+1232740	true QTNs (oracle)	LFMM2offset	highly polygenic	0.452077900057218
+1232740	true QTNs (oracle)	RDA-corrected	highly polygenic	0.777135121494369
+1232740	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.410374337792307
+1232740	≥2 methods agree	GFoffset	highly polygenic	0.507214656625061
+1232740	≥2 methods agree	LFMM2offset	highly polygenic	0.479901736906579
+1232740	≥2 methods agree	RDA-corrected	highly polygenic	0.808437557078583
+1232740	≥2 methods agree	RDA-uncorrected	highly polygenic	0.460295364742244
+1232740	EMMAX only	GFoffset	highly polygenic	0.640008245669414
+1232740	EMMAX only	LFMM2offset	highly polygenic	0.80757316626059
+1232740	EMMAX only	RDA-corrected	highly polygenic	0.7548935062127
+1232740	EMMAX only	RDA-uncorrected	highly polygenic	0.632312550329883
+1232740	LFMM only	GFoffset	highly polygenic	0.37827898530524
+1232740	LFMM only	LFMM2offset	highly polygenic	0.386027658955101
+1232740	LFMM only	RDA-corrected	highly polygenic	0.76539059046279
+1232740	LFMM only	RDA-uncorrected	highly polygenic	0.313977274422195
+1232740	RDA only	GFoffset	highly polygenic	0.636759472848756
+1232740	RDA only	LFMM2offset	highly polygenic	0.641023487175869
+1232740	RDA only	RDA-corrected	highly polygenic	0.806024716371237
+1232740	RDA only	RDA-uncorrected	highly polygenic	0.579330264891827
+1232740	all 3 methods agree	GFoffset	highly polygenic	0.697267866633492
+1232740	all 3 methods agree	LFMM2offset	highly polygenic	0.705151855180594
+1232740	all 3 methods agree	RDA-corrected	highly polygenic	0.753115054607088
+1232740	all 3 methods agree	RDA-uncorrected	highly polygenic	0.775763800234377
+1232740	any method (union)	GFoffset	highly polygenic	0.404269167870496
+1232740	any method (union)	LFMM2offset	highly polygenic	0.395293371486499
+1232740	any method (union)	RDA-corrected	highly polygenic	0.801555829334905
+1232740	any method (union)	RDA-uncorrected	highly polygenic	0.30449371215738
+1232769	true QTNs (oracle)	GFoffset	moderately polygenic	0.740923251411069
+1232769	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.767743992461017
+1232769	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.702977858864249
+1232769	≥2 methods agree	GFoffset	moderately polygenic	0.740314106507196
+1232769	≥2 methods agree	LFMM2offset	moderately polygenic	0.784289674876348
+1232769	≥2 methods agree	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.663020331208599
+1232769	EMMAX only	GFoffset	moderately polygenic	0.655846013170116
+1232769	EMMAX only	LFMM2offset	moderately polygenic	0.555384567788139
+1232769	EMMAX only	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	EMMAX only	RDA-uncorrected	moderately polygenic	0.494624542430434
+1232769	LFMM only	GFoffset	moderately polygenic	0.714933068845814
+1232769	LFMM only	LFMM2offset	moderately polygenic	0.771650217660321
+1232769	LFMM only	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	LFMM only	RDA-uncorrected	moderately polygenic	0.677848910920065
+1232769	RDA only	GFoffset	moderately polygenic	0.667216718042415
+1232769	RDA only	LFMM2offset	moderately polygenic	0.612487391628859
+1232769	RDA only	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	RDA only	RDA-uncorrected	moderately polygenic	0.494016517041143
+1232769	all 3 methods agree	GFoffset	moderately polygenic	0.722242807692292
+1232769	all 3 methods agree	LFMM2offset	moderately polygenic	0.770153882841765
+1232769	all 3 methods agree	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.657332656798721
+1232769	any method (union)	GFoffset	moderately polygenic	0.735847043878793
+1232769	any method (union)	LFMM2offset	moderately polygenic	0.784332755773301
+1232769	any method (union)	RDA-corrected	moderately polygenic	0.494624542430434
+1232769	any method (union)	RDA-uncorrected	moderately polygenic	0.712641861371225
+1232773	true QTNs (oracle)	GFoffset	moderately polygenic	0.673105118779855
+1232773	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.733966742809509
+1232773	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.554371180965322
+1232773	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.591111876169431
+1232773	≥2 methods agree	GFoffset	moderately polygenic	0.696658721729619
+1232773	≥2 methods agree	LFMM2offset	moderately polygenic	0.806965101858155
+1232773	≥2 methods agree	RDA-corrected	moderately polygenic	0.508839043035391
+1232773	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.692800804005089
+1232773	EMMAX only	GFoffset	moderately polygenic	0.664780138426923
+1232773	EMMAX only	LFMM2offset	moderately polygenic	0.785102645242085
+1232773	EMMAX only	RDA-corrected	moderately polygenic	0.523497167154319
+1232773	EMMAX only	RDA-uncorrected	moderately polygenic	0.670833980125545
+1232773	LFMM only	GFoffset	moderately polygenic	0.653409433554623
+1232773	LFMM only	LFMM2offset	moderately polygenic	0.767272800866095
+1232773	LFMM only	RDA-corrected	moderately polygenic	0.506524053905461
+1232773	LFMM only	RDA-uncorrected	moderately polygenic	0.61239367669383
+1232773	RDA only	GFoffset	moderately polygenic	0.794324954650618
+1232773	RDA only	LFMM2offset	moderately polygenic	0.85291967574759
+1232773	RDA only	RDA-corrected	moderately polygenic	0.502756899542142
+1232773	RDA only	RDA-uncorrected	moderately polygenic	0.824678124698618
+1232773	all 3 methods agree	GFoffset	moderately polygenic	0.676759988203095
+1232773	all 3 methods agree	LFMM2offset	moderately polygenic	0.780880271230288
+1232773	all 3 methods agree	RDA-corrected	moderately polygenic	0.508251166278067
+1232773	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.655162768587253
+1232773	any method (union)	GFoffset	moderately polygenic	0.669653297657908
+1232773	any method (union)	LFMM2offset	moderately polygenic	0.776862800739587
+1232773	any method (union)	RDA-corrected	moderately polygenic	0.501631719815847
+1232773	any method (union)	RDA-uncorrected	moderately polygenic	0.618398597928266
+1232788	true QTNs (oracle)	GFoffset	moderately polygenic	0.694831287017999
+1232788	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.646205602268841
+1232788	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.759472125079959
+1232788	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.652917036618114
+1232788	≥2 methods agree	GFoffset	moderately polygenic	0.758791501924682
+1232788	≥2 methods agree	LFMM2offset	moderately polygenic	0.658744817210316
+1232788	≥2 methods agree	RDA-corrected	moderately polygenic	0.74141831854415
+1232788	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.728670873141383
+1232788	EMMAX only	GFoffset	moderately polygenic	0.794121906349326
+1232788	EMMAX only	LFMM2offset	moderately polygenic	0.801232615188079
+1232788	EMMAX only	RDA-corrected	moderately polygenic	0.742134800841742
+1232788	EMMAX only	RDA-uncorrected	moderately polygenic	0.699041489167535
+1232788	LFMM only	GFoffset	moderately polygenic	0.466198899764268
+1232788	LFMM only	LFMM2offset	moderately polygenic	0.495945206392834
+1232788	LFMM only	RDA-corrected	moderately polygenic	0.73893169318296
+1232788	LFMM only	RDA-uncorrected	moderately polygenic	0.426458966065909
+1232788	RDA only	GFoffset	moderately polygenic	0.80447736971517
+1232788	RDA only	LFMM2offset	moderately polygenic	0.777833385724058
+1232788	RDA only	RDA-corrected	moderately polygenic	0.741927248387931
+1232788	RDA only	RDA-uncorrected	moderately polygenic	0.75056989087493
+1232788	all 3 methods agree	GFoffset	moderately polygenic	0.802649935003551
+1232788	all 3 methods agree	LFMM2offset	moderately polygenic	0.762351502152534
+1232788	all 3 methods agree	RDA-corrected	moderately polygenic	0.742234700323029
+1232788	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.762616233819839
+1232788	any method (union)	GFoffset	moderately polygenic	0.48569153668821
+1232788	any method (union)	LFMM2offset	moderately polygenic	0.50896538509424
+1232788	any method (union)	RDA-corrected	moderately polygenic	0.740101016871489
+1232788	any method (union)	RDA-uncorrected	moderately polygenic	0.455898178519441
+1232860	true QTNs (oracle)	GFoffset	oligogenic	0.76407075775825
+1232860	true QTNs (oracle)	LFMM2offset	oligogenic	0.669789216048633
+1232860	true QTNs (oracle)	RDA-corrected	oligogenic	0.781315778998789
+1232860	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.743305798590907
+1232860	≥2 methods agree	GFoffset	oligogenic	0.692191659101216
+1232860	≥2 methods agree	LFMM2offset	oligogenic	0.530875733787381
+1232860	≥2 methods agree	RDA-corrected	oligogenic	0.791684449853169
+1232860	≥2 methods agree	RDA-uncorrected	oligogenic	0.644527658319593
+1232860	EMMAX only	GFoffset	oligogenic	0.806710901029372
+1232860	EMMAX only	LFMM2offset	oligogenic	0.728063260234488
+1232860	EMMAX only	RDA-corrected	oligogenic	0.799524517045663
+1232860	EMMAX only	RDA-uncorrected	oligogenic	0.776446365563571
+1232860	LFMM only	GFoffset	oligogenic	0.464168416751358
+1232860	LFMM only	LFMM2offset	oligogenic	0.436756896077065
+1232860	LFMM only	RDA-corrected	oligogenic	0.791684449853169
+1232860	LFMM only	RDA-uncorrected	oligogenic	0.407648402727446
+1232860	RDA only	GFoffset	oligogenic	0.722039759391001
+1232860	RDA only	LFMM2offset	oligogenic	0.575353014303201
+1232860	RDA only	RDA-corrected	oligogenic	0.80448695454662
+1232860	RDA only	RDA-uncorrected	oligogenic	0.693752475967145
+1232860	all 3 methods agree	GFoffset	oligogenic	0.726506822019404
+1232860	all 3 methods agree	LFMM2offset	oligogenic	0.541953922509413
+1232860	all 3 methods agree	RDA-corrected	oligogenic	0.797573727471275
+1232860	all 3 methods agree	RDA-uncorrected	oligogenic	0.694565000882842
+1232860	any method (union)	GFoffset	oligogenic	0.511884767554756
+1232860	any method (union)	LFMM2offset	oligogenic	0.457764496407865
+1232860	any method (union)	RDA-corrected	oligogenic	0.807332786902503
+1232860	any method (union)	RDA-uncorrected	oligogenic	0.453592034187745
+1232908	true QTNs (oracle)	GFoffset	highly polygenic	0.797167630868692
+1232908	true QTNs (oracle)	LFMM2offset	highly polygenic	0.819511297247881
+1232908	true QTNs (oracle)	RDA-corrected	highly polygenic	0.0707069641582195
+1232908	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.851726388046201
+1232908	≥2 methods agree	GFoffset	highly polygenic	0.74498421743689
+1232908	≥2 methods agree	LFMM2offset	highly polygenic	0.726587418932767
+1232908	≥2 methods agree	RDA-corrected	highly polygenic	0.0532950539257405
+1232908	≥2 methods agree	RDA-uncorrected	highly polygenic	0.69058336666833
+1232908	EMMAX only	GFoffset	highly polygenic	0.769553061893108
+1232908	EMMAX only	LFMM2offset	highly polygenic	0.61764339688395
+1232908	EMMAX only	RDA-corrected	highly polygenic	0.660580282717171
+1232908	EMMAX only	RDA-uncorrected	highly polygenic	0.459793072085213
+1232908	LFMM only	GFoffset	highly polygenic	0.782954249778318
+1232908	LFMM only	LFMM2offset	highly polygenic	0.808879979170576
+1232908	LFMM only	RDA-corrected	highly polygenic	0.0537023158007395
+1232908	LFMM only	RDA-uncorrected	highly polygenic	0.834430250332075
+1232908	RDA only	GFoffset	highly polygenic	0.553103572716841
+1232908	RDA only	LFMM2offset	highly polygenic	0.509700517899981
+1232908	RDA only	RDA-corrected	highly polygenic	0.0528877920507414
+1232908	RDA only	RDA-uncorrected	highly polygenic	0.414587539890657
+1232908	all 3 methods agree	GFoffset	highly polygenic	0.4473154077442
+1232908	all 3 methods agree	LFMM2offset	highly polygenic	0.386966000722938
+1232908	all 3 methods agree	RDA-corrected	highly polygenic	0.0527404128123786
+1232908	all 3 methods agree	RDA-uncorrected	highly polygenic	0.198216274166112
+1232908	any method (union)	GFoffset	highly polygenic	0.78904569881705
+1232908	any method (union)	LFMM2offset	highly polygenic	0.806024716371237
+1232908	any method (union)	RDA-corrected	highly polygenic	0.0528773494381224
+1232908	any method (union)	RDA-uncorrected	highly polygenic	0.820817551967867
+1232923	true QTNs (oracle)	GFoffset	highly polygenic	0.797167630868692
+1232923	true QTNs (oracle)	LFMM2offset	highly polygenic	0.829148257446595
+1232923	true QTNs (oracle)	RDA-corrected	highly polygenic	0.778557845315023
+1232923	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.737013462460472
+1232923	≥2 methods agree	GFoffset	highly polygenic	0.826000489652022
+1232923	≥2 methods agree	LFMM2offset	highly polygenic	0.833244301047081
+1232923	≥2 methods agree	RDA-corrected	highly polygenic	0.683612936133069
+1232923	≥2 methods agree	RDA-uncorrected	highly polygenic	0.756818226315409
+1232923	EMMAX only	GFoffset	highly polygenic	0.676759988203095
+1232923	EMMAX only	LFMM2offset	highly polygenic	0.550010784766065
+1232923	EMMAX only	RDA-corrected	highly polygenic	0.640414342271996
+1232923	EMMAX only	RDA-uncorrected	highly polygenic	0.511390911883674
+1232923	LFMM only	GFoffset	highly polygenic	0.777065849040878
+1232923	LFMM only	LFMM2offset	highly polygenic	0.821392031833026
+1232923	LFMM only	RDA-corrected	highly polygenic	0.75828887757405
+1232923	LFMM only	RDA-uncorrected	highly polygenic	0.737772623452705
+1232923	RDA only	GFoffset	highly polygenic	0.81402063987585
+1232923	RDA only	LFMM2offset	highly polygenic	0.82268135114998
+1232923	RDA only	RDA-corrected	highly polygenic	0.64122653547716
+1232923	RDA only	RDA-uncorrected	highly polygenic	0.694544359664027
+1232923	all 3 methods agree	GFoffset	highly polygenic	0.646505791310727
+1232923	all 3 methods agree	LFMM2offset	highly polygenic	0.510062515828674
+1232923	all 3 methods agree	RDA-corrected	highly polygenic	0.500515348069237
+1232923	all 3 methods agree	RDA-uncorrected	highly polygenic	0.510869526048301
+1232923	any method (union)	GFoffset	highly polygenic	0.788030457310595
+1232923	any method (union)	LFMM2offset	highly polygenic	0.830976521264428
+1232923	any method (union)	RDA-corrected	highly polygenic	0.753869125151891
+1232923	any method (union)	RDA-uncorrected	highly polygenic	0.722777324170034
+1232968	true QTNs (oracle)	GFoffset	highly polygenic	0.51249391245863
+1232968	true QTNs (oracle)	LFMM2offset	highly polygenic	0.503765447732024
+1232968	true QTNs (oracle)	RDA-corrected	highly polygenic	0.797290073527497
+1232968	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.408293770137648
+1232968	≥2 methods agree	GFoffset	highly polygenic	0.548839558389729
+1232968	≥2 methods agree	LFMM2offset	highly polygenic	0.511484434431143
+1232968	≥2 methods agree	RDA-corrected	highly polygenic	0.744527548047273
+1232968	≥2 methods agree	RDA-uncorrected	highly polygenic	0.464862708372862
+1232968	EMMAX only	GFoffset	highly polygenic	0.611581483488665
+1232968	EMMAX only	LFMM2offset	highly polygenic	0.391680173190451
+1232968	EMMAX only	RDA-corrected	highly polygenic	0.723519418638025
+1232968	EMMAX only	RDA-uncorrected	highly polygenic	0.383558241138808
+1232968	LFMM only	GFoffset	highly polygenic	0.417061210851833
+1232968	LFMM only	LFMM2offset	highly polygenic	0.432846810907124
+1232968	LFMM only	RDA-corrected	highly polygenic	0.744271846970183
+1232968	LFMM only	RDA-uncorrected	highly polygenic	0.357342312183264
+1232968	RDA only	GFoffset	highly polygenic	0.802852983304842
+1232968	RDA only	LFMM2offset	highly polygenic	0.736396344081069
+1232968	RDA only	RDA-corrected	highly polygenic	0.744322202917132
+1232968	RDA only	RDA-uncorrected	highly polygenic	0.777667567167072
+1232968	all 3 methods agree	GFoffset	highly polygenic	0.615439401213196
+1232968	all 3 methods agree	LFMM2offset	highly polygenic	0.537485231733442
+1232968	all 3 methods agree	RDA-corrected	highly polygenic	0.725959661782827
+1232968	all 3 methods agree	RDA-uncorrected	highly polygenic	0.373358537540649
+1232968	any method (union)	GFoffset	highly polygenic	0.448127600949364
+1232968	any method (union)	LFMM2offset	highly polygenic	0.447160792343153
+1232968	any method (union)	RDA-corrected	highly polygenic	0.744273020554365
+1232968	any method (union)	RDA-uncorrected	highly polygenic	0.372492410316926
+1232995	true QTNs (oracle)	GFoffset	moderately polygenic	0.809147480644865
+1232995	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.795421316025547
+1232995	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.540532200167305
+1232995	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.735334734892414
+1232995	≥2 methods agree	GFoffset	moderately polygenic	0.794934099554491
+1232995	≥2 methods agree	LFMM2offset	moderately polygenic	0.789936022832583
+1232995	≥2 methods agree	RDA-corrected	moderately polygenic	0.520625339732732
+1232995	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.783680311391314
+1232995	EMMAX only	GFoffset	moderately polygenic	0.727115966923278
+1232995	EMMAX only	LFMM2offset	moderately polygenic	0.820853296082705
+1232995	EMMAX only	RDA-corrected	moderately polygenic	0.534032000841729
+1232995	EMMAX only	RDA-uncorrected	moderately polygenic	0.654355057321518
+1232995	LFMM only	GFoffset	moderately polygenic	0.687521548171521
+1232995	LFMM only	LFMM2offset	moderately polygenic	0.729742667400679
+1232995	LFMM only	RDA-corrected	moderately polygenic	0.525500489226913
+1232995	LFMM only	RDA-uncorrected	moderately polygenic	0.658619900924962
+1232995	RDA only	GFoffset	moderately polygenic	0.799604210484185
+1232995	RDA only	LFMM2offset	moderately polygenic	0.886689748604647
+1232995	RDA only	RDA-corrected	moderately polygenic	0.519000289901339
+1232995	RDA only	RDA-uncorrected	moderately polygenic	0.76212697370355
+1232995	all 3 methods agree	GFoffset	moderately polygenic	0.860721749172793
+1232995	all 3 methods agree	LFMM2offset	moderately polygenic	0.878018146004047
+1232995	all 3 methods agree	RDA-corrected	moderately polygenic	0.692055952128818
+1232995	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.876332294975608
+1232995	any method (union)	GFoffset	moderately polygenic	0.697673963236074
+1232995	any method (union)	LFMM2offset	moderately polygenic	0.733859866801268
+1232995	any method (union)	RDA-corrected	moderately polygenic	0.523062914479823
+1232995	any method (union)	RDA-uncorrected	moderately polygenic	0.659838688298508
+1233058	true QTNs (oracle)	GFoffset	oligogenic	0.830424431568676
+1233058	true QTNs (oracle)	LFMM2offset	oligogenic	0.849011357654387
+1233058	true QTNs (oracle)	RDA-corrected	oligogenic	0.32736871874346
+1233058	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.851046380084047
+1233058	≥2 methods agree	GFoffset	oligogenic	0.785080492234735
+1233058	≥2 methods agree	LFMM2offset	oligogenic	0.806353296459718
+1233058	≥2 methods agree	RDA-corrected	oligogenic	0.0408191102684164
+1233058	≥2 methods agree	RDA-uncorrected	oligogenic	0.838696932720337
+1233058	EMMAX only	GFoffset	oligogenic	0.588861203188758
+1233058	EMMAX only	LFMM2offset	oligogenic	0.78682506324576
+1233058	EMMAX only	RDA-corrected	oligogenic	0.664238722210666
+1233058	EMMAX only	RDA-uncorrected	oligogenic	0.768721537790406
+1233058	LFMM only	GFoffset	oligogenic	0.803584072859796
+1233058	LFMM only	LFMM2offset	oligogenic	0.817911226103139
+1233058	LFMM only	RDA-corrected	oligogenic	0.0404013811610932
+1233058	LFMM only	RDA-uncorrected	oligogenic	0.841341380968061
+1233058	RDA only	GFoffset	oligogenic	0.493699931402729
+1233058	RDA only	LFMM2offset	oligogenic	0.607002582400555
+1233058	RDA only	RDA-corrected	oligogenic	0.0408276649504356
+1233058	RDA only	RDA-uncorrected	oligogenic	0.391338034412571
+1233058	any method (union)	GFoffset	oligogenic	0.801144040249898
+1233058	any method (union)	LFMM2offset	oligogenic	0.815303736682782
+1233058	any method (union)	RDA-corrected	oligogenic	0.0408276649504356
+1233058	any method (union)	RDA-uncorrected	oligogenic	0.840559552392186
+1233100	true QTNs (oracle)	GFoffset	oligogenic	0.653201306741932
+1233100	true QTNs (oracle)	LFMM2offset	oligogenic	0.623930854821208
+1233100	true QTNs (oracle)	RDA-corrected	oligogenic	0.535209866375249
+1233100	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.461654068490723
+1233100	≥2 methods agree	GFoffset	oligogenic	0.714134264460396
+1233100	≥2 methods agree	LFMM2offset	oligogenic	0.750603258775475
+1233100	≥2 methods agree	RDA-corrected	oligogenic	0.550159093349543
+1233100	≥2 methods agree	RDA-uncorrected	oligogenic	0.643714827895515
+1233100	EMMAX only	GFoffset	oligogenic	0.719008901077872
+1233100	EMMAX only	LFMM2offset	oligogenic	0.752794067361136
+1233100	EMMAX only	RDA-corrected	oligogenic	0.549868669560922
+1233100	EMMAX only	RDA-uncorrected	oligogenic	0.680534751397665
+1233100	LFMM only	GFoffset	oligogenic	0.676762050393071
+1233100	LFMM only	LFMM2offset	oligogenic	0.633629098217038
+1233100	LFMM only	RDA-corrected	oligogenic	0.550275387606427
+1233100	LFMM only	RDA-uncorrected	oligogenic	0.531475434581848
+1233100	RDA only	GFoffset	oligogenic	0.71210316586978
+1233100	RDA only	LFMM2offset	oligogenic	0.752794067361136
+1233100	RDA only	RDA-corrected	oligogenic	0.54932481949876
+1233100	RDA only	RDA-uncorrected	oligogenic	0.690907771233174
+1233100	all 3 methods agree	GFoffset	oligogenic	0.714134264460396
+1233100	all 3 methods agree	LFMM2offset	oligogenic	0.747092649790266
+1233100	all 3 methods agree	RDA-corrected	oligogenic	0.550682105651932
+1233100	all 3 methods agree	RDA-uncorrected	oligogenic	0.643380362318572
+1233100	any method (union)	GFoffset	oligogenic	0.688542422218641
+1233100	any method (union)	LFMM2offset	oligogenic	0.636066416525777
+1233100	any method (union)	RDA-corrected	oligogenic	0.549868669560922
+1233100	any method (union)	RDA-uncorrected	oligogenic	0.560952912645782
+1233115	true QTNs (oracle)	GFoffset	oligogenic	0.669856345959199
+1233115	true QTNs (oracle)	LFMM2offset	oligogenic	0.660582756461508
+1233115	true QTNs (oracle)	RDA-corrected	oligogenic	0.771378489568908
+1233115	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.610081820238588
+1233115	≥2 methods agree	GFoffset	oligogenic	0.50295064229795
+1233115	≥2 methods agree	LFMM2offset	oligogenic	0.574677239600671
+1233115	≥2 methods agree	RDA-corrected	oligogenic	0.771627329997249
+1233115	≥2 methods agree	RDA-uncorrected	oligogenic	0.366759861176607
+1233115	EMMAX only	GFoffset	oligogenic	0.535032273901936
+1233115	EMMAX only	LFMM2offset	oligogenic	0.599724366609548
+1233115	EMMAX only	RDA-corrected	oligogenic	0.772307565543454
+1233115	EMMAX only	RDA-uncorrected	oligogenic	0.428838012326714
+1233115	LFMM only	GFoffset	oligogenic	0.350055271425783
+1233115	LFMM only	LFMM2offset	oligogenic	0.377226222731708
+1233115	LFMM only	RDA-corrected	oligogenic	0.772600777056988
+1233115	LFMM only	RDA-uncorrected	oligogenic	0.194108688298862
+1233115	RDA only	GFoffset	oligogenic	0.600210778616367
+1233115	RDA only	LFMM2offset	oligogenic	0.630187499665161
+1233115	RDA only	RDA-corrected	oligogenic	0.771672399014622
+1233115	RDA only	RDA-uncorrected	oligogenic	0.364399156898057
+1233115	all 3 methods agree	GFoffset	oligogenic	0.500717110983748
+1233115	all 3 methods agree	LFMM2offset	oligogenic	0.576481247884376
+1233115	all 3 methods agree	RDA-corrected	oligogenic	0.772307565543454
+1233115	all 3 methods agree	RDA-uncorrected	oligogenic	0.361539803131262
+1233115	any method (union)	GFoffset	oligogenic	0.355943672163224
+1233115	any method (union)	LFMM2offset	oligogenic	0.38343355945084
+1233115	any method (union)	RDA-corrected	oligogenic	0.771174774987561
+1233115	any method (union)	RDA-uncorrected	oligogenic	0.203214258246666
+1233118	true QTNs (oracle)	GFoffset	oligogenic	0.773082976148863
+1233118	true QTNs (oracle)	LFMM2offset	oligogenic	0.736671022253403
+1233118	true QTNs (oracle)	RDA-corrected	oligogenic	0.672522067878581
+1233118	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.743738557992956
+1233118	≥2 methods agree	GFoffset	oligogenic	0.773895251406177
+1233118	≥2 methods agree	LFMM2offset	oligogenic	0.7291526615574
+1233118	≥2 methods agree	RDA-corrected	oligogenic	0.67048703703168
+1233118	≥2 methods agree	RDA-uncorrected	oligogenic	0.746431534775032
+1233118	EMMAX only	GFoffset	oligogenic	0.743028791628235
+1233118	EMMAX only	LFMM2offset	oligogenic	0.736473108303387
+1233118	EMMAX only	RDA-corrected	oligogenic	0.671701721550999
+1233118	EMMAX only	RDA-uncorrected	oligogenic	0.684293032344598
+1233118	LFMM only	GFoffset	oligogenic	0.591133318510465
+1233118	LFMM only	LFMM2offset	oligogenic	0.589292525790777
+1233118	LFMM only	RDA-corrected	oligogenic	0.670960506653433
+1233118	LFMM only	RDA-uncorrected	oligogenic	0.562005487730203
+1233118	RDA only	GFoffset	oligogenic	0.749120856058092
+1233118	RDA only	LFMM2offset	oligogenic	0.752991129128261
+1233118	RDA only	RDA-corrected	oligogenic	0.66967343235407
+1233118	RDA only	RDA-uncorrected	oligogenic	0.707780698182862
+1233118	all 3 methods agree	GFoffset	oligogenic	0.749323924872421
+1233118	all 3 methods agree	LFMM2offset	oligogenic	0.747192137748728
+1233118	all 3 methods agree	RDA-corrected	oligogenic	0.670959838668846
+1233118	all 3 methods agree	RDA-uncorrected	oligogenic	0.684637236907679
+1233118	any method (union)	GFoffset	oligogenic	0.618141470816165
+1233118	any method (union)	LFMM2offset	oligogenic	0.592093954353241
+1233118	any method (union)	RDA-corrected	oligogenic	0.672115917377935
+1233118	any method (union)	RDA-uncorrected	oligogenic	0.580680094992214
+1233133	true QTNs (oracle)	GFoffset	highly polygenic	0.774426221124094
+1233133	true QTNs (oracle)	LFMM2offset	highly polygenic	0.788064893480573
+1233133	true QTNs (oracle)	RDA-corrected	highly polygenic	0.0250394365160488
+1233133	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.832022900665013
+1233133	≥2 methods agree	GFoffset	highly polygenic	0.71026295791612
+1233133	≥2 methods agree	LFMM2offset	highly polygenic	0.692474359402608
+1233133	≥2 methods agree	RDA-corrected	highly polygenic	0.02316642544012
+1233133	≥2 methods agree	RDA-uncorrected	highly polygenic	0.766416232377743
+1233133	EMMAX only	GFoffset	highly polygenic	0.563052939480103
+1233133	EMMAX only	LFMM2offset	highly polygenic	0.403012293104467
+1233133	EMMAX only	RDA-corrected	highly polygenic	0.0329207098359599
+1233133	EMMAX only	RDA-uncorrected	highly polygenic	0.766892819648963
+1233133	LFMM only	GFoffset	highly polygenic	0.77950242865637
+1233133	LFMM only	LFMM2offset	highly polygenic	0.771380496604728
+1233133	LFMM only	RDA-corrected	highly polygenic	0.02316642544012
+1233133	LFMM only	RDA-uncorrected	highly polygenic	0.815203809839425
+1233133	RDA only	GFoffset	highly polygenic	0.418685597262161
+1233133	RDA only	LFMM2offset	highly polygenic	0.395374159017256
+1233133	RDA only	RDA-corrected	highly polygenic	0.0227599969236267
+1233133	RDA only	RDA-uncorrected	highly polygenic	0.320541079242393
+1233133	all 3 methods agree	GFoffset	highly polygenic	0.474320831815911
+1233133	all 3 methods agree	LFMM2offset	highly polygenic	0.363606982269731
+1233133	all 3 methods agree	RDA-corrected	highly polygenic	0.02316642544012
+1233133	all 3 methods agree	RDA-uncorrected	highly polygenic	0.336924883718145
+1233133	any method (union)	GFoffset	highly polygenic	0.772192689809892
+1233133	any method (union)	LFMM2offset	highly polygenic	0.760523321092216
+1233133	any method (union)	RDA-corrected	highly polygenic	0.02316642544012
+1233133	any method (union)	RDA-uncorrected	highly polygenic	0.808425135505009
+1233163	true QTNs (oracle)	GFoffset	highly polygenic	0.445691021333871
+1233163	true QTNs (oracle)	LFMM2offset	highly polygenic	0.468826876357061
+1233163	true QTNs (oracle)	RDA-corrected	highly polygenic	0.726694916260737
+1233163	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.375589642280852
+1233163	≥2 methods agree	GFoffset	highly polygenic	0.61625159441836
+1233163	≥2 methods agree	LFMM2offset	highly polygenic	0.552606877683513
+1233163	≥2 methods agree	RDA-corrected	highly polygenic	0.725881512445696
+1233163	≥2 methods agree	RDA-uncorrected	highly polygenic	0.59395571337437
+1233163	EMMAX only	GFoffset	highly polygenic	0.787827409009304
+1233163	EMMAX only	LFMM2offset	highly polygenic	0.754835646682338
+1233163	EMMAX only	RDA-corrected	highly polygenic	0.717104046365365
+1233163	EMMAX only	RDA-uncorrected	highly polygenic	0.72726498788004
+1233163	LFMM only	GFoffset	highly polygenic	0.408127085595026
+1233163	LFMM only	LFMM2offset	highly polygenic	0.426140655623407
+1233163	LFMM only	RDA-corrected	highly polygenic	0.725881512445696
+1233163	LFMM only	RDA-uncorrected	highly polygenic	0.336319436196585
+1233163	RDA only	GFoffset	highly polygenic	0.804071273112588
+1233163	RDA only	LFMM2offset	highly polygenic	0.731475555356055
+1233163	RDA only	RDA-corrected	highly polygenic	0.726398120281273
+1233163	RDA only	RDA-uncorrected	highly polygenic	0.800376722825354
+1233163	all 3 methods agree	GFoffset	highly polygenic	0.800010307086767
+1233163	all 3 methods agree	LFMM2offset	highly polygenic	0.757130194275677
+1233163	all 3 methods agree	RDA-corrected	highly polygenic	0.716720032327659
+1233163	all 3 methods agree	RDA-uncorrected	highly polygenic	0.753210596850945
+1233163	any method (union)	GFoffset	highly polygenic	0.430868495339624
+1233163	any method (union)	LFMM2offset	highly polygenic	0.439689382921836
+1233163	any method (union)	RDA-corrected	highly polygenic	0.726952325636653
+1233163	any method (union)	RDA-uncorrected	highly polygenic	0.380274448883382
+1233175	true QTNs (oracle)	GFoffset	highly polygenic	0.771583544906019
+1233175	true QTNs (oracle)	LFMM2offset	highly polygenic	0.752398071935248
+1233175	true QTNs (oracle)	RDA-corrected	highly polygenic	0.683164260573984
+1233175	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.633566303014589
+1233175	≥2 methods agree	GFoffset	highly polygenic	0.811381011959066
+1233175	≥2 methods agree	LFMM2offset	highly polygenic	0.850307205198545
+1233175	≥2 methods agree	RDA-corrected	highly polygenic	0.520625339732733
+1233175	≥2 methods agree	RDA-uncorrected	highly polygenic	0.842354194905212
+1233175	EMMAX only	GFoffset	highly polygenic	0.735847043878793
+1233175	EMMAX only	LFMM2offset	highly polygenic	0.567897555635451
+1233175	EMMAX only	RDA-corrected	highly polygenic	0.520625339732733
+1233175	EMMAX only	RDA-uncorrected	highly polygenic	0.524624603775737
+1233175	LFMM only	GFoffset	highly polygenic	0.730364739743934
+1233175	LFMM only	LFMM2offset	highly polygenic	0.728889291362735
+1233175	LFMM only	RDA-corrected	highly polygenic	0.520625339732733
+1233175	LFMM only	RDA-uncorrected	highly polygenic	0.657807956502697
+1233175	RDA only	GFoffset	highly polygenic	0.740517154808487
+1233175	RDA only	LFMM2offset	highly polygenic	0.733709998874221
+1233175	RDA only	RDA-corrected	highly polygenic	0.520625339732733
+1233175	RDA only	RDA-uncorrected	highly polygenic	0.698769961804132
+1233175	all 3 methods agree	GFoffset	highly polygenic	0.709450764710955
+1233175	all 3 methods agree	LFMM2offset	highly polygenic	0.694708802920774
+1233175	all 3 methods agree	RDA-corrected	highly polygenic	0.520625339732733
+1233175	all 3 methods agree	RDA-uncorrected	highly polygenic	0.639158305250241
+1233175	any method (union)	GFoffset	highly polygenic	0.732801319359427
+1233175	any method (union)	LFMM2offset	highly polygenic	0.741480939727041
+1233175	any method (union)	RDA-corrected	highly polygenic	0.520625339732733
+1233175	any method (union)	RDA-uncorrected	highly polygenic	0.654152091947861
+1233178	true QTNs (oracle)	GFoffset	highly polygenic	0.727319015224568
+1233178	true QTNs (oracle)	LFMM2offset	highly polygenic	0.742799922704713
+1233178	true QTNs (oracle)	RDA-corrected	highly polygenic	0.509249990912977
+1233178	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.657198231105393
+1233178	≥2 methods agree	GFoffset	highly polygenic	0.786406070900266
+1233178	≥2 methods agree	LFMM2offset	highly polygenic	0.842994479126866
+1233178	≥2 methods agree	RDA-corrected	highly polygenic	0.509656253370826
+1233178	≥2 methods agree	RDA-uncorrected	highly polygenic	0.789206661352985
+1233178	EMMAX only	GFoffset	highly polygenic	0.679196567818588
+1233178	EMMAX only	LFMM2offset	highly polygenic	0.549152651660204
+1233178	EMMAX only	RDA-corrected	highly polygenic	0.509656253370826
+1233178	EMMAX only	RDA-uncorrected	highly polygenic	0.500326866596313
+1233178	LFMM only	GFoffset	highly polygenic	0.652394192048168
+1233178	LFMM only	LFMM2offset	highly polygenic	0.72726473909714
+1233178	LFMM only	RDA-corrected	highly polygenic	0.509656253370826
+1233178	LFMM only	RDA-uncorrected	highly polygenic	0.596190156892535
+1233178	RDA only	GFoffset	highly polygenic	0.732192174455554
+1233178	RDA only	LFMM2offset	highly polygenic	0.747373411046749
+1233178	RDA only	RDA-corrected	highly polygenic	0.509656253370826
+1233178	RDA only	RDA-uncorrected	highly polygenic	0.711627283285835
+1233178	all 3 methods agree	GFoffset	highly polygenic	0.67777522970955
+1233178	all 3 methods agree	LFMM2offset	highly polygenic	0.529655702499339
+1233178	all 3 methods agree	RDA-corrected	highly polygenic	0.509756222624116
+1233178	all 3 methods agree	RDA-uncorrected	highly polygenic	0.49686032452189
+1233178	any method (union)	GFoffset	highly polygenic	0.665389283330796
+1233178	any method (union)	LFMM2offset	highly polygenic	0.74010632853436
+1233178	any method (union)	RDA-corrected	highly polygenic	0.510062515828674
+1233178	any method (union)	RDA-uncorrected	highly polygenic	0.605614674682551
+1233193	true QTNs (oracle)	GFoffset	highly polygenic	0.449345890757111
+1233193	true QTNs (oracle)	LFMM2offset	highly polygenic	0.469233138814909
+1233193	true QTNs (oracle)	RDA-corrected	highly polygenic	0.663290342496254
+1233193	true QTNs (oracle)	RDA-uncorrected	highly polygenic	0.361095207516215
+1233193	≥2 methods agree	GFoffset	highly polygenic	0.635338134739719
+1233193	≥2 methods agree	LFMM2offset	highly polygenic	0.521437864648429
+1233193	≥2 methods agree	RDA-corrected	highly polygenic	0.669586748240774
+1233193	≥2 methods agree	RDA-uncorrected	highly polygenic	0.591397478921053
+1233193	EMMAX only	GFoffset	highly polygenic	0.6471149362146
+1233193	EMMAX only	LFMM2offset	highly polygenic	0.728469737063402
+1233193	EMMAX only	RDA-corrected	highly polygenic	0.685897161761193
+1233193	EMMAX only	RDA-uncorrected	highly polygenic	0.655290835368801
+1233193	LFMM only	GFoffset	highly polygenic	0.420309983672489
+1233193	LFMM only	LFMM2offset	highly polygenic	0.405856195390558
+1233193	LFMM only	RDA-corrected	highly polygenic	0.66877455503561
+1233193	LFMM only	RDA-uncorrected	highly polygenic	0.358729750280143
+1233193	RDA only	GFoffset	highly polygenic	0.714933068845814
+1233193	RDA only	LFMM2offset	highly polygenic	0.681542824687409
+1233193	RDA only	RDA-corrected	highly polygenic	0.670602072674863
+1233193	RDA only	RDA-uncorrected	highly polygenic	0.713803138439649
+1233193	all 3 methods agree	GFoffset	highly polygenic	0.679805712722461
+1233193	all 3 methods agree	LFMM2offset	highly polygenic	0.581242741882772
+1233193	all 3 methods agree	RDA-corrected	highly polygenic	0.685897161761193
+1233193	all 3 methods agree	RDA-uncorrected	highly polygenic	0.663021837264767
+1233193	any method (union)	GFoffset	highly polygenic	0.456655629603589
+1233193	any method (union)	LFMM2offset	highly polygenic	0.4204816438731
+1233193	any method (union)	RDA-corrected	highly polygenic	0.670602072674863
+1233193	any method (union)	RDA-uncorrected	highly polygenic	0.384121153895668
+1233208	true QTNs (oracle)	GFoffset	moderately polygenic	0.82559439304944
+1233208	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.827353495408279
+1233208	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.10361439221583
+1233208	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.844244195016236
+1233208	≥2 methods agree	GFoffset	moderately polygenic	0.737471430289121
+1233208	≥2 methods agree	LFMM2offset	moderately polygenic	0.737601296262793
+1233208	≥2 methods agree	RDA-corrected	moderately polygenic	0.0130270629701865
+1233208	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.781242706442485
+1233208	EMMAX only	GFoffset	moderately polygenic	0.811381011959066
+1233208	EMMAX only	LFMM2offset	moderately polygenic	0.841166418975125
+1233208	EMMAX only	RDA-corrected	moderately polygenic	0.0370247029998168
+1233208	EMMAX only	RDA-uncorrected	moderately polygenic	0.831416119986763
+1233208	LFMM only	GFoffset	moderately polygenic	0.751887859680787
+1233208	LFMM only	LFMM2offset	moderately polygenic	0.764469993864094
+1233208	LFMM only	RDA-corrected	moderately polygenic	0.0134319994278574
+1233208	LFMM only	RDA-uncorrected	moderately polygenic	0.804805928997693
+1233208	RDA only	GFoffset	moderately polygenic	0.509245139637972
+1233208	RDA only	LFMM2offset	moderately polygenic	0.551501286529211
+1233208	RDA only	RDA-corrected	moderately polygenic	0.0130270629701865
+1233208	RDA only	RDA-uncorrected	moderately polygenic	0.533111172437145
+1233208	all 3 methods agree	GFoffset	moderately polygenic	0.793512761445453
+1233208	all 3 methods agree	LFMM2offset	moderately polygenic	0.831449249567739
+1233208	all 3 methods agree	RDA-corrected	moderately polygenic	0.0268955170520902
+1233208	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.836900663167716
+1233208	any method (union)	GFoffset	moderately polygenic	0.751684811379495
+1233208	any method (union)	LFMM2offset	moderately polygenic	0.757581018315056
+1233208	any method (union)	RDA-corrected	moderately polygenic	0.0144502537113678
+1233208	any method (union)	RDA-uncorrected	moderately polygenic	0.799321385816739
+1233220	true QTNs (oracle)	GFoffset	moderately polygenic	0.790467036926087
+1233220	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.838760895749779
+1233220	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.513627350552784
+1233220	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.729037748198057
+1233220	≥2 methods agree	GFoffset	moderately polygenic	0.817675509299089
+1233220	≥2 methods agree	LFMM2offset	moderately polygenic	0.885652213835282
+1233220	≥2 methods agree	RDA-corrected	moderately polygenic	0.513411009119723
+1233220	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.861927531526167
+1233220	EMMAX only	GFoffset	moderately polygenic	0.704780653781261
+1233220	EMMAX only	LFMM2offset	moderately polygenic	0.72543622632629
+1233220	EMMAX only	RDA-corrected	moderately polygenic	0.513411009119723
+1233220	EMMAX only	RDA-uncorrected	moderately polygenic	0.572661246523267
+1233220	LFMM only	GFoffset	moderately polygenic	0.760618936636301
+1233220	LFMM only	LFMM2offset	moderately polygenic	0.811509259552191
+1233220	LFMM only	RDA-corrected	moderately polygenic	0.513306105663794
+1233220	LFMM only	RDA-uncorrected	moderately polygenic	0.728984916483485
+1233220	RDA only	GFoffset	moderately polygenic	0.720821469583254
+1233220	RDA only	LFMM2offset	moderately polygenic	0.779324632596746
+1233220	RDA only	RDA-corrected	moderately polygenic	0.513411009119723
+1233220	RDA only	RDA-uncorrected	moderately polygenic	0.71797879336518
+1233220	all 3 methods agree	GFoffset	moderately polygenic	0.730567788045225
+1233220	all 3 methods agree	LFMM2offset	moderately polygenic	0.811102997094342
+1233220	all 3 methods agree	RDA-corrected	moderately polygenic	0.513411009119723
+1233220	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.725030793144773
+1233220	any method (union)	GFoffset	moderately polygenic	0.762446371347922
+1233220	any method (union)	LFMM2offset	moderately polygenic	0.811546286731925
+1233220	any method (union)	RDA-corrected	moderately polygenic	0.513411009119723
+1233220	any method (union)	RDA-uncorrected	moderately polygenic	0.728889623073268
+1233238	true QTNs (oracle)	GFoffset	moderately polygenic	0.563662084383975
+1233238	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.551682234607804
+1233238	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.722660190257826
+1233238	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.463856774722928
+1233238	≥2 methods agree	GFoffset	moderately polygenic	0.714526972243232
+1233238	≥2 methods agree	LFMM2offset	moderately polygenic	0.600862175157793
+1233238	≥2 methods agree	RDA-corrected	moderately polygenic	0.722714231816033
+1233238	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.698009274605198
+1233238	EMMAX only	GFoffset	moderately polygenic	0.77950242865637
+1233238	EMMAX only	LFMM2offset	moderately polygenic	0.759770152070088
+1233238	EMMAX only	RDA-corrected	moderately polygenic	0.721754171284245
+1233238	EMMAX only	RDA-uncorrected	moderately polygenic	0.734293326471372
+1233238	LFMM only	GFoffset	moderately polygenic	0.46274707864232
+1233238	LFMM only	LFMM2offset	moderately polygenic	0.443573138309633
+1233238	LFMM only	RDA-corrected	moderately polygenic	0.722973961146113
+1233238	LFMM only	RDA-uncorrected	moderately polygenic	0.377340451859445
+1233238	RDA only	GFoffset	moderately polygenic	0.815035881382305
+1233238	RDA only	LFMM2offset	moderately polygenic	0.77230493236982
+1233238	RDA only	RDA-corrected	moderately polygenic	0.722918030144385
+1233238	RDA only	RDA-uncorrected	moderately polygenic	0.774044549929054
+1233238	all 3 methods agree	GFoffset	moderately polygenic	0.792091423336416
+1233238	all 3 methods agree	LFMM2offset	moderately polygenic	0.794649367551483
+1233238	all 3 methods agree	RDA-corrected	moderately polygenic	0.722714231816033
+1233238	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.736842748312287
+1233238	any method (union)	GFoffset	moderately polygenic	0.495031758547599
+1233238	any method (union)	LFMM2offset	moderately polygenic	0.46716529055352
+1233238	any method (union)	RDA-corrected	moderately polygenic	0.722768290499232
+1233238	any method (union)	RDA-uncorrected	moderately polygenic	0.416117096378379
+1233253	true QTNs (oracle)	GFoffset	moderately polygenic	0.726912918621986
+1233253	true QTNs (oracle)	LFMM2offset	moderately polygenic	0.739680830516214
+1233253	true QTNs (oracle)	RDA-corrected	moderately polygenic	0.465280517733326
+1233253	true QTNs (oracle)	RDA-uncorrected	moderately polygenic	0.643793891970122
+1233253	≥2 methods agree	GFoffset	moderately polygenic	0.717572696762597
+1233253	≥2 methods agree	LFMM2offset	moderately polygenic	0.788555296148811
+1233253	≥2 methods agree	RDA-corrected	moderately polygenic	0.466092710938491
+1233253	≥2 methods agree	RDA-uncorrected	moderately polygenic	0.700253095452944
+1233253	EMMAX only	GFoffset	moderately polygenic	0.747217748751092
+1233253	EMMAX only	LFMM2offset	moderately polygenic	0.84882641874968
+1233253	EMMAX only	RDA-corrected	moderately polygenic	0.466092710938491
+1233253	EMMAX only	RDA-uncorrected	moderately polygenic	0.774902726803609
+1233253	LFMM only	GFoffset	moderately polygenic	0.654221626759788
+1233253	LFMM only	LFMM2offset	moderately polygenic	0.741684236811232
+1233253	LFMM only	RDA-corrected	moderately polygenic	0.465280517733326
+1233253	LFMM only	RDA-uncorrected	moderately polygenic	0.612237523977548
+1233253	RDA only	GFoffset	moderately polygenic	0.847523609588875
+1233253	RDA only	LFMM2offset	moderately polygenic	0.849321231824844
+1233253	RDA only	RDA-corrected	moderately polygenic	0.465779907923198
+1233253	RDA only	RDA-uncorrected	moderately polygenic	0.847404639034945
+1233253	all 3 methods agree	GFoffset	moderately polygenic	0.767116482277616
+1233253	all 3 methods agree	LFMM2offset	moderately polygenic	0.819670374902029
+1233253	all 3 methods agree	RDA-corrected	moderately polygenic	0.466092710938491
+1233253	all 3 methods agree	RDA-uncorrected	moderately polygenic	0.7334104642633
+1233253	any method (union)	GFoffset	moderately polygenic	0.684678871953446
+1233253	any method (union)	LFMM2offset	moderately polygenic	0.758336851201358
+1233253	any method (union)	RDA-corrected	moderately polygenic	0.465779907923198
+1233253	any method (union)	RDA-uncorrected	moderately polygenic	0.635670467221084
+1233283	true QTNs (oracle)	GFoffset	oligogenic	0.806427651330292
+1233283	true QTNs (oracle)	LFMM2offset	oligogenic	0.848792559070059
+1233283	true QTNs (oracle)	RDA-corrected	oligogenic	0.782939139739326
+1233283	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.848678772609058
+1233283	≥2 methods agree	GFoffset	oligogenic	0.802771304296553
+1233283	≥2 methods agree	LFMM2offset	oligogenic	0.799375619228659
+1233283	≥2 methods agree	RDA-corrected	oligogenic	0.044956364062621
+1233283	≥2 methods agree	RDA-uncorrected	oligogenic	0.828500835789574
+1233283	EMMAX only	GFoffset	oligogenic	0.72680053815108
+1233283	EMMAX only	LFMM2offset	oligogenic	0.790864377401428
+1233283	EMMAX only	RDA-corrected	oligogenic	0.434584342438806
+1233283	EMMAX only	RDA-uncorrected	oligogenic	0.799277727057911
+1233283	LFMM only	GFoffset	oligogenic	0.807443303284109
+1233283	LFMM only	LFMM2offset	oligogenic	0.808509841710855
+1233283	LFMM only	RDA-corrected	oligogenic	0.0502845995864688
+1233283	LFMM only	RDA-uncorrected	oligogenic	0.836255671331628
+1233283	RDA only	GFoffset	oligogenic	0.566936920620364
+1233283	RDA only	LFMM2offset	oligogenic	0.570459468729514
+1233283	RDA only	RDA-corrected	oligogenic	0.0276749906680069
+1233283	RDA only	RDA-uncorrected	oligogenic	0.537512401456089
+1233283	all 3 methods agree	GFoffset	oligogenic	0.82349060415441
+1233283	all 3 methods agree	LFMM2offset	oligogenic	0.844209904012265
+1233283	all 3 methods agree	RDA-corrected	oligogenic	0.726076677780074
+1233283	all 3 methods agree	RDA-uncorrected	oligogenic	0.849085033390585
+1233283	any method (union)	GFoffset	oligogenic	0.807240172893346
+1233283	any method (union)	LFMM2offset	oligogenic	0.802207652851656
+1233283	any method (union)	RDA-corrected	oligogenic	0.0474254584475513
+1233283	any method (union)	RDA-uncorrected	oligogenic	0.834597236347261
+1233295	true QTNs (oracle)	GFoffset	oligogenic	0.634525941534555
+1233295	true QTNs (oracle)	LFMM2offset	oligogenic	0.640940423610185
+1233295	true QTNs (oracle)	RDA-corrected	oligogenic	0.548137858216772
+1233295	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.569173703445617
+1233295	≥2 methods agree	GFoffset	oligogenic	0.776050607534422
+1233295	≥2 methods agree	LFMM2offset	oligogenic	0.749045183462711
+1233295	≥2 methods agree	RDA-corrected	oligogenic	0.548137858216772
+1233295	≥2 methods agree	RDA-uncorrected	oligogenic	0.775508882649377
+1233295	EMMAX only	GFoffset	oligogenic	0.811990156862939
+1233295	EMMAX only	LFMM2offset	oligogenic	0.849321314752477
+1233295	EMMAX only	RDA-corrected	oligogenic	0.547889449739863
+1233295	EMMAX only	RDA-uncorrected	oligogenic	0.791557383906965
+1233295	LFMM only	GFoffset	oligogenic	0.595337619385381
+1233295	LFMM only	LFMM2offset	oligogenic	0.642779065101833
+1233295	LFMM only	RDA-corrected	oligogenic	0.548500091929659
+1233295	LFMM only	RDA-uncorrected	oligogenic	0.54752917745384
+1233295	RDA only	GFoffset	oligogenic	0.765695144168578
+1233295	RDA only	LFMM2offset	oligogenic	0.84624469969823
+1233295	RDA only	RDA-corrected	oligogenic	0.548002313497048
+1233295	RDA only	RDA-uncorrected	oligogenic	0.71553593084346
+1233295	all 3 methods agree	GFoffset	oligogenic	0.787421312406722
+1233295	all 3 methods agree	LFMM2offset	oligogenic	0.837694414536413
+1233295	all 3 methods agree	RDA-corrected	oligogenic	0.547820861881871
+1233295	all 3 methods agree	RDA-uncorrected	oligogenic	0.757343126012682
+1233295	any method (union)	GFoffset	oligogenic	0.61807902912998
+1233295	any method (union)	LFMM2offset	oligogenic	0.648660407272558
+1233295	any method (union)	RDA-corrected	oligogenic	0.547482354946665
+1233295	any method (union)	RDA-uncorrected	oligogenic	0.562964497167819
+1233298	true QTNs (oracle)	GFoffset	oligogenic	0.681571365764189
+1233298	true QTNs (oracle)	LFMM2offset	oligogenic	0.758923373904058
+1233298	true QTNs (oracle)	RDA-corrected	oligogenic	0.485322548997832
+1233298	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.709344756896416
+1233298	≥2 methods agree	GFoffset	oligogenic	0.797367395119058
+1233298	≥2 methods agree	LFMM2offset	oligogenic	0.787370560698014
+1233298	≥2 methods agree	RDA-corrected	oligogenic	0.485322548997832
+1233298	≥2 methods agree	RDA-uncorrected	oligogenic	0.77436629487442
+1233298	EMMAX only	GFoffset	oligogenic	0.710825099495945
+1233298	EMMAX only	LFMM2offset	oligogenic	0.80321998379614
+1233298	EMMAX only	RDA-corrected	oligogenic	0.485322548997832
+1233298	EMMAX only	RDA-uncorrected	oligogenic	0.738179918690596
+1233298	LFMM only	GFoffset	oligogenic	0.660646820108835
+1233298	LFMM only	LFMM2offset	oligogenic	0.743684067348389
+1233298	LFMM only	RDA-corrected	oligogenic	0.485322548997832
+1233298	LFMM only	RDA-uncorrected	oligogenic	0.623778971222394
+1233298	RDA only	GFoffset	oligogenic	0.674664234188635
+1233298	RDA only	LFMM2offset	oligogenic	0.799847765323004
+1233298	RDA only	RDA-corrected	oligogenic	0.485327568646989
+1233298	RDA only	RDA-uncorrected	oligogenic	0.614985776075142
+1233298	all 3 methods agree	GFoffset	oligogenic	0.760800227954363
+1233298	all 3 methods agree	LFMM2offset	oligogenic	0.82146366882505
+1233298	all 3 methods agree	RDA-corrected	oligogenic	0.485322548997832
+1233298	all 3 methods agree	RDA-uncorrected	oligogenic	0.796350758872783
+1233298	any method (union)	GFoffset	oligogenic	0.673445328616478
+1233298	any method (union)	LFMM2offset	oligogenic	0.750845832448417
+1233298	any method (union)	RDA-corrected	oligogenic	0.485322548997832
+1233298	any method (union)	RDA-uncorrected	oligogenic	0.650916861266309
+1233328	true QTNs (oracle)	GFoffset	oligogenic	0.736456188782666
+1233328	true QTNs (oracle)	LFMM2offset	oligogenic	0.744526830101673
+1233328	true QTNs (oracle)	RDA-corrected	oligogenic	0.490139583259623
+1233328	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.620159641905592
+1233328	≥2 methods agree	GFoffset	oligogenic	0.832498035293336
+1233328	≥2 methods agree	LFMM2offset	oligogenic	0.793430580177937
+1233328	≥2 methods agree	RDA-corrected	oligogenic	0.49003808730806
+1233328	≥2 methods agree	RDA-uncorrected	oligogenic	0.674070546977297
+1233328	EMMAX only	GFoffset	oligogenic	0.644678356599108
+1233328	EMMAX only	LFMM2offset	oligogenic	0.709596053924226
+1233328	EMMAX only	RDA-corrected	oligogenic	0.49003808730806
+1233328	EMMAX only	RDA-uncorrected	oligogenic	0.521519671990513
+1233328	LFMM only	GFoffset	oligogenic	0.662749655414012
+1233328	LFMM only	LFMM2offset	oligogenic	0.694444785504571
+1233328	LFMM only	RDA-corrected	oligogenic	0.489629312380636
+1233328	LFMM only	RDA-uncorrected	oligogenic	0.580836811135456
+1233328	RDA only	GFoffset	oligogenic	0.685288016857319
+1233328	RDA only	LFMM2offset	oligogenic	0.766281714603079
+1233328	RDA only	RDA-corrected	oligogenic	0.490139583259623
+1233328	RDA only	RDA-uncorrected	oligogenic	0.577708512844801
+1233328	all 3 methods agree	GFoffset	oligogenic	0.690973369293469
+1233328	all 3 methods agree	LFMM2offset	oligogenic	0.72244879858107
+1233328	all 3 methods agree	RDA-corrected	oligogenic	0.490139583259623
+1233328	all 3 methods agree	RDA-uncorrected	oligogenic	0.559916103891545
+1233328	any method (union)	GFoffset	oligogenic	0.69117641759476
+1233328	any method (union)	LFMM2offset	oligogenic	0.705736975212832
+1233328	any method (union)	RDA-corrected	oligogenic	0.490139583259623
+1233328	any method (union)	RDA-uncorrected	oligogenic	0.629374394256031
+1233343	true QTNs (oracle)	GFoffset	oligogenic	0.639057558692008
+1233343	true QTNs (oracle)	LFMM2offset	oligogenic	0.566994954998548
+1233343	true QTNs (oracle)	RDA-corrected	oligogenic	0.677843702228764
+1233343	true QTNs (oracle)	RDA-uncorrected	oligogenic	0.553182216174493
+1233343	≥2 methods agree	GFoffset	oligogenic	0.719066671537464
+1233343	≥2 methods agree	LFMM2offset	oligogenic	0.658477539265895
+1233343	≥2 methods agree	RDA-corrected	oligogenic	0.686078695138076
+1233343	≥2 methods agree	RDA-uncorrected	oligogenic	0.694982137911473
+1233343	EMMAX only	GFoffset	oligogenic	0.695104551446692
+1233343	EMMAX only	LFMM2offset	oligogenic	0.607751981576403
+1233343	EMMAX only	RDA-corrected	oligogenic	0.66565957336905
+1233343	EMMAX only	RDA-uncorrected	oligogenic	0.646906580977964
+1233343	LFMM only	GFoffset	oligogenic	0.426038372461338
+1233343	LFMM only	LFMM2offset	oligogenic	0.47588755738068
+1233343	LFMM only	RDA-corrected	oligogenic	0.686078195379018
+1233343	LFMM only	RDA-uncorrected	oligogenic	0.375633526937603
+1233343	RDA only	GFoffset	oligogenic	0.738764346527335
+1233343	RDA only	LFMM2offset	oligogenic	0.664042032111138
+1233343	RDA only	RDA-corrected	oligogenic	0.686504968940788
+1233343	RDA only	RDA-uncorrected	oligogenic	0.726876962714777
+1233343	all 3 methods agree	GFoffset	oligogenic	0.735515245498078
+1233343	all 3 methods agree	LFMM2offset	oligogenic	0.664111341456179
+1233343	all 3 methods agree	RDA-corrected	oligogenic	0.680825376107667
+1233343	all 3 methods agree	RDA-uncorrected	oligogenic	0.723275798327531
+1233343	any method (union)	GFoffset	oligogenic	0.443096152864938
+1233343	any method (union)	LFMM2offset	oligogenic	0.4819484285536
+1233343	any method (union)	RDA-corrected	oligogenic	0.686504968940788
+1233343	any method (union)	RDA-uncorrected	oligogenic	0.401021555170198

@@ -8,7 +8,7 @@ library(stringr)
 
 args = commandArgs(trailingOnly=TRUE)
 ################
-MODE = args[1]           # Pipeline mode: processing, prestructure, climate, pregea, structure, gea, gwas, gea_x_gwas, maladaptation
+MODE = args[1]           # Pipeline mode: processing, prestructure, climate, traits, pregea, structure, gea, gwas, gea_x_gwas, maladaptation
 OUTPUT = args[2]         # Pipeline_summary.tsv path
 # Remaining args are mode-specific input files
 ################
@@ -307,6 +307,42 @@ if (MODE == 'processing') {
 
     new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())
 
+} else if (MODE == 'traits') {
+    # args: MODE OUTPUT trait_summary_path trait_invariant_path pairs_png_path corr_climate_path
+    SUMMARY_PATH   = args[3]
+    INVARIANT_PATH = args[4]
+    PAIRS_PATH     = args[5]
+    CORR_CLIM_PATH = if (length(args) >= 6) args[6] else "NULL"
+
+    read_opt <- function(path) if (identical(path, 'NULL') || !file.exists(path)) NULL else fread(path, sep = '\t', header = TRUE)
+
+    new_rows <- list()
+    add <- function(metric, value) new_rows[[length(new_rows) + 1]] <<- row('traits', metric, value)
+
+    trait_summary <- read_opt(SUMMARY_PATH)
+    if (!is.null(trait_summary)) {
+        add('n_traits', nrow(trait_summary))
+        if (nrow(trait_summary) > 0) {
+            add('traits', paste(trait_summary$trait, collapse = ','))
+            if ('n_missing' %in% names(trait_summary))
+                add('n_traits_with_missing', sum(trait_summary$n_missing > 0))
+        }
+    }
+
+    invariant <- read_opt(INVARIANT_PATH)
+    if (!is.null(invariant)) {
+        add('n_invariant_traits', nrow(invariant))
+        if (nrow(invariant) > 0) add('invariant_traits', paste(invariant$predictor, collapse = ','))
+    }
+
+    # Whether the pairs grid was rendered or replaced by the >max_factors
+    # placeholder is not recorded in any table — the plot script logs it. What
+    # IS reportable here is simply that both figures exist.
+    add('pairs_plot_written', file.exists(PAIRS_PATH))
+    add('climate_correlogram_written', !identical(CORR_CLIM_PATH, 'NULL') && file.exists(CORR_CLIM_PATH))
+
+    new_rows <- if (length(new_rows) > 0) rbindlist(new_rows) else data.table(step = character(), metric = character(), value = character())
+
 } else if (MODE == 'structure') {
     # args: MODE OUTPUT K_BEST climate_site predictors ld_decay_path ld_decay_group_by ld_decay_scope
     #       climate_na_excluded
@@ -462,20 +498,31 @@ if (MODE == 'processing') {
     }
 
 } else if (MODE == 'maladaptation') {
-    # args: MODE OUTPUT offset_site_values (space-joined paths, one per snp_set x spatial_tag)
+    # args: MODE OUTPUT offset_site_values
+    #
+    # offset_site_values is a MANIFEST FILE (one path per line, *.txt) written by
+    # the write_summary rule. It used to be a space-joined string, but once offsets
+    # gained the scenario dimension the list grew to methods x sets x scenarios --
+    # 1176 paths on a 42-scenario sweep -- and overflowed the command line. The
+    # space-joined form is still accepted so a hand-run call keeps working.
     OFFSET_SITE = args[3]
 
-    # Split space-joined paths into individual paths
-    offset_paths <- strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
+    offset_paths <- if (grepl('\\.txt$', OFFSET_SITE) && file.exists(OFFSET_SITE)) {
+        readLines(OFFSET_SITE)
+    } else {
+        strsplit(trimws(OFFSET_SITE), "\\s+")[[1]]
+    }
+    offset_paths <- trimws(offset_paths)
     offset_paths <- offset_paths[nchar(offset_paths) > 0]
 
-    # Emit per-tag offset stats (one row per method x SNP set x spatial tag)
-    # Path structure: .../tables/{method}/{run_label}_{spatial_tag}/genetic_offset_site.tsv
-    # tag = "{method}_{run_label}_{spatial_tag}"
+    # Emit per-tag offset stats (one row per method x SNP set x spatial tag x scenario)
+    # Path: .../tables/{method}/{run_label}_{spatial_tag}/{scenario}/genetic_offset_site.tsv
+    # tag = "{method}_{run_label}_{spatial_tag}_{scenario}"
     tag_rows <- lapply(offset_paths, function(p) {
-        spatial_dir <- basename(dirname(p))          # e.g. "EMMAX_bonf005_nospatial"
-        method_dir  <- basename(dirname(dirname(p))) # e.g. "geometric_offset"
-        tag <- paste0(method_dir, '_', spatial_dir)
+        scenario_dir <- basename(dirname(p))                    # e.g. "deme_004"
+        spatial_dir  <- basename(dirname(dirname(p)))           # e.g. "EMMAX_bonf005_nospatial"
+        method_dir   <- basename(dirname(dirname(dirname(p))))  # e.g. "geometric_offset"
+        tag <- paste0(method_dir, '_', spatial_dir, '_', scenario_dir)
         if (!file.exists(p)) {
             return(list(
                 row('maladaptation', sprintf('offset_min_%s', tag), NA),
