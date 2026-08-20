@@ -1,8 +1,0 @@
-marker_set	n_snps	precision	recall	prec_incl_linked	offset_accuracy
-gea_strict	54	0.062	0.072	1	0.719
-gea_best	140	0.063	0.205	0.908	0.704
-gea_emmax_only	16	0.2	0.072	0.931	0.704
-gea_rda_only	99	0.071	0.151	0.894	0.704
-adaptive	52	1	1	1	0.676
-gea_union	225	0.048	0.242	0.796	0.533
-gea_lfmm_only	196	0.053	0.216	0.801	0.529

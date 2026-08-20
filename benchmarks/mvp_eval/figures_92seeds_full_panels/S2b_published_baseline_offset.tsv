@@ -1,7 +1,0 @@
-quantity	published	source	ours
-tau at LA ~ 0.5 (best methods)	-0.6	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	-0.755 (LFMM2offset)
-tau at LA ~ 0.3 (best methods)	-0.2	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	-0.727 (RDA-corrected)
-median performance gain, adaptive vs all/neutral	< 3%	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	10.5% / 8.3%
-% of models where adaptive beats neutral	68%	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	76.4%
-% of models where adaptive beats all	67%	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	75.9%
-% of models where all beats neutral	74%	Lind & Lotterhos 2025, Mol Ecol Resour 25(4):e14008	70.8%

@@ -1,9 +1,0 @@
-cell	scale	condition_pcs	pmax	K	gif_lambda	gif_lambda_unconstrained	median_p	min_p	n_q05	n_bonf05	note
-A_theirs_uncorrected	FALSE	0	FALSE	2	1.6248		0.5	1.11e-12	417	41	reproduces Lotterhos's uncorrected arm
-B_theirs_corrected	FALSE	2	FALSE	2	1.5453		0.5	1.5e-15	409	63	reproduces Lotterhos's Condition(PC1+PC2) arm
-C_scale_only	TRUE	2	FALSE	2	1.3335		0.5	1.04e-05	0	0	B + our scale=TRUE — isolates the scaling effect
-D_ours_current	TRUE	5	TRUE	2	1.3791	1.329	0.706	0.000366	0	0	current ADAPTOGENE default (5 PCs + pmax)
-E_ours_no_pmax	TRUE	5	FALSE	2	1.3791		0.5	3.81e-06	2	2	D without the intersection rule — isolates pmax
-F_scaleFALSE_5pc	FALSE	5	FALSE	2	1.5093		0.5	7.93e-12	395	36	5 PCs without scaling — isolates conditioning depth
-G_scaleTRUE_2pc_pmax	TRUE	2	TRUE	2	1.3335	1.329	0.6547	7.54e-05	0	0	pmax at the tutorial's conditioning depth — is 5 PCs needed?
-H_scaleFALSE_2pc_pmax	FALSE	2	TRUE	2	1.5453	1.6248	0.6531	1.11e-12	72	25	pmax without scaling — does pmax's gain depend on scale=TRUE?

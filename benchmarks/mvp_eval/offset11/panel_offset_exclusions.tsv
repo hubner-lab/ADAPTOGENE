@@ -1,6 +1,0 @@
-seed	set	n_snps	n_causal	reason
-1231168	intersect3	0	0	panel empty -- combination rule selected no loci
-1231558	intersect3	2	0	panel too small for rda_offset (needs >= 3 SNPs, rda_offset.R:174)
-1233058	intersect3	1	0	panel too small for rda_offset (needs >= 3 SNPs, rda_offset.R:174)
-1231168	solo_emmax	1	0	panel too small for rda_offset (needs >= 3 SNPs, rda_offset.R:174)
-1231558	solo_emmax	1	0	panel too small for rda_offset (needs >= 3 SNPs, rda_offset.R:174)

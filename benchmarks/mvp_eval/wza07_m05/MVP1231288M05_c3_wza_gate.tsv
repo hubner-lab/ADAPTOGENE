@@ -1,2 +1,0 @@
-tag	n_windows	median_snps_per_window	min_snps_per_window	max_snps_per_window	n_snps_windowed	n_causal_total	n_causal_above_maf	n_windows_with_causal	min_causal_windows	passed
-MVP1231288M05_c3	997	9	1	27	9026	6	6	6	30	FALSE

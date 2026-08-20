@@ -1,9 +1,0 @@
-cell	scale	condition_pcs	pmax	auc_pr	best_f1	q05_called	q05_TP	q05_FP	q05_precision	gif_lambda	median_p
-D_ours_current	TRUE	5	TRUE	0.2223	0.302	0	0	0		1.3791	0.706
-G_scaleTRUE_2pc_pmax	TRUE	2	TRUE	0.182	0.236	0	0	0		1.3335	0.6547
-A_theirs_uncorrected	FALSE	0	FALSE	0.1353	0.205	416	15	86	0.149	1.6248	0.5
-C_scale_only	TRUE	2	FALSE	0.1285	0.17	0	0	0		1.3335	0.5
-H_scaleFALSE_2pc_pmax	FALSE	2	TRUE	0.1065	0.175	71	5	10	0.333	1.5453	0.6531
-E_ours_no_pmax	TRUE	5	FALSE	0.0927	0.108	1	1	0	1	1.3791	0.5
-B_theirs_corrected	FALSE	2	FALSE	0.0813	0.12	408	10	122	0.076	1.5453	0.5
-F_scaleFALSE_5pc	FALSE	5	FALSE	0.0666	0.115	394	12	169	0.066	1.5093	0.5

@@ -140,3 +140,19 @@ benchmarks/mvp_eval/runlogs_group2/
 benchmarks/mvp_eval/runlogs_group3/
 # Manifest snapshots taken before each expansion -- recoverable from git history.
 benchmarks/mvp_seeds.tsv.bak*
+
+# ── Benchmark RESULTS and rendered journals are not tracked (2026-08-20) ──────
+# The harness stays in git; its output does not. benchmarks/mvp_eval/ is ~90 MB of
+# scored TSVs and figure PNG/SVG regenerable from the {PROJECT}_results/ trees via
+# mvp_garden_sweep.sh -> eval_offset_lind.R -> mvp_panel_tables.R -> the figure
+# scripts. Likewise work/*.html and the d2-rendered SVGs are build products of the
+# .Rmd journals, which ARE tracked.
+# KEPT TRACKED: benchmarks/*.R, benchmarks/*.sh, benchmarks/*.tsv (seed manifests),
+# work/**/*.Rmd, work/**/*.d2 -- the reproducibility record.
+benchmarks/mvp_eval/
+benchmarks/capblancq_eval/
+work/**/*.html
+work/**/*.svg
+
+# Local, machine-specific run wrappers and scratch docs (see local/ below)
+local/
