@@ -1,0 +1,13 @@
+arch	arm	mode	scheme_id	label	n_seeds	n_beat_default	med_gain_default	med_f1
+highly-polygenic	base	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1553	0.1633
+highly-polygenic	base	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1553	0.1633
+highly-polygenic	base	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.1526	0.1526
+highly-polygenic	m05	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1823	0.1925
+highly-polygenic	m05	recal	S4	LFMM+RDA+EMMAX, at_least_2, 5kb, capped	4	4	0.1823	0.1925
+highly-polygenic	m05	recal	S3	LFMM+EMMAX+MLMM, at_least_2, 5kb	4	4	0.1694	0.1814
+mod-polygenic	base	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.1947	0.328
+mod-polygenic	base	recal	S5	LFMM+RDA, union, 0kb	4	4	0.1938	0.3304
+mod-polygenic	base	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.1585	0.3157
+mod-polygenic	m05	recal	S5	LFMM+RDA, union, 0kb	4	4	0.2722	0.4627
+mod-polygenic	m05	recal	S2	LFMM+EMMAX, union, 0kb	4	4	0.2585	0.469
+mod-polygenic	m05	recal	S1	LFMM+RDA+EMMAX, at_least_2, 5kb	4	4	0.2452	0.4628
