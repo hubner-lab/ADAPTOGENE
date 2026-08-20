@@ -215,7 +215,8 @@ rule geometric_offset:
         site_values = mala_offset_site_values('geometric_offset', '{run_label}', '{spatial_tag}'),
         map_values  = mala_offset_map_values('geometric_offset', '{run_label}', '{spatial_tag}'),
         raster      = mala_offset_raster('geometric_offset', '{run_label}', '{spatial_tag}'),
-        importance  = mala_importance('geometric_offset', '{run_label}', '{spatial_tag}')
+        importance  = mala_importance('geometric_offset', '{run_label}', '{spatial_tag}'),
+        diagnostics = f"{mala_table_dir('geometric_offset', '{run_label}', '{spatial_tag}')}geometric_offset_diagnostics.tsv"
     wildcard_constraints:
         spatial_tag = r"nospatial"   # geometric_offset is nospatial-only
     params:
@@ -232,7 +233,7 @@ rule geometric_offset:
             {input.pres_raster} {input.samples} \
             {params.predictors} {params.k} {params.scale} \
             {output.site_values} {output.map_values} \
-            {output.raster} {output.importance} > {log} 2>&1
+            {output.raster} {output.importance} {output.diagnostics} > {log} 2>&1
         """
 
 # RDA Genetic Offset (Capblancq & Forester 2021) — single-call rule.

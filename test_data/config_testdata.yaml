@@ -1,0 +1,138 @@
+Input:
+  dir: test_data/
+  vcf: testdata.vcf
+  metadata: testdata_metadata.tsv
+  gff: testdata.gff3
+project_name: testdata
+Filter:
+  maf: 0.05
+  snp_miss: 0.2
+  sample_miss: 0.5
+  relatedness: 0.99
+  relatedness_action: remove
+LD:
+  window: 100
+  step: 20
+  r2: 0.2
+sNMF:
+  k_start: 2
+  k_end: 7.0
+  k_best: 3.0
+  repeats: 10
+Map:
+  climate_extent: auto
+  gap: 0.5
+  resolution: 2.5
+  zoom_extent: 34.5,35.5,31,32.5
+Climate:
+  enabled: yes
+  predictors: bio_1,bio_2,bio_3
+  Varpart:
+    response: pcs               # 'pcs' (genomic PCs, scalability adaptation) | 'snps' (raw, Lasky-literal)
+    response_var_cutoff: 0.8    # keep leading PCs explaining >= 80% of genetic variance
+    response_max_pcs: 20
+    response_min_pcs: 2         # floor so varpart always has a multivariate Y
+    structure_table: qmatrix    # 'qmatrix' (sNMF Q at k_best, last column dropped) | 'none'
+    permutations: 999           # varpart anova.cca permutations per testable fraction
+  # dbMEM: always site-level (one point per site, centroid of its samples),
+  # no min-sites knob — below 3 sites, dbMEM writes a skip record (warning
+  # badge in Shiny) instead of a config-time guard.
+Population:
+  calc_stats: no
+  window_size: 3000000
+  custom_trait_file: 'NULL'
+Piemap:
+  alpha: 0.6
+  show_labels: no
+  label_size: 8
+  pie_scale: 1.0
+  use_points: no
+LDdecay:
+  group_by: cluster
+  min_samples: 10
+  max_distance: 500
+  scope: both
+GEA:
+  configs:
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: LFMM
+    adjust: bonf
+    threshold: '0.05'
+  - method: RDA
+    adjust: bonf
+    threshold: '0.01'
+    params:
+      condition_pcs: 3
+      axes: auto
+  combine_gap: 100000
+  region_distance: 1000000
+  promoter_length: 10000
+# PreGEA is now ONE decision (LFMM/EMMAX/RDA always run together) — see
+# README "Fixed constants" for everything that used to be a parameter here:
+# seed (always 42), per-block enabled switches, kinship (always BN, same
+# matrix GAPIT uses), genomic_control (always off in PreGEA — the GEA-side
+# switch in GEA.configs[LFMM].params is the only place this toggles), FDR
+# (always 0.1), min_predictors (always 2), lambda_tol/deflation_floor
+# (fixed calibration-band constants), ordiR2step's Pin/R2permutations
+# (Blanchet double-stopping-rule standard).
+PreGEA:
+  predictors: bio_1,bio_2,bio_3   # falls back to Climate.predictors if unset
+  k_offset: 2                     # K sweep = k_best +/- 2
+  n_pcs_max: 10                   # shared: EMMAX/GAPIT #PCs AND RDA Condition() PCs, both 0..10
+  Advanced:
+    collinearity_r: 0.7           # |r| pre-screen before the RDA fit
+    vif_max: 10.0                 # post-fit vif.cca cutoff (real gate, see rda_setup)
+    axis_alpha: 0.05              # RDA constrained-axis significance
+    permutations: 199             # anova.cca permutations (production default 999)
+  TransferGuard:
+    enabled: no                   # OFF by default: pulls the FULL-set imputation chain into a pruned-only mode
+    lfmm_k: auto                  # 'auto' resolves from pregea_recommendations.tsv inside the script
+    emmax_n_pcs: auto
+GFF:
+  feature: mRNA
+  gene_name: description
+  biotype: biotype
+  go_field: ontology
+Enrichment:
+  top_terms: 20
+  plot_width: 12
+  plot_height: 10
+  cnet_label: gene_id
+Future:
+  ssp: '585'
+  year: 2061-2080
+  models: MPI-ESM1-2-HR,UKESM1-0-LL,IPSL-CM6A-LR
+Maladaptation:
+  methods:
+    gradient_forest:
+      ntree: 1000.0
+      cor_threshold: 0.5
+      spatial_correction: both
+      random_model: yes
+    geometric_offset:
+      scale: yes
+      k: 3.0
+    rda_offset:
+      axes: auto            # 'auto' (anova by-axis at axis_alpha) or an integer >= 2
+      axis_alpha: 0.05
+      permutations: 199     # SIMDATA; production default 999
+      condition_pcs: 0      # 0 = canonical (B7). >0 is a documented deviation.
+      seed: 42
+  snp_sets: all
+GEAxGWAS:
+  pairwise:
+    window_size: 500000
+    min_snps: 2
+GWAS:
+  missing_strategy: DROP
+  traits: height,flowering_time,disease_score
+  configs:
+  - method: EMMAX
+    adjust: bonf
+    threshold: '0.05'
+  - method: BLINK
+    adjust: bonf
+    threshold: '0.05'
+  promoter_length: 10000.0

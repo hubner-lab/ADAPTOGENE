@@ -234,6 +234,8 @@ Real-data projects (e.g. a specific WGS/GBS dataset) are **additional, on-demand
 | **Purpose** | Primary testing dataset — all routine development |
 | **Features** | 3 original pops (Negev/TelAviv/Galilee) + 6 preGEA sites added by `scripts/add_pregea_sites.R` (spatially IDW-interpolated genotypes/phenotypes, inside the original coordinate bounding box so `Climate.climate_extent: auto` reuses the cached WorldClim raster), missing data test, climate-associated SNPs, GO terms, relatedness-test duplicate samples (`*_DUP`, `scripts/add_related_samples.R`) |
 
+**`test_data/config_testdata.yaml` is a separate, tracked copy of SIMDATA for GitHub** (2026-08-19) — `data/` and `config_SIMDATA.yaml` are gitignored, so a fresh clone had no runnable dataset. `test_data/` ships copies of the SIMDATA VCF/metadata/GFF renamed to `testdata.*` (`project_name: testdata`), plus `config_testdata.yaml` (same as `config_SIMDATA.yaml` except `Map.resolution: 2.5` — avoids a 10.4 GB WorldClim download on first clone). **Do not confuse the two**: `config_SIMDATA.yaml` is the local working config (37 GB WorldClim cache in `data/`, 30s resolution) — never edit `test_data/*` expecting it to affect local SIMDATA runs, and never point local dev at `test_data/`. See README "Test Dataset" section.
+
 **Testing workflow**:
 1. Make code changes to `Snakefile` or `scripts/*.R`
 2. Test with SIMDATA (`config_SIMDATA.yaml`)

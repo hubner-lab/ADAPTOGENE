@@ -310,6 +310,18 @@ load_rda_diagnostics <- function(project, module = MOD_GEA) {
     }, error = function(e) list())
 }
 
+#' Load geometric-offset conditioning diagnostics (long quantity/value) as a named list.
+#' Returns list() when geometric_offset has not been run for this suffix.
+#' @noRd
+load_geometric_offset_diagnostics <- function(project, suffix) {
+    p <- geometric_offset_diagnostics_path(project, suffix)
+    if (!file_ok(p)) return(list())
+    tryCatch({
+        dt <- data.table::fread(p, sep = "\t", header = TRUE, colClasses = "character")
+        stats::setNames(as.list(dt$value), dt$quantity)
+    }, error = function(e) list())
+}
+
 #' Load RDA candidates side table (Mahalanobis/p/q/loadings/assigned predictor).
 #' @noRd
 load_rda_candidates <- function(project, module = MOD_GEA) {
