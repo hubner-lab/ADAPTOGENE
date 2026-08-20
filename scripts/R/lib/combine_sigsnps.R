@@ -133,9 +133,15 @@ combine_sigsnps <- function(sig_snps_list, strategy, clumping_distance, predicto
                                   per_trait = FALSE) {
     results <- list()
 
-    for (n1 in methods_vec) {
-        for (n2 in methods_vec) {
-            if (n1 == n2) next
+    # UNORDERED pairs only. .snp_overlap() returns the matched rows from BOTH
+    # tables and its match condition (|pos1 - pos2| <= clumping_distance) is
+    # symmetric, so (n2, n1) reproduces exactly the rows (n1, n2) already
+    # produced — the old ordered double loop ran every pairwise foverlaps twice
+    # and threw the second copy away in unique(rbindlist(results)).
+    for (i in seq_along(methods_vec)) {
+        for (j in seq_len(i - 1L)) {
+            n1 <- methods_vec[i]
+            n2 <- methods_vec[j]
             dt1 <- sig_filtered[[n1]]
             dt2 <- sig_filtered[[n2]]
             if (nrow(dt1) == 0L || nrow(dt2) == 0L) next
