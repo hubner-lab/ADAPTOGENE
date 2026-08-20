@@ -116,13 +116,33 @@ if (length(candidate) == 0) {
 }
 
 # ── 6. Load climate data ──────────────────────────────────────────────────────
-env_site_pres <- fread(ENV_SITE_PRES) %>% dplyr::select(!!PREDICTORS)
-env_site_fut  <- fread(ENV_SITE_FUT)  %>% dplyr::select(!!PREDICTORS)
+# Both _site tables carry a leading `sample` column (download_climate_present.R /
+# merge_climate_future.R / stage_custom_climate.R all write it). Keep the raw tables:
+# the sample IDs are the only key linking these rows to a sample identity, and section 8
+# writes the output against them instead of trusting positional alignment.
+env_site_pres_raw <- fread(ENV_SITE_PRES, colClasses = c('sample' = 'character'))
+env_site_fut_raw  <- fread(ENV_SITE_FUT,  colClasses = c('sample' = 'character'))
+for (nm in c('ENV_SITE_PRES', 'ENV_SITE_FUT')) {
+    tbl <- if (nm == 'ENV_SITE_PRES') env_site_pres_raw else env_site_fut_raw
+    if (!'sample' %in% names(tbl)) {
+        stop('FATAL: ', get(nm), ' has no `sample` column (found: ',
+             paste(utils::head(names(tbl), 5), collapse = ', '),
+             '). Expected schema: sample <tab> one column per predictor, one row per sample. ',
+             'This is likely a stale table from an older pipeline version -- re-run mode=structure.')
+    }
+}
+
+env_site_pres <- env_site_pres_raw %>% dplyr::select(!!PREDICTORS)
+env_site_fut  <- env_site_fut_raw  %>% dplyr::select(!!PREDICTORS)
 env_all_pres  <- fread(ENV_ALL_PRES)  %>% dplyr::select(ID, !!PREDICTORS)
 env_all_fut   <- fread(ENV_ALL_FUT)   %>% dplyr::select(ID, !!PREDICTORS)
 
-n_site <- nrow(env_site_pres)
-message(paste0('INFO: Site rows: ', n_site,
+# NOTE: climate_{present,future}_site.tsv are one row per SAMPLE (each site's climate values
+# repeated for every sample at that site), so this is a sample count, not a site count -- it is
+# the number of leading rows of gap$offset that belong to sampled individuals rather than to
+# landscape raster cells. The sample IDs in column 1 are what section 8 keys the output on.
+n_sample <- nrow(env_site_pres)
+message(paste0('INFO: Sample rows: ', n_sample,
                '  Raster rows: ', nrow(env_all_pres)))
 
 # Defense-in-depth: env_site_pres/env_site_fut and lfmm_imp are all supposed to already be
@@ -131,13 +151,30 @@ message(paste0('INFO: Site rows: ', n_site,
 # if it does, something upstream desynced the sample sets and feeding mismatched rows into
 # LEA::genetic.gap() would silently bind the wrong sample's genotypes to the wrong climate
 # values. Fail loud instead.
-if (nrow(env_site_fut) != n_site || nrow(lfmm_imp) != n_site) {
+if (nrow(env_site_fut) != n_sample || nrow(lfmm_imp) != n_sample) {
     stop(paste0('FATAL: Sample-count mismatch between climate and genotype inputs -- ',
-                'env_site_pres has ', n_site, ' rows, env_site_fut has ', nrow(env_site_fut),
+                'env_site_pres has ', n_sample, ' rows, env_site_fut has ', nrow(env_site_fut),
                 ' rows, lfmm_imp has ', nrow(lfmm_imp), ' rows. These must match (all three ',
                 'should already be subset to the same climate-valid sample set). Re-run ',
                 'filter_climate_valid_samples/subset_lfmm_climate and check for a stale ',
                 'intermediate file.'))
+}
+
+# The count guard above cannot see a REORDERING. offset_i is computed from the pair
+# (env_site_pres[i], env_site_fut[i]) -- if the two tables list the same samples in a
+# different order, every offset is a present-of-one-sample vs future-of-another delta:
+# a wrong NUMBER, not merely a wrong label, and silent. Both tables carry the sample key,
+# so check it. (lfmm_imp has no IDs -- its alignment remains count-checked only, guaranteed
+# upstream by subset_lfmm_climate operating on the same climate-valid sample list.)
+if (!identical(env_site_pres_raw$sample, env_site_fut_raw$sample)) {
+    mismatched <- which(env_site_pres_raw$sample != env_site_fut_raw$sample)
+    stop('FATAL: ', ENV_SITE_PRES, ' and ', ENV_SITE_FUT, ' list the same number of rows but ',
+         'not in the same sample order (', length(mismatched), ' position(s) differ, first at ',
+         'row ', mismatched[1], ': "', env_site_pres_raw$sample[mismatched[1]], '" vs "',
+         env_site_fut_raw$sample[mismatched[1]], '"). genetic.gap() pairs these two tables ',
+         'positionally, so proceeding would compute each offset from one sample\'s present ',
+         'climate and another sample\'s future climate. Both tables must be written in the ',
+         'row order of metadata_climate_valid.tsv -- re-run mode=structure.')
 }
 
 # Drop raster cells with any NA across present+future predictors
@@ -146,7 +183,7 @@ env_all_pres_ok <- env_all_pres[ok, ]
 env_all_fut_ok  <- env_all_fut[ok, ]
 message(paste0('INFO: Non-NA raster cells: ', sum(ok)))
 
-# Stack: sites first (top n_site rows), then landscape cells
+# Stack: sampled individuals first (top n_sample rows), then landscape cells
 new.env  <- as.matrix(rbind(env_site_pres,      env_all_pres_ok[, -1]))
 pred.env <- as.matrix(rbind(env_site_fut,       env_all_fut_ok[,  -1]))
 env      <- as.matrix(env_site_pres)             # training environment = present at sites
@@ -165,9 +202,9 @@ gap <- LEA::genetic.gap(
 
 message(paste0('INFO: genetic.gap complete. Offset length: ', length(gap$offset)))
 
-# Slice: first n_site = per-site, remainder = landscape
-offset_site      <- gap$offset[seq_len(n_site)]
-offset_landscape <- gap$offset[(n_site + 1):length(gap$offset)]
+# Slice: first n_sample rows = sampled individuals, remainder = landscape
+offset_site      <- gap$offset[seq_len(n_sample)]
+offset_landscape <- gap$offset[(n_sample + 1):length(gap$offset)]
 
 message(paste0('INFO: Site offset range: ',
                round(min(offset_site, na.rm = TRUE), 4), ' – ',
@@ -178,9 +215,24 @@ samples <- fread(SAMPLES,
                  colClasses = c('site' = 'character', 'sample' = 'character',
                                 'latitude' = 'numeric',  'longitude' = 'numeric'))
 
-go_site <- samples[, c('site', 'sample')] %>%
-    unique() %>%
-    cbind(genetic_offset = offset_site) %>%
+# Key the offsets on the sample IDs that came with the climate table they were computed from
+# (column 1 of climate_present_site.tsv), then JOIN site from the metadata. The previous
+# version cbind()-ed offset_site onto unique(samples[, c('site','sample')]) -- a purely
+# positional bind whose only protection was the row-count check above, so any reordering of
+# the metadata relative to the climate table would have silently attached each offset to the
+# wrong sample while every count still matched.
+go_site <- data.table(sample = env_site_pres_raw$sample,
+                      genetic_offset = offset_site)
+go_site <- merge(go_site, unique(samples[, c('site', 'sample')]),
+                 by = 'sample', all.x = TRUE, sort = FALSE)
+if (anyNA(go_site$site)) {
+    stop('FATAL: ', sum(is.na(go_site$site)), ' sample ID(s) from ', ENV_SITE_PRES,
+         ' have no row in ', SAMPLES, ' (e.g. ',
+         paste(utils::head(go_site$sample[is.na(go_site$site)], 3), collapse = ', '),
+         '). The climate table and the metadata must describe the same sample set.')
+}
+go_site <- go_site %>%
+    dplyr::select(site, sample, genetic_offset) %>%
     dplyr::arrange(desc(genetic_offset))
 
 fwrite(go_site, OUT_SITE_TSV, sep = '\t')
