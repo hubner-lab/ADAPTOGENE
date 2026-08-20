@@ -1,0 +1,78 @@
+##gff-version 3
+##species synthetic test organism
+##genome-build SIMDATA v1.0
+chr1	SIMDATA	gene	10050000	10055000	.	+	.	ID=gene001;Name=DRY1;description=DRY1 protein;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	mRNA	10050000	10055000	.	+	.	ID=gene001.1;Parent=gene001;Name=DRY1-mRNA;description=DRY1 transcript;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	CDS	10050100	10054900	.	+	0	ID=gene001.1.cds;Parent=gene001.1
+chr1	SIMDATA	gene	10150000	10158000	.	-	.	ID=gene002;Name=DRY2;description=DRY2 protein;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	mRNA	10150000	10158000	.	-	.	ID=gene002.1;Parent=gene002;Name=DRY2-mRNA;description=DRY2 transcript;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	CDS	10150100	10157900	.	-	0	ID=gene002.1.cds;Parent=gene002.1
+chr1	SIMDATA	gene	10350000	10360000	.	+	.	ID=gene003;Name=DRY3;description=DRY3 protein;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	mRNA	10350000	10360000	.	+	.	ID=gene003.1;Parent=gene003;Name=DRY3-mRNA;description=DRY3 transcript;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	CDS	10350100	10359900	.	+	0	ID=gene003.1.cds;Parent=gene003.1
+chr1	SIMDATA	gene	10550000	10556000	.	+	.	ID=gene004;Name=DRY4;description=DRY4 protein;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	mRNA	10550000	10556000	.	+	.	ID=gene004.1;Parent=gene004;Name=DRY4-mRNA;description=DRY4 transcript;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	CDS	10550100	10555900	.	+	0	ID=gene004.1.cds;Parent=gene004.1
+chr1	SIMDATA	gene	10750000	10762000	.	-	.	ID=gene005;Name=DRY5;description=DRY5 protein;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	mRNA	10750000	10762000	.	-	.	ID=gene005.1;Parent=gene005;Name=DRY5-mRNA;description=DRY5 transcript;biotype=protein_coding;ontology=GO:0009414
+chr1	SIMDATA	CDS	10750100	10761900	.	-	0	ID=gene005.1.cds;Parent=gene005.1
+chr2	SIMDATA	gene	20050000	20058000	.	+	.	ID=gene006;Name=MIX1;description=MIX1 protein;biotype=protein_coding;ontology=GO:0006412
+chr2	SIMDATA	mRNA	20050000	20058000	.	+	.	ID=gene006.1;Parent=gene006;Name=MIX1-mRNA;description=MIX1 transcript;biotype=protein_coding;ontology=GO:0006412
+chr2	SIMDATA	CDS	20050100	20057900	.	+	0	ID=gene006.1.cds;Parent=gene006.1
+chr2	SIMDATA	gene	20250000	20260000	.	-	.	ID=gene007;Name=MIX2;description=MIX2 protein;biotype=protein_coding;ontology=GO:0006396
+chr2	SIMDATA	mRNA	20250000	20260000	.	-	.	ID=gene007.1;Parent=gene007;Name=MIX2-mRNA;description=MIX2 transcript;biotype=protein_coding;ontology=GO:0006396
+chr2	SIMDATA	CDS	20250100	20259900	.	-	0	ID=gene007.1.cds;Parent=gene007.1
+chr2	SIMDATA	gene	20450000	20455000	.	+	.	ID=gene008;Name=MIX3;description=MIX3 protein;biotype=protein_coding;ontology=GO:0007049
+chr2	SIMDATA	mRNA	20450000	20455000	.	+	.	ID=gene008.1;Parent=gene008;Name=MIX3-mRNA;description=MIX3 transcript;biotype=protein_coding;ontology=GO:0007049
+chr2	SIMDATA	CDS	20450100	20454900	.	+	0	ID=gene008.1.cds;Parent=gene008.1
+chr2	SIMDATA	gene	20650000	20662000	.	+	.	ID=gene009;Name=MIX4;description=MIX4 protein;biotype=protein_coding;ontology=GO:0006811
+chr2	SIMDATA	mRNA	20650000	20662000	.	+	.	ID=gene009.1;Parent=gene009;Name=MIX4-mRNA;description=MIX4 transcript;biotype=protein_coding;ontology=GO:0006811
+chr2	SIMDATA	CDS	20650100	20661900	.	+	0	ID=gene009.1.cds;Parent=gene009.1
+chr2	SIMDATA	gene	20850000	20858000	.	-	.	ID=gene010;Name=MIX5;description=MIX5 protein;biotype=protein_coding;ontology=GO:0055085
+chr2	SIMDATA	mRNA	20850000	20858000	.	-	.	ID=gene010.1;Parent=gene010;Name=MIX5-mRNA;description=MIX5 transcript;biotype=protein_coding;ontology=GO:0055085
+chr2	SIMDATA	CDS	20850100	20857900	.	-	0	ID=gene010.1.cds;Parent=gene010.1
+chr3	SIMDATA	gene	15050000	15060000	.	+	.	ID=gene011;Name=CLD1;description=CLD1 protein;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	mRNA	15050000	15060000	.	+	.	ID=gene011.1;Parent=gene011;Name=CLD1-mRNA;description=CLD1 transcript;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	CDS	15050100	15059900	.	+	0	ID=gene011.1.cds;Parent=gene011.1
+chr3	SIMDATA	gene	15250000	15258000	.	-	.	ID=gene012;Name=CLD2;description=CLD2 protein;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	mRNA	15250000	15258000	.	-	.	ID=gene012.1;Parent=gene012;Name=CLD2-mRNA;description=CLD2 transcript;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	CDS	15250100	15257900	.	-	0	ID=gene012.1.cds;Parent=gene012.1
+chr3	SIMDATA	gene	15450000	15462000	.	+	.	ID=gene013;Name=CLD3;description=CLD3 protein;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	mRNA	15450000	15462000	.	+	.	ID=gene013.1;Parent=gene013;Name=CLD3-mRNA;description=CLD3 transcript;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	CDS	15450100	15461900	.	+	0	ID=gene013.1.cds;Parent=gene013.1
+chr3	SIMDATA	gene	15650000	15655000	.	+	.	ID=gene014;Name=CLD4;description=CLD4 protein;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	mRNA	15650000	15655000	.	+	.	ID=gene014.1;Parent=gene014;Name=CLD4-mRNA;description=CLD4 transcript;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	CDS	15650100	15654900	.	+	0	ID=gene014.1.cds;Parent=gene014.1
+chr3	SIMDATA	gene	15850000	15860000	.	-	.	ID=gene015;Name=CLD5;description=CLD5 protein;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	mRNA	15850000	15860000	.	-	.	ID=gene015.1;Parent=gene015;Name=CLD5-mRNA;description=CLD5 transcript;biotype=protein_coding;ontology=GO:0009409
+chr3	SIMDATA	CDS	15850100	15859900	.	-	0	ID=gene015.1.cds;Parent=gene015.1
+chr1	SIMDATA	gene	5e+06	5010000	.	+	.	ID=gene016;Name=BKG1;description=BKG1 protein;biotype=protein_coding;ontology=GO:0008150
+chr1	SIMDATA	mRNA	5e+06	5010000	.	+	.	ID=gene016.1;Parent=gene016;Name=BKG1-mRNA;description=BKG1 transcript;biotype=protein_coding;ontology=GO:0008150
+chr1	SIMDATA	CDS	5000100	5009900	.	+	0	ID=gene016.1.cds;Parent=gene016.1
+chr1	SIMDATA	gene	2.5e+07	25008000	.	-	.	ID=gene017;Name=BKG2;description=BKG2 protein;biotype=protein_coding;ontology=GO:0003674
+chr1	SIMDATA	mRNA	2.5e+07	25008000	.	-	.	ID=gene017.1;Parent=gene017;Name=BKG2-mRNA;description=BKG2 transcript;biotype=protein_coding;ontology=GO:0003674
+chr1	SIMDATA	CDS	25000100	25007900	.	-	0	ID=gene017.1.cds;Parent=gene017.1
+chr2	SIMDATA	gene	5e+06	5012000	.	+	.	ID=gene018;Name=BKG3;description=BKG3 protein;biotype=protein_coding;ontology=GO:0005575
+chr2	SIMDATA	mRNA	5e+06	5012000	.	+	.	ID=gene018.1;Parent=gene018;Name=BKG3-mRNA;description=BKG3 transcript;biotype=protein_coding;ontology=GO:0005575
+chr2	SIMDATA	CDS	5000100	5011900	.	+	0	ID=gene018.1.cds;Parent=gene018.1
+chr2	SIMDATA	gene	3.5e+07	35007000	.	-	.	ID=gene019;Name=BKG4;description=BKG4 protein;biotype=protein_coding;ontology=GO:0008150
+chr2	SIMDATA	mRNA	3.5e+07	35007000	.	-	.	ID=gene019.1;Parent=gene019;Name=BKG4-mRNA;description=BKG4 transcript;biotype=protein_coding;ontology=GO:0008150
+chr2	SIMDATA	CDS	35000100	35006900	.	-	0	ID=gene019.1.cds;Parent=gene019.1
+chr3	SIMDATA	gene	5e+06	5009000	.	+	.	ID=gene020;Name=BKG5;description=BKG5 protein;biotype=protein_coding;ontology=GO:0003674
+chr3	SIMDATA	mRNA	5e+06	5009000	.	+	.	ID=gene020.1;Parent=gene020;Name=BKG5-mRNA;description=BKG5 transcript;biotype=protein_coding;ontology=GO:0003674
+chr3	SIMDATA	CDS	5000100	5008900	.	+	0	ID=gene020.1.cds;Parent=gene020.1
+chr3	SIMDATA	gene	3.5e+07	35011000	.	-	.	ID=gene021;Name=BKG6;description=BKG6 protein;biotype=protein_coding;ontology=GO:0005575
+chr3	SIMDATA	mRNA	3.5e+07	35011000	.	-	.	ID=gene021.1;Parent=gene021;Name=BKG6-mRNA;description=BKG6 transcript;biotype=protein_coding;ontology=GO:0005575
+chr3	SIMDATA	CDS	35000100	35010900	.	-	0	ID=gene021.1.cds;Parent=gene021.1
+chr4	SIMDATA	gene	1e+07	10008000	.	+	.	ID=gene022;Name=BKG7;description=BKG7 protein;biotype=protein_coding;ontology=GO:0008150
+chr4	SIMDATA	mRNA	1e+07	10008000	.	+	.	ID=gene022.1;Parent=gene022;Name=BKG7-mRNA;description=BKG7 transcript;biotype=protein_coding;ontology=GO:0008150
+chr4	SIMDATA	CDS	10000100	10007900	.	+	0	ID=gene022.1.cds;Parent=gene022.1
+chr4	SIMDATA	gene	2.5e+07	25010000	.	-	.	ID=gene023;Name=BKG8;description=BKG8 protein;biotype=protein_coding;ontology=GO:0003674
+chr4	SIMDATA	mRNA	2.5e+07	25010000	.	-	.	ID=gene023.1;Parent=gene023;Name=BKG8-mRNA;description=BKG8 transcript;biotype=protein_coding;ontology=GO:0003674
+chr4	SIMDATA	CDS	25000100	25009900	.	-	0	ID=gene023.1.cds;Parent=gene023.1
+chr5	SIMDATA	gene	1e+07	10012000	.	+	.	ID=gene024;Name=BKG9;description=BKG9 protein;biotype=protein_coding;ontology=GO:0005575
+chr5	SIMDATA	mRNA	1e+07	10012000	.	+	.	ID=gene024.1;Parent=gene024;Name=BKG9-mRNA;description=BKG9 transcript;biotype=protein_coding;ontology=GO:0005575
+chr5	SIMDATA	CDS	10000100	10011900	.	+	0	ID=gene024.1.cds;Parent=gene024.1
+chr5	SIMDATA	gene	3e+07	30008000	.	-	.	ID=gene025;Name=BKG10;description=BKG10 protein;biotype=protein_coding;ontology=GO:0008150
+chr5	SIMDATA	mRNA	3e+07	30008000	.	-	.	ID=gene025.1;Parent=gene025;Name=BKG10-mRNA;description=BKG10 transcript;biotype=protein_coding;ontology=GO:0008150
+chr5	SIMDATA	CDS	30000100	30007900	.	-	0	ID=gene025.1.cds;Parent=gene025.1

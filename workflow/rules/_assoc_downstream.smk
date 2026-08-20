@@ -78,7 +78,7 @@ if ASSOC_SOURCES:
         shell:
             """
             Rscript /pipeline/scripts/combine_selected_snps.R \
-                "{params.sigsnps_str}" {params.method} {params.clumping_dist} \
+                "{params.sigsnps_str}" "{params.method}" {params.clumping_dist} \
                 {params.predictors} {output} > {log} 2>&1
             """
 

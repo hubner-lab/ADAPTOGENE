@@ -101,8 +101,14 @@ HELP_NOTES <- list(
         config = "haplotype.epsilon_selected"
     ),
     overall_importance = list(
-        desc   = "Gradient Forest variable importance ranking.",
-        config = "Maladaptation.methods.gradient_forest.ntree, .cor_threshold"
+        desc   = paste0("Variable importance ranking. Gradient Forest: permutation importance. ",
+                        "Geometric offset: diag(cov(B)) — the offset produced by a unit shift ",
+                        "in each predictor, summed over every eigen-direction including the ",
+                        "numerically null ones. When more predictors than distinct site ",
+                        "environments are supplied, the ridge inverse inside LEA::lfmm2() ",
+                        "amplifies the lowest-variance directions and these bars become an ",
+                        "artefact of the predictor block rather than a marker result."),
+        config = "Maladaptation.methods.gradient_forest.ntree, .cor_threshold; Climate.predictors"
     ),
     cumulative_importance = list(
         desc   = "Gradient Forest cumulative importance / turnover along each predictor.",

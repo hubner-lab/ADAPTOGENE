@@ -373,7 +373,10 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
             k  <- pd$k_best
             if (is.na(k) && length(methods()) == 0) return(NULL)
             cfg     <- pd$config
-            cmb     <- config_get(cfg, "GWAS", "combine_method", default = "Union")
+            # Show the strategy this panel ACTUALLY computed with (the interactive
+            # filter-bar selector), not GWAS.combine_method from the YAML — that key
+            # governs the static pipeline tables only and the two can disagree.
+            cmb     <- .normalize_strategy(active_strategy())
             missing_strat <- config_get(cfg, "GWAS", "missing_strategy", default = "MEAN")
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
