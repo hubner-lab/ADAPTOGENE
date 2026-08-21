@@ -163,15 +163,23 @@ RUN Rscript -e "remotes::install_version('topr', version = '2.0.2')"
 RUN Rscript -e "install.packages('BiocManager')"
 RUN Rscript -e "BiocManager::install(version = '3.22', ask = FALSE)"
 
+# Every BiocManager::install() below is followed by a requireNamespace() check that
+# stops the layer. BiocManager::install() WARNS on a failed install and returns
+# normally, so a bare RUN exits 0, BuildKit caches the broken layer as a success,
+# and every later build reuses it — the image is then silently missing a package
+# and only fails months later inside a pipeline rule. Seen twice on one image:
+# a cached layer that never installed LEA, and another that never installed WGCNA.
+# remotes::install_version() already throws, so only these lines need the guard.
+
 # Bioconductor packages (pinned to 3.22 versions)
-RUN Rscript -e "BiocManager::install('LEA', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('qvalue', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('GenomicRanges', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('WGCNA', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('clusterProfiler', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('AnnotationDbi', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('GO.db', version = '3.22', ask = FALSE)"
-RUN Rscript -e "BiocManager::install('enrichplot', version = '3.22', ask = FALSE)"
+RUN Rscript -e "BiocManager::install('LEA', version = '3.22', ask = FALSE); if (!requireNamespace('LEA', quietly = TRUE)) stop('FAILED to install LEA')"
+RUN Rscript -e "BiocManager::install('qvalue', version = '3.22', ask = FALSE); if (!requireNamespace('qvalue', quietly = TRUE)) stop('FAILED to install qvalue')"
+RUN Rscript -e "BiocManager::install('GenomicRanges', version = '3.22', ask = FALSE); if (!requireNamespace('GenomicRanges', quietly = TRUE)) stop('FAILED to install GenomicRanges')"
+RUN Rscript -e "BiocManager::install('WGCNA', version = '3.22', ask = FALSE); if (!requireNamespace('WGCNA', quietly = TRUE)) stop('FAILED to install WGCNA')"
+RUN Rscript -e "BiocManager::install('clusterProfiler', version = '3.22', ask = FALSE); if (!requireNamespace('clusterProfiler', quietly = TRUE)) stop('FAILED to install clusterProfiler')"
+RUN Rscript -e "BiocManager::install('AnnotationDbi', version = '3.22', ask = FALSE); if (!requireNamespace('AnnotationDbi', quietly = TRUE)) stop('FAILED to install AnnotationDbi')"
+RUN Rscript -e "BiocManager::install('GO.db', version = '3.22', ask = FALSE); if (!requireNamespace('GO.db', quietly = TRUE)) stop('FAILED to install GO.db')"
+RUN Rscript -e "BiocManager::install('enrichplot', version = '3.22', ask = FALSE); if (!requireNamespace('enrichplot', quietly = TRUE)) stop('FAILED to install enrichplot')"
 
 # CRAN packages used with Bioconductor workflows
 RUN Rscript -e " \
@@ -198,7 +206,7 @@ RUN Rscript -e "remotes::install_version('adespatial', version = '0.3-29', upgra
 RUN Rscript -e "remotes::install_version('crosshap', version = '1.4.0')"
 
 # GAPIT3 association models (GLM, MLM, CMLM, ECMLM, SUPER, MLMM, FarmCPU, BLINK)
-RUN Rscript -e "BiocManager::install('multtest', version = '3.22', ask = FALSE)"
+RUN Rscript -e "BiocManager::install('multtest', version = '3.22', ask = FALSE); if (!requireNamespace('multtest', quietly = TRUE)) stop('FAILED to install multtest')"
 RUN Rscript -e " \
     remotes::install_version('EMMREML', version = '3.1'); \
     remotes::install_version('bigmemory', version = '4.6.4'); \

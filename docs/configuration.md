@@ -226,7 +226,7 @@ PreGEA:
 | `PreGEA.predictors` | Comma-separated predictors for the ladders; falls back to `Climate.predictors` when unset | `Climate.predictors` |
 | `PreGEA.k_offset` | LFMM K sweep range = `sNMF.k_best ± k_offset` | `2` |
 | `PreGEA.n_pcs_max` | Shared ceiling for the EMMAX/GAPIT #PCs **and** RDA Condition()-PC ladders (both sweep `0..n_pcs_max`) | `10` |
-| `PreGEA.Advanced.collinearity_r` | `\|r\|` pre-screen threshold applied before the RDA fit | `0.7` |
+| `PreGEA.Advanced.collinearity_r` | `\|r\|` pre-screen threshold applied before the RDA fit. The correlation matrix is computed **site-wise** (one row per distinct environment), not per sample — climate values repeat for every sample at a site, so a per-sample correlation would weight each site by its sample size and, on an unbalanced design, select a different predictor set. Falls back to per-sample with a `WARNING` if fewer than 3 distinct environments. | `0.7` |
 | `PreGEA.Advanced.vif_max` | Post-fit `vif.cca` cutoff; a rung with `max_vif ≥ vif_max` gets `status="vif_exceeded"` and is excluded from recommendations | `10.0` |
 | `PreGEA.Advanced.axis_alpha` | RDA constrained-axis significance level | `0.05` |
 | `PreGEA.Advanced.permutations` | RDA `anova.cca` permutations (`999` is the production value; the default is a faster testing value) | `199` |

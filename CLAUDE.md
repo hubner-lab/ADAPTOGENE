@@ -279,6 +279,36 @@ The reusable parts were kept out of the archive: `benchmarks/lib_detection.R`, `
 
 Prefer Snakemake flags over manually removing files.
 
+### What cannot be tested on mac-studio (and the rule for it)
+
+mac-studio is arm64 (colima, Virtualization.framework, 8 CPU / 16 GiB). The image is
+**amd64-only** — `rocker/shiny:4.5` publishes no arm64 manifest — so every `docker run`
+here is QEMU emulation, and some things simply do not work. **Verified 2026-08-21:**
+
+| What | Symptom on mac-studio | Where it does work |
+|---|---|---|
+| `emmax-kin-intel64` / `emmax-intel64` | **Hangs forever** after `Identified N individuals` / `nex = 0`. No crash, no exit — a `docker run` sits there until killed. | Linux (x86) |
+| `mode=pregea` (end to end) | Dies at `pregea_kinship_pruned`, which is upstream of everything else. Sub-targets that avoid the EMMAX branch DO run — e.g. `snakemake … <file>` for `PreGEA/tables/rda/rda_predictor_collinearity.tsv`. | Linux |
+| `mode=gwas`, `mode=gea` with EMMAX in `association.configs` | Same hang. GAPIT/LFMM/RDA methods are unaffected. | Linux |
+| `docker build` | Random `gcc: internal compiler error: Segmentation fault … cc1` under QEMU, a different package each time. Retry — layers that compiled are cached, so each attempt resumes. ~11+ min. | native x86 |
+| `-c4` on a heavy mode | OOM-kills the container (exit 137) inside the 16 GiB VM. Use `-c2 --memory<=10g`. A kill also leaves a Snakemake lock → `snakemake --unlock` (see Known Quirks). | bigger box |
+
+Per-architecture EMMAX binaries do **not** fix this: architecture is a property of the
+image, so inside an amd64 container `uname -m` is always `x86_64` and the arm64 binary
+could not execute anyway. The only real fix is a multi-arch image (base would have to
+move to `rocker/r-ver:4.5`, which does publish arm64, and the Shiny server layer
+re-added by hand) — a project, not a task.
+
+**THE RULE — when you cannot test something here, write it down, in both places:**
+
+1. Add a row to the table above if it is a *new* class of mac-studio limitation.
+2. Append a line to the ADAPTOGENE dossier's `## Findings` (`~/Orthidian/AGENTS.md` §13
+   grammar) naming the rule/script that went unverified and why.
+
+Never let "could not run it" quietly become "ran fine". A change that shipped untested
+must say so where the next session will see it — a green review with an unverified
+script in the diff is the exact failure this rule exists to prevent.
+
 ## Important Rules
 
 1. **Do NOT read/view image files** (PNG, SVG, JPG) - User checks plots themselves
