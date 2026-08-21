@@ -159,6 +159,19 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             sort(unique(unlist(lapply(pv, function(dt) setdiff(names(dt), fixed)))))
         })
 
+        # method -> list(adjust=,threshold=,family=) — pins non-univariate
+        # methods (RDA) to their registry rule in the GEA-side matrix unless a
+        # cell override exists (see R/fct_threshold_rules.R).
+        gea_registry_defaults <- shiny::reactive({
+            gea_method_significance_defaults(gea_method_registry())
+        })
+        gea_config_rules <- shiny::reactive({
+            pd <- project_data(); ms <- gea_methods()
+            if (length(ms) == 0) return(list())
+            stats::setNames(
+                lapply(ms, function(m) resolve_adjust(pd$config, m, MOD_GEA) %||% ""), ms)
+        })
+
         gea_effective_sigsnps <- shiny::reactive({
             pd <- project_data()
             compute_method_sigsnps_cached(
@@ -169,7 +182,9 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 regime       = if (gea_regime_wza()) "wza" else "snp",
                 project      = pd$name,
                 module       = MOD_GEA,
-                cutoffs      = gea_combo_thresholds()
+                cutoffs           = gea_combo_thresholds(),
+                overrides         = gea_threshold_overrides(),
+                registry_defaults = gea_registry_defaults()
             )
         })
 
@@ -223,6 +238,18 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             sort(unique(unlist(lapply(pv, function(dt) setdiff(names(dt), fixed)))))
         })
 
+        # method -> list(adjust=,threshold=,family=) — GWAS excludes RDA
+        # entirely, so this is a no-op fallback in practice.
+        gwas_registry_defaults <- shiny::reactive({
+            gea_method_significance_defaults(gwas_method_registry())
+        })
+        gwas_config_rules <- shiny::reactive({
+            pd <- project_data(); ms <- gwas_methods()
+            if (length(ms) == 0) return(list())
+            stats::setNames(
+                lapply(ms, function(m) resolve_adjust(pd$config, m, MOD_GWAS) %||% ""), ms)
+        })
+
         gwas_effective_sigsnps <- shiny::reactive({
             pd <- project_data()
             compute_method_sigsnps_cached(
@@ -233,7 +260,9 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 regime       = if (gwas_regime_wza()) "wza" else "snp",
                 project      = pd$name,
                 module       = MOD_GWAS,
-                cutoffs      = gwas_combo_thresholds()
+                cutoffs           = gwas_combo_thresholds(),
+                overrides         = gwas_threshold_overrides(),
+                registry_defaults = gwas_registry_defaults()
             )
         })
 
@@ -279,21 +308,27 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         # Per-cell significance thresholds for filter bar cells (bindCached per side)
         gea_combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
-                pvalues_list = gea_effective_pvalues(),
-                type         = gea_threshold_type(),
-                value        = gea_threshold_value()
+                pvalues_list      = gea_effective_pvalues(),
+                type              = gea_threshold_type(),
+                value             = gea_threshold_value(),
+                overrides         = gea_threshold_overrides(),
+                registry_defaults = gea_registry_defaults()
             )
         }) |> shiny::bindCache(gea_threshold_type(), gea_threshold_value(),
-                               gea_regime_wza(), gea_pvalue_fingerprint())
+                               gea_regime_wza(), gea_pvalue_fingerprint(),
+                               threshold_overrides_key(gea_threshold_overrides(), gea_registry_defaults()))
 
         gwas_combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
-                pvalues_list = gwas_effective_pvalues(),
-                type         = gwas_threshold_type(),
-                value        = gwas_threshold_value()
+                pvalues_list      = gwas_effective_pvalues(),
+                type              = gwas_threshold_type(),
+                value             = gwas_threshold_value(),
+                overrides         = gwas_threshold_overrides(),
+                registry_defaults = gwas_registry_defaults()
             )
         }) |> shiny::bindCache(gwas_threshold_type(), gwas_threshold_value(),
-                               gwas_regime_wza(), gwas_pvalue_fingerprint())
+                               gwas_regime_wza(), gwas_pvalue_fingerprint(),
+                               threshold_overrides_key(gwas_threshold_overrides(), gwas_registry_defaults()))
 
         # ── Initialize per-side filter params from config/region_params ─────────
         .init_dist_param <- function(input_id, rp_key, config_default_fn) {
@@ -419,7 +454,12 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         # Reads the currently persisted params from the source module's region_params.json
         # keys and pushes them into the prefixed GEAxGWAS filter-bar inputs.
         # The existing .init_* observeEvent handlers auto-persist the copied values.
-        .fill_from <- function(src_module, prefix) {
+        # threshold_overrides and the matrix selection have no Shiny input to
+        # update*() through (they're reactiveVals inside setup_matrix_rules_server,
+        # driven by JS bridges/modals, not plain widgets) — copied directly at
+        # the region_params.json level instead, then dest_matrix_rules$reload()
+        # forces THIS instance's reactiveVals to pick up the change immediately.
+        .fill_from <- function(src_module, prefix, dest_matrix_rules) {
             pd  <- project_data()
             rp  <- read_region_params(pd$name)
             cfg <- pd$config
@@ -432,6 +472,8 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                       DEFAULT_CLUMPING_DISTANCE)
             rg <- isTRUE(get_global_param(rp, src_module, "regime"))
             st <- get_global_param(rp, src_module, "combine_strategy")
+            ov <- get_global_param(rp, src_module, "threshold_overrides")
+            sel <- get_global_param(rp, src_module, "snp_matrix_selection")
 
             shiny::updateSelectInput(session,  paste0(prefix, "threshold_type"),  selected = tt)
             shiny::updateNumericInput(session, paste0(prefix, "threshold_value"), value = tv)
@@ -440,14 +482,25 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
             if (!is.null(st))
                 shiny::updateRadioButtons(session, paste0(prefix, "combine_strategy"),
                                           selected = .normalize_strategy(st))
+
+            # GEA.configs/GWAS.configs overrides use bare method names (from the
+            # source tab, which has no traits of its own to key by here) or
+            # "trait::method" pairs — normalize_threshold_overrides() (called by
+            # reload()) handles both, migrating bare keys against THIS module's
+            # own trait list.
+            rp <- set_global_param(rp, module, paste0(prefix, "threshold_overrides"), ov)
+            rp <- set_global_param(rp, module, paste0(prefix, "snp_matrix_selection"), sel)
+            save_region_params(pd$name, rp)
+            dest_matrix_rules$reload()
+
             shiny::showNotification(
                 sprintf("Copied %s tab settings into the GEAxGWAS %s filter bar.", src_module, toupper(prefix)),
                 type = "message", duration = 3
             )
         }
 
-        shiny::observeEvent(input$fill_gea,  .fill_from(MOD_GEA,  "gea_"))
-        shiny::observeEvent(input$fill_gwas, .fill_from(MOD_GWAS, "gwas_"))
+        shiny::observeEvent(input$fill_gea,  .fill_from(MOD_GEA,  "gea_",  gea_matrix_rules))
+        shiny::observeEvent(input$fill_gwas, .fill_from(MOD_GWAS, "gwas_", gwas_matrix_rules))
 
         gea_threshold_type_raw  <- shiny::reactive(input$gea_threshold_type  %||% "bonf")
         gwas_threshold_type_raw <- shiny::reactive(input$gwas_threshold_type %||% "bonf")
@@ -466,6 +519,31 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         }
         gea_threshold_value  <- .make_threshold_value("gea_threshold_value",  MOD_GEA)
         gwas_threshold_value <- .make_threshold_value("gwas_threshold_value", MOD_GWAS)
+
+        # ── Per-cell threshold overrides, matrix selection, rule popup ──────────
+        # One call per side — module = MOD_GEAXGWAS (both sides), input_prefix
+        # distinguishes "gea_"/"gwas_" so the two popups/reset observers never
+        # collide within this one moduleServer. config_state = NULL: neither
+        # bar drives a pipeline run, so there's no "Apply rules to config"
+        # here — see R/fct_combine.R::setup_matrix_rules_server().
+        gea_matrix_rules <- setup_matrix_rules_server(
+            input, output, session, ns, input_prefix = "gea_",
+            project_data = project_data, module = module,
+            methods = gea_methods, all_traits = gea_all_trait_names,
+            threshold_type = gea_threshold_type, threshold_value = gea_threshold_value,
+            registry_defaults = gea_registry_defaults, config_rules = gea_config_rules,
+            config_state = NULL
+        )
+        gwas_matrix_rules <- setup_matrix_rules_server(
+            input, output, session, ns, input_prefix = "gwas_",
+            project_data = project_data, module = module,
+            methods = gwas_methods, all_traits = gwas_all_trait_names,
+            threshold_type = gwas_threshold_type, threshold_value = gwas_threshold_value,
+            registry_defaults = gwas_registry_defaults, config_rules = gwas_config_rules,
+            config_state = NULL
+        )
+        gea_threshold_overrides  <- gea_matrix_rules$overrides
+        gwas_threshold_overrides <- gwas_matrix_rules$overrides
 
         output$gea_threshold_hint <- shiny::renderUI({
             t <- gea_threshold_type()
@@ -560,7 +638,13 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 combo_thresholds            = gea_combo_thresholds(),
                 default_strategy_value      = strat_val,
                 snp_clumping_distance_value = gea_snp_clumping_distance(),
-                input_prefix                = "gea_"
+                input_prefix                = "gea_",
+                # isolate()d — see setup_matrix_rules_server()
+                selected_pairs              = shiny::isolate(gea_matrix_rules$selected_pairs()),
+                overrides                   = gea_threshold_overrides(),
+                registry_defaults           = gea_registry_defaults(),
+                master_type                 = gea_threshold_type(),
+                master_value                = gea_threshold_value()
             )
         })
 
@@ -581,7 +665,13 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 combo_thresholds            = gwas_combo_thresholds(),
                 default_strategy_value      = strat_val,
                 snp_clumping_distance_value = gwas_snp_clumping_distance(),
-                input_prefix                = "gwas_"
+                input_prefix                = "gwas_",
+                # isolate()d — see setup_matrix_rules_server()
+                selected_pairs              = shiny::isolate(gwas_matrix_rules$selected_pairs()),
+                overrides                   = gwas_threshold_overrides(),
+                registry_defaults           = gwas_registry_defaults(),
+                master_type                 = gwas_threshold_type(),
+                master_value                = gwas_threshold_value()
             )
         })
 

@@ -37,7 +37,18 @@ LD_DECAY_GROUP = if (length(args) >= 6) args[6] else "All"
 OUTPUT         = args[7]
 ################
 
-MIN_MAF_WZA   <- 0.05   # Booker et al. §3 recommendation
+# No WZA-specific MAF cut. The SNP set is whatever `Filter.maf` already admitted — WZA does
+# not get to apply a second, invisible filter on top of the user's.
+#
+# This used to be `MIN_MAF_WZA <- 0.05` (Booker et al. §3), applied before windowing. The
+# recommendation is sound in its original setting, but hardcoding it here made the WZA arm
+# silently disagree with every other output of the same run: on the MVP benchmark at
+# `Filter.maf: 0.01` it dropped 2 502 of 10 325 SNPs and 28 of 70 causal loci, so WZA recall
+# carried a 0.60 ceiling that looked like a method property and was actually a hidden filter.
+# A user who wants the Booker cut sets `Filter.maf: 0.05` and gets it everywhere, consistently.
+#
+# SNPs with no MAF record are still dropped: the weight h = 2·MAF·(1−MAF) is undefined
+# without one, so they cannot enter a window sum at all.
 SLIDING_BIN   <- 50L    # windows per sliding bin for n_snps correction
 
 message("INFO: WZA — reading inputs")
@@ -127,13 +138,15 @@ maf_dt$pos <- as.integer(maf_dt$pos)
 # Join MAF into pval table
 pval_dt <- merge(pval_dt, maf_dt[, .(chr, pos, maf)], by = c("chr", "pos"), all.x = TRUE)
 
-# Filter low-MAF SNPs (Booker et al. §3: MAF > 0.05)
+# Drop only SNPs with no usable MAF — see the note at MIN_MAF_WZA's removal above. The MAF
+# threshold itself belongs to Filter.maf and has already been applied upstream.
 n_before <- nrow(pval_dt)
-pval_dt  <- pval_dt[!is.na(maf) & maf > MIN_MAF_WZA]
-message(paste0("INFO: After MAF>", MIN_MAF_WZA, " filter: ", nrow(pval_dt), "/", n_before, " SNPs"))
+pval_dt  <- pval_dt[!is.na(maf) & maf > 0]
+message(paste0("INFO: SNPs with a usable MAF: ", nrow(pval_dt), "/", n_before,
+               " (no WZA-specific MAF cut; Filter.maf governs)"))
 
 if (nrow(pval_dt) == 0) {
-    message("WARNING: No SNPs passed MAF filter. Writing empty WZA output.")
+    message("WARNING: No SNPs carry a usable MAF. Writing empty WZA output.")
     empty <- data.table(SNPID = character(), chr = character(), pos = integer(),
                         n_snps = integer(), mean_maf = numeric())
     for (tr in trait_cols) empty[[tr]] <- numeric()
@@ -277,5 +290,5 @@ for (tr in trait_cols) {
                    " windows_na=", n_windows_total - n_non_na))
 }
 message(paste0("INFO: WZA complete — n_windows=", n_windows_total,
-               " n_dropped_low_maf=", n_before - nrow(pval_dt),
+               " n_dropped_no_maf=", n_before - nrow(pval_dt),
                " output=", OUTPUT))

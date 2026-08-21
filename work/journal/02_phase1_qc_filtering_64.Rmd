@@ -1,0 +1,419 @@
+---
+title: "02. Phase 1 QC и фильтрация (64-образцовый путь) — Trifolium israeliticum"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда: контейнер adaptogene:latest (Docker) для всех вызовов snakemake/Rscript пайплайна;
+# bcftools/python3 хоста для внепайплайновых диагностик (дискордантность, симуляция дедупликации).
+# Рендер: docker run --rm -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/pipeline/work/journal/02_phase1_qc_filtering_64.Rmd")'
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+```
+
+## Обзор
+
+Обзор файла: подбор порогов Filter.sample_miss/snp_miss/relatedness для 64-образцового
+входа, обоснованный QC-таблицами пайплайна и внепайплайновой проверкой родства.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_00_abstract.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+---
+
+## Шаг 1. Разрешительный запуск mode=processing
+
+```{r step1-check}
+check_files(c(
+  config = "/mnt/data/eugene/ADAPTOGENE/config_Trifolium.yaml",
+  vcf_in = "/mnt/data/eugene/ADAPTOGENE/data/Trifolium_chr1-6.vcf.gz",
+  summary = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/pipeline_summary.tsv"
+))
+```
+
+```{bash step1-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31, первый (разрешительный) проход
+docker run --user $(id -u):$(id -g) --rm -e USER=adaptogene --cpus=64 --memory=200g \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c64 -s Snakefile --config mode=processing \
+    --configfile config_Trifolium.yaml --scheduler greedy
+```
+
+<div class="callout-method">
+**Snakemake 9.23.1** внутри контейнера **adaptogene:latest**, режим `mode=processing`.
+Параметры первого прохода (`config_Trifolium.yaml`):
+
+- `Filter.maf: 0.05` — минимальная частота минорного аллеля (совпадает с фильтром,
+  уже применённым выше по потоку при вызове вариантов — практически не режет).
+- `Filter.snp_miss: 0.3` — максимальная доля пропусков на SNP (30%), начальное разрешительное
+  значение по умолчанию проекта.
+- `Filter.sample_miss: 0.8` — максимальная доля пропусков на образец (80%), намеренно
+  разрешительное значение для ПЕРВОГО прохода: входной VCF уже прошёл фильтр
+  `sample_miss<=0.8` выше по потоку (PopGenPipe), поэтому дальнейшее ужесточение до
+  дефолта пайплайна (0.5) могло неоправданно урезать выборку без предварительного
+  просмотра фактического распределения пропусков.
+- `Filter.relatedness_action: keep` — на первом проходе решение по родству отложено
+  до просмотра таблиц (см. Шаг 4).
+- `LD.window/step/r2: 100/20/0.2` — дефолтные параметры пайплайна (не адаптированы под
+  биологию Trifolium на этом этапе — см. Шаг 3).
+
+Цель первого прохода — не финальный результат, а получение реальных таблиц
+(`samples_missing_stats.tsv`, `relatedness_pairs.tsv`, `filtering_summary.tsv`) для
+data-driven выбора порогов, а не угадывания их заранее.
+</div>
+
+<div class="callout-result">
+- Образцов на входе: **64**, после фильтрации: **64** (**0** удалено при sample_miss≤0.8)
+- SNP: **7 163 793** сырых → **412 474** после MAF+snp_miss фильтра (**5.8%** осталось)
+- После LD-прунинга (100/20/0.2): **13 681** SNP
+- Файл сводки: `Trifolium_results/pipeline_summary.tsv`
+</div>
+
+---
+
+## Шаг 2. Анализ распределения пропусков по образцам
+
+```{r step2-check}
+check_files(c(
+  missing_stats = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/_intermediate/samples/samples_missing_stats.tsv"
+))
+```
+
+```{bash step2-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31 (только чтение уже посчитанной таблицы)
+awk -F'\t' 'NR>1{print $6}' \
+  /mnt/data/eugene/ADAPTOGENE/Trifolium_results/_intermediate/samples/samples_missing_stats.tsv \
+  | sort -n > /tmp/missnum2.txt
+n=$(wc -l < /tmp/missnum2.txt)
+echo "min=$(head -1 /tmp/missnum2.txt) p25=$(sed -n "$((n/4))p" /tmp/missnum2.txt) \
+median=$(sed -n "$((n/2))p" /tmp/missnum2.txt) p75=$(sed -n "$((3*n/4))p" /tmp/missnum2.txt) \
+max=$(tail -1 /tmp/missnum2.txt)"
+
+# число образцов, сохранённых при разных порогах sample_miss
+for t in 0.4 0.5 0.6 0.7 0.75; do
+  n=$(awk -F'\t' -v t=$t 'NR>1 && $6<=t' \
+    /mnt/data/eugene/ADAPTOGENE/Trifolium_results/_intermediate/samples/samples_missing_stats.tsv \
+    | wc -l)
+  echo "sample_miss<=$t : $n / 64"
+done
+```
+
+<div class="callout-method">
+**awk/sort** (GNU coreutils) — прямое чтение таблицы `samples_missing_stats.tsv`
+(колонка 6 = `F_MISS`, доля пропусков на образец, посчитана `plink` внутри пайплайна на
+СЫРОМ наборе сайтов до фильтрации). Цель: количественно увидеть компромисс
+"порог sample_miss → число сохранённых образцов" вместо угадывания одного значения.
+
+Приоритет, заданный пользователем: сохранить максимум образцов/географическое покрытие
+сайтов, допуская потерю SNP как разумную цену (не наоборот).
+</div>
+
+<div class="callout-result">
+- Доля пропусков по образцу: **12.3%** (мин) — **32.1%** (p25) — **51.7%** (медиана) —
+  **69.6%** (p75) — **79.8%** (макс)
+- `sample_miss<=0.7`: **48/64** образца сохранено, только сайт `29010` падает до **n=1**
+  (с 2), остальные 10/11 сайтов сохраняют разумное N
+- `sample_miss<=0.6`: **39/64**, три сайта падают до n=1 — отклонено как избыточно строгое
+</div>
+
+<div class="callout-conclusion">
+Выбран порог **`Filter.sample_miss: 0.7`** — лучший компромисс между числом образцов
+и сохранением представленности сайтов среди протестированных значений. Применяется в
+финальном запуске (Шаг 7).
+</div>
+
+---
+
+## Шаг 3. Исследование параметров LD-прунинга
+
+```{bash step3-cmd, eval=FALSE}
+# Внепайплайновое веб-исследование (не bash-команда) — см. Метод ниже.
+# Результат зафиксирован в конфигурации напрямую (Шаг 7), без отдельного файла-вывода.
+```
+
+<div class="callout-method">
+**Веб-исследование** (агент `web-research`) по вопросу: подходят ли дефолтные параметры
+LD-прунинга пайплайна (window=100kb, полученные из проекта с геномом ячменя ~4.2 Гб) для
+генома *Trifolium israeliticum* (~870 Мб, 2n=12, 6 хромосом).
+
+Ключевые находки (с цитированием первоисточников):
+
+- *T. israeliticum* — диплоидный однолетник из клады подземного клевера (секция
+  *Trichocephalum*, родственно *T. subterraneum*), **самоопыляющийся** (autogamous,
+  geocarpic) — НЕ клональный (клональность через столоны — признак *T. repens*, не этой
+  клады). Источник: сравнительная цитогенетика *T. subterraneum* vs *T. israeliticum*
+  (Genome, 2013, DOI не восстановлен из журнала агента).
+- Физическое окно (kb) в `--indep-pairwise` масштабируется протяжённостью LD, а НЕ размером
+  генома — у сильных самоопылителей (как ячмень-landraces, так и Trifolium) LD протяжённая,
+  поэтому окно 100kb НЕ является тем несоответствием размеру генома, которое предполагалось
+  изначально.
+- r² (а не размер окна) — реальный рычаг, определяющий число сохранённых маркеров при
+  данной плотности SNP; литературный сбалансированный дефолт — **0.2** (0.1 — самый строгий,
+  0.5 — максимальное сохранение).
+</div>
+
+<div class="callout-result">
+- `LD.window`: оставлено **100** kb (не изменено — не являлось несоответствием)
+- `LD.step`: ужесточено с **20** до **10** kb (более плотная оценка, по рекомендации
+  источников)
+- `LD.r2`: оставлено **0.2** (литературный сбалансированный дефолт, совпадает с уже
+  использовавшимся значением)
+</div>
+
+---
+
+## Шаг 4. Обнаружение повышенного родства (PI_HAT)
+
+```{r step4-check}
+check_files(c(
+  relatedness = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/relatedness_pairs.tsv",
+  het = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/sample_heterozygosity.tsv"
+))
+```
+
+```{bash step4-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31 (только чтение уже посчитанных таблиц пайплайна)
+for t in 0.9 0.95 0.99 0.999; do
+  c=$(awk -F'\t' -v t=$t 'NR>1 && $3>=t' \
+    /mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/relatedness_pairs.tsv \
+    | wc -l)
+  echo ">= $t : $c пар"
+done
+
+# гетерозиготность/инбридинг — все образцы
+awk -F'\t' 'NR>1{print $5}' \
+  /mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/sample_heterozygosity.tsv \
+  | sort -n | uniq -c
+awk -F'\t' 'NR>1{print $4}' \
+  /mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/sample_heterozygosity.tsv \
+  | sort -n | uniq -c
+```
+
+<div class="callout-method">
+**awk** — чтение таблиц родства (`plink --genome`, PI_HAT/IBS на LD-прунированном наборе)
+и гетерозиготности/инбридинга (`plink --het`), уже посчитанных пайплайном ADAPTOGENE
+(`compute_relatedness`, `compute_sample_het`). Задача — оценить масштаб проблемы перед
+решением о `Filter.relatedness_action`.
+</div>
+
+<div class="callout-result">
+- Пар с PI_HAT ≥0.9: **68**, ≥0.95: **63**, ≥0.99: **51**, ≥0.999: **9** (из 48 отфильтрованных
+  образцов на момент первого расчёта; после `sample_miss<=0.7` — **28** пар ≥0.99)
+- `obs_het = 0` и `F_inbreeding = 1` для **ВСЕХ 48/48** проверенных образцов без исключения
+  (не выборочно — систематически)
+</div>
+
+<div class="callout-conclusion">
+Полное отсутствие наблюдаемой гетерозиготности (Шаг 01/04) напрямую объясняет, почему
+PI_HAT/IBS завышен по всей выборке: PLINK-оценка родства зависит от паттернов
+гетерозигота/гомозигота, а при их полном отсутствии (het-коллапс + вероятный реальный
+инбридинг у самоопылителя) шкала PI_HAT перестаёт быть напрямую интерпретируемой в
+стандартных терминах (родство первой степени ~0.5, идентичные близнецы ~1.0). Требуется
+независимая от гетерозиготности проверка — Шаг 5.
+</div>
+
+---
+
+## Шаг 5. Прямая проверка дискордантности по противоположным гомозиготам
+
+```{r step5-check}
+check_files(c(
+  vcf_filtered = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/_work/maf0.05_miss0.3_smiss0.7/Trifolium_chr1-6.vcf",
+  script = "/mnt/data/eugene/ADAPTOGENE/work/journal/scripts/discordance.sh"
+))
+```
+
+```{bash step5-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31
+# Полный скрипт: /mnt/data/eugene/ADAPTOGENE/work/journal/scripts/discordance.sh
+bash /mnt/data/eugene/ADAPTOGENE/work/journal/scripts/discordance.sh
+# протестированы пары на трёх уровнях PI_HAT: верхний (>=0.999), p90 (~0.73), базовый (~0.55)
+```
+
+<div class="callout-method">
+**bcftools query v1.13** + **awk**. Прямая, не зависящая от гетерозиготности проверка
+генетического сходства пары образцов: доля сайтов, где оба образца УВЕРЕННО гомозиготны, но
+по РАЗНЫМ аллелям (`0/0` vs `1/1` — "противоположная гомозигота"). Эта метрика работает
+корректно даже при полном отсутствии гетерозигот в данных (Шаг 04), в отличие от PI_HAT/IBS
+и KING-robust (оба зависят от сравнения гетеро-/гомозиготных состояний).
+
+- `bcftools query -s s1,s2 -f '[%GT\t]\n'` — извлечение поля GT только для пары образцов,
+  по одной строке на сайт.
+- `awk`: пропуск сайтов с `./.` у любого из двух образцов; подсчёт `same` (идентичный
+  генотип), `opp` (противоположная гомозигота), `diff` (любое несовпадение, включает `opp`).
+  `discordance = diff / (same + diff)`.
+- Протестированы пары на трёх уровнях исходного PI_HAT (верхний хвост ≥0.999, p90 ~0.73,
+  минимум наблюдаемый ~0.55) — на полном отфильтрованном наборе (**1.28 млн** SNP,
+  `maf0.05_miss0.3_smiss0.7`), не на LD-прунированном (больше статистической мощности).
+</div>
+
+<div class="callout-result">
+- Верхний хвост (PI_HAT **0.9992–0.9997**): дискордантность **0.00003–0.00008**
+  (**3–8 на 100 000** сайтов) — фактически идентичные генотипы
+- Граница 0.99–0.999 (протестировано 4 пары): дискордантность **0.00011–0.00143** —
+  тот же порядок, без плавного перехода
+- p90 (PI_HAT **~0.73**): дискордантность **0.186–0.234** (**18.6–23.4%**)
+- Минимум наблюдаемый (PI_HAT **~0.55**): дискордантность **0.348–0.355** (**34.8–35.5%**)
+- Резкий бимодальный разрыв: **<0.15%** против **≥18%**, без серой зоны
+</div>
+
+<div class="callout-conclusion">
+PI_HAT-хвост ≥0.99 отражает РЕАЛЬНОЕ почти полное совпадение генотипов (истинные дубликаты/
+клоны той же инбредной линии), а не артефакт оценщика — гипотеза Шага 4 (завышение PI_HAT
+из-за het-коллапса) подтверждена лишь частично: шкала PI_HAT в целом сдвинута вверх
+(фон 0.53–0.73 вместо привычного ~0), но верхний хвост остаётся содержательным сигналом.
+Дедупликация по этому порогу оправдана — см. Шаг 6.
+</div>
+
+---
+
+## Шаг 6. Симуляция дедупликации и выбор порога
+
+```{bash step6-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31, симуляция на Python (union-find), без изменения
+# файлов пайплайна. Полный листинг — во временном журнале сессии; ключевая логика:
+#   1. Построить компоненты связности пар с PI_HAT >= порог (0.99 или 0.999)
+#   2. В каждой компоненте оставить образец с минимальной долей пропусков (F_MISS)
+#   3. Сравнить итоговое число образцов и представленность по сайтам
+```
+
+<div class="callout-method">
+**Python 3** (`collections`, union-find вручную) — симуляция того, что сделает
+`relatedness_filter` пайплайна (`plink --genome` + "удалить образец с большей долей
+пропусков в каждой паре выше порога") ДО реального запуска, чтобы сравнить два кандидатных
+порога без повторного прогона Snakemake.
+
+Порог **0.99** (полная дедупликация, всё выше Шага 4): **8** кластеров дубликатов внутри
+48 отфильтрованных образцов → удаление **16**, сайты `28955`/`29010`/`29072` падают до n=1.
+
+Порог **0.999** (консервативный, только зона, где дискордантность Шага 5 однозначно
+подтверждена как почти-идентичность): **3** кластера → удаление **7**, только сайт `28955`
+падает до n=1 (с 5 до 1), остальные 10 сайтов сохраняют разумное N (2–7).
+</div>
+
+<div class="callout-result">
+- Порог **0.99**: **32/48** образцов остаются, **3** сайта со-схлопнутся до n=1
+- Порог **0.999**: **41/48** образцов остаются, **1** сайт падает до n=1
+- Выбран порог **0.999** (решение пользователя) — консервативнее, сохраняет больше
+  географического покрытия ценой оставления части менее уверенно подтверждённых дубликатов
+  (зона 0.99–0.999) как отдельных образцов
+</div>
+
+<details class="callout-note">
+<summary>Исправление терминологии (2026-08-01)</summary>
+Шаги 4–6 выше называют метрику родства "PI_HAT" — это неверно. Фактическая колонка в
+`relatedness_pairs.tsv`/`relatedness_removed.tsv` называется **IBS** (`plink --genome`,
+колонка DST). Проект уже заменил PI_HAT на IBS **2026-07-14** (см.
+`~/Orthidian/projects/ADAPTOGENE/ADAPTOGENE.md`) именно потому, что PI_HAT (method-of-moments
+IBD, предполагает аутбредность/HWE) вырождается при сильном самоопылении — ровно та проблема,
+которую Шаги 4–5 независимо заподозрили под неверным именем метрики. Числовые значения,
+пороги (0.99/0.999) и вывод о реальной дупликации (не артефакте оценщика) остаются
+корректными — IBS устойчивее к самоопылению, чем PI_HAT, так что заключение, если что,
+консервативно занижает уверенность, а не завышает её. Просто везде выше читайте "IBS" вместо
+"PI_HAT".
+</details>
+
+---
+
+## Шаг 7. Финальный запуск Phase 1 с итоговыми параметрами
+
+```{r step7-check}
+check_files(c(
+  config = "/mnt/data/eugene/ADAPTOGENE/config_Trifolium.yaml",
+  summary = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/pipeline_summary.tsv",
+  relatedness_removed = "/mnt/data/eugene/ADAPTOGENE/Trifolium_results/Processing/tables/relatedness_removed.tsv"
+))
+```
+
+```{bash step7-cmd, eval=FALSE}
+# [изменено 2026-07-31] было: sample_miss=0.8, LD.step=20, relatedness_action=keep (Шаг 1)
+#   → стало: sample_miss=0.7, LD.step=10, relatedness=0.999 + relatedness_action=remove
+docker run --user $(id -u):$(id -g) --rm -e USER=adaptogene --cpus=64 --memory=200g \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c64 -s Snakefile --config mode=processing \
+    --configfile config_Trifolium.yaml --scheduler greedy
+```
+
+<div class="callout-method">
+**Snakemake 9.23.1**, `mode=processing`, повтор с итоговыми параметрами
+(`config_Trifolium.yaml` после правок Шагов 2/3/6): `Filter.sample_miss: 0.7`,
+`Filter.relatedness: 0.999` + `relatedness_action: remove`, `LD.step: 10`. Остальные параметры
+без изменений от Шага 1.
+</div>
+
+Каскад фильтрации образцов и SNP (Шаги 1–7):
+
+```{bash step7-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_filter_cascade.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_filter_cascade.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_filter_cascade.svg
+fi
+```
+
+```{r step7-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/02_filter_cascade.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+<div class="callout-result">
+- Образцов: **64** → **41** (**16** удалено по пропускам, **7** — по родству)
+- SNP после MAF+snp_miss: **1 283 403** (**17.9%** от сырых **7 163 793**)
+- SNP после LD-прунинга (100/10/0.2): **31 980**
+- Ti/Tv: **1.92**
+- Удалённые по родству образцы (наибольшая доля пропусков в каждом кластере):
+  `28955-1`, `28955-20`, `28955-24`, `28955-3`, `28960-3`, `28960-15`, `29024-11`
+  — точное совпадение с симуляцией Шага 6
+</div>
+
+<div class="callout-conclusion">
+**Стадия завершена (Шаги 1–7).** Итоговый набор для Phase 2 (sNMF/структура) —
+**41** образец, **31 980** LD-прунированных SNP,
+`Trifolium_results/_work/maf0.05_miss0.3_smiss0.7_rel0.999/ld0.2_win100_step10/`.
+Параллельно (по запросу пользователя) исследуется альтернативный путь от 86-образцового
+входа с приоритетом на сохранение выборки и географии сайтов — см. Стадию 03.
+</div>
+
+---
+
+```{r sessioninfo}
+sessionInfo()
+```

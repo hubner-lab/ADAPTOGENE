@@ -15,6 +15,29 @@ app_server <- function(input, output, session) {
     # Track the last valid project for reverting selector after modal cancel
     prev_project <- shiny::reactiveVal(NULL)
 
+    # ── Benchmark mode ────────────────────────────────────────────────────────
+    # Repopulates the project selector from the other pool and shows the navbar
+    # badge. Modules are untouched: the mode only decides which projects exist to
+    # choose from, so the real-data layout is byte-identical to before.
+    benchmark_mode <- shiny::reactive(isTRUE(input$benchmark_mode))
+
+    shiny::observeEvent(input$benchmark_mode, {
+        bm       <- isTRUE(input$benchmark_mode)
+        projects <- find_projects(get_pipeline_path(), benchmark_mode = bm)
+        shinyjs::runjs(sprintf(
+            "var b=document.getElementById('benchmark_badge'); if(b) b.style.display='%s';",
+            if (bm) "inline-block" else "none"))
+        choices <- c(
+            if (!bm) c("+ New Project" = "__new__") else character(0),
+            if (length(projects)) setNames(projects, projects) else character(0)
+        )
+        # No project in this pool: leave the selector empty rather than silently
+        # falling back to a project from the other mode, which would show benchmark
+        # data under an analysis layout (or the reverse).
+        shiny::updateSelectInput(session, "project_selector", choices = choices,
+                                 selected = if (length(projects)) projects[1] else character(0))
+    }, ignoreInit = TRUE)
+
     # Populate config_state on project switch; intercept __new__ to open modal
     shiny::observeEvent(input$project_selector, {
         shiny::req(input$project_selector)
@@ -36,13 +59,55 @@ app_server <- function(input, output, session) {
         config_state$project <- proj
         config_state$saved   <- cfg
         config_state$working <- cfg
+
+        # The bar re-renders for the new regime, but the active pane does not move
+        # on its own -- switching from a standard project while sitting on GEA
+        # would leave the GEA pane visible with no button for it anywhere. Send the
+        # user home whenever the current module is out of regime.
+        if (!active_module() %in% module_ids_for_regime(config_regime(cfg))) {
+            active_module("home")
+            session$sendCustomMessage("module_bar_select", list(value = "home"))
+        }
     }, ignoreInit = FALSE)
+
+    # ── Module bar ────────────────────────────────────────────────────────────
+    # Replaces the navbar's flat tab strip with modules grouped by analysis
+    # stage. The nav links still exist (hidden in custom.scss) and the bar drives
+    # them with a synthetic click — see inst/app/www/module-bar.js for why
+    # nav_select() cannot be used against bslib's nav markup.
+    #
+    # `active_module` is tracked here rather than read from `input$main_tabs`
+    # because that input is produced by the same binding whose selector does not
+    # match bslib's markup, so it cannot be relied on either.
+    active_module <- shiny::reactiveVal("home")
+
+    # Regime comes from `saved`, not `working`: the bar reflects what is on disk,
+    # and `working` mutates on every sidebar keystroke.
+    output$module_bar <- shiny::renderUI({
+        module_bar_ui(active = active_module(),
+                      regime = config_regime(config_state$saved))
+    })
+
+    # One observer per module, created once at startup — the bar re-renders on
+    # every click, so per-render observers would pile up.
+    for (.module_id in module_registry()$id) {
+        local({
+            mid <- .module_id
+            shiny::observeEvent(input[[module_input_id(mid)]], {
+                active_module(mid)
+                session$sendCustomMessage("module_bar_select", list(value = mid))
+            }, ignoreInit = TRUE)
+        })
+    }
 
     # Create project module
     mod_create_project_server(
         "create_project",
         pipeline_path_rv     = shiny::reactive(get_pipeline_path()),
-        existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path())),
+        # Duplicate-name check must see EVERY project, including simulated ones and
+        # internal clone lanes the selector hides -- otherwise a new project could be
+        # created onto an existing results tree.
+        existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path(), all = TRUE)),
         on_created = function(new_project) {
             pip      <- get_pipeline_path()
             projects <- find_projects(pip)
@@ -81,6 +146,7 @@ app_server <- function(input, output, session) {
     mod_config_sidebar_server("config_prestructure",  config_state, "prestructure")
     mod_config_sidebar_server("config_structure",     config_state, "structure")
     mod_config_sidebar_server("config_climate",       config_state, "climate")
+    mod_config_sidebar_server("config_traits",        config_state, "traits")
     mod_config_sidebar_server("config_pregea",        config_state, "pregea")
     mod_config_sidebar_server("config_gea",           config_state, "gea")
     mod_config_sidebar_server("config_gwas",          config_state, "gwas")
@@ -110,6 +176,8 @@ app_server <- function(input, output, session) {
                                 project_data_trigger, tab_name = "structure")
     mod_pipeline_runner_server("runner_climate",       config_state, pipeline_running,
                                 project_data_trigger, tab_name = "climate")
+    mod_pipeline_runner_server("runner_traits",        config_state, pipeline_running,
+                                project_data_trigger, tab_name = "traits")
     mod_pipeline_runner_server("runner_pregea",        config_state, pipeline_running,
                                 project_data_trigger, tab_name = "pregea")
     mod_pipeline_runner_server("runner_gea",           config_state, pipeline_running,
@@ -128,10 +196,12 @@ app_server <- function(input, output, session) {
     mod_prestructure_server("prestructure",    project_data = project_data)
     mod_structure_server("structure",          project_data = project_data)
     mod_climate_server("climate",              project_data = project_data)
+    mod_traits_server("traits",                project_data = project_data)
     mod_pregea_server("pregea",                project_data = project_data)
     mod_gea_server("gea",                      project_data = project_data, run_trigger = project_data_trigger,
-                   snp_sets_trigger = snp_sets_trigger)
-    mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger)
+                   snp_sets_trigger = snp_sets_trigger, config_state = config_state)
+    mod_gwas_server("gwas",                    project_data = project_data, run_trigger = project_data_trigger,
+                    config_state = config_state)
     mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data, run_trigger = project_data_trigger)
     mod_maladaptation_server("maladaptation",  project_data = project_data,
                              snp_sets_trigger = snp_sets_trigger)

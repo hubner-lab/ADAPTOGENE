@@ -4,13 +4,13 @@
 
 rule impute_ld:
     """Impute missing genotypes using SNMF results for K_BEST."""
-    input:  snmf = W['snmf'], lfmm = W['lfmm']
+    input:  snmf = W['snmf'], lfmm = W['lfmm'], nmissing = W['lfmm_nmissing']
     output: W['lfmm_imp']
     params: k = K_BEST
     log:    f"{LOGDIR}structure/impute_ld.log"
     shell:
         """
-        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} {input.nmissing} > {log} 2>&1
         """
 
 rule lfmm2vcf_ld:
@@ -141,7 +141,11 @@ rule ibd:
         """
 
 rule mantel_test:
-    """Perform Mantel test for IBD/IBE.
+    """Perform Mantel test for IBD/IBE, at SITE level (mantel_test.R collapses
+    samples to one row per site before scaling and computing distances -- geography
+    and climate are site properties, and per-sample rows both weight scale()'s
+    centre/sd by sampling effort and feed Mantel's permutation test pseudoreplicated
+    units). Needs >= 4 sites; mantel_test.R stops with a clear message below that.
     Uses metadata_climate_valid.tsv (climate-valid samples, see filter_climate_valid_samples) --
     mantel_test.R's own complete.cases(env) guard drops geo/clust in lockstep with env, which
     requires meta and climate to already have the same row count/order."""

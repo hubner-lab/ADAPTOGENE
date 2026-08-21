@@ -78,6 +78,15 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
 
             cfg <- if (!is.null(proj)) shiny::isolate(config_state$working) else list()
 
+            # Regime filtering happens HERE, on a local copy -- not on `entries`
+            # above, which is built once at server init and is what the per-entry
+            # observers and input_ids key off. A section dropped here simply never
+            # renders; its inputs read NULL, nothing collects them, and the values
+            # on disk are left untouched.
+            hidden  <- hidden_sidebar_sections(config_regime(cfg))
+            entries <- if (length(hidden))
+                Filter(function(e) !isTRUE(e$section %in% hidden), entries) else entries
+
             if (length(entries) == 0)
                 return(htmltools::p(class = "text-muted small p-2",
                                     "No configuration parameters for this tab."))
@@ -197,27 +206,55 @@ mod_config_sidebar_server <- function(id, config_state, tab_name, snp_sets_trigg
                             config_state$working, key_path, new_val)
                     }, ignoreInit = TRUE, ignoreNULL = FALSE)
                 } else if (e$type == "method_table") {
-                    # method_table: observe a hidden JSON bridge input
-                    json_id <- paste0(iid, "_json")
+                    # method_table: observe a hidden JSON bridge input. The JS
+                    # row editor collects only {method, params} — adjust/
+                    # threshold moved to the interactive matrix's popups
+                    # (fct_combine.R). Reconcile them here: carry the existing
+                    # working entry's value forward by method name, or seed a
+                    # genuinely new method from the registry default. This
+                    # server-side reconcile is the ONLY writer of these two
+                    # fields other than "Apply rules to config" (mod_gea.R) —
+                    # if the JS emitted them itself from stale DOM state, the
+                    # next unrelated sidebar edit (add/remove any method)
+                    # would silently clobber whatever Apply-to-config had set,
+                    # since this editor's DOM is never re-rendered after
+                    # project load.
+                    json_id         <- paste0(iid, "_json")
+                    is_gwas_configs <- identical(key_path, "GWAS.configs")
                     shiny::observeEvent(input[[json_id]], {
                         raw <- input[[json_id]]
                         if (is.null(raw) || nchar(raw) == 0) return()
                         tryCatch({
-                            new_val <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
+                            incoming <- jsonlite::fromJSON(raw, simplifyVector = FALSE)
                             # Dedup by method (pipeline enforces one entry per method)
-                            if (length(new_val) > 0) {
-                                methods <- vapply(new_val, function(x) x$method %||% "", character(1))
-                                dup_idx <- duplicated(methods)
+                            if (length(incoming) > 0) {
+                                methods_in <- vapply(incoming, function(x) x$method %||% "", character(1))
+                                dup_idx <- duplicated(methods_in)
                                 if (any(dup_idx)) {
                                     shiny::showNotification(
                                         sprintf("Duplicate method(s) removed: %s",
-                                                paste(unique(methods[dup_idx]), collapse = ", ")),
+                                                paste(unique(methods_in[dup_idx]), collapse = ", ")),
                                         type = "warning", duration = 4
                                     )
-                                    new_val <- new_val[!dup_idx]
+                                    incoming <- incoming[!dup_idx]
                                 }
                             }
-                            cur_val <- config_get_by_path(config_state$working, key_path)
+
+                            cur_val      <- config_get_by_path(config_state$working, key_path)
+                            registry     <- if (is_gwas_configs) gwas_method_registry() else gea_method_registry()
+                            sig_defaults <- gea_method_significance_defaults(registry)
+                            cur_by_method <- stats::setNames(
+                                cur_val %||% list(),
+                                vapply(cur_val %||% list(), function(x) x$method %||% "", character(1))
+                            )
+                            new_val <- lapply(incoming, function(m) {
+                                existing <- cur_by_method[[m$method %||% ""]]
+                                sd <- sig_defaults[[m$method]] %||% list(adjust = "bonf", threshold = "0.05")
+                                m$adjust    <- existing$adjust    %||% sd$adjust
+                                m$threshold <- existing$threshold %||% sd$threshold
+                                m
+                            })
+
                             if (identical(new_val, cur_val)) return()
                             config_state$working <- config_set_by_path(
                                 config_state$working, key_path, new_val
@@ -643,12 +680,28 @@ render_param_widget <- function(name, spec, value) {
     }
 }
 
-#' Inline editable rows for association.configs method list
+#' Inline editable rows for GEA.configs/GWAS.configs method list
 #'
-#' Renders a compact editor: one row per method (method select, adjust select,
-#' threshold numeric, remove button, collapsed per-method hyperparameter
+#' Renders a compact editor: one row per method (method select, read-only
+#' pipeline-rule badge, remove button, collapsed per-method hyperparameter
 #' widgets), an "Add method" button, and a hidden textInput JSON bridge that
 #' Shiny observers watch.
+#'
+#' adjust/threshold are NOT editable here — that control moved to the
+#' interactive trait×method matrix (fct_combine.R's cell/row/column popups),
+#' the only place with per-trait granularity. This editor shows the current
+#' PIPELINE rule (what genes/enrichment/selected_snps.tsv will be built with)
+#' as a read-only badge; changing it happens via the matrix's "Apply rules to
+#' config" button (mod_gea.R), which writes straight into config_state$working.
+#' The JS row here never collects adjust/threshold — see the server-side
+#' reconcile in mod_config_sidebar_server()'s method_table observer, which
+#' carries the existing value forward by method name (or seeds a genuinely
+#' new method from the registry default). This is deliberate: if this row
+#' collected and re-emitted adjust/threshold itself, they'd hold whatever was
+#' true when the page loaded, and the next unrelated sidebar edit (add/remove
+#' any method) would silently clobber a value Apply-to-config had since set —
+#' this editor's DOM is never re-rendered after project load, so a stale
+#' client-side value has no way to self-correct.
 #'
 #' Registry-driven (registry = gea_method_registry(), read from
 #' workflow/methods/gea.py) — the method list AND each method's hyperparameter
@@ -661,12 +714,6 @@ render_method_editor <- function(input_id, local_id, configs_list,
     if (is.null(configs_list)) configs_list <- list()
 
     METHOD_CHOICES <- names(registry)
-    # "custom" is legal only because _assoc_downstream.smk's `adjust` wildcard
-    # was widened to admit scientific notation ([0-9.eE+-]+) — see
-    # workflow/rules/_assoc_downstream.smk. Adding it here without that
-    # widening would let a user pick a rule whose sig_snps target no rule can
-    # build.
-    ADJUST_CHOICES <- c("bonf", "qval", "top", "custom")
 
     # PreGEA's recommended value per (method, param) — same registry param
     # names (LFMM.K, EMMAX.n_pcs, RDA.condition_pcs/axes/predictor_set), since
@@ -692,7 +739,9 @@ render_method_editor <- function(input_id, local_id, configs_list,
 
     # method -> list(adjust=, threshold=, family=) from the registry's
     # adjust_default/threshold_default/significance_family fields — RDA seeds
-    # bonf/0.01, everything else bonf/0.05 (workflow/methods/gea.py).
+    # bonf/0.01, everything else bonf/0.05 (workflow/methods/gea.py). Used
+    # only as the DISPLAY fallback for a method with no saved rule yet (the
+    # actual reconciliation happens server-side, mirroring this exactly).
     sig_defaults <- gea_method_significance_defaults(registry)
 
     # Normalise each entry — params merges registry defaults with any saved override.
@@ -720,11 +769,6 @@ render_method_editor <- function(input_id, local_id, configs_list,
             sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
         }), collapse = "")
 
-        adjust_opts <- paste(sapply(ADJUST_CHOICES, function(ch) {
-            sel <- if (ch == m$adjust) " selected" else ""
-            sprintf('<option value="%s"%s>%s</option>', ch, sel, ch)
-        }), collapse = "")
-
         spec_dict <- registry[[m$method]]$params %||% list()
         params_body <- if (length(spec_dict) == 0) {
             htmltools::tags$span(class = "text-muted small", "No parameters")
@@ -744,18 +788,15 @@ render_method_editor <- function(input_id, local_id, configs_list,
                 `data-role` = "method",
                 htmltools::HTML(method_opts)
             ),
-            htmltools::tags$select(
-                class = "form-select form-select-sm adjust-select",
-                `data-role` = "adjust",
-                title = "Significance rule. Becomes the {adjust} filename component and Snakemake wildcard.",
-                htmltools::HTML(adjust_opts)
-            ),
-            htmltools::tags$input(
-                type = "text", inputmode = "decimal",
-                class = "form-control form-control-sm threshold-input",
-                `data-role` = "threshold",
-                value = m$threshold,
-                title = "Threshold value. Must not contain '_' or whitespace — it is a filename component split on '_'."
+            htmltools::tags$span(
+                class = "text-muted small ms-1 method-sig-badge",
+                title = paste(
+                    "Rule the PIPELINE uses for this method (genes, GO enrichment,",
+                    "selected_snps.tsv). Set from the GEA/GWAS tab's trait×method",
+                    "matrix — \"Apply rules to config\" — or by editing",
+                    "config_{project}.yaml directly."
+                ),
+                sprintf("%s %s", m$adjust, m$threshold)
             ),
             htmltools::tags$button(
                 class    = "method-remove-btn",
@@ -776,10 +817,7 @@ render_method_editor <- function(input_id, local_id, configs_list,
     else
         list()
 
-    # local_json_id: non-namespaced, used for shiny::textInput (Shiny adds ns internally)
-    # full_json_id: namespaced DOM id used by JS to locate the input element
-    local_json_id <- paste0(local_id, "_json")
-    full_json_id  <- paste0(input_id, "_json")   # ns already applied to input_id
+    full_json_id <- paste0(input_id, "_json")   # ns already applied to input_id
 
     htmltools::tagList(
         # Hidden JSON bridge — use full namespaced id so Shiny module routing works
@@ -875,24 +913,6 @@ render_method_editor <- function(input_id, local_id, configs_list,
             jsonlite::toJSON(param_specs_resolved, auto_unbox = TRUE)  # %s 3: PARAM_SPECS
         ), sprintf(
 '
-  var ADJUST_CHOICES = ["bonf", "qval", "top", "custom"];
-
-  // The one character-class guard the widened Snakemake wildcard depends on:
-  // underscore and whitespace are the only characters that break
-  // find_sig_snps.R str_split(ADJUST, underscore)[[1]][1]/[2]. Everything
-  // else (digits, dot, e, E, plus, minus) is admitted by [0-9.eE+-]+.
-  function thresholdValid(row) {
-    var t = row.querySelector("[data-role=threshold]");
-    var a = row.querySelector("[data-role=adjust]");
-    if (!t || !a) return true;
-    var v = String(t.value).trim();
-    var ok = v.length > 0 && !/[_\\s]/.test(v) && isFinite(Number(v)) && Number(v) > 0;
-    if (ok && a.value === "top") ok = Number.isInteger(Number(v)) && Number(v) >= 1;
-    if (ok && (a.value === "bonf" || a.value === "qval")) ok = Number(v) <= 1;
-    t.classList.toggle("is-invalid", !ok);
-    return ok;
-  }
-
   function collectRows(editor) {
     var rows = [];
     editor.querySelectorAll(".method-row").forEach(function(row) {
@@ -907,27 +927,19 @@ render_method_editor <- function(input_id, local_id, configs_list,
         else raw = w.value;
         params[name] = raw;
       });
-      var adjEl = row.querySelector("[data-role=adjust]");
-      var thrEl = row.querySelector("[data-role=threshold]");
+      // adjust/threshold are intentionally NOT collected here — the server
+      // reconciles them by method name against the existing working config
+      // (see mod_config_sidebar_server()). They are set via the interactive
+      // matrix\'s "Apply rules to config" button, never from this row.
       rows.push({
-        method:    row.querySelector("[data-role=method]").value,
-        adjust:    adjEl ? adjEl.value : "bonf",
-        threshold: thrEl ? String(thrEl.value).trim() : "0.05",
-        params:    params
+        method: row.querySelector("[data-role=method]").value,
+        params: params
       });
     });
     return rows;
   }
 
   function pushToShiny(editor) {
-    // Bail out (leaving the last valid JSON in the bridge) if any row fails
-    // threshold validation — Shiny never sees a config Snakemake would
-    // reject with a MissingInputException far from this UI.
-    var allValid = true;
-    editor.querySelectorAll(".method-row").forEach(function(row) {
-      if (!thresholdValid(row)) allValid = false;
-    });
-    if (!allValid) return;
     var json = JSON.stringify(collectRows(editor));
     var el = document.getElementById(jsonInputId);
     if (el) {
@@ -938,28 +950,21 @@ render_method_editor <- function(input_id, local_id, configs_list,
   }
 
   var METHOD_CHOICES = %s;
-  var SIG_DEFAULTS   = %s;   // method -> {adjust, threshold, family}
+  var SIG_DEFAULTS   = %s;   // method -> {adjust, threshold, family} — display-only preview
 
   function sigDefault(method) {
     return SIG_DEFAULTS[method] || {adjust: "bonf", threshold: "0.05"};
+  }
+
+  function sigBadgeHTML(method) {
+    var sd = sigDefault(method);
+    return sd.adjust + " " + sd.threshold;
   }
 ',
             jsonlite::toJSON(METHOD_CHOICES, auto_unbox = FALSE),  # %s 1: METHOD_CHOICES
             jsonlite::toJSON(sig_defaults, auto_unbox = TRUE)  # %s 2: SIG_DEFAULTS
         ), sprintf(
 '
-  function makeAdjustSelect(v) {
-    var sel = document.createElement("select");
-    sel.className = "form-select form-select-sm adjust-select";
-    sel.setAttribute("data-role", "adjust");
-    ADJUST_CHOICES.forEach(function(c) {
-      var o = document.createElement("option");
-      o.value = c; o.text = c; if (c === v) o.selected = true;
-      sel.appendChild(o);
-    });
-    return sel;
-  }
-
   function makeRow(m) {
     var div = document.createElement("div");
     div.className = "method-row";
@@ -975,14 +980,14 @@ render_method_editor <- function(input_id, local_id, configs_list,
       sel.appendChild(opt);
     });
     div.appendChild(sel);
-    var sd = sigDefault(def);
-    div.appendChild(makeAdjustSelect(m && m.adjust ? m.adjust : sd.adjust));
-    var thr = document.createElement("input");
-    thr.type = "text"; thr.inputMode = "decimal";
-    thr.className = "form-control form-control-sm threshold-input";
-    thr.setAttribute("data-role", "threshold");
-    thr.value = (m && m.threshold != null) ? m.threshold : sd.threshold;
-    div.appendChild(thr);
+    var badge = document.createElement("span");
+    badge.className = "text-muted small ms-1 method-sig-badge";
+    badge.title = "Rule the pipeline uses for this method. Set via the matrix\'s \\"Apply rules to config\\" button, or edit config_{project}.yaml directly.";
+    // A row created here is either brand new (m == null) or just had its
+    // method switched — either way there is no saved rule for it yet, so
+    // the registry default IS the value the server will reconcile it to.
+    badge.textContent = sigBadgeHTML(def);
+    div.appendChild(badge);
     var btn = document.createElement("button");
     btn.type = "button"; btn.className = "method-remove-btn";
     btn.setAttribute("data-role", "remove");
@@ -990,6 +995,11 @@ render_method_editor <- function(input_id, local_id, configs_list,
     div.appendChild(btn);
     var details = document.createElement("details");
     details.className = "method-params";
+    // Auto-open Params for a row with no saved config yet (new or just
+    // method-switched) — a saved row from page load goes through the R
+    // renderer (make_row() above), which never sets `open`, so those stay
+    // collapsed. A project with many methods all pre-expanded is a wall.
+    if (!m) details.open = true;
     var summary = document.createElement("summary");
     summary.textContent = "Params";
     details.appendChild(summary);
@@ -1033,23 +1043,20 @@ render_method_editor <- function(input_id, local_id, configs_list,
   });
 
   editor.addEventListener("change", function(e) {
-    // Method switch: rebuild the params block for THIS row using the new
-    // method defaults — a row switched RDA -> LFMM must not carry RDAs
-    // axes/condition_pcs params into an LFMM entry (those would be unknown
-    // params and rejected at Snakemake parse time, confusingly far from this UI).
+    // Method switch: rebuild the params block AND the read-only rule badge
+    // for THIS row using the new method — a row switched RDA -> LFMM must
+    // not carry RDAs axes/condition_pcs params into an LFMM entry (unknown
+    // params, rejected at Snakemake parse time, confusingly far from this
+    // UI), nor show RDAs bonf/0.01 badge for what the server will actually
+    // reconcile as a fresh LFMM entry (registry default: bonf/0.05).
     if (e.target.matches("[data-role=method]")) {
       var row = e.target.closest(".method-row");
       var body = row.querySelector(".method-params-body");
       if (body) body.innerHTML = buildParamsHTML(e.target.value, null);
-      // Same reasoning as the params rebuild above: a row switched RDA -> LFMM
-      // must not carry RDA default bonf/0.01 into an LFMM entry that expects
-      // bonf/0.05 — reset adjust/threshold to the new methods registry
-      // defaults too.
-      var sd2 = sigDefault(e.target.value);
-      var a2 = row.querySelector("[data-role=adjust]");
-      var t2 = row.querySelector("[data-role=threshold]");
-      if (a2) a2.value = sd2.adjust;
-      if (t2) t2.value = sd2.threshold;
+      var badge = row.querySelector(".method-sig-badge");
+      if (badge) badge.textContent = sigBadgeHTML(e.target.value);
+      var details = row.querySelector(".method-params");
+      if (details) details.open = true;
       pushToShiny(editor);
       return;
     }

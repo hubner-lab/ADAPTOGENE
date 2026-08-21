@@ -1,0 +1,1127 @@
+---
+title: "04. Конвертация симуляционного бенчмарка MVP (Lotterhos 2023) — ADAPTOGENE"
+subtitle: "14 реплик из 2250 · 100 демов × 10 особей · ~10k SNP на реплику · 70 каузальных локусов в пилоте"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда: контейнер adaptogene:latest (Docker) для всех R-скриптов и snakemake;
+# d2 CLI и curl/tar — с хоста.
+# Клиент docker: /snap/bin/docker на этой машине падает (setuid заблокирован, nosuid+NoNewPrivs),
+# поэтому каждый вызов обёрнут в `nix shell nixpkgs#docker-client -c docker ...` — см. CLAUDE.local.md.
+#
+# Рендер: nix shell nixpkgs#docker-client -c docker run --rm --user $(id -u):$(id -g) -e USER=pipeline \
+#   -v /mnt/data/eugene/ADAPTOGENE:/mnt/data/eugene/ADAPTOGENE \
+#   adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/mnt/data/eugene/ADAPTOGENE/work/journal/04_mvp_benchmark_conversion.Rmd")'
+# (пути хоста монтируются 1:1, не в /pipeline — литеральные пути проверок файлов должны
+# резолвиться внутри контейнера так же, как снаружи, см. Стадию 01/02.)
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+```
+
+## Обзор
+
+Обзор файла: замена выведенного из обращения бенчмарка Láruson 2022 на симуляции MVP —
+детерминированный отбор 14 реплик по опубликованным статистикам депозита, потоковая
+выгрузка, конвертация во входы ADAPTOGENE с таблицами истины, пилотный прогон, скоринг
+детекции и сверка с собственными опубликованными числами Lotterhos 2023.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_00_abstract.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+---
+
+## Шаг 1. Мотивация — почему потребовалась замена бенчмарка
+
+<div class="callout-method">
+Бенчмарк Láruson et al. 2022 (Evol Appl 15(3):403–416, doi:10.1111/eva.13354) был
+заархивирован в `_archive/laruson/` по двум измеренным причинам, обе прочитаны из параметров
+самой симуляции, а не из текста статьи:
+
+- **Нет популяционной структуры для коррекции.** `m = 0.2`, `n = 100` → Nm = **20**
+  мигрантов/дем/поколение, ожидаемый Fst ≈ **0.012**. Измерено: PC1 = **0.38%** генетической
+  дисперсии.
+- **PC1/PC2 — просто поворот двух средовых осей** (R²_env = **0.835** / **0.838**). То есть
+  структура *и есть* адаптивный сигнал: коррекция структуры может только уничтожить его
+  (EMMAX `n_pcs` 0 → 3 обрушивает AUC-PR **0.580 → 0.052**).
+- **Набор истины несовместим с фильтром MAF.** Каузальные локусы отфильтрованы авторами при
+  MAF ≥ 0.01, а VCF выложен нефильтрованным: при нашем `Filter.maf: 0.05` тестируемы только
+  **28 из 102** локусов — полнота ограничена ~**27%** по построению.
+
+Отсюда критерии к замене: (1) Fst ≳ 0.05 или PC1 ≳ 5% дисперсии, (2) R²(ведущие PC ~ средовые
+предикторы) в *частичной* полосе ≈ 0.3–0.6 — не ≲0.2 (ортогонально) и не ≳0.8 (вырожденно,
+случай Láruson), (3) набор истины перечислим при *нашем* MAF.
+
+Ключевой методический урок, который обобщается: **набор данных может быть «неконфаундед» двумя
+противоположными способами** — структуры нет вовсе, либо структура идеально совпадает со
+средой, — и оба выглядят благополучно по любому одиночному скаляру.
+</div>
+
+<div class="callout-conclusion">
+Выбран депозит **MVP** (Lotterhos 2023, PNAS 120(12):e2220313120, doi:10.1073/pnas.2220313120;
+данные BCO-DMO doi:10.26008/1912/bco-dmo.889769.1) — **2250** сидов, 100 демов на сетке 10×10,
+две средовые оси (температура и Env2, в файлах симуляции называется «salinity»). Полный разбор
+кандидатов — `docs/gea_simulation_benchmarks.md`. Отбор реплик документирован в Шаге 2.
+</div>
+
+---
+
+## Шаг 2. Отбор сидов — детерминированное правило по колонкам депозита
+
+```{r step2-check}
+check_files(c(
+  summary = "/mnt/data/eugene/ADAPTOGENE/data/mvp/selection/summary_20220428_20220726.csv",
+  params  = "/mnt/data/eugene/ADAPTOGENE/data/mvp/selection/0b-final_params-20220428.txt",
+  script  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_select_seeds.R",
+  manifest= "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_seeds.tsv"
+))
+```
+
+```{bash step2-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-01
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_select_seeds.R
+```
+
+<div class="callout-method">
+**R 4.5 / data.table** в контейнере `adaptogene:latest`, скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_select_seeds.R`.
+Входы (оба сохранены в репозиторий из эфемерного scratchpad предыдущей сессии):
+
+- `data/mvp/selection/summary_20220428_20220726.csv` (**2.47 МБ**, одна строка на сид,
+  133 колонки) — таблица депозита BCO-DMO.
+- `data/mvp/selection/0b-final_params-20220428.txt` (**0.71 МБ**, 27 колонок) — из GitHub
+  `ModelValidationProgram/MVP-NonClinalAF`, связывает сид с ячейкой факторного плана.
+
+Правило отбора — три условия по колонкам, которые **посчитали и опубликовали сами авторы**
+(в депозите они лежат под заголовком буквально «Summary statistics of correlation between
+structure and environment»), плюс детерминированная стратификация:
+
+- `meanFst >= 0.05` — структура достаточно выражена, чтобы её коррекция была нагруженной.
+- `cor_PC1_temp^2 in [0.30, 0.60]` — температура *частично* конфаунднута структурой.
+- `cor_PC1_sal^2 <= 0.20` — Env2 остаётся чистой ортогональной контрольной осью.
+- Стратификация по `arch_level` (олигогенная / умеренно- / высокополигенная), топ-4 по
+  `meanFst` внутри каждого страта → **12** основных реплик.
+
+Корреляции в депозите — кендалловские; критерии сформулированы на R², поэтому возводятся в
+квадрат здесь, а не где-либо ниже по потоку.
+
+**Контроли** отбираются *инверсией* критерия выравнивания при удержании демографии и
+архитектуры постоянными: `demog_level == "Est-Clines"`, тот же `demog_level_sub`,
+`cor_PC1_temp^2 > 0.90`, `meanFst` в диапазоне основного набора. Так единственное различие
+между контролем и основной репликой — ландшафт.
+
+Скрипт **жёстко падает**, если хоть один перенесённый из документации сид нарушает правило,
+или если качественный состав пула не `SS-Mtn` — то есть транскрипция из
+`docs/gea_simulation_benchmarks.md` перепроверяется против сырой таблицы при каждом запуске.
+
+`set.seed()` не требуется: правило полностью детерминировано (фильтр + сортировка), стохастики нет.
+</div>
+
+```{bash step2-funnel-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_seed_funnel.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_seed_funnel.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_seed_funnel.svg
+fi
+```
+
+Воронка отбора:
+
+```{r step2-funnel-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/04_seed_funnel.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path, "\n")
+}
+```
+
+<div class="callout-result">
+- Все реплики депозита: **2250**
+- После `meanFst >= 0.05`: **2250** (критерий не связывает — минимальный Fst в депозите **0.052**)
+- После `cor_PC1_temp^2 in [0.30, 0.60]`: **146**
+- После `cor_PC1_sal^2 <= 0.20`: **55** — **все 55** в ландшафте `SS-Mtn`, это следствие, а не выбор
+- Состав пула по архитектуре: **27** высокополигенных, **16** умеренно-полигенных, **12** олигогенных
+- Итог: **12** основных + **2** вырожденных контроля = **14** реплик
+- Контроли: **1232568** (умеренно-полигенный, meanFst **0.2166**, R²(PC1~temp) **0.9397**) и
+  **1231578** (высокополигенный, **0.2102**, **0.9197**)
+- Перепроверка правила: правило, применённое к сырой таблице, воспроизводит все **12**
+  основных сидов **побитово** (`IDENTICAL: TRUE`)
+- Файл: `benchmarks/mvp_seeds.tsv` (**14** строк, 18 колонок)
+</div>
+
+<details class="callout-note">
+<summary>Примечание — формат файла параметров</summary>
+`0b-final_params-20220428.txt` записан R-функцией `write.table()` с именами строк: строка
+заголовка содержит на одно поле МЕНЬШЕ, чем строки данных. `fread()` на таком файле сдвигает
+все колонки на одну; используется `read.table(header = TRUE)`, которое распознаёт имена строк
+штатно. Та же особенность у всех трёх таблиц депозита (см. Шаг 4).
+</details>
+
+<div class="callout-conclusion">
+Отбор защитим как *не* cherry-picking: критерии выведены как поточечная инверсия
+задокументированного отказа предыдущего бенчмарка и зафиксированы ДО просмотра любого
+результата пайплайна; статистики для скрининга — авторские, а не наш пересчёт их генотипов;
+отвергнутые ячейки (`Est-Clines`, 99% вырожденных) не просто аргументированы, а **сохранены
+как контроли для запуска**. Слабое место, которое следует признать в статье прямо: полоса
+`[0.30, 0.60]` **выведена, а не опубликована** — она интерполирована между двумя полюсами,
+измеренными этим пайплайном (0.835 вырожденно, ~0 ортогонально). Остальные **43**
+квалифицированных сида доступны, если рецензент попросит проверить устойчивость.
+</div>
+
+---
+
+## Шаг 3. Выгрузка — потоковая распаковка нужных членов из трёх тарболлов
+
+```{r step3-check}
+check_files(c(
+  script      = "/mnt/data/eugene/ADAPTOGENE/benchmarks/fetch_mvp.sh",
+  log         = "/mnt/data/eugene/ADAPTOGENE/data/mvp/fetch_mvp.log",
+  genotypes   = "/mnt/data/eugene/ADAPTOGENE/data/mvp/raw/genotypes",
+  mutations   = "/mnt/data/eugene/ADAPTOGENE/data/mvp/raw/mutations",
+  individuals = "/mnt/data/eugene/ADAPTOGENE/data/mvp/raw/individuals"
+))
+cat("\nчленов на директорию (ожидается 14):\n")
+for (d in c("genotypes", "mutations", "individuals")) {
+  cat(" ", d, ":",
+      length(list.files(file.path("/mnt/data/eugene/ADAPTOGENE/data/mvp/raw", d))), "\n")
+}
+```
+
+```{bash step3-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-01
+/mnt/data/eugene/ADAPTOGENE/benchmarks/fetch_mvp.sh \
+  > /mnt/data/eugene/ADAPTOGENE/data/mvp/fetch_mvp.log 2>&1
+
+# ядро скрипта — по одному потоку на тарболл, три параллельно:
+#   curl -sSL --fail "https://datadocs.bco-dmo.org/dataset/889769/file/${KEY}/${TAR}" \
+#     | tar -x --wildcards --no-same-owner -C /mnt/data/eugene/ADAPTOGENE/data/mvp/raw \
+#           -f - "genotypes/1232548_Rout_Gmat_sample.txt.gz" ...
+```
+
+<div class="callout-method">
+**curl 8.x + GNU tar 1.34** (хост), скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/fetch_mvp.sh`.
+
+BCO-DMO отдаёт **только целые тарболлы** — пофайловой/посидовой выгрузки не существует
+(проверено по странице депозита и по HTTP). Тарболлы при этом **несжатые** (сжат каждый член
+внутри по отдельности), что и делает возможным потоковый разбор:
+
+- `curl -sSL --fail` — `-L` обязателен: `datadocs.bco-dmo.org` отвечает 307-редиректом на
+  presigned-ссылку S3 (живёт 1 час, но на уже начатую передачу срок не влияет).
+- `| tar -x --wildcards -f -` — разбор из stdin, распаковываются только перечисленные члены;
+  остаток потока прочитывается и отбрасывается.
+- `--no-same-owner` — контейнер/пользователь не совпадает с владельцем в архиве.
+- Проверка результата **по наличию файлов, а не по коду возврата** `tar`: tar возвращает
+  ненулевой код, когда поток заканчивается после того, как все запрошенные члены уже извлечены,
+  и это для нас успех.
+- Повторный запуск идемпотентен: тарболл, все члены которого уже на диске, вообще не
+  скачивается.
+
+Ключи объектов S3 (проверены): `individuals.tar` → `oAy9LYjtrl3kp4`,
+`genotypes.tar` → `m7yVJwyCpRRJyy`, `mutations.tar` → `93g7482cYL8wzr`.
+</div>
+
+<div class="callout-result">
+- Прочитано по сети: **23.5 ГБ** (`individuals.tar` **373 МБ**, `genotypes.tar` **8.87 ГБ**,
+  `mutations.tar` **14.21 ГБ**)
+- Записано на диск: **60 МБ** — **42** члена (**14** сидов × 3 таблицы)
+- `individuals.tar`: **14/14** членов за **174 с**
+- `genotypes.tar`: **14/14** членов за **2129 с**
+- Шаблон имён членов: `{тип}/{seed}_Rout_{Gmat_sample|muts_full|ind_subset}.txt.gz`
+- Размер члена: Gmat ~**4.1 МБ**, muts ~**6.8 МБ**, ind ~**173 КБ** (в gzip)
+</div>
+
+<details class="callout-note">
+<summary>Примечание — «висящий» поток после извлечения</summary>
+`tar` дочитывает поток до EOF даже когда все запрошенные члены уже извлечены, поэтому
+`curl` для `mutations.tar` продолжал качать остаток ~14 ГБ ещё долго после появления
+14/14 членов на диске. Безвредно, но бессмысленно — процесс был снят вручную после проверки
+комплектности. Осторожно с `pkill -f`: паттерн совпал с командной строкой собственной
+оболочки и убил её (exit 144); нужен якорь по имени процесса (`ps -eo comm`), а не по
+подстроке всей командной строки.
+</details>
+
+<div class="callout-conclusion">
+Сырые члены лежат в `data/mvp/raw/{genotypes,mutations,individuals}/`, **60 МБ** — весь
+депозит держать не нужно. Дальше конвертируются скриптом Шага 4.
+</div>
+
+---
+
+## Шаг 4. Конвертация — MVP → входы ADAPTOGENE + таблицы истины
+
+```{r step4-check}
+check_files(c(
+  converter = "/mnt/data/eugene/ADAPTOGENE/benchmarks/convert_mvp.R",
+  driver    = "/mnt/data/eugene/ADAPTOGENE/benchmarks/convert_mvp_all.sh",
+  summary   = "/mnt/data/eugene/ADAPTOGENE/data/mvp/conversion_summary.tsv"
+))
+cat("\nсконвертированных проектов (ожидается 14):",
+    length(list.dirs("/mnt/data/eugene/ADAPTOGENE/data/mvp", recursive = FALSE)[
+      grepl("/MVP", list.dirs("/mnt/data/eugene/ADAPTOGENE/data/mvp", recursive = FALSE))]), "\n")
+```
+
+```{bash step4-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-01 (повторно после исправления границы LG, см. ниже)
+/mnt/data/eugene/ADAPTOGENE/benchmarks/convert_mvp_all.sh 7
+
+# один сид напрямую:
+#   Rscript /pipeline/benchmarks/convert_mvp.R --seed=1232548 \
+#     --raw-dir=/pipeline/data/mvp/raw --out-dir=/pipeline/data/mvp/MVP1232548
+```
+
+<div class="callout-method">
+**R 4.5 / data.table** в `adaptogene:latest`, скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/convert_mvp.R`, драйвер
+`convert_mvp_all.sh` (7 сидов параллельно).
+
+Входы на реплику: матрица генотипов (SNP × 1000 особей, значения **0/1/2** — счётчики
+производного аллеля), таблица мутаций (строка на SNP), таблица особей (строка на особь).
+
+Выходы на реплику в `data/mvp/MVP{seed}/`: `MVP{seed}.vcf`, `MVP{seed}_metadata.tsv`,
+`MVP{seed}_env_present.tsv`, `truth_temp.tsv`, `truth_sal.tsv`, `truth_any.tsv`,
+`loci_freq.tsv`, `conversion_provenance.tsv`.
+
+Контракты, каждый из которых **проверяется утверждением, а не предполагается**:
+
+- **Соединение по ключу, а не по порядку строк.** Имена строк Gmat — это `mutname`, имена
+  колонок — `indID`, поэтому и локусы, и особи соединяются по ключу. Порядок строк, заявленный
+  депозитом, используется только как запасной путь.
+- **Решающая проверка выравнивания.** Частота производного аллеля пересчитывается из матрицы
+  (`rowSums(G) / (2 * ncol(G))`) и сравнивается с колонкой `a_freq_subset` депозита. Совпадение
+  счётчиков строк доказывает лишь равную длину; это доказывает, что строка *i* матрицы —
+  действительно локус *i* таблицы. Допуск **1e-3**, значение записывается в provenance.
+- **Система координат.** `mutname` имеет вид `<LG>-<позиция>` с необязательным суффиксом
+  `_<n>`, помечающим повторную мутацию в той же позиции карты. Позиция сверяется с
+  `pos_pyslim`; LG, выведенный из глобальной позиции, сверяется с колонкой `LG`.
+- **Схлопывание дубликатов `(chr,pos)`.** Гармонизирующий скоринг ключуется на `chr:pos`, а
+  пайплайн биаллельный, поэтому дубликаты схлопываются с сохранением каузальной строки;
+  идентичная маска строк применяется к матрице генотипов, чтобы выравнивание пережило операцию.
+- **Префиксы идентификаторов.** `subpopID`/`indID` числовые — задокументированная в
+  `CLAUDE.md` ловушка `colClasses` в `fread()`. Пишутся `deme_%03d` / `ind_%05d`.
+- **Координаты.** Сетка демов 10×10 отображается в долготу `34.05 + 0.2·(x−1)` и широту
+  `31.05 + 0.2·(y−1)`. Смещение на полклетки растра — намеренное: демы должны попадать в
+  **центры** клеток, `stage_custom_climate.R` падает, если два дема резолвятся в одну клетку.
+  Бокс произволен; **значения среды берутся из `temp_opt`/`sal_opt`, а не из растра**.
+- **Категории истины.** `causal → causal`, `neutral-linked → linked_neutral`,
+  `neutral → background_neutral`. `neutral-linked` здесь означает «нейтральный локус на группе
+  сцепления, где могли возникать QTN (LG 1–10)», а не оконное расстояние.
+
+`set.seed()` не требуется: конвертация детерминирована, стохастики нет.
+</div>
+
+<div class="callout-result">
+- Сконвертировано: **14/14** реплик
+- Расхождение частот аллелей `af_max_deviation`: **0** на **всех 14** — точное совпадение
+- Режим соединения локусов: `by_mutname` (**14/14**); особей: `by_indID` (**14/14**)
+- Шкала координат: `genome_global` (**14/14**)
+- На реплику: **100** демов × **1000** особей (**14/14**)
+- Пилотная реплика **1232548**: **10394** → **10325** локусов (схлопнуто **69** дубликатов),
+  каузальных по температуре **30**, по Env2 **40**, объединённо **70**
+- Состав истины 1232548: **70** каузальных, **5207** linked_neutral (LG 1–10),
+  **5048** background_neutral (LG 11–20)
+- Бокс координат: долгота **34.050–35.850**, широта **31.050–32.850**, минимальный шаг **0.2°**
+- Независимая сверка с таблицей депозита: число SNP **14/14**, число каузальных **14/14**
+- Общий объём: **626 МБ**
+</div>
+
+<details class="callout-note">
+<summary>Примечание — повторные мутации vs схлопнутые дубликаты</summary>
+Число имён с суффиксом `_<n>` и число схлопнутых пар `(chr,pos)` совпадают не всегда:
+у сида 1231288 это **93** и **93**, у 1232548 — **70** и **69**. Расхождение ожидаемо: суффикс
+маркирует повторную мутацию, но её «родительская» запись в той же позиции могла не пережить
+авторский фильтр MAF > 0.01, и тогда суффиксированный локус остаётся в таблице один и
+дубликата не образует.
+</details>
+
+<div class="callout-conclusion">
+Выравнивание генотипов и истины доказано, а не постулировано (`af_max_deviation = 0` на всех
+14), и независимо сверено со сводной таблицей депозита. Входы готовы для конфигов Шага 5.
+</div>
+
+---
+
+## Шаг 5. Исправление — локус ровно на границе группы сцепления
+
+<div class="callout-method">
+При первом батч-прогоне Шага 4 **2 из 14** реплик упали: **1232908** (`mutname` `5-250000`) и
+**1232548** (`13-650000`). Оба — локус ровно на границе группы сцепления.
+
+Причина — неверная разрядность в первой версии конвертера. Геном: **20** групп сцепления по
+**50 000** сайтов (Lotterhos 2023, Methods). `pos_pyslim` оказался **1-based** внутри генома
+в 1 Мб, то есть группа *k* занимает `(k−1)·50000+1 … k·50000`, а пограничный локус принадлежит
+**нижней** группе. Это подтверждается самим депозитом: `5-250000` числится за LG 5, а не LG 6.
+
+<div class="was">было: `LG = pos_pyslim %/% 50000 + 1`, `POS = pos_pyslim + 1 − (LG−1)·50000`</div>
+<div class="now">стало: `LG = (pos_pyslim − 1) %/% 50000 + 1`, `POS = pos_pyslim − (LG−1)·50000`</div>
+
+При старом прочтении пограничный локус попадал на одну группу выше, а `POS` становился
+**50001** — за пределами контига. Ошибка была поймана только потому, что проверка выведенного
+LG против колонки `LG` — жёсткое утверждение, а не предупреждение.
+</div>
+
+```{bash step5-cmd, eval=FALSE}
+# [изменено 2026-08-01] разрядность pos_pyslim: 0-based → 1-based, граница LG принадлежит нижней группе
+# старая версия, НЕ выполнять:
+#   muts[, pos := as.integer(pos_pyslim + 1L - (LG - 1L) * LG_LEN)]
+#   lg_from_pos <- as.integer(muts$pos_pyslim %/% LG_LEN) + 1L
+# действующая версия (benchmarks/convert_mvp.R):
+#   lg_from_pos <- as.integer((muts$pos_pyslim - 1L) %/% LG_LEN) + 1L
+#   muts[, pos := as.integer(pos_pyslim - (LG - 1L) * LG_LEN)]
+
+# после исправления — полная переконвертация ВСЕХ 14 реплик, а не только двух упавших:
+/mnt/data/eugene/ADAPTOGENE/benchmarks/convert_mvp_all.sh 7
+```
+
+<div class="callout-result">
+<div class="was">было: **12/14** сконвертировано, **2** падения на утверждении о границе LG</div>
+<div class="now">стало: **14/14** сконвертировано, `af_max_deviation` = **0** на всех</div>
+- Затронутых локусов на реплику: **1** (но координаты сдвигались на **1** у *всех* локусов)
+- Переконвертированы **все 14**, а не только упавшие — иначе координаты разошлись бы между репликами
+</div>
+
+<div class="callout-conclusion">
+Требование сверять выведенный LG с колонкой `LG` как жёсткое утверждение окупилось: тихий
+сдвиг координат на 1 не дал бы никакой ошибки ниже по потоку — таблицы VCF и истины остались
+бы внутренне согласованными и просто указывали бы не на те позиции.
+</div>
+
+---
+
+## Шаг 6. Генерация конфигов
+
+```{r step6-check}
+cfgs <- list.files("/mnt/data/eugene/ADAPTOGENE", pattern = "^config_MVP.*\\.yaml$")
+cat("конфигов config_MVP*.yaml (ожидается 14):", length(cfgs), "\n")
+check_files(c(generator = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_configs.R"))
+```
+
+```{bash step6-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-01
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_write_configs.R
+```
+
+<div class="callout-method">
+**R 4.5 / data.table**, скрипт
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_write_configs.R`, шаблон —
+`scripts/adaptogene.app/inst/config_default.yaml`. Каждое отклонение от дефолта отклоняется по
+названной причине, и причина вписывается комментарием в сам YAML.
+
+- `Filter.maf: 0.01` (**не** 0.05, дефолт для реальных данных) — матрица генотипов депозита и
+  его же таблица истины **обе уже** отфильтрованы при MAF > 0.01 на этих же 1000 особях, так
+  что 0.01 — это no-op, сохраняющий тестируемость всех каузальных локусов. Более жёсткий
+  фильтр воспроизвёл бы ровно тот дефект, который дисквалифицировал Láruson.
+- `Climate.source: custom` — **обязательно** для симулированного ландшафта. Дефолтный путь
+  worldclim извлёк бы реальные `bio_1..bio_19` из реальных растров по координатам, тихо
+  подменив среду, против которой отбирались каузальные локусы, — отказ без сообщения об ошибке.
+- `Climate.predictors` = `PreGEA.predictors` = `Climate.custom.columns` = `"bio_1,bio_2"` — эти
+  три ключа **не сверяются между собой** пайплайном; расхождение падает в середине DAG с
+  «колонка не найдена», а не при разборе конфига.
+- `sNMF.k_best` — из колонки `K` депозита («number of populations used in analyses»), с полом 2.
+  Обоснование в Результате ниже.
+- `LD.window: 10` (вместо 100 кб) — группы сцепления по 50 кб, дефолтное окно накрыло бы
+  целую группу.
+- `GEA/GWAS.snp_clumping_distance: 5000` (вместо 100000) — дефолт схлопнул бы всю группу
+  сцепления в один регион.
+- `LDdecay.max_distance: 50` (вместо 500 кб) — та же причина масштаба.
+- `Input.gff: ""` — симулированный геном, аннотации нет; разметка генов и GO-обогащение инертны.
+- `future_table` **не пишется**, `mode=maladaptation` вне области — MVP выкладывает
+  приспособленность только в родном деме, не трансплантационную, поэтому честной мишени для
+  генетического офсета здесь нет. Синтетический сдвиг среды был бы выдуманной мишенью.
+</div>
+
+<div class="callout-result">
+- Записано: **14** конфигов `config_MVP{seed}.yaml`
+- `sNMF.k_best` по репликам: **2** (×7), **3** (×3), **4**, **5**, **7**
+- Кросс-энтропия sNMF **не имеет внутреннего минимума** на этом ландшафте — проверено на
+  реплике 1231288, K=2…10 монотонно убывает: **0.5416**, **0.5204**, **0.5061**, **0.4987**,
+  **0.4943**, **0.4889**, **0.4848**, **0.4807**, **0.4770**
+- Проверка YAML: разбирается, согласованность
+  `Climate.predictors` ≡ `PreGEA.predictors` ≡ `custom.columns` — **TRUE**
+</div>
+
+<div class="callout-conclusion">
+100 демов на непрерывной сетке stepping-stone — дискретного K попросту нет, поэтому «взять
+минимум кросс-энтропии» вернуло бы просто `k_end`. Опубликованное авторами K — тот же принцип,
+на котором стоит и отбор сидов: скринить по статистикам исходного исследования, а не по
+собственному пересчёту. К тому же `k_best` здесь — лишь *центр* развёрток PreGEA
+(LFMM K = k_best ± k_offset, PC для EMMAX/RDA = 0…n_pcs_max); бенчмарк существует ровно для
+того, чтобы найти лучшую ступень скорингом против истины.
+</div>
+
+---
+
+## Шаг 7. Пилотный прогон — MVP1232548, четыре режима
+
+```{r step7-check}
+check_files(c(
+  config   = "/mnt/data/eugene/ADAPTOGENE/config_MVP1232548.yaml",
+  filtsum  = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/Processing/tables/filtering_summary.tsv",
+  climate  = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/climate/tables/present/climate_present_site.tsv",
+  lfmm_p   = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/GEA/tables/methods/LFMM/LFMM_pvalues_K5.tsv",
+  emmax_p  = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/GEA/tables/methods/EMMAX/EMMAX_pvalues_K5.tsv",
+  rda_p    = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/GEA/tables/methods/RDA/RDA_pvalues_K5.tsv"
+))
+```
+
+```{bash step7-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-01/02
+for m in processing prestructure structure gea; do
+  nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+    --cpus=64 --memory=300g -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+    snakemake -c16 -s Snakefile --config mode=$m \
+      --configfile config_MVP1232548.yaml --scheduler greedy
+done
+```
+
+<div class="callout-method">
+**snakemake 7.x** в `adaptogene:latest`, `--cpus=64 --memory=300g`, конфиг
+`/mnt/data/eugene/ADAPTOGENE/config_MVP1232548.yaml` (`k_best=5`).
+
+Реплика 1232548 выбрана пилотом сознательно: умеренно-полигенная, **70** каузальных локусов —
+достаточно, чтобы соединение с истиной и оценки полноты что-то значили. Олигогенные реплики с
+**6** каузальными локусами для этого не годятся.
+
+Порядок режимов не произволен: `stage_custom_climate.R` выполняется в **`mode=structure`**, а
+не в `mode=climate`, поэтому пользовательская среда попадает в пайплайн именно там; `mode=gea`
+зависит от её результата.
+
+Стохастика: sNMF в `mode=prestructure` — сид задаётся пайплайном (фиксированная константа
+`seed=42`, см. README «Fixed constants»), отдельного `--seed` в вызове нет.
+</div>
+
+<div class="callout-result">
+- `processing` → `prestructure` → `structure` → `gea`: все четыре завершились кодом **0**
+- Отбор образцов: **1000/1000** сохранено, потерь по координатам **0**
+- MAF-фильтр: **10325 → 10325** SNP — потеря **0%**, `Filter.maf: 0.01` действительно no-op
+- Для сравнения: при `maf 0.05` пережили бы лишь **43 из 70** каузальных локусов (**61%**) —
+  ровно та ловушка знаменателя, что погубила Láruson
+- LD-прунинг: **10325 → 4066** SNP (**39.4%**)
+- Пропущенных генотипов: **0** — путь нулевой пропущенности в `vcf2lfmm.R` отработал
+- Доля дисперсии: PC1 **4.98%**, PC2 **4.07%**, PC3 **3.34%** (у Láruson PC1 = **0.38%**)
+- Конфаундинг структуры и среды, измеренный **нашим** пайплайном:
+  R²(PC1~`bio_1`) = **0.626**, R²(PC1~`bio_2`) = **0.003**
+- Пользовательская среда стадирована: **100** строк сайтов, `bio_1`=`temp_opt`,
+  `bio_2`=`sal_opt`, коллизий клеток растра нет
+- p-значения выданы всеми тремя методами при K=5
+</div>
+
+<details class="callout-note">
+<summary>Примечание — расхождение с опубликованным R² и инцидент с блокировкой</summary>
+Измеренный R²(PC1~`bio_1`) = **0.626** слегка выше опубликованного депозитом **0.5726**:
+депозит даёт квадрат кендалловской корреляции по своей полной выборке, мы — квадрат
+пирсоновской по нашей LD-пруненной PCA. Обе величины в частично-конфаунднутом режиме, но
+это разные оценки, и подменять одну другой нельзя.
+
+Отдельно: первый прогон `mode=gea` был убит по 10-минутному лимиту оболочки, но контейнер
+пережил SIGTERM; при этом файлы блокировки Snakemake были предварительно удалены вручную,
+и перезапуск пошёл **параллельно живому писателю** по одному проекту. Оба контейнера сняты
+по явным ID, каталог `GEA/` удалён, снятие блокировки выполнено штатным `snakemake --unlock`,
+прогон повторён один раз. Вывод на будущее: `.snakemake/` лежит в корне репозитория и общий
+для всех проектов — удалять локи руками нельзя, только `--unlock`.
+</details>
+
+<div class="callout-conclusion">
+Ключевой результат стадии: PC1 = **4.98%** против **0.38%** у Láruson — коррекция структуры
+здесь нагружена; R²(PC1~`bio_1`) = **0.626** против R²(PC1~`bio_2`) = **0.003** — внутри одного
+набора данных есть и конфаунднутая ось, и чистый ортогональный контроль. Это, измеренное нашим
+пайплайном, а не взятое из статьи, и есть причина замены бенчмарка.
+</div>
+
+---
+
+## Шаг 8. Исправленный баг пайплайна — пустой GFF при непустых регионах
+
+<div class="callout-method">
+`mode=gea` упал на правиле `assoc_find_genes_per_region`. `Input.gff` необязателен, и
+`normalize_gff` пишет файл **нулевого размера**, когда ключ пуст, — штатная ситуация для
+симулированных данных. Но `read_gff()` выполняет `grep -v '#'` по этому файлу, `grep` выходит
+с кодом **1** («совпадений нет»), а `fread` подаёт это как вводящее в заблуждение
+*«External command failed … This can happen when the disk is full in the temporary directory»*.
+
+В `scripts/find_genes_around_regions.R` уже был предохранитель на случай **пустых регионов**;
+симметричного предохранителя на **пустой GFF** не было. Путь никогда не выполнялся, потому что
+все существующие проекты поставляются с GFF.
+
+Исправление: общая функция `empty_gene_tables()` и второй предохранитель — при
+`!file.exists(GFF) || file.size(GFF) == 0` пишутся те же пустые таблицы генов и выход с
+кодом 0. `read_gff()` намеренно оставлен строгим: **действительно испорченный** GFF по-прежнему
+должен падать громко.
+</div>
+
+```{bash step8-cmd, eval=FALSE}
+# [изменено 2026-08-02] scripts/find_genes_around_regions.R: добавлен предохранитель на пустой GFF
+# было (падало): regions-guard есть, gff-guard отсутствует → read_gff() на файле 0 байт
+# стало:
+#   if (!file.exists(GFF) || file.size(GFF) == 0) {
+#       empty_gene_tables(paste0('No GFF annotation supplied (', GFF, ' is empty)'))
+#   }
+
+# повтор только упавшего режима:
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  --cpus=64 --memory=300g -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c16 -s Snakefile --config mode=gea \
+    --configfile config_MVP1232548.yaml --scheduler greedy
+```
+
+<div class="callout-result">
+<div class="was">было: `mode=gea` завершался кодом **1** на `assoc_find_genes_per_region`</div>
+<div class="now">стало: **4/4** шага выполнены, код возврата **0**</div>
+- `genes_per_region.tsv` и `genes_combined.tsv`: **1** строка каждая (только заголовок) —
+  корректно при отсутствии аннотации
+- Регионов: **6**; значимых SNP: **13**
+- Затронуто: единственный изменённый отслеживаемый файл — `scripts/find_genes_around_regions.R`
+</div>
+
+<div class="callout-conclusion">
+Разметка генов корректно инертна на всех **14** репликах MVP. Баг общий, не специфичный для
+MVP: он ударил бы по любому проекту без GFF.
+</div>
+
+---
+
+## Шаг 9. Скоринг детекции — AUC-PR и таблица порогов
+
+```{r step9-check}
+check_files(c(
+  lib    = "/mnt/data/eugene/ADAPTOGENE/benchmarks/lib_detection.R",
+  eval   = "/mnt/data/eugene/ADAPTOGENE/benchmarks/eval_detection.R",
+  sweep  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/sweep_thresholds.R",
+  ranktb = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/MVP1232548_pilot.tsv",
+  sweeptb= "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/MVP1232548_threshold_sweep.tsv"
+))
+```
+
+```{bash step9-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+R=/pipeline/MVP1232548_results/GEA/tables/methods
+D=/pipeline/data/mvp/MVP1232548
+
+# (а) ранговый AUC-PR по осям — ПАРНОСТЬ ИСТИНЫ И ПРЕДИКТОРА ФИКСИРОВАНА, см. Метод
+Rscript /pipeline/benchmarks/eval_detection.R --mode=rank \
+  --pvalues=$R/LFMM/LFMM_pvalues_K5.tsv --truth=$D/truth_temp.tsv --traits=bio_1 \
+  --label=LFMM_truth_temp_bio_1 --out=/pipeline/benchmarks/mvp_eval/MVP1232548_pilot.tsv
+# ... аналогично LFMM/bio_2, EMMAX/bio_1, EMMAX/bio_2, RDA/all
+
+# (б) развёртка порогов и правил объединения
+Rscript /pipeline/benchmarks/sweep_thresholds.R \
+  --methods="EMMAX=$R/EMMAX/EMMAX_pvalues_K5.tsv,LFMM=$R/LFMM/LFMM_pvalues_K5.tsv,RDA=$R/RDA/RDA_pvalues_K5.tsv" \
+  --truth=$D/truth_any.tsv --tag=MVP1232548 \
+  --outdir=/pipeline/benchmarks/mvp_eval \
+  --out=/pipeline/benchmarks/mvp_eval/MVP1232548_sweep_long.tsv
+```
+
+<div class="callout-method">
+**R 4.5 / data.table**, датасет-агностичная гармонизирующая связка
+`benchmarks/lib_detection.R` + `eval_detection.R` + `sweep_thresholds.R` — сохранена от
+бенчмарка Láruson без изменений (её контракт: широкая таблица p-значений
+`SNPID/chr/pos/<признаки>` плюс таблица истины `chr/pos/category`).
+
+**Что такое AUC-PR.** SNP ранжируются по p-значению; при спуске по списку на каждой глубине
+фиксируется точность (какая доля сделанных вызовов действительно каузальна) против полноты
+(какая доля всех каузальных локусов уже найдена). AUC-PR — площадь под этой кривой: одно
+число без порога, «насколько хорошо метод выносит каузальные локусы наверх». В отличие от
+AUC-ROC она не льстит задачам с редким положительным классом: **случайный ранжировщик даёт
+примерно базовую частоту каузальных**, здесь 70/10325 = **0.68%**. Сравнивать надо с ~0.007,
+а не с 0.5.
+
+**Точность считается по конвенции исходной статьи.** Ложными срабатываниями считаются
+**только** `background_neutral` (LG 11–20); `linked_neutral` из знаменателя исключены. Это
+дословно конвенция Lotterhos 2023: *«the performance statistics were calculated by only
+including truly neutral loci unaffected by selection on linkage groups 11 to 20 and the QTNs»*.
+Поэтому головной показатель — `precision_strict`, а `precision_all` приводится рядом для
+прозрачности.
+
+**Парность истины и предиктора фиксирована и не подлежит смешиванию.** `causal_temp` и
+`causal_sal` — независимые поосевые классификации: локус может быть каузальным по температуре
+и нейтральным по Env2. `load_truth()` принимает одну колонку `category`, а
+`call_by_threshold()` объединяет вызовы по признакам, поэтому неверная пара тихо превращает
+настоящие находки в ложные срабатывания. Имена колонок признаков к тому же **различаются по
+семействам методов**:
+
+- LFMM / EMMAX — по колонке на предиктор (`bio_1`, `bio_2`): `truth_temp`↔`bio_1`,
+  `truth_sal`↔`bio_2`, `truth_any`↔`all`.
+- RDA — многомерна, `rda.R` пишет **одну** колонку `climate_multivariate`; поосевого
+  p-значения нет, `--traits=bio_1` не совпал бы ни с чем. Единственная верная пара —
+  `truth_any` + `--traits=all`.
+- GWAS — колонки признаков это `phen_temp`/`phen_sal`/`fitness`; `fitness` — приспособленность
+  в родном деме, полигенная по **обеим** осям, поэтому только `truth_any`.
+
+Развёртка порогов (`sweep_thresholds.R`) использует `truth_any` и все колонки признаков у
+каждого метода: «SNP, ассоциированный с климатом» = значимый хотя бы по одному предиктору.
+Правила объединения: union / intersection / at_least_2 / rank_sum.
+</div>
+
+```{r step9-tables, echo=FALSE}
+sw_path <- "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/MVP1232548_threshold_sweep.tsv"
+if (file.exists(sw_path)) {
+  d <- fread(sw_path)
+  d[, op := paste0(adjust, "_", value)]
+  d[, `% каузальных` := round(100 * tp / n_testable, 1)]
+  d[, `% ЛП` := round(100 * fp_background / pmax(n_called, 1), 1)]
+  out <- d[op %in% c("bonf_0.05", "qval_0.3", "top_100"),
+           .(`порог` = op, `метод/правило` = kind, `вызвано SNP` = n_called,
+             `каузальных найдено` = tp, `% каузальных`,
+             `linked-neutral` = expected_linked,
+             `ЛП (background)` = fp_background, `% ЛП`,
+             precision_strict = round(precision, 3),
+             precision_all = round(precision_all, 3))]
+  setorder(out, `порог`, `метод/правило`)
+  knitr::kable(out, caption = "Детекция при трёх рабочих точках (истина = truth_any, 70 каузальных из 10 325 SNP)")
+} else {
+  cat("[ОТСУТСТВУЕТ]", sw_path, "\n")
+}
+```
+
+<div class="callout-result">
+AUC-PR по осям (случайный ранжировщик ≈ базовая частота каузальных):
+
+- LFMM, Env2 `bio_2` (ортогональный контроль): **0.396** — база **0.0039**, превышение в **102×**
+- LFMM, температура `bio_1` (конфаунднутая): **0.222** — база **0.0029**, превышение в **76×**
+- RDA, обе оси (многомерно): **0.222** — база **0.0068**, превышение в **33×**
+- EMMAX, Env2 `bio_2`: **0.104** — база **0.0039**, превышение в **27×**
+- EMMAX, температура `bio_1`: **0.031** — база **0.0029**, превышение в **11×**
+
+Соединение с истиной (шлюз качества конвертации на реальных p-значениях):
+
+- Ключей в таблице p-значений: **10325**; в таблице истины: **10325**
+- Пересечение: **10325** — расхождение **0** в обе стороны
+- Каузальных по температуре в таблице p-значений: **30 из 30**
+
+Ключевые точки таблицы выше:
+
+- Максимум полноты — union при top-100: **23/70** каузальных (**32.9%**) ценой **29.2%** ЛП
+- Нулевые ЛП при любом пороге — intersection, но полнота ≤ **8.6%**
+- Баланс — «≥2 метода» при top-100: **16/70** (**22.9%**) при **6.5%** ЛП
+- LFMM превосходит EMMAX в каждой точке; доля ЛП EMMAX при top-100 — **44.2%**
+- RDA не вызывает **ничего** при bonf и FDR, но ранжирует конкурентно (AUC-PR **0.222**)
+</div>
+
+<div class="callout-conclusion">
+Цепочка «конвертер → пайплайн → скоринг» замкнута и проверена на реальных p-значениях:
+**10325/10325** ключей соединяются, расхождений нет. Главное содержательное наблюдение —
+**ортогональная контрольная ось обходит конфаунднутую примерно в 1.8× у обоих одномерных
+методов** (LFMM 0.396 против 0.222; EMMAX 0.104 против 0.031): те же генотипы, тот же прогон,
+разница только в том, насколько структура выровнена с предиктором. Именно этот
+внутринаборный контроль и был целью отбора реплик, и ни один другой кандидат из
+`docs/gea_simulation_benchmarks.md` его не даёт.
+
+Обвал EMMAX на конфаунднутой оси (**0.031** против **0.222** у LFMM) — это цена коррекции
+структуры, которую Láruson принципиально не мог продемонстрировать. **Читать это как «EMMAX
+плох» нельзя**: `n_pcs` здесь не подбирался (взят `k_best` = 5), и поиск верной ступени — это
+работа `mode=pregea` и `benchmarks/score_ladders.sh`. Числа этой стадии — базовая линия
+проверки обвязки, а не сравнение методов.
+
+Следующая стадия: прогон оставшихся **13** реплик по одной и развёртки ступеней
+LFMM-K / EMMAX-#PC / RDA-PC. `score_ladders.sh` и `sweep_rda.sh` по умолчанию всё ещё
+указывают на выведенный из обращения проект `LARUSON1K` — перед использованием их надо
+перенацелить. Полная передача дел — `benchmarks/MVP_README.md`.
+</div>
+
+<details class="callout-note">
+<summary>Примечание — устаревший каталог MVP1231288_results</summary>
+Первый пилот запускался на реплике **1231288** до исправления границы LG (Шаг 5), поэтому
+его `_work/` несёт `POS` на **1** больше текущего VCF. Генотипы побитово те же, так что
+измеренные там PC1 = **5.85%** и R²(PC1~`bio_1`) = **0.495** остаются в силе, но перед любым
+скорингом каталог нужно перегенерировать с `mode=processing`. Snakemake сделает это
+автоматически (mtime входа изменился); примечание существует только чтобы каталог не приняли
+за актуальный.
+</details>
+
+---
+
+## Шаг 10. Сверка с опубликованными числами Lotterhos 2023
+
+```{r step10-check}
+check_files(c(
+  baseline_script = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_published_baseline.R",
+  baseline_table  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_published_baseline.tsv",
+  rescore_script  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_score_published.R",
+  rescored_pvals  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/published/MVP1232548",
+  rescored_eval   = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/MVP1232548_published.tsv"
+))
+```
+
+```{bash step10-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+
+# (а) таблица опубликованных метрик по 14 сидам — путь быстрой сверки
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/mvp_published_baseline.R
+
+# (б) их собственные p-значения → формат гармонизирующей связки → наш скоринг
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest bash -c '
+    Rscript /pipeline/benchmarks/mvp_score_published.R --seed=1232548
+    P=/pipeline/benchmarks/mvp_eval/published/MVP1232548
+    D=/pipeline/data/mvp/MVP1232548
+    O=/pipeline/benchmarks/mvp_eval/MVP1232548_published.tsv
+    Rscript /pipeline/benchmarks/eval_detection.R --mode=rank \
+      --pvalues=$P/published_LFMM_pvalues.tsv --truth=$D/truth_sal.tsv --traits=bio_2 \
+      --label=pubLFMM_sal --out=$O
+    # ... аналогично temp / RDA / RDA_structcorr'
+
+# (в) наши метрики на ИХ пороге q<0.05 (наш дефолт в конфиге — bonf 0.05)
+#   Rscript /pipeline/benchmarks/eval_detection.R --mode=threshold --adjust=qval --value=0.05 ...
+```
+
+<div class="callout-method">
+**R 4.5 / data.table**, скрипты
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_published_baseline.R` и
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_score_published.R`.
+
+Депозит выкладывает **собственные метрики детекции авторов** по каждому сиду — AUC-PR, TPR и
+FDR для LFMM (LEA3.2 lfmm2), RDA (с коррекцией структуры и без), кендалловской корреляции
+частот с средой и фенотипического GWAS. Это внешняя эталонная линия, с которой можно сверять
+любое наше будущее число.
+
+**Совместимость конвенций — ключевой момент.** Их вариант `*_neutSNPs` определён как
+«including only causal loci and neutral loci not affected by selection (any non-causal loci
+that arose on the half of the genome affected by selection was excluded)» — это в точности
+наша конвенция: `lib_detection.R` считает ложными срабатываниями **только**
+`background_neutral`, а `linked_neutral` ранжируются, но исключаются из знаменателя точности.
+Проверено численно на сиде 1232548: удаление linked-строк целиком и пропуск их в знаменателе
+дают **одинаковый** AP (**0.2027** по температуре, **0.3938** по Env2).
+
+**Сверять всегда с `*_neutSNPs`, никогда с `*_allSNPs`.**
+
+Помимо сравнения со сводной таблицей, `mvp_score_published.R` пересобирает **их пер-SNP
+p-значения** (`LEA3.2_lfmm2_mlog10P_*`, `RDA_mlog10P`, `RDA_mlog10P_corr`) в широкий формат
+связки, используя **тот же** вывод координат и то же схлопывание дубликатов, что и
+`convert_mvp.R`. Прогон этих таблиц через `eval_detection.R` снимает вообще все различия
+конвенций скоринга: остаток расхождения — это разница в том, как был запущен ассоциативный
+анализ, а не в том, как считалась детекция.
+
+Наши пороговые метрики для сверки считаются на **их** рабочей точке `q < 0.05`
+(`--adjust=qval --value=0.05`), а не на дефолтной для конфига `bonf 0.05`.
+</div>
+
+<div class="callout-result">
+Валидация связки — их p-значения, наш скоринг против их опубликованного числа (сид 1232548):
+
+- LFMM Env2 AUC-PR: опубликовано **0.3924**, пересчитано **0.3939** (Δ **+0.0015**)
+- RDA AUC-PR без коррекции: **0.1373** → **0.1396** (Δ **+0.0023**)
+- RDA AUC-PR с коррекцией структуры: **0.0738** → **0.0805** (Δ **+0.0067**)
+- LFMM температура AUC-PR: **0.0783** → **0.2027** (Δ **+0.124**) — **не воспроизводится**
+
+Наш пайплайн против эталона (сид 1232548, K=5, AUC-PR с исключением linked-neutral):
+
+- LFMM температура `bio_1`: опубликовано **0.0783**(?), их p-значения **0.203**, наш пайплайн **0.222**
+- LFMM Env2 `bio_2`: **0.392** / **0.394** / **0.396**
+- RDA без коррекции: **0.137** / **0.140** / **0.222**
+- RDA с коррекцией: **0.074** / **0.081** / не запускалось
+
+<div class="was">было: наш RDA сопоставлялся с неоткорректированным плечом (`condition_pcs: 0`)</div>
+<div class="now">стало (Шаг 11): наш RDA шёл с `Condition(PC1..PC5)` — **5** PC, так как `condition_pcs`
+по умолчанию разрешается в `@k_best`; ни одно из опубликованных плеч (**0** и **2** PC) ему не
+соответствует точно. Значение **0.222** относится к нашей конфигурации «5 PC + `pmax`».</div>
+- Кендалл, частоты ~ среда: **0.106** (temp) / **0.117** (Env2)
+
+На **их** пороге q < 0.05 — TPR нашего LFMM совпадает **в точности**:
+
+- температура: наш **4/30 = 0.133**, опубликовано **0.1333**
+- Env2: наш **8/40 = 0.200**, опубликовано **0.2000**
+- FDR (neutSNPs): наш **0.000** / **0.000**, опубликовано **0.200** / **0.000** — расхождение в **1** SNP
+
+Фенотипический GWAS авторов — эталон для нашего будущего `mode=gwas`:
+
+- TPR **0.767** (температура) / **0.925** (Env2)
+- FDR **0.991** / **0.987** — почти все каузальные локусы найдены, погребены под ~**99%** ложных
+
+Таблица быстрой сверки: `benchmarks/mvp_published_baseline.tsv` — **14** строк × **36** колонок.
+</div>
+
+<details class="callout-note">
+<summary>Примечание — дефект в опубликованной колонке AUCPR по температуре</summary>
+`LEA3_2_lfmm2_AUCPR_temp_neutSNPs` **не воспроизводится** из выложенной в том же депозите
+колонки p-значений по температуре: пересчёт `LEA3.2_lfmm2_mlog10P_tempenv` даёт **0.2027**
+против опубликованных **0.0783**. Перекрёстная проверка всех четырёх пар «p-значения × колонка
+истины»:
+
+| p-значения | истина | AP |
+|---|---|---:|
+| temp | temp | **0.2027** |
+| temp | sal | 0.0767 |
+| **sal** | **temp** | **0.0791** |
+| sal | sal | **0.3938** |
+
+Опубликованное **0.0783** совпадает с парой «p-значения salinity × истина temperature»
+(**0.0791**) в пределах того же смещения ±0.001…0.007, которое показывает *каждая* другая
+опубликованная ячейка. Похоже на перестановку колонок в одной метрике. **Против исходного кода
+авторов (`MVP-NonClinalAF`) не проверено** — перед цитированием требуется проверка; для сверки
+использовать пересчитанное значение из `mvp_score_published.R`, а не эту ячейку. В таблице
+помечено колонкой `lfmm_temp_aucpr_suspect`.
+</details>
+
+<details class="callout-note">
+<summary>Примечание — методические отличия нашего прогона от их</summary>
+Различия, способные законно сдвинуть число; указывать при каждом сравнении.
+
+| # | Аспект | Lotterhos 2023 | ADAPTOGENE | Влияние |
+|---|---|---|---|---|
+| 1 | Набор SNP | **10 394** локуса | **10 325** | мы схлопываем повторные мутации в одной позиции карты (**69**), сохраняя каузальную строку; они держат обе. <**0.7%** локусов |
+| 2 | MAF | > 0.01, применён ими до выкладки | `Filter.maf: 0.01` — проверенный no-op | **нет** — порог идентичен |
+| 3 | Обучение LFMM | латентные факторы на полном наборе | латентные факторы на **LD-пруненном** (**4066** из **10 325**), тест на полном | другая модель структуры; вероятная причина нашего **+10%** AUC-PR |
+| 4 | K для LFMM | их колонка `K` (**5** для этого сида) | `sNMF.k_best` из той же колонки | **нет** по построению |
+| 5 | Коррекция структуры в RDA | два плеча: без и `Condition(PC1+PC2)` = **2** PC | `Condition(PC1..PC5)` = **5** PC (`condition_pcs` → `@k_best`) | см. Шаг 11 — точного соответствия нет ни с одним плечом |
+| 6 | Порог RDA | q<0.05 → TPR **0.214** при FDR **0.857** | **0** вызовов при q<0.05 | **объяснено** (Шаг 11): правило пересечения `pmax`, не дефект калибровки |
+| 7 | EMMAX по среде | не запускался | запускается | эталона нет, наши числа — не воспроизведение |
+| 8 | Порог значимости | q < 0.05 везде | дефолт конфига `bonf 0.05` | для сверки всегда `--adjust=qval --value=0.05` |
+| 9 | Категории истины | `causal`/`neutral-linked`/`neutral` | те же, переименованы | **нет** — счётчики совпадают (**30**/**40**/**70**) |
+| 10 | Координаты | глобальные `pos_pyslim` | `POS` по группе сцепления | **нет** — VCF и истина используют один вывод |
+</details>
+
+<div class="callout-conclusion">
+Появилась внешняя эталонная линия, а не только внутренние контроли. Наша связка скоринга
+воспроизводит **3 из 4** опубликованных значений AUC-PR из собственных p-значений авторов
+(Δ ≤ **0.007**), а TPR нашего LFMM на их пороге совпадает с опубликованным **в точности** на
+обеих осях — это самая сильная кросс-валидация пайплайна, которую этот набор данных может дать.
+
+Быстрая сверка любого будущего числа — join по `seed` с
+`benchmarks/mvp_published_baseline.tsv` (**14** × **36**), колонки `pub_*`. Правило выбора
+колонки, дефект по температуре и десять методических отличий — в
+`benchmarks/MVP_README.md`, раздел «Published baseline».
+
+Два расхождения оставлены открытыми, а не объявлены победой: консервативность нашего RDA на
+пороге (**0** вызовов против их TPR **0.214**) и превышение нашего LFMM по AUC-PR на ~**10%**
+на обеих осях. Оба — предмет проверки на оставшихся **13** репликах, а не вывод по одной.
+</div>
+
+---
+
+## Шаг 11. Параметры RDA — наши против их, и почему наш скан не выносит ни одного SNP
+
+```{r step11-check}
+check_files(c(
+  our_rda    = "/mnt/data/eugene/ADAPTOGENE/scripts/rda.R",
+  our_rdadapt= "/mnt/data/eugene/ADAPTOGENE/scripts/R/lib/rdadapt.R",
+  diagnostics= "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/GEA/tables/methods/RDA/RDA_diagnostics_K5.tsv",
+  our_pvals  = "/mnt/data/eugene/ADAPTOGENE/MVP1232548_results/GEA/tables/methods/RDA/RDA_pvalues_K5.tsv",
+  their_pvals= "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/published/MVP1232548/published_RDA_pvalues.tsv"
+))
+```
+
+```{bash step11-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+# Их код прочитан из ModelValidationProgram/MVP-NonClinalAF, src/c-AnalyzeSimOutput.R:
+#   rdaout      <- rda(t(G_full_subset) ~ sal + temp)
+#   rdaout_corr <- rda(t(G_full_subset) ~ sal + temp +
+#                      Condition(subset_indPhen_df$PC1 + subset_indPhen_df$PC2))
+#   ps      <- rdadapt(rdaout, 2)
+#   ps_corr <- rdadapt(rdaout_corr, 2)
+#   muts_full$RDA_mlog10P_sig <- ps$q.values < 0.05
+#
+# Наши параметры — из RDA_diagnostics_K5.tsv (condition_pcs=5, rda_axes=2, gif_lambda=1.379)
+# и scripts/rda.R (rda(..., scale = TRUE); p_combined <- pmax(partial, unconstrained), стр. 478).
+```
+
+<div class="callout-method">
+**vegan::rda + rdadapt (Capblancq et al. 2018)** — обе стороны. Функция `rdadapt` **идентична**:
+`covRob(..., estim="pairwiseGK")` → `lambda <- median(resmaha)/qchisq(0.5, df=K)` →
+`pchisq(resmaha/lambda, K, lower.tail=FALSE)`. Различается всё вокруг неё.
+
+| Параметр | Lotterhos 2023 | ADAPTOGENE | Следствие |
+|---|---|---|---|
+| Ординация | `rda(t(G) ~ sal + temp)`, аргумента `scale=` нет → **ковариационная** | `rda(..., scale = TRUE)` → **корреляционная** | колонки SNP стандартизуются, другие нагрузки → другие махаланобисовы расстояния |
+| Коррекция структуры | два плеча: без и `Condition(PC1+PC2)` = **2** PC | `Condition(PC1..PC5)` = **5** PC, потому что `condition_pcs` по умолчанию `@k_best` = `sNMF.k_best` | мы снимаем больше выровненной со структурой дисперсии |
+| Число осей K для rdadapt | фиксировано: `rdadapt(rdaout, 2)` | `axes: auto` → оси с anova-p < 0.05, потолок = ранг, пол = 2 → **K = 2** | **то же значение**, получено иначе; при 2 предикторах разойтись не может |
+| Комбинирование p-значений | **нет**, плечи отдельно | **`pmax(p_partial, p_unconstrained)`** (`rda.R:478`, проектное решение B6): SNP значим, только если его вызвали **оба** фита | вся разница в пороге, см. Результат |
+| Правило значимости | `qvalue < 0.05` | `bonf 0.05` в этих конфигах (дефолт `gea.py` — `bonf 0.01`) | наше строже ещё до `pmax` |
+| Набор маркеров | полный | полный (`fit_mode: full`, **10 325**) | нет различия |
+
+Правило `pmax` — непрерывный аналог паттерна `Reduce(intersect, ...)` из туториала Capblancq &
+Forester 2021: кандидатом остаётся только SNP, прошедший и скорректированный, и
+нескорректированный фит.
+</div>
+
+<div class="callout-result">
+Квантили p-значений (сид 1232548, **10 325** SNP):
+
+| | q=0.001 | q=0.01 | q=0.05 | медиана | λ_GC(df=1) |
+|---|---:|---:|---:|---:|---:|
+| наш (`pmax` двух фитов) | **0.0092** | **0.0750** | **0.2169** | **0.7060** | **0.313** |
+| их, без коррекции | 0.0000 | 0.0000 | **0.0031** | **0.4998** | **1.001** |
+| их, `Condition(PC1+PC2)` | 0.0000 | 0.0000 | **0.0036** | **0.5004** | **0.998** |
+| равномерное нулевое | 0.0010 | 0.0100 | 0.0500 | 0.5000 | 1.000 |
+
+- Для двух ~равномерных p-значений медиана максимума равна `0.5^(1/2)` = **0.7071**;
+  наблюдается **0.7060** — правило `pmax` воспроизводит себя точно
+- Минимальное p в нашем скане: **0.000366** на **10 325** SNP → **0** вызовов при любом правиле
+  множественной проверки
+- Наши `gif_lambda` = **1.379** (частичный фит) и **1.329** (безусловный) — шаг GIF по построению
+  делает медиану p равной **0.5** в каждом фите по отдельности; отклонение вносит именно максимум
+- Ранжирование `pmax` не портит (преобразование монотонное): AUC-PR **0.222** против их
+  **0.137** без коррекции и **0.074** с коррекцией
+</div>
+
+<details class="callout-note">
+<summary>Примечание — как воспроизвести их плечи напрямую</summary>
+- их плечо без коррекции → `condition_pcs: 0` (при нуле второй фит не запускается, и `pmax`
+  становится тождественным)
+- их плечо с коррекцией → `condition_pcs: 2`; отличия по `pmax` и `scale = TRUE` при этом
+  сохраняются
+
+`gea.py` задаёт `condition_pcs` через сентинел `@k_best`, поэтому значение **5** пришло из
+`sNMF.k_best` этого сида, а не было выбрано осознанно. Ключ `condition_pcs: 0`, присутствующий в
+конфиге, относится к блоку `Maladaptation.rda_offset` и на GEA-скан не влияет — на этом и
+строилась первоначальная ошибочная атрибуция в Шаге 10.
+</details>
+
+<div class="callout-conclusion">
+**λ_GC = 0.313 — свойство правила пересечения, а не сломанный тест.** Убирать шаг GIF, чтобы
+«починить» это, нельзя.
+
+Практическое следствие: на этом наборе данных наш RDA — **метод ранжирования, а не порогового
+отбора**. Сравнивать число вызовов RDA с их числом бессмысленно, пока не отключён `pmax` или не
+уравнено `condition_pcs`; сравнивать AUC-PR — можно и нужно.
+
+Та же сигнатура, что и в [[57-emmax-npcs-default-silently-kills-gea]]: дефолт `@k_best` для
+коррекции структуры несёт нагрузку, и на наборе, где структура частично выровнена со средой,
+он стоит мощности. Два метода — одна первопричина. Проверить на оставшихся **13** репликах:
+прогнать RDA с `condition_pcs` = **0**, **2** и **5** и сопоставить с двумя опубликованными
+плечами.
+</div>
+
+---
+
+## Шаг 12. Развёртка параметров RDA — что на самом деле детектирует лучше
+
+```{r step12-check}
+check_files(c(
+  probe  = "/mnt/data/eugene/ADAPTOGENE/benchmarks/rda_param_sweep.R",
+  scored = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/rda_sweep/MVP1232548/sweep_scored.tsv",
+  eval   = "/mnt/data/eugene/ADAPTOGENE/benchmarks/mvp_eval/MVP1232548_rda_sweep_eval.tsv"
+))
+```
+
+```{bash step12-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-08-02
+nix shell nixpkgs#docker-client -c docker run --user $(id -u):$(id -g) --rm -e USER=pipeline \
+  --cpus=32 --memory=200g -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  Rscript /pipeline/benchmarks/rda_param_sweep.R --seed=1232548
+
+# затем скоринг каждой ячейки против truth_any (ранговый + порог q<0.05)
+#   Rscript /pipeline/benchmarks/eval_detection.R --mode=rank      --traits=all --truth=$D/truth_any.tsv ...
+#   Rscript /pipeline/benchmarks/eval_detection.R --mode=threshold --adjust=qval --value=0.05 ...
+```
+
+<div class="callout-method">
+**R 4.5 / vegan / robust / qvalue** в `adaptogene:latest`, зонд
+`/mnt/data/eugene/ADAPTOGENE/benchmarks/rda_param_sweep.R`.
+
+Это **бенчмарк-зонд, а не код пайплайна**: он повторяет загрузку данных из `scripts/rda.R` и
+переиспользует `rdadapt()` и `load_pca_covariates()` пайплайна дословно, поэтому между ячейками
+меняются только три параметра. В `{PROJECT}_results/` ничего не пишет.
+
+Восемь ячеек: `scale` ∈ {FALSE, TRUE} × `condition_pcs` ∈ {0, 2, 5} × `pmax` ∈ {off, on},
+K для `rdadapt` зафиксировано на **2** во всех (как у Lotterhos и в туториале). Ячейки **A** и
+**B** воспроизводят два опубликованных плеча и служат проверкой достоверности зонда.
+
+Стохастики нет: `rda()` детерминирован, `anova.cca` здесь не вызывается.
+</div>
+
+<div class="callout-result">
+Сид 1232548, истина `truth_any` (**70** каузальных из **10 325** SNP):
+
+| ячейка | `scale` | PC | `pmax` | AUC-PR | best F1 | вызовов q<0.05 | TP | FP | точность |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|
+| **D — текущий дефолт** | TRUE | 5 | да | **0.2223** | **0.302** | **0** | 0 | 0 | — |
+| G | TRUE | 2 | да | **0.1820** | 0.236 | 0 | 0 | 0 | — |
+| A — *их без коррекции* | FALSE | 0 | нет | **0.1353** | 0.205 | **416** | **15** | **86** | **0.149** |
+| C | TRUE | 2 | нет | **0.1285** | 0.170 | **0** | 0 | 0 | — |
+| H | FALSE | 2 | да | **0.1065** | 0.175 | **71** | **5** | **10** | **0.333** |
+| E | TRUE | 5 | нет | **0.0927** | 0.108 | 1 | 1 | 0 | 1.000 |
+| B — *их с коррекцией* | FALSE | 2 | нет | **0.0813** | 0.120 | **408** | **10** | **122** | **0.076** |
+| F | FALSE | 5 | нет | **0.0666** | 0.115 | **394** | **12** | **169** | **0.066** |
+
+- Достоверность зонда: **A** воспроизводит опубликованные **0.1373** (получено **0.1353**),
+  **B** — опубликованные **0.0738** (получено **0.0813**)
+- **`pmax` помогает всегда, эффект наибольший**: E→D **+139%**, C→G **+41%**, B→H **+31%**
+- **`scale=TRUE` помогает всегда**: B→C **+58%**, H→G **+70%**, F→E **+39%**
+- **`condition_pcs` 2→5 — неоднозначно**, выигрывает только вместе с `pmax`: G→D **+22%**,
+  но C→E **−28%** и B→F **−17%**
+- У их плеч точность **0.076**–**0.149** — согласуется с их опубликованным FDR **0.857**/**0.885**
+</div>
+
+<div class="was">было (Шаг 11): нулевое число вызовов объяснялось правилом `pmax`; ранжирование
+считалось незатронутым, так как шаг GIF монотонен</div>
+<div class="now">стало: главный драйвер — **`scale=TRUE`**, а не `pmax` (ячейка C: `scale=TRUE`,
+2 PC, **без** `pmax` — уже **0** вызовов, тогда как ячейка B, отличающаяся только `scale=FALSE`,
+даёт **408**). И `pmax` комбинирует **два** вектора p-значений, поэтому монотонным
+преобразованием одного не является — ранжирование он меняет, причём в лучшую сторону
+(**+139%** AUC-PR)</div>
+
+<details class="callout-note">
+<summary>Примечание — предварительная рекомендация, дефолты НЕ менялись</summary>
+1. **Оставить `scale=TRUE` и `pmax`** — оба положительны в каждой протестированной ячейке, а
+   текущий дефолт **D** — лучший из восьми и по AUC-PR, и по достижимому F1.
+2. **Дефект в калибровке, а не в модели.** У **D** лучшее ранжирование, но стандартным порогом
+   до него не добраться: его собственный максимум F1 приходится на **133** вызова, а q<0.05 даёт
+   **0**. Максимум двух ~равномерных p-значений равномерным не является, поэтому комбинированная
+   величина — корректный **порядок**, но не корректное **p-значение**. Пути, по предпочтению:
+   (а) ранговый отбор кандидатов для RDA (top-N или FDR против эмпирического нуля);
+   (б) применять шаг GIF к **комбинированной** статистике, а не к каждому фиту отдельно;
+   (в) считать RDA методом ранжирования и брать кандидатов из пересечения с EMMAX/LFMM — это и
+   есть рекомендация Forester et al. 2018 §4.4 для систем с сильной структурой.
+3. **`condition_pcs` не трогать**, пока 2-против-5 не проверено на других репликах.
+
+**Число вызовов у них не означает превосходства**: **416** вызовов — это **86** ложных
+срабатываний на **15** истинных.
+</details>
+
+<div class="callout-conclusion">
+Все три наших отличия от Lotterhos по отдельности положительны именно в той комбинации, которая
+сейчас работает по умолчанию, и текущий дефолт **D** — лучший из восьми ячеек по ранжированию.
+Открытым остаётся не «правы ли мы», а «воспроизводится ли это»: **один** сид, **70** каузальных
+локусов, и вопрос `condition_pcs` держится на единственном разрыве **0.182 → 0.222**.
+
+Дефолты пайплайна **не изменены**. Следующий шаг — прогнать `rda_param_sweep.R` по оставшимся
+**13** репликам и менять поведение только после воспроизведения.
+</div>
+
+---
+
+## sessionInfo
+
+```{r sessioninfo}
+sessionInfo()
+```

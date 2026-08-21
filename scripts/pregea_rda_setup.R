@@ -111,8 +111,35 @@ climate_valid_ids <- fread(CLIMATE_VALID, header = FALSE, colClasses = "characte
 
 ################################################################################
 # 2. Predictor collinearity pre-screen (A16) — never below MIN_PREDICTORS
+#
+# SITE-WEIGHTED, not sample-weighted. Env has one row per SAMPLE and a site's
+# predictor values are identical for every sample sequenced there, so cor() over
+# Env rows weights each site by its sample size — a site with 30 individuals
+# counts 30x against a site with 1, even though both contribute exactly one
+# environment. That is pseudoreplication, and unlike the z-scoring in
+# download_climate_present.R (a per-column affine transform, which cannot change
+# any linear fit) this correlation drives a DISCRETE decision: which predictors
+# enter every RDA rung below. Simulation, 8 predictors x 11 sites, 200 draws of
+# the loop below: with balanced n the two weightings agree 200/200 and the
+# correlation matrices are identical; at n 1-9 per site the median max
+# |r_sample - r_site| is 0.25 and they keep a DIFFERENT predictor set in 78% of
+# draws; at SIMDATA-like imbalance (n 1-30) 93%.
+# unique() IS the site-level table here — predictor values are constant within a
+# site, so distinct rows are distinct environments and no metadata join is needed.
 ################################################################################
-cor_mat <- cor(as.data.frame(Env), use = "pairwise.complete.obs")
+Env_site <- unique(as.data.frame(Env))
+if (nrow(Env_site) < 3) {
+    # Fewer than 3 distinct environments: a site-level correlation is degenerate
+    # (2 points make every |r| exactly 1). Fall back to the per-sample matrix so
+    # the screen still runs, and say so — the RDA that follows is barely
+    # interpretable at this design size either way.
+    message("WARNING: only ", nrow(Env_site), " distinct site environment(s) across ",
+            n_samples, " samples — site-level correlation is degenerate, ",
+            "falling back to the per-sample correlation matrix for the collinearity screen.")
+    cor_mat <- cor(as.data.frame(Env), use = "pairwise.complete.obs")
+} else {
+    cor_mat <- cor(Env_site, use = "pairwise.complete.obs")
+}
 active <- predictor_names
 collin_rows <- list()
 repeat {
@@ -143,7 +170,10 @@ if (length(active) < MIN_PREDICTORS) {
 }
 for (p in active) collin_rows[[length(collin_rows) + 1]] <- data.table(predictor = p, action = "kept", reason = "")
 collin_dt <- rbindlist(collin_rows)
-message("INFO: collinearity screen kept ", length(active), "/", length(predictor_names), " predictors: ",
+message("INFO: collinearity screen (",
+       if (nrow(Env_site) < 3) "per-sample fallback, " else "site-weighted, ",
+       nrow(Env_site), " distinct environments / ", n_samples, " samples) kept ",
+       length(active), "/", length(predictor_names), " predictors: ",
        paste(active, collapse = ","))
 
 ################################################################################

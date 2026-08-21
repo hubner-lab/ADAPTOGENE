@@ -1,0 +1,284 @@
+---
+title: "03. Переход на 86-образцовый вход — Trifolium israeliticum"
+output:
+  html_document:
+    theme: darkly
+    highlight: breezedark
+    toc: true
+    toc_float: true
+    code_folding: hide
+css: ["_callouts.css"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(data.table)
+
+# Среда: контейнер adaptogene:latest (Docker) для snakemake; python3/bcftools хоста для
+# внепайплайновых диагностик (те же, что в Стадии 02).
+# Рендер: docker run --rm \
+#   -v /mnt/data/eugene/ADAPTOGENE:/mnt/data/eugene/ADAPTOGENE \
+#   -v /mnt/data/eugene/PopGenPipe:/mnt/data/eugene/PopGenPipe:ro \
+#   adaptogene:latest \
+#   Rscript -e 'rmarkdown::render("/mnt/data/eugene/ADAPTOGENE/work/journal/03_sample86_pivot.Rmd")'
+# (пути хоста монтируются 1:1, не в /pipeline — литеральные пути проверок файлов должны
+# резолвиться внутри контейнера так же, как снаружи, см. Стадию 01/02 для истории проблемы.)
+
+check_files <- function(paths, labels = names(paths)) {
+  if (is.null(labels)) labels <- paths
+  for (i in seq_along(paths)) {
+    cat(ifelse(file.exists(paths[i]), "[OK]", "[ОТСУТСТВУЕТ]"), labels[i], "\n")
+  }
+}
+```
+
+## Обзор
+
+Обзор файла: переход с 64- на 86-образцовый вход по запросу пользователя (приоритет —
+число образцов и географическое покрытие сайтов важнее плотности SNP), подбор порога
+`sample_miss`, сравнение с путём Стадии 02.
+
+```{bash abstract-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.svg ] || \
+   [ /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.d2 -nt \
+     /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.svg
+fi
+```
+
+```{r abstract-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_00_abstract.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+---
+
+## Шаг 1. Мотивация и происхождение 86-образцового входа
+
+<div class="callout-method">
+Пользователь (2026-07-31) указал, что путь 64→41 образец (Стадия 02) отбрасывает слишком
+много образцов — исходный набор Trifolium насчитывал **86** образцов ДО фильтрации
+`sample_miss<=0.8`, применённой выше по потоку (PopGenPipe, вне ADAPTOGENE, см. Стадию 01
+Шаг 1). Запрошено: используя ADAPTOGENE напрямую на 86-образцовом входе, посмотреть, можно
+ли сохранить больше образцов и географическое покрытие сайтов, допуская пропорциональную
+потерю числа SNP.
+
+Подготовка входного VCF (нормализация хромосом) для 86-образцового набора документирована
+в Стадии 01, Шаг 3 (включая обрыв конвейера при первой попытке и успешный повтор в
+изоляции) — не повторяется здесь.
+</div>
+
+<div class="callout-conclusion">
+Новый проект **`Trifolium86`** (`config_Trifolium86.yaml`), тот же GFF и карта переименования
+хромосом, что и `Trifolium` (Стадия 01/02) — переиспользованы без изменений. Метаданные:
+`Trifolium_location_86.tsv` (**86** строк, точное соответствие образцам VCF).
+</div>
+
+---
+
+## Шаг 2. Разрешительный запуск и распределение пропусков по всем 86 образцам
+
+```{r step2-check}
+check_files(c(
+  config = "/mnt/data/eugene/ADAPTOGENE/config_Trifolium86.yaml",
+  missing_stats = "/mnt/data/eugene/ADAPTOGENE/Trifolium86_results/_intermediate/samples/samples_missing_stats.tsv"
+))
+```
+
+```{bash step2-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31, первый (разрешительный) проход, sample_miss=0.8
+docker run --user $(id -u):$(id -g) --rm -e USER=adaptogene --cpus=64 --memory=200g \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c64 -s Snakefile --config mode=processing \
+    --configfile config_Trifolium86.yaml --scheduler greedy
+
+# распределение пропусков по всем 86 образцам (включая 22 "новых" по сравнению со Стадией 02)
+awk -F'\t' 'NR>1{print $6}' \
+  /mnt/data/eugene/ADAPTOGENE/Trifolium86_results/_intermediate/samples/samples_missing_stats.tsv \
+  | sort -n > /tmp/miss86.txt
+n=$(wc -l < /tmp/miss86.txt)
+echo "min=$(head -1 /tmp/miss86.txt) p25=$(sed -n "$((n/4))p" /tmp/miss86.txt) \
+median=$(sed -n "$((n/2))p" /tmp/miss86.txt) p75=$(sed -n "$((3*n/4))p" /tmp/miss86.txt) \
+max=$(tail -1 /tmp/miss86.txt)"
+```
+
+<div class="callout-method">
+**Snakemake 9.23.1** (`adaptogene:latest`), `mode=processing`, первый проход с
+`Filter.sample_miss: 0.8` (то же значение, что применил upstream-фильтр PopGenPipe при
+создании 64-образцового файла — выбрано намеренно как воспроизведение известной точки перед
+поиском лучшего порога).
+
+Затем **awk/sort** — распределение доли пропусков (`F_MISS`, колонка 6
+`samples_missing_stats.tsv`) по ВСЕМ 86 образцам, включая 22 образца, отсутствующие в
+64-образцовом наборе Стадии 02.
+</div>
+
+<div class="callout-result">
+- Доля пропусков по всем 86 образцам: **12.3%** (мин) — **36.7%** (p25) — **68.2%** (медиана) —
+  **79.8%** (p75) — **94.4%** (макс)
+- Медиана выросла с **51.7%** (64 образца, Стадия 02) до **68.2%** (86 образцов) — 22
+  "новых" образца систематически хуже покрыты (что и объясняет, почему их отсеяли выше по
+  потоку изначально)
+- При `sample_miss<=0.8`: **64/86** сохранено (после дедупликации родства — **57**)
+- SNP после MAF+snp_miss фильтра при этом пороге: **276 115** (**3.9%**) — заметно хуже,
+  чем **17.9%** в Стадии 02 при 64 образцах и том же пороге MAF/snp_miss, поскольку
+  знаменатель (доля пропусков на SNP) теперь считается по когорте с более высокой средней
+  недостачей данных
+</div>
+
+---
+
+## Шаг 3. Подбор порога sample_miss по критерию покрытия сайтов
+
+```{bash step3-cmd, eval=FALSE}
+# НЕ ПЕРЕЗАПУСКАТЬ — выполнено 2026-07-31, симуляция на Python (без повторных запусков
+# Snakemake для каждого порога — расчёт числа образцов и представленности сайтов напрямую
+# из уже посчитанной samples_missing_stats.tsv + Trifolium_location_86.tsv)
+python3 << 'PYEOF'
+import csv
+from collections import defaultdict
+miss = {}
+with open('/mnt/data/eugene/ADAPTOGENE/Trifolium86_results/_intermediate/samples/samples_missing_stats.tsv') as f:
+    r = csv.reader(f, delimiter='\t'); next(r)
+    for row in r: miss[row[1]] = float(row[5])
+site = {}
+with open('/mnt/data/eugene/ADAPTOGENE/data/Trifolium_location_86.tsv') as f:
+    r = csv.reader(f, delimiter='\t'); next(r)
+    for row in r: site[row[1]] = row[0]
+for t in [0.6, 0.7, 0.75, 0.8, 0.85]:
+    kept = [s for s in miss if miss[s] <= t]
+    by_site = defaultdict(int)
+    for s in kept: by_site[site[s]] += 1
+    n_singleton = sum(1 for c in by_site.values() if c == 1)
+    print(f"t={t}: {len(kept)}/86, sites={len(by_site)}/11, singletons={n_singleton}")
+PYEOF
+```
+
+<div class="callout-method">
+**Python 3** (`csv`, `collections.defaultdict`) — прямой расчёт (без повторных прогонов
+Snakemake на каждый кандидат-порог) числа сохранённых образцов и представленности 11
+географических сайтов при разных значениях `Filter.sample_miss`, критерий выбора —
+приоритет пользователя на максимальное покрытие сайтов при разумном числе образцов,
+а не только максимизация суммарного N.
+</div>
+
+<div class="callout-result">
+- `t=0.6`: **39/86**, **11/11** сайтов, **3** сайта-одиночки (n=1)
+- `t=0.7`: **48/86**, **11/11** сайтов, **1** сайт-одиночка
+- `t=0.75`: **58/86**, **11/11** сайтов, **0** сайтов-одиночек — оптимум
+- `t=0.8`: **64/86**, **11/11** сайтов, **0** одиночек (тот же результат представленности,
+  но на **6** образцов больше при заведомо худшем покрытии на SNP, см. Шаг 2)
+- `t=0.85`: **72/86**, **11/11** сайтов, **0** одиночек
+</div>
+
+<div class="callout-conclusion">
+Выбран порог **`Filter.sample_miss: 0.75`** — минимальный порог, достигающий полного
+покрытия всех 11 сайтов БЕЗ единого сайта-одиночки (в отличие от `0.6`/`0.7`). Более высокие
+пороги (`0.8`, `0.85`) не улучшают представленность сайтов дальше, а лишь добавляют образцы
+с ещё худшим покрытием, что напрямую бьёт по числу проходящих фильтр SNP (Шаг 2).
+</div>
+
+---
+
+## Шаг 4. Финальный запуск с sample_miss=0.75 и повторная дедупликация родства
+
+```{r step4-check}
+check_files(c(
+  config = "/mnt/data/eugene/ADAPTOGENE/config_Trifolium86.yaml",
+  summary = "/mnt/data/eugene/ADAPTOGENE/Trifolium86_results/pipeline_summary.tsv",
+  relatedness_removed = "/mnt/data/eugene/ADAPTOGENE/Trifolium86_results/Processing/tables/relatedness_removed.tsv"
+))
+```
+
+```{bash step4-cmd, eval=FALSE}
+# [изменено 2026-07-31] было: sample_miss=0.8 (Шаг 2) → стало: sample_miss=0.75 (Шаг 3)
+docker run --user $(id -u):$(id -g) --rm -e USER=adaptogene --cpus=64 --memory=200g \
+  -v /mnt/data/eugene/ADAPTOGENE:/pipeline adaptogene:latest \
+  snakemake -c64 -s Snakefile --config mode=processing \
+    --configfile config_Trifolium86.yaml --scheduler greedy
+```
+
+<div class="callout-method">
+**Snakemake 9.23.1**, `mode=processing`, повтор с `Filter.sample_miss: 0.75`.
+`Filter.relatedness: 0.999` + `relatedness_action: remove` — тот же порог и метод, что в
+Стадии 02 Шаг 6 (обоснование дискордантности по противоположным гомозиготам переносится
+без изменений — тот же биологический механизм: het-коллапс генотипов + вероятный инбридинг
+у самоопылителя, см. Стадию 01 Шаг 4). Повторный дискордантность-тест не проводился отдельно
+для 86-образцового набора — кластеры дубликатов территориально привязаны к тем же сайтам
+(28955, 29024, 28960), что и в 64-образцовом пути, и состав удалённых образцов идентичен.
+</div>
+
+<div class="callout-result">
+- Образцов: **86** → **58** (после `sample_miss<=0.75`) → **51** (после удаления **7**
+  дубликатов родства)
+- Удалённые по родству: `28955-1`, `28955-24`, `29024-11`, `28955-3`, `28955-20`, `28960-3`,
+  `28960-15` — **идентичный список** образцам, удалённым в 64-образцовом пути (Стадия 02,
+  Шаг 7)
+- SNP после MAF+snp_miss фильтра: **505 295** (**7.1%**)
+- SNP после LD-прунинга (100/10/0.2): **14 663**
+- Представленность сайтов после дедупликации: **11/11**, единственный сайт-одиночка —
+  `28955` (n=1, с исходных 5 в наборе — весь кластер дубликатов сосредоточен на этом сайте)
+</div>
+
+---
+
+## Шаг 5. Сравнение с 64-образцовым путём (Стадия 02) и решение
+
+```{bash step5-diagram-render, eval=FALSE}
+if [ ! -f /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_sample_comparison.svg ]; then
+  d2 --theme 200 --layout elk \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_sample_comparison.d2 \
+    /mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_sample_comparison.svg
+fi
+```
+
+```{r step5-diagram-embed, echo=FALSE}
+img_path <- "/mnt/data/eugene/ADAPTOGENE/work/journal/diagrams/03_sample_comparison.svg"
+if (file.exists(img_path)) {
+  knitr::include_graphics(img_path)
+} else {
+  cat("[ОТСУТСТВУЕТ] диаграмма не сгенерирована:", img_path,
+      "— выполните рендер-чанк выше (d2 CLI)\n")
+}
+```
+
+<div class="callout-result">
+| | путь 64→41 (Стадия 02) | путь 86→51 (эта стадия) |
+|---|---|---|
+| финальных образцов | **41** | **51** (**+10**, **+24%**) |
+| сайтов представлено | **11/11** | **11/11** |
+| сайтов-одиночек | **1** (28955) | **1** (28955) |
+| SNP после фильтра | **1 283 403** | **505 295** |
+| SNP после LD-прунинга | **31 980** | **14 663** |
+</div>
+
+<div class="callout-conclusion">
+**Решение пользователя (2026-07-31): принять путь 86→51 как основной.** Прирост в **10**
+образцов при идентичной представленности сайтов оценён как более ценный, чем сохранение
+плотности маркеров — соответствует явно заявленному приоритету (число образцов/география
+важнее числа SNP). Проект `Trifolium` (41 образец) НЕ удалён — остаётся на диске как
+референс для сравнения. Все последующие стадии пайплайна (Phase 2 sNMF, Phase 3 structure,
+Phase 4+ GEA/maladaptation) выполняются на `Trifolium86` заново — результаты Phase 2/3
+для `Trifolium` (K=6, см. заметки сессии) не переносятся напрямую, так как состав выборки
+изменился.
+
+**Отдельная методологическая заметка пользователя**: учитывая высокую долю пропусков в
+данных (медиана **51.7-68.2%** в зависимости от подвыборки), методам, не требующим
+импутации (sNMF/PCA структуры — Phase 2/3, нативно обрабатывают пропуски), следует доверять
+больше, чем методам, работающим на импутированных генотипах (EMMAX/LFMM/RDA в GEA —
+Phase 6, все используют sNMF-импутированный полный набор по архитектуре пайплайна).
+Решение по итоговому доверию отложено до сравнения методов на стадии GEA/maladaptation.
+</div>
+
+---
+
+```{r sessioninfo}
+sessionInfo()
+```

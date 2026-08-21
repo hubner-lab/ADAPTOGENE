@@ -70,6 +70,18 @@ if (length(valid_groups) == 0) {
     message("WARNING: No groups meet the min_samples threshold. Only 'All' group will be analyzed.")
 }
 
+# Single-group datasets (the common case for GWAS-only projects sampled at one
+# site): the lone group holds every sample, so it is 'All' under another name.
+# Keeping it would run PopLDdecay twice over the same set and draw two identical
+# curves. Drop it and let 'All' stand for the dataset. Downstream is already fine
+# with an All-only manifest -- ld_decay_analyze.R branches on n_groups > 1.
+if (length(valid_groups) == 1 && nrow(group_sizes) == 1) {
+    message(paste0("WARNING: Single group '", valid_groups[1],
+                   "' contains every sample -- identical to 'All'. ",
+                   "Per-group LD decay skipped; the 'All' curve is the dataset."))
+    valid_groups <- character(0)
+}
+
 #=============================================================================
 # WRITE SAMPLE LIST FILES
 #=============================================================================

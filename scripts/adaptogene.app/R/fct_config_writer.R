@@ -54,6 +54,16 @@ write_project_config <- function(config, project,
                                   pipeline_path = get_pipeline_path()) {
     dest <- config_file_path(project, pipeline_path)
 
+    # Materialize the regime and the value the pipeline actually reads. Every write
+    # goes through here (Save button and the pipeline runner both hand over
+    # config_state$working), so this is the one place the derivation belongs.
+    # Regime.mode is written explicitly, not just the derived flag: that pins the
+    # migration inference to a single run, so a later hand-edit of Climate.enabled
+    # cannot silently re-classify the project.
+    regime <- config_regime(config)
+    config <- config_set_by_path(config, "Regime.mode",     regime)
+    config <- config_set_by_path(config, "Climate.enabled", !identical(regime, "gwas_only"))
+
     # Prepare YAML handlers for special R values
     prepared <- prepare_config_for_yaml(config)
 

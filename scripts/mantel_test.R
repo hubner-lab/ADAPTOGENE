@@ -175,6 +175,36 @@ if (length(lon_col) == 0) stop("No longitude column found (expected column start
 if (length(lat_col) > 1) { message('WARNING: Multiple latitude columns, using: ', lat_col[1]); lat_col <- lat_col[1] }
 if (length(lon_col) > 1) { message('WARNING: Multiple longitude columns, using: ', lon_col[1]); lon_col <- lon_col[1] }
 
+#=============================================================================
+# SINGLE-SITE GUARD
+#=============================================================================
+# Every Mantel test here correlates a genetic distance matrix against a
+# geographic or environmental one. With one sampling site the geographic matrix
+# is all zeros and every per-sample climate column is constant, so both the
+# geographic and the environmental term are undefined -- the statistics come back
+# NaN and propagate into the variance pie.
+#
+# This has to run BEFORE the zero-variance predictor check further down: with one
+# site that check drops every predictor and stop()s first, reporting a predictor
+# problem for what is really a sampling-design one. Write the declared plot and
+# exit 0 -- population stats are opt-in and must not abort structure mode.
+n_sites <- length(unique(geo_raw$site))
+if (n_sites < 2) {
+  message(sprintf(paste0('WARNING: Mantel test skipped -- %d sampling site(s), need >= 2. ',
+                         'Geographic and environmental distances are both undefined ',
+                         'within a single site.'), n_sites))
+  skip_plot <- ggplot() +
+    annotate('text', x = 0, y = 0, size = 5, colour = 'grey50',
+             label = sprintf('Mantel test unavailable\n(%d sampling site, need >= 2)', n_sites)) +
+    theme_void()
+  ggsave(paste0(PLOT_DIR, 'mantel_test.png'), skip_plot, width = 10, height = 8, dpi = 150, bg = 'white')
+  ggsave(paste0(PLOT_DIR, 'mantel_test.svg'), skip_plot, width = 10, height = 8,
+         device = svglite::svglite, bg = 'white', fix_text_size = FALSE)
+  qsave(list(status = 'skipped_single_site', n_sites = n_sites),
+        paste0(INTER_DIR, 'mantel_test.qs'))
+  quit(status = 0)
+}
+
 geo <- geo_raw %>%
   dplyr::select(longitude = all_of(lon_col), latitude = all_of(lat_col))
 
@@ -189,7 +219,26 @@ message(sprintf('INFO: Geographic data - Longitude: [%.2f, %.2f], Latitude: [%.2
 env_raw <- fread(ENV) %>%
   dplyr::select(all_of(PREDICTORS_SELECTED))
 
-clust <- fread(CLUSTERS) %>%
+# Align the ancestry matrix to the metadata BY SAMPLE ID, not by position.
+# clusters_K{k}.tsv covers every sample that reached sNMF, while SAMPLES here is
+# metadata_climate_valid.tsv — the climate-valid subset — so the two tables differ
+# in length whenever any sample lacks coordinates or climate values (46 vs 47 on
+# the shipped test dataset). The previous positional read subset `clust` with a
+# logical vector one element shorter than its own row count, which R recycles, so
+# every ancestry row after the dropped sample was paired with the wrong site's
+# geography and climate — silently, since nothing compared the lengths.
+clust_raw <- fread(CLUSTERS, colClasses = c("sample" = "character", "site" = "character"))
+clust_idx <- match(geo_raw$sample, clust_raw$sample)
+if (anyNA(clust_idx)) {
+  stop('ERROR: ', sum(is.na(clust_idx)), ' sample(s) in ', basename(SAMPLES),
+       ' have no row in ', basename(CLUSTERS),
+       ' — cannot align the ancestry matrix to the climate/geography tables.')
+}
+if (nrow(clust_raw) != length(clust_idx)) {
+  message(sprintf('INFO: ancestry table has %d samples, %d are climate-valid — subsetting by sample ID',
+                  nrow(clust_raw), length(clust_idx)))
+}
+clust <- clust_raw[clust_idx, ] %>%
   dplyr::select(-sample, -site)
 
 # Remove rows with NA climate values (affects geo, env, clust equally)
@@ -201,6 +250,48 @@ if (any(!complete_rows)) {
   env_raw <- env_raw[complete_rows, ]
   geo <- geo[complete_rows, ]
   clust <- clust[complete_rows, ]
+}
+
+# SITE-LEVEL AGGREGATION. Every one of the three matrices below is per SAMPLE,
+# but IBD/IBE is a question about SITES: geographic coordinates and climate values
+# are identical for every sample sequenced at a site, so a 30-sample site
+# contributes 435 within-site pairs at distance ~0 to both the geographic and the
+# environmental matrix, and Mantel's permutation test counts those as independent
+# units — the p-value is inflated by sampling effort, not by geography. The same
+# imbalance also weights scale()'s centre and sd by sample size, and unlike the
+# other consumers of the climate table this one turns the scaled columns into a
+# EUCLIDEAN DISTANCE, where column scale is meaningful and the weighting is
+# therefore NOT absorbed (cf. the note in download_climate_present.R).
+# So: collapse to one row per site first, then scale. Ancestry is averaged per
+# site (Q rows sum to 1, so the mean is still a valid ancestry composition —
+# the standard population-level unit for a Hellinger distance); coordinates are
+# averaged too, in case a site's samples carry slightly jittered coordinates.
+site_vec <- geo_raw$site[complete_rows]
+stopifnot(length(site_vec) == nrow(env_raw), nrow(geo) == nrow(env_raw),
+          nrow(clust) == nrow(env_raw))
+
+site_levels <- unique(site_vec)
+n_sites     <- length(site_levels)
+agg_mean <- function(df) {
+    as.data.frame(do.call(rbind, lapply(site_levels, function(s)
+        colMeans(as.matrix(df[site_vec == s, , drop = FALSE]), na.rm = TRUE))))
+}
+message(sprintf('INFO: collapsing %d samples to %d sites for the Mantel tests',
+                length(site_vec), n_sites))
+env_raw <- agg_mean(env_raw)
+geo     <- agg_mean(geo)
+clust   <- agg_mean(clust)
+
+if (n_sites < 4) {
+    stop('ERROR: Mantel test needs at least 4 sites (', n_sites, ' present) — ',
+         'a distance matrix over 3 sites has 3 pairs and no permutation test is ',
+         'meaningful. Disable Population.calc_stats or add sites.')
+}
+if (n_sites < 8) {
+    message(sprintf(paste0('WARNING: only %d sites — %d pairwise distances, and the ',
+                           'permutation test cannot resolve p below 1/%d. Read the ',
+                           'variance components as descriptive, not as a test.'),
+                    n_sites, n_sites * (n_sites - 1) / 2, factorial(n_sites)))
 }
 
 env <- scale(env_raw)

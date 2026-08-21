@@ -1,0 +1,6 @@
+seed	cell	k_best	method	param	value	is_default	kinship	config
+1232548	c1	5	EMMAX	n_pcs	0	FALSE	IBS	config_MVP1232548_c1_p11ibs.yaml
+1232548	c2	5	EMMAX	n_pcs	2	FALSE	IBS	config_MVP1232548_c2_p11ibs.yaml
+1232548	c3	5	EMMAX	n_pcs	5	TRUE	IBS	config_MVP1232548_c3_p11ibs.yaml
+1232548	c4	5	EMMAX	n_pcs	10	FALSE	IBS	config_MVP1232548_c4_p11ibs.yaml
+1232548	c5	5	EMMAX	n_pcs	20	FALSE	IBS	config_MVP1232548_c5_p11ibs.yaml

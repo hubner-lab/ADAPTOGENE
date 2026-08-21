@@ -1,0 +1,51 @@
+direction: right
+
+pregea: {
+  label: "PreGEA · лестницы\nLFMM K · EMMAX n_pcs · RDA condition_pcs"
+  style.fill: "#35274A"
+  style.font-color: "#FFFFFF"
+}
+
+emmax: {
+  label: "EMMAX\nn_pcs=0 · lambda 0.97-1.00\nНАБЛЮДАЕМЫЕ генотипы (44.6% пропусков)"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+lfmm: {
+  label: "LFMM\nlambda 3.2-7.7 при ЛЮБОМ K\nтребует импутации"
+  style.fill: "#E8A33D"
+  style.font-color: "#000000"
+}
+rda: {
+  label: "RDA\nполный набор маркеров подогнан\nno per-SNP signal"
+  style.fill: "#F2300F"
+  style.font-color: "#FFFFFF"
+}
+
+pregea -> emmax
+pregea -> lfmm
+pregea -> rda
+
+perm: {
+  label: "НУЛЕВАЯ МОДЕЛЬ\nперестановка меток КЛИМАТА по САЙТАМ\n(11 единиц, не 58)"
+  style.fill: "#35274A"
+  style.font-color: "#FFFFFF"
+  style.stroke-dash: 3
+}
+emmax -> perm
+lfmm -> perm
+rda -> perm
+
+verdict: {
+  label: "эмпирический FDR (ARM B)\nEMMAX 0.17%  ·  LFMM 2.9%\nRDA: перестановка бьёт реальность 100% розыгрышей"
+  style.fill: "#1A2332"
+  style.font-color: "#FFFFFF"
+}
+perm -> verdict
+
+sets: {
+  label: "АДАПТИВНЫЕ НАБОРЫ\nemmax 133 SNP\nemmax n lfmm 115 SNP\nRDA исключён"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+verdict -> sets

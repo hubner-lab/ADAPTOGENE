@@ -1,0 +1,90 @@
+direction: right
+
+data: {
+  label: "MVP1232548\nодна реплика (Lotterhos 2023)"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  vcf: "10 325 SNP x 1000 особей\nmeanFst 0.198 · R2(PC1~temp) 0.573"
+  truth: "truth_any.tsv\n70 каузальных / 5 207 linked /\n5 048 background"
+  muts: "1232548_Rout_muts_full.txt.gz\n67 колонок: MAF, эффекты,\nVa, клины, Fst"
+}
+
+cfg: {
+  label: "Конфиги на 11 методов\nmvp_write_sweep_configs.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  methods: "EMMAX / LFMM / RDA +\n8 моделей GAPIT\n(общий n_pcs на ячейку)"
+  cells: "config_MVP1232548_c{1..5}_p11.yaml\nn_pcs 0,2,5,10,20 · LFMM K 3,4,5,7,9"
+  wza: "GEA.wza.window_size = 1000\n(вместо auto_genome_wide)"
+}
+
+fix: {
+  label: "Дефект пайплайна, найденный замером"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  rm: "GAPIT Random.model = TRUE\n(дефолт, не переопределялся)\nlme4 на каждый значимый SNP,\nничего не читается downstream"
+}
+
+run: {
+  label: "Прогон\nmvp_run_sweep.sh (SWEEP_METHODS / CFG_SUFFIX)"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  gea: "mode=gea x 5 ячеек\n11 методов + WZA"
+  ibs: "лестница EMMAX kinship\nBN vs IBS"
+}
+
+score: {
+  label: "Скоринг"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  red: "mvp_method_redundancy.R\nSpearman рангов + Jaccard\n-> семейства методов"
+  sweep: "sweep_thresholds.R\nсетка top<=100 +\nОКНО согласия 0/1/2.5/5 кб"
+  port: "sweep_portfolio.R\nпомодельные рабочие точки,\nпары и тройки, at_least_k"
+  wzag: "mvp_wza_gate.R\nгейт: окон с каузальным >= 30\n(встроенный MAF > 0.05)"
+  prof: "mvp_profile_detections.R\nдетекция ~ MAF + эффект +\nVa + Fst + контекст LD"
+}
+
+out: {
+  label: "Результат\nmvp_portfolio_report.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  win: "Даёт ли окно согласия больше,\nчем совпадение по SNP"
+  gain: "Покупают ли 7 доп. моделей GAPIT\nхоть что-то сверх представителя"
+  maf: "Какие каузальные локусы\nмы не находим вообще"
+  sugg: "Предложения пайплайну\n(combine_method, pregea_recommend)"
+}
+
+data.vcf -> cfg.methods
+data.vcf -> run.gea
+cfg.methods -> cfg.cells -> run.gea
+cfg.wza -> run.gea
+fix.rm -> run.gea: "снято до прогона"
+run.gea -> score.red
+run.gea -> score.sweep
+run.gea -> score.wzag
+run.gea -> score.prof
+run.ibs -> score.sweep
+data.truth -> score.sweep
+data.truth -> score.wzag
+data.truth -> score.prof
+data.muts -> score.prof
+score.red -> score.port: "представители семейств"
+score.sweep -> score.port: "кандидатные точки"
+score.port -> out.win
+score.red -> out.gain
+score.port -> out.gain
+score.prof -> out.maf
+score.wzag -> out.maf
+score.port -> out.sugg

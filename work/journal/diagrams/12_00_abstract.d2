@@ -1,0 +1,36 @@
+direction: right
+
+sets: {
+  label: "7 наборов SNP\nemmax 133 · emmax_lfmm 115 · rda_top100 100\n+ MAF-сопоставленные и простые случайные контроли"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+
+methods: {
+  label: "3 метода offset\ngradient_forest (spatial/nospatial)\ngeometric_offset · rda_offset"
+  style.fill: "#35274A"
+  style.font-color: "#FFFFFF"
+}
+
+maps: {
+  label: "27 карт offset\n11 сайтов каждая"
+  style.fill: "#1A2332"
+  style.font-color: "#FFFFFF"
+}
+
+sets -> methods -> maps
+
+ref: {
+  label: "ЭТАЛОН\nстандартизованная климатическая дистанция\nнастоящее -> будущее (ssp585, 2061-2080)\nразмах по 11 сайтам: 12.00-12.71 (~6%)"
+  style.fill: "#F2300F"
+  style.font-color: "#FFFFFF"
+  style.stroke-dash: 3
+}
+maps -> ref
+
+verdict: {
+  label: "rda_offset  rho=0.89-0.95 с климатом, adaptive==random (rho 1.000)\ngradient_forest  rho=0.70-0.84\ngeometric_offset + emmax  rho=0.445 <- ЕДИНСТВЕННОЕ отклонение\nrda_top100  rho ОТРИЦАТЕЛЕН"
+  style.fill: "#E8A33D"
+  style.font-color: "#000000"
+}
+ref -> verdict

@@ -1,0 +1,22 @@
+direction: right
+
+permissive: "разрешительный запуск\n**64** обр." {
+  shape: rectangle
+}
+sample_miss: "ужесточение sample_miss\n**48** обр." {
+  shape: rectangle
+}
+ld_research: "исследование LD-прунинга\n(биология T. israeliticum)" {
+  shape: rectangle
+}
+discordance: "проверка дискордантности\nгомозигот" {
+  shape: rectangle
+}
+dedup: "удаление дубликатов\n**41** обр." {
+  shape: rectangle
+}
+
+permissive -> sample_miss
+sample_miss -> ld_research
+ld_research -> discordance
+discordance -> dedup
