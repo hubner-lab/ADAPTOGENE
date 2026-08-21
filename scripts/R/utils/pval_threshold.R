@@ -38,6 +38,14 @@ max_pvalue_top <- function(pvalues, topN) {
 #
 # "too_few_tests" is returned (not a silent BH fallback) so the caller can
 # surface an actionable warning. No automatic fallback is applied.
+#
+# THE RETURNED CUTOFF IS INCLUSIVE. Callers must select with `p <= threshold`.
+# For 'qval' and 'top' the returned value is itself a member of the intended
+# call set (max_pvalue_fdr() returns the largest passing p; max_pvalue_top()
+# returns the N-th smallest p), so a strict `<` drops the boundary observation
+# and every observation tied with it. Under 'top' the inclusive rule can
+# therefore return MORE than N rows when the N-th smallest p has ties — that is
+# correct, not a defect.
 compute_pval_threshold <- function(pvalues, adjustment, value) {
     n_total      <- length(pvalues)
     pvalues      <- pvalues[!is.na(pvalues)]

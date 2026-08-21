@@ -888,9 +888,17 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
             # Disk-cache key is scoped to exactly this cell's resolved rule —
             # editing one cell's threshold recomputes exactly this one
             # (method, trait), not the whole project's sig-SNP set.
+            # `rule_version` invalidates every entry written under an older
+            # selection rule. Bump it whenever the mask SEMANTICS change: none of
+            # the other key components move when only the comparison operator
+            # does, so without it a warm project keeps serving a set computed
+            # under the old rule — from disk and from mem_cache alike, since
+            # mem_key is derived from this same hash.
+            #   v2: exclusive '<' -> inclusive '<=' (boundary SNP + ties dropped)
             cache_key  <- list(module = module, k = k, regime = regime,
                                method = m, trait = tr,
-                               rule_type = rule$type, rule_value = rule$value, fp = fp)
+                               rule_type = rule$type, rule_value = rule$value, fp = fp,
+                               rule_version = 2L)
             cache_hash <- digest::digest(cache_key, algo = "md5")
             mem_key    <- paste0("cellsig_", cache_hash)
 
@@ -928,7 +936,12 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
                         data.table::data.table(SNPID = character(), chr = character(), pos = integer(),
                                                pvalue = numeric(), method = character(), trait = character())
                     } else {
-                        mask <- pvec < thresh_result$threshold & !is.na(pvec)
+                        # Inclusive '<=', same rule as the pipeline's sig_snps.R mask —
+                        # compute_pval_threshold() returns a cutoff that is a member
+                        # of the call set under 'qval'/'top'. A strict '<' made the
+                        # app's interactive set one SNP (plus ties) short of the
+                        # pipeline TSVs.
+                        mask <- pvec <= thresh_result$threshold & !is.na(pvec)
                         if (!any(mask)) {
                             data.table::data.table(SNPID = character(), chr = character(), pos = integer(),
                                                    pvalue = numeric(), method = character(), trait = character())
