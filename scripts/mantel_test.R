@@ -189,7 +189,26 @@ message(sprintf('INFO: Geographic data - Longitude: [%.2f, %.2f], Latitude: [%.2
 env_raw <- fread(ENV) %>%
   dplyr::select(all_of(PREDICTORS_SELECTED))
 
-clust <- fread(CLUSTERS) %>%
+# Align the ancestry matrix to the metadata BY SAMPLE ID, not by position.
+# clusters_K{k}.tsv covers every sample that reached sNMF, while SAMPLES here is
+# metadata_climate_valid.tsv — the climate-valid subset — so the two tables differ
+# in length whenever any sample lacks coordinates or climate values (46 vs 47 on
+# the shipped test dataset). The previous positional read subset `clust` with a
+# logical vector one element shorter than its own row count, which R recycles, so
+# every ancestry row after the dropped sample was paired with the wrong site's
+# geography and climate — silently, since nothing compared the lengths.
+clust_raw <- fread(CLUSTERS, colClasses = c("sample" = "character", "site" = "character"))
+clust_idx <- match(geo_raw$sample, clust_raw$sample)
+if (anyNA(clust_idx)) {
+  stop('ERROR: ', sum(is.na(clust_idx)), ' sample(s) in ', basename(SAMPLES),
+       ' have no row in ', basename(CLUSTERS),
+       ' — cannot align the ancestry matrix to the climate/geography tables.')
+}
+if (nrow(clust_raw) != length(clust_idx)) {
+  message(sprintf('INFO: ancestry table has %d samples, %d are climate-valid — subsetting by sample ID',
+                  nrow(clust_raw), length(clust_idx)))
+}
+clust <- clust_raw[clust_idx, ] %>%
   dplyr::select(-sample, -site)
 
 # Remove rows with NA climate values (affects geo, env, clust equally)
