@@ -49,4 +49,20 @@ MALADAPTATION_METHODS = {
         "builds_model": False,              # one-call: second RDA fit + offset in single script
         "supports_cumulative_importance": False,
     },
+    # Same engine and script as rda_offset, separate registry entry so BOTH the
+    # uncorrected (condition_pcs: 0, canonical per B7) and the Condition()-corrected
+    # fit can be produced in ONE Snakemake invocation. Previously the corrected pass
+    # needed a second full invocation over every garden with its own config file,
+    # which measured 15-25% of the journal-09 sweep.
+    "rda_offset_corrected": {
+        "engine": "rda_offset",
+        "model_script": None,
+        "offset_script": "scripts/rda_offset.R",
+        "cumimp_script": None,
+        "importance_script": None,
+        "supports_spatial": False,
+        "supports_random_model": False,
+        "builds_model": False,
+        "supports_cumulative_importance": False,
+    },
 }

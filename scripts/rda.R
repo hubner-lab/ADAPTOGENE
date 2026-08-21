@@ -598,8 +598,11 @@ if (!identical(cand_res$status, "ok")) {
             "find_sig_snps.R will reach the same conclusion on the same p-values.")
     is_candidate <- rep(FALSE, length(rdadapt_res$p.values))
 } else {
-    # Strict '<' and NA->FALSE, byte-identical to sig_snps.R:58-59.
-    is_candidate <- rdadapt_res$p.values < cand_res$threshold
+    # Inclusive '<=' and NA->FALSE, byte-identical to sig_snps.R's mask. The
+    # cutoff compute_pval_threshold() returns is a member of the call set under
+    # 'qval'/'top' (see that function's header), so `<` would drop the boundary
+    # SNP and its ties here and break the set equality asserted in 16c.
+    is_candidate <- rdadapt_res$p.values <= cand_res$threshold
     is_candidate[is.na(is_candidate)] <- FALSE
 }
 n_candidates_total <- sum(is_candidate)

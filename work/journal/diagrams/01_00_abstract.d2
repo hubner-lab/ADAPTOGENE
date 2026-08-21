@@ -1,0 +1,19 @@
+direction: right
+
+discovery: "обнаружены исходные VCF\n**64** и **86** образцов" {
+  shape: rectangle
+}
+rename64: "хромосомы переименованы\n(64-образцов VCF)\n**7 163 793** SNP" {
+  shape: rectangle
+}
+rename86: "хромосомы переименованы\n(86-образцов VCF)\n**7 163 793** SNP" {
+  shape: rectangle
+}
+hetcheck: "обнаружен het-коллапс\n(0 гетерозигот)" {
+  shape: rectangle
+}
+
+discovery -> rename64
+discovery -> rename86
+rename64 -> hetcheck
+rename86 -> hetcheck

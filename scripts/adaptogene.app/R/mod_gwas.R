@@ -95,8 +95,10 @@ mod_gwas_ui <- function(id) {
 #'
 #' @param id module namespace id
 #' @param project_data reactive project data bundle
+#' @param config_state reactiveValues from app_server.R ($working/$saved/$project),
+#'   or NULL to omit the "Apply rules to config" button.
 #' @noRd
-mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
+mod_gwas_server <- function(id, project_data, run_trigger = NULL, config_state = NULL) {
     shiny::moduleServer(id, function(input, output, session) {
         ns <- session$ns
 
@@ -104,6 +106,24 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
 
         # ── Data loading ───────────────────────────────────────────────────────
         methods <- shiny::reactive(find_assoc_methods(project_data()$name, module))
+
+        # method -> list(adjust=,threshold=,family=) — pins non-univariate
+        # methods to their registry rule in the matrix unless a cell override
+        # exists (see R/fct_threshold_rules.R). GWAS excludes RDA entirely
+        # (gwas_method_registry()), so this is a no-op fallback in practice —
+        # kept for consistency with mod_gea.R and in case that ever changes.
+        registry_defaults <- shiny::reactive({
+            gea_method_significance_defaults(gwas_method_registry())
+        })
+
+        # config_rules: METHOD -> resolve_adjust() string ("bonf_0.05") — the
+        # rule the PIPELINE FILES on disk were actually built with.
+        config_rules <- shiny::reactive({
+            pd <- project_data(); ms <- methods()
+            if (length(ms) == 0) return(list())
+            stats::setNames(
+                lapply(ms, function(m) resolve_adjust(pd$config, m, module) %||% ""), ms)
+        })
 
         all_method_pvalues <- shiny::reactive({
             if (!is.null(run_trigger)) run_trigger()  # invalidate when pipeline completes
@@ -176,12 +196,15 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         # Per-cell significance threshold: "trait::method" -> cutoff p-value (all cells, NA if unavailable)
         combo_thresholds <- shiny::reactive({
             compute_method_thresholds(
-                pvalues_list = effective_method_pvalues(),
-                type         = threshold_type(),
-                value        = threshold_value()
+                pvalues_list      = effective_method_pvalues(),
+                type              = threshold_type(),
+                value             = threshold_value(),
+                overrides         = threshold_overrides(),
+                registry_defaults = registry_defaults()
             )
         }) |> shiny::bindCache(threshold_type(), threshold_value(), regime_wza(),
-                               pvalue_fingerprint())
+                               pvalue_fingerprint(),
+                               threshold_overrides_key(threshold_overrides(), registry_defaults()))
 
         # Strategy: defaults to "All"; persisted to region_params.json so the GEAxGWAS
         # "Fill from GWAS tab" button can read the user's last-chosen value.
@@ -298,6 +321,19 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
         })
         threshold_value <- shiny::debounce(threshold_value_raw, 500)
 
+        # ── Per-cell threshold overrides, matrix selection, rule popup ─────────
+        # Shared with mod_gea.R / mod_gea_x_gwas.R — see
+        # R/fct_combine.R::setup_matrix_rules_server().
+        matrix_rules <- setup_matrix_rules_server(
+            input, output, session, ns, input_prefix = "",
+            project_data = project_data, module = module,
+            methods = methods, all_traits = all_trait_names_rv,
+            threshold_type = threshold_type, threshold_value = threshold_value,
+            registry_defaults = registry_defaults, config_rules = config_rules,
+            config_state = config_state, config_module_key = "GWAS"
+        )
+        threshold_overrides <- matrix_rules$overrides
+
         output$threshold_hint <- shiny::renderUI({
             t <- threshold_type()
             hint <- switch(t,
@@ -327,7 +363,8 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                     threshold_type_value  = input$threshold_type  %||% "bonf",
                     threshold_value_value = input$threshold_value %||%
                         default_threshold(pd$config, module)$value,
-                    regime_context        = "gwas"
+                    regime_context        = "gwas",
+                    show_apply_to_config  = !is.null(config_state)
                 )
             })
         })
@@ -343,7 +380,9 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 regime       = if (regime_wza()) "wza" else "snp",
                 project      = pd$name,
                 module       = module,
-                cutoffs      = combo_thresholds()
+                cutoffs           = combo_thresholds(),
+                overrides         = threshold_overrides(),
+                registry_defaults = registry_defaults()
             )
         })
 
@@ -464,7 +503,15 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL) {
                 combo_counts                = combo_counts(),
                 combo_thresholds            = combo_thresholds(),
                 default_strategy_value      = default_strategy(),
-                snp_clumping_distance_value = snp_clumping_distance()
+                snp_clumping_distance_value = snp_clumping_distance(),
+                # isolate()d — see setup_matrix_rules_server(): the matrix's
+                # on/off selection must survive a re-render triggered by
+                # combo_counts/combo_thresholds changing (master threshold edit).
+                selected_pairs              = shiny::isolate(matrix_rules$selected_pairs()),
+                overrides                   = threshold_overrides(),
+                registry_defaults           = registry_defaults(),
+                master_type                 = threshold_type(),
+                master_value                = threshold_value()
             )
         })
 

@@ -24,11 +24,12 @@ rule check_climate_variance:
     """Detect invariant (zero-variance or all-NA) bioclimatic predictors at sample sites."""
     input:  site = O['climate_site']
     output: O['climate_invariant']
+    params: columns = "bio"
     log:    f"{LOGDIR}climate/check_climate_variance.log"
     shell:
         """
         Rscript /pipeline/scripts/check_climate_variance.R \
-            {input.site} {output} > {log} 2>&1
+            {input.site} {output} {params.columns} > {log} 2>&1
         """
 
 rule density_plot:
@@ -45,36 +46,25 @@ rule density_plot:
             {input.climate} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
         """
 
-if META_HAS_PHENO:
-    rule density_plot_phenotypes:
-        """Generate combined density plot for phenotype traits (metadata columns 5+)."""
-        input:  meta = O['metadata']
-        output: DENSITY_PLOT_PHENOTYPES
-        params:
-            predictors = "all",
-            inter_dir = INTER
-        log:    f"{LOGDIR}climate/density_plot_phenotypes.log"
-        shell:
-            """
-            Rscript /pipeline/scripts/plot_density.R \
-                {input.meta} {params.predictors} {output} {params.inter_dir} > {log} 2>&1
-            """
+# NOTE: the phenotype density plot used to live here (density_plot_phenotypes).
+# It moved to traits.smk in Phase 3 — it describes traits, not climate, and had
+# to survive Climate.enabled: false. Same for the trait columns that were
+# cbind()ed into the correlogram below: this heatmap is climate-only now, and
+# the traits x climate version is traits.smk's trait_correlogram_climate.
 
 rule correlation_heatmap:
-    """Generate correlation heatmap of climate variables and traits.
-    Uses metadata_climate_valid.tsv (climate-valid samples) -- plot_correlation_heatmap.R
-    cbind()s climate values to trait columns positionally, so meta must have the same row
-    count/order as climate (bonus fix: was O['metadata'], the full cohort, which silently
-    misaligned whenever any sample had missing coordinates -- a pre-existing bug independent
-    of the climate-NA warn-and-exclude feature this rule is now consistent with)."""
-    input:  climate = O['climate_site'], meta = W['metadata_climate_valid']
+    """Correlogram of the climate predictors alone (Phase 3: traits dropped —
+    they have their own correlogram, plus a joint traits x climate one, in
+    mode=traits). Second table passed as NULL."""
+    input:  climate = O['climate_site']
     output: O['corr_heatmap']
-    params: inter_dir = INTER
+    params: inter_dir = INTER, second = 'NULL', title = "Correlogram of climate factors"
     log:    f"{LOGDIR}climate/correlation_heatmap.log"
     shell:
         """
         Rscript /pipeline/scripts/plot_correlation_heatmap.R \
-            {input.climate} {input.meta} {output} {params.inter_dir} > {log} 2>&1
+            {input.climate} {params.second} {output} {params.inter_dir} \
+            '{params.title}' > {log} 2>&1
         """
 
 # =============================================================================

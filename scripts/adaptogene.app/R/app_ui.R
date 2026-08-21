@@ -11,20 +11,42 @@ app_ui <- function(request) {
         title = htmltools::strong("ADAPTOGENE", style = "letter-spacing: 0.05em;"),
         theme    = app_theme(),
         id       = "main_tabs",
-        fillable = c("Home"),
+        # Matches the nav_panel VALUE, not its title (bslib resolves `fillable`
+        # against values, which default to the title only when none is given —
+        # every panel below now sets one explicitly).
+        fillable = c("home"),
 
         # Enable shinyjs, load config-dirty.js, and show busy spinners on
         # recalculating outputs (plotlyOutput, tableOutput, etc.) — shiny >= 1.8.1
+        #
+        # `header` renders ONCE, between the navbar and the tab content — not per
+        # panel — which is what makes it the right slot for the module bar. The
+        # default navbar tab links are visually hidden in custom.scss; the bar
+        # replaces them and drives them (see module-bar.js).
         header = htmltools::tagList(
             shinyjs::useShinyjs(),
             shiny::useBusyIndicators(spinners = TRUE),
-            htmltools::tags$script(src = "www/config-dirty.js")
+            htmltools::tags$script(src = "www/config-dirty.js"),
+            htmltools::tags$script(src = "www/module-bar.js"),
+            shiny::uiOutput("module_bar")
         ),
 
-        # ── Navbar right: project selector + dark mode toggle ──────────────────
+        # ── Navbar right: benchmark switch + project selector + dark mode toggle ──
+        # The switch decides WHICH projects the selector offers, never how a module
+        # renders. Off (the default) is ordinary analysis: simulated benchmark
+        # replicates are hidden entirely, so a user doing real work never sees them
+        # or a benchmark control. On: only simulated projects, with a badge so the
+        # mode is never ambiguous. Internal scaffolding is hidden in both.
         nav_item(
             htmltools::div(
                 class = "d-flex align-items-center gap-3",
+                htmltools::span(
+                    id    = "benchmark_badge",
+                    class = "badge bg-warning text-dark",
+                    style = "display: none;",
+                    "BENCHMARK"
+                ),
+                bslib::input_switch("benchmark_mode", "Benchmark", value = FALSE),
                 shiny::selectInput(
                     "project_selector",
                     label    = NULL,
@@ -41,7 +63,7 @@ app_ui <- function(request) {
 
         # ── Tabs ───────────────────────────────────────────────────────────────
 
-        bslib::nav_panel("Home",
+        bslib::nav_panel("Home", value = "home",
             class = "bslib-page-dashboard",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
@@ -60,7 +82,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Processing",
+        bslib::nav_panel("Processing", value = "processing",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_processing", "Processing Config",
@@ -72,7 +94,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("PreStructure",
+        bslib::nav_panel("PreStructure", value = "prestructure",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_prestructure", "PreStructure Config",
@@ -84,7 +106,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Structure",
+        bslib::nav_panel("Structure", value = "structure",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_structure", "Structure Config",
@@ -96,7 +118,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Climate",
+        bslib::nav_panel("Environmental", value = "climate",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_climate", "Climate Config",
@@ -108,7 +130,19 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("PreGEA",
+        bslib::nav_panel("Phenotypic", value = "traits",
+            bslib::layout_sidebar(
+                sidebar = mod_config_sidebar_ui(
+                    "config_traits", "Traits Config",
+                    runner_ui = mod_pipeline_runner_ui("runner_traits",
+                                                       btn_label = "Run Traits")
+                ),
+                fill = FALSE, fillable = FALSE,
+                mod_traits_ui("traits")
+            )
+        ),
+
+        bslib::nav_panel("PreGEA", value = "pregea",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_pregea", "PreGEA Config",
@@ -120,7 +154,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("GEA",
+        bslib::nav_panel("GEA", value = "gea",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_gea", "GEA Config",
@@ -132,7 +166,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("GWAS",
+        bslib::nav_panel("GWAS", value = "gwas",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_gwas", "GWAS Config",
@@ -144,7 +178,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("GEAxGWAS",
+        bslib::nav_panel("GEAxGWAS", value = "gea_x_gwas",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_gea_x_gwas", "GEAxGWAS Config",
@@ -156,7 +190,7 @@ app_ui <- function(request) {
             )
         ),
 
-        bslib::nav_panel("Maladaptation",
+        bslib::nav_panel("Maladaptation", value = "maladaptation",
             bslib::layout_sidebar(
                 sidebar = mod_config_sidebar_ui(
                     "config_maladaptation", "Maladaptation Config",

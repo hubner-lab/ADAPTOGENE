@@ -16,7 +16,8 @@ rule vcf_to_lfmm_full:
         geno = W['geno_full'],
         lfmm = W['lfmm_full'],
         vcfsnp = W['vcfsnp_full'],
-        removed = W['removed_full']
+        removed = W['removed_full'],
+        nmissing = W['lfmm_full_nmissing']
     log: f"{LOGDIR}gea/vcf_to_lfmm_full.log"
     shell: "Rscript /pipeline/scripts/vcf2lfmm.R {input.vcf} > {log} 2>&1"
 
@@ -36,13 +37,13 @@ rule snmf_full:
 
 rule impute_full:
     """Impute missing genotypes in full dataset using SNMF."""
-    input:  snmf = W['snmf_full'], lfmm = W['lfmm_full']
+    input:  snmf = W['snmf_full'], lfmm = W['lfmm_full'], nmissing = W['lfmm_full_nmissing']
     output: W['lfmm_imp_full']
     params: k = K_BEST
     log:    f"{LOGDIR}gea/impute_full.log"
     shell:
         """
-        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} > {log} 2>&1
+        Rscript /pipeline/scripts/impute.R {input.snmf} {input.lfmm} {params.k} {output} {input.nmissing} > {log} 2>&1
         """
 
 rule lfmm2vcf_full:
@@ -217,7 +218,12 @@ if "LFMM" in GEA_OTHER_CONFIGS:
         wildcard_constraints:
             trait = r"bio_\d+"
         params:
-            k = K_BEST,
+            # GEA.configs[LFMM].params.K, NOT sNMF.k_best. The registry declares K with
+            # the @k_best sentinel as its default (gea.py), so an unset K still resolves
+            # to k_best here — but an explicitly configured K now actually reaches
+            # lfmm2(). Before this, the param was parsed, range-validated and recommended
+            # by pregea_recommend.R, yet silently discarded at the rule.
+            k = GEA_PARAMS.get('LFMM', {}).get('K', K_BEST),
             gc = "TRUE" if GEA_PARAMS.get('LFMM', {}).get('genomic_control', True) else "FALSE",
         log: f"{LOGDIR}gea/assoc_lfmm_{{trait}}.log"
         shell:
@@ -322,6 +328,28 @@ if GEA_GAPIT_CONFIGS or GWAS_GAPIT_CONFIGS:
 # --- GAPIT GEA per-trait ---
 if GEA_GAPIT_CONFIGS:
 
+    def _gapit_shared_npcs():
+        """The number of PCA covariates handed to GAPIT, from GEA.configs params.n_pcs.
+
+        gapit_gea_trait runs every configured GAPIT model in ONE gapit.R call and
+        gapit.R takes a single scalar (arg 6 -> pca_raw[, 1:K]), so per-model n_pcs is
+        not expressible without splitting the rule. Rather than silently honouring one
+        model's value and discarding the others, disagreement is a hard error: the user
+        gets told to split the run instead of getting a number that is wrong for all but
+        one model. Unset params resolve to the @k_best sentinel, so the all-defaults case
+        agrees trivially and keeps the previous behaviour.
+        """
+        vals = {m: GEA_PARAMS.get(m, {}).get('n_pcs', K_BEST) for m in GEA_GAPIT_CONFIGS}
+        distinct = set(vals.values())
+        if len(distinct) > 1:
+            raise ValueError(
+                "GAPIT models in GEA.configs request different params.n_pcs "
+                f"({vals}), but all configured GAPIT models share one gapit.R call and "
+                "therefore one PCA covariate count. Give them the same n_pcs, or run "
+                "them in separate pipeline invocations."
+            )
+        return distinct.pop()
+
     rule gapit_gea_trait:
         """Run GAPIT for a single GEA bioclimatic trait, all configured models in one call.
         Output files land under _intermediate/gea_per_trait/{model}/{trait}_pvalues_K{k}.tsv.
@@ -344,7 +372,11 @@ if GEA_GAPIT_CONFIGS:
         wildcard_constraints:
             trait = r"bio_\d+"
         params:
+            # k is the FILENAME tag only (gapit.R writes "{prefix}_pvalues_K{k}.tsv", which
+            # this rule declares as its output), so it must stay sNMF k_best. The PCA
+            # covariate count travels separately as n_pcs.
             k             = K_BEST,
+            n_pcs         = _gapit_shared_npcs(),
             models        = ','.join(GEA_GAPIT_CONFIGS.keys()),
             workdir       = lambda wc: f"{INTER}gapit/gea/{wc.trait}/",
             tables_dir    = f"{INTER}gea_per_trait/",
@@ -357,7 +389,7 @@ if GEA_GAPIT_CONFIGS:
                 {input.kinship} {params.k} {params.models} \
                 {params.workdir} {params.tables_dir} {wildcards.trait} \
                 {input.metadata} {params.native_outdir} {input.coord_samples} \
-                {wildcards.trait} > {log} 2>&1
+                {wildcards.trait} {params.n_pcs} > {log} 2>&1
             """
 
     for _gapit_model in GEA_GAPIT_CONFIGS:

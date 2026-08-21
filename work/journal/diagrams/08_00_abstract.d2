@@ -1,0 +1,66 @@
+direction: right
+
+ident: {
+  label: "Функция приспособленности прочитана из данных"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  ols: "log f ~ (phen-opt)^2 по 14 репликам\nR2 = 1.000000, max|ост.| < 1e-5"
+  grp: "Коэффициенты посидовые:\nequal-S -1/-1 · unequal-S -0.125/-1 ·\n1-trait -2/0"
+}
+
+scen: {
+  label: "Сценарий будущего климата"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  shift: "Сдвиг ОБЕИХ осей\nbio_1: 0.10-0.60 вдоль долготы\nbio_2: розыгрыш +-0.5 по демам"
+  orth: "corr(d1,d2) = 0.017\nR2(dist ~ bio_1) = 0.007 · vs bio_2 = 0.000\n(на 12 репликах SS-Mtn)"
+  targ: "Мишень: dlogf по демам\nнуль клим. дистанции R2 0.06-0.66\nзапас оракула 0.00-0.24"
+}
+
+sets: {
+  label: "9 наборов SNP на реплику"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  cand: "КАНДИДАТЫ\nbest (>=2 из 3, 5 кб) 121-177\nunion 217-260 · solo 176-198"
+  ceil: "ПОТОЛОК\ntruth: каузальные локусы 6-515"
+  floor: "ПОЛ\nrand_* из background_neutral,\n3 розыгрыша, размер совпадает"
+}
+
+run: {
+  label: "Прогон mode=maladaptation\n14 реплик x 9 наборов x 3 метода"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  m: "gradient_forest · geometric_offset ·\nrda_offset, все nospatial"
+}
+
+out: {
+  label: "Оценка eval_offset.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  rho: "rho Спирмена offset ~ падение\nприспособленности"
+  inc: "dR2 сверх нуля климатической\nдистанции"
+  cmp: "Кандидат против своего пола\nи своего потолка"
+}
+
+ident.ols -> scen.targ: "перенос генотипов\nв будущий оптимум"
+ident.grp -> scen.targ
+scen.shift -> scen.orth
+scen.shift -> run.m: "future_table"
+sets.cand -> run.m
+sets.ceil -> run.m
+sets.floor -> run.m
+run.m -> out.rho
+scen.targ -> out.rho
+scen.targ -> out.inc
+out.rho -> out.cmp
+out.inc -> out.cmp

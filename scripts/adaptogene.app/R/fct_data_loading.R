@@ -833,16 +833,21 @@ pairwise_file_fingerprint <- function(project) {
 #' @param regime Character: "snp" or "wza"
 #' @param project Project name (for cache dir)
 #' @param module  Pipeline module (for cache dir)
-#' @param overrides Named list: METHOD -> list(type=, value=) for methods that
-#'   deviate from the master (type, value). A method absent from this map
-#'   follows master. Default list() is byte-identical to the pre-rework
-#'   single-global behaviour (see R/fct_threshold_rules.R).
+#' @param overrides Named list: "trait::method" -> list(type=, value=) for
+#'   cells that deviate from the fallback (registry-or-master). A cell absent
+#'   from this map follows registry_defaults (if the method's family is not
+#'   univariate) or master. Default list() is byte-identical to the
+#'   pre-rework single-global behaviour (see R/fct_threshold_rules.R).
+#' @param registry_defaults Named list: method -> list(adjust=,threshold=,family=),
+#'   from gea_method_significance_defaults(). Pins non-univariate methods
+#'   (RDA) to their registry rule unless a cell override exists.
 #' @return Named list (method → data.table with SNPID/chr/pos/pvalue/method/trait),
 #'   same shape as load_all_method_sigsnps().
 #' @noRd
 compute_method_sigsnps_cached <- function(pvalues_list, type, value,
                                            k, regime, project, module,
-                                           cutoffs = NULL, overrides = list()) {
+                                           cutoffs = NULL, overrides = list(),
+                                           registry_defaults = list()) {
     if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
 
     # Validate that compute_pval_threshold is available (sourced above)
@@ -851,34 +856,18 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
         return(list())
     }
 
-    # Disk-cache key: (module, k, regime, type, value, overrides) + source file
-    # fingerprint. The fingerprint (md5 of mtime+size of source pvalue files)
-    # ensures that when the pipeline regenerates files with a new trait set,
-    # the stale cache entry is bypassed. Old-shape cache files (pre-overrides)
-    # simply hash differently and are never hit again — no migration needed.
-    fp <- pvalues_file_fingerprint(project, module, k, regime)
-    cache_key  <- list(module = module, k = k, regime = regime,
-                       type = type, value = as.numeric(value),
-                       ovr = threshold_overrides_key(overrides), fp = fp)
-    cache_hash <- digest::digest(cache_key, algo = "md5")
-    cache_dir  <- interactive_sigsnps_dir(project, module)
-    cache_file <- file.path(cache_dir, paste0(cache_hash, ".tsv"))
+    # Fingerprint of the source pvalue files (md5 of mtime+size) — ensures a
+    # pipeline re-run (new trait set) bypasses stale cache entries.
+    fp        <- pvalues_file_fingerprint(project, module, k, regime)
+    cache_dir <- interactive_sigsnps_dir(project, module)
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
 
-    if (file.exists(cache_file)) {
-        flat <- tryCatch(
-            data.table::fread(cache_file, sep = "\t", header = TRUE,
-                              colClasses = c(chr    = "character",
-                                             SNPID  = "character",
-                                             method = "character",
-                                             trait  = "character")),
-            error = function(e) NULL
-        )
-        if (!is.null(flat) && nrow(flat) > 0) {
-            return(split(flat, by = "method", keep.by = TRUE))
-        }
-    }
+    # In-memory front for the disk cache — with per-cell (method, trait) disk
+    # files, a naive read-every-time would mean up to n_methods * n_traits
+    # fread() calls on every recompute of this reactive; get_app_cache() keeps
+    # the hot set in memory across renders within the session.
+    mem_cache <- get_app_cache()
 
-    # Compute: iterate methods and traits
     all_rows <- list()
     for (m in names(pvalues_list)) {
         pv_dt <- pvalues_list[[m]]
@@ -889,62 +878,91 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
         trait_cols <- setdiff(names(pv_dt), c(fixed_cols, "n_snps", "mean_maf"))
         if (length(trait_cols) == 0) next
 
-        # Resolved rule for THIS method (master unless overridden) — hoisted
-        # above the trait loop so the NA-cutoff fallback below recomputes with
-        # the method's OWN rule, not the master. With overrides = list() (the
-        # default) this is always (type, value), so behaviour is unchanged
-        # from before per-method rules existed.
-        rule <- effective_rule_for(m, overrides, type, value)
-
         for (tr in trait_cols) {
-            if (!(tr %in% names(pv_dt))) next
-            pvec <- pv_dt[[tr]]
+            # Resolved rule for THIS (method, trait) cell — a cell override
+            # wins, else the method's registry rule (RDA), else master.
+            rule <- effective_rule_for(method = m, trait = tr, overrides = overrides,
+                                       master_type = type, master_value = value,
+                                       registry_defaults = registry_defaults)
 
-            # Use precomputed cutoff from combo_thresholds if available (avoids a
-            # redundant full-vector scan on cold cache; same value, different path).
-            precomp_key <- paste0(tr, "::", m)
-            precomp_thr <- if (!is.null(cutoffs)) cutoffs[[precomp_key]] else NULL
-            thresh_result <- if (!is.null(precomp_thr) && !is.na(precomp_thr) && precomp_thr > 0) {
-                list(status = "ok", threshold = precomp_thr)
-            } else {
-                tryCatch(
-                    compute_pval_threshold(pvec, rule$type, rule$value),
-                    error = function(e) list(status = "error", threshold = NA_real_)
-                )
+            # Disk-cache key is scoped to exactly this cell's resolved rule —
+            # editing one cell's threshold recomputes exactly this one
+            # (method, trait), not the whole project's sig-SNP set.
+            # `rule_version` invalidates every entry written under an older
+            # selection rule. Bump it whenever the mask SEMANTICS change: none of
+            # the other key components move when only the comparison operator
+            # does, so without it a warm project keeps serving a set computed
+            # under the old rule — from disk and from mem_cache alike, since
+            # mem_key is derived from this same hash.
+            #   v2: exclusive '<' -> inclusive '<=' (boundary SNP + ties dropped)
+            cache_key  <- list(module = module, k = k, regime = regime,
+                               method = m, trait = tr,
+                               rule_type = rule$type, rule_value = rule$value, fp = fp,
+                               rule_version = 2L)
+            cache_hash <- digest::digest(cache_key, algo = "md5")
+            mem_key    <- paste0("cellsig_", cache_hash)
+
+            cell_dt <- mem_cache$get(mem_key)
+            if (cachem::is.key_missing(cell_dt)) {
+                cache_file <- file.path(cache_dir, paste0(cache_hash, ".tsv"))
+                cell_dt <- if (file.exists(cache_file)) {
+                    tryCatch(
+                        data.table::fread(cache_file, sep = "\t", header = TRUE,
+                                          colClasses = c(chr = "character", SNPID = "character",
+                                                         method = "character", trait = "character")),
+                        error = function(e) NULL
+                    )
+                } else NULL
+
+                if (is.null(cell_dt)) {
+                    pvec <- pv_dt[[tr]]
+
+                    # Use precomputed cutoff from combo_thresholds if available
+                    # (avoids a redundant full-vector scan on cold cache; same
+                    # value, different path) — only valid when it was computed
+                    # under the SAME resolved rule as this cell's.
+                    precomp_key <- paste0(tr, "::", m)
+                    precomp_thr <- if (!is.null(cutoffs)) cutoffs[[precomp_key]] else NULL
+                    thresh_result <- if (!is.null(precomp_thr) && !is.na(precomp_thr) && precomp_thr > 0) {
+                        list(status = "ok", threshold = precomp_thr)
+                    } else {
+                        tryCatch(
+                            compute_pval_threshold(pvec, rule$type, rule$value),
+                            error = function(e) list(status = "error", threshold = NA_real_)
+                        )
+                    }
+
+                    cell_dt <- if (thresh_result$status != "ok" || is.na(thresh_result$threshold)) {
+                        data.table::data.table(SNPID = character(), chr = character(), pos = integer(),
+                                               pvalue = numeric(), method = character(), trait = character())
+                    } else {
+                        # Inclusive '<=', same rule as the pipeline's sig_snps.R mask —
+                        # compute_pval_threshold() returns a cutoff that is a member
+                        # of the call set under 'qval'/'top'. A strict '<' made the
+                        # app's interactive set one SNP (plus ties) short of the
+                        # pipeline TSVs.
+                        mask <- pvec <= thresh_result$threshold & !is.na(pvec)
+                        if (!any(mask)) {
+                            data.table::data.table(SNPID = character(), chr = character(), pos = integer(),
+                                                   pvalue = numeric(), method = character(), trait = character())
+                        } else {
+                            pv_dt[mask, .(
+                                SNPID  = SNPID, chr = chr, pos = pos,
+                                pvalue = .SD[[tr]], method = m, trait = tr
+                            ), .SDcols = tr]
+                        }
+                    }
+                    data.table::fwrite(cell_dt, cache_file, sep = "\t")
+                }
+                mem_cache$set(mem_key, cell_dt)
             }
-            if (thresh_result$status != "ok" || is.na(thresh_result$threshold)) next
 
-            mask <- pvec < thresh_result$threshold & !is.na(pvec)
-            if (!any(mask)) next
-
-            all_rows[[length(all_rows) + 1L]] <- pv_dt[mask, .(
-                SNPID  = SNPID,
-                chr    = chr,
-                pos    = pos,
-                pvalue = .SD[[tr]],
-                method = m,
-                trait  = tr
-            ), .SDcols = tr]
+            if (nrow(cell_dt) > 0) all_rows[[length(all_rows) + 1L]] <- cell_dt
         }
     }
 
-    if (length(all_rows) == 0) {
-        flat <- data.table::data.table(
-            SNPID  = character(),
-            chr    = character(),
-            pos    = integer(),
-            pvalue = numeric(),
-            method = character(),
-            trait  = character()
-        )
-    } else {
-        flat <- data.table::rbindlist(all_rows)
-    }
-
-    # Save to disk cache
-    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
-    data.table::fwrite(flat, cache_file, sep = "\t")
-
+    if (length(all_rows) == 0) return(list())
+    flat <- data.table::rbindlist(all_rows)
     if (nrow(flat) == 0) return(list())
     split(flat, by = "method", keep.by = TRUE)
 }
@@ -962,13 +980,17 @@ compute_method_sigsnps_cached <- function(pvalues_list, type, value,
 #' @param pvalues_list Named list: method -> data.table with SNPID/chr/pos + trait cols
 #' @param type         Adjustment type: "bonf", "qval", "top"
 #' @param value        Significance level / FDR / top-N (numeric or character)
-#' @param overrides    Named list: METHOD -> list(type=, value=) for methods
-#'   that deviate from master. Default list() = identical output to before
-#'   per-method rules existed — protects mod_gwas.R/mod_gea_x_gwas.R, which
-#'   call this without the new argument.
+#' @param overrides    Named list: "trait::method" -> list(type=, value=) for
+#'   cells that deviate from the fallback. Default list() = identical output
+#'   to before per-cell rules existed — protects any caller that doesn't pass
+#'   the new argument.
+#' @param registry_defaults Named list: method -> list(adjust=,threshold=,family=).
+#'   Pins non-univariate methods (RDA) to their registry rule unless a cell
+#'   override exists. Default list() = no method is pinned.
 #' @return Named numeric vector "trait::method" -> threshold (NA if unavailable)
 #' @noRd
-compute_method_thresholds <- function(pvalues_list, type, value, overrides = list()) {
+compute_method_thresholds <- function(pvalues_list, type, value, overrides = list(),
+                                      registry_defaults = list()) {
     if (length(pvalues_list) == 0 || is.null(pvalues_list)) return(list())
     fixed_cols <- c("SNPID", "chr", "pos", "n_snps", "mean_maf")
     out <- list()
@@ -977,8 +999,10 @@ compute_method_thresholds <- function(pvalues_list, type, value, overrides = lis
         if (is.null(pv_dt) || nrow(pv_dt) == 0) next
         trait_cols <- setdiff(names(pv_dt), fixed_cols)
         if (length(trait_cols) == 0) next
-        rule <- effective_rule_for(m, overrides, type, value)
         for (tr in trait_cols) {
+            rule <- effective_rule_for(method = m, trait = tr, overrides = overrides,
+                                       master_type = type, master_value = value,
+                                       registry_defaults = registry_defaults)
             pvec <- pv_dt[[tr]]
             result <- tryCatch(
                 compute_pval_threshold(pvec, rule$type, rule$value),

@@ -217,6 +217,29 @@ mod_structure_server <- function(id, project_data) {
                                       "structure", "ld_decay_prepare.log")
                 if (!file.exists(log_path)) return(NULL)
                 lines    <- readLines(log_path, warn = FALSE)
+
+                # Single-group dataset: the lone group IS 'All', so there is no
+                # threshold to adjust. Distinct message, distinct badge.
+                single <- grep("^WARNING: Single group", lines, value = TRUE)
+                if (length(single) > 0) {
+                    grp <- gsub("WARNING: Single group '([^']+)'.*", "\\1", single[1])
+                    return(htmltools::div(
+                        class = "d-flex justify-content-end mb-2",
+                        filter_note(
+                            "single group",
+                            htmltools::p(
+                                htmltools::tags$strong("Per-group LD decay skipped"),
+                                " — every sample belongs to the same group (",
+                                htmltools::tags$code(grp),
+                                "), which makes it identical to ",
+                                htmltools::tags$code("All"),
+                                ". The genome-wide curve is the whole dataset."
+                            ),
+                            class = "bg-info text-dark"
+                        )
+                    ))
+                }
+
                 skipped  <- grep("^WARNING: Skipping group", lines, value = TRUE)
                 if (length(skipped) == 0) return(NULL)
                 # Parse "WARNING: Skipping group 'X' (N samples < min_samples=M)"

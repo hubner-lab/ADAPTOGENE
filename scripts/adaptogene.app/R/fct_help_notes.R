@@ -52,6 +52,18 @@ HELP_NOTES <- list(
         desc   = "Distribution of phenotype/trait values across samples.",
         config = NULL
     ),
+    trait_correlogram = list(
+        desc   = "Pairwise correlation among phenotypic traits — which traits carry redundant information before they are taken to GWAS. Constant or all-missing traits are dropped automatically.",
+        config = NULL
+    ),
+    trait_correlogram_climate = list(
+        desc   = "The same correlogram with the climate predictors added, so a trait's environmental association is visible next to its trait-trait correlations. Built only when the project has climate; the two blocks are joined on sample, so climate-excluded samples drop out of both.",
+        config = "Climate.predictors"
+    ),
+    trait_pairs = list(
+        desc   = "Pairwise scatter (lower), density (diagonal) and correlation coefficient (upper) across traits. Above Traits.pairs_max_factors traits the grid is unreadable, so the pipeline writes a placeholder instead — raise the cap only if you intend to read a grid that large.",
+        config = "Traits.pairs_max_factors"
+    ),
     mantel = list(
         desc   = "Isolation by distance vs isolation by environment: Mantel and partial-Mantel correlations of the ancestry (Hellinger) distance against geographic and climate distance, squared into a geography/climate/shared/unexplained budget. Computed at SITE level — samples are collapsed to one row per site first, since coordinates and climate are site properties and per-sample rows would let sampling effort inflate both the distances and the permutation p-value. Descriptive rather than a test when there are few sites (the permutation p cannot go below 1/n_sites!). The variance-partition Venn on the Climate tab answers the same question with dbMEM + partial RDA and adjusted R2 — prefer it where both exist.",
         config = "Population.calc_stats, Population.window_size"

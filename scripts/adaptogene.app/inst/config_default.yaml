@@ -16,6 +16,14 @@ Input:
 project_name: ""                   # Output directory prefix: {project_name}_results/
 
 #-----------------------------------------------------------------------------
+# REGIME: which modules this project has at all (declared at creation)
+#-----------------------------------------------------------------------------
+Regime:
+  mode: standard                   # standard: geography + climate (structure, GEA, maladaptation)
+                                   # gwas_only: no coordinates (structure + GWAS only)
+                                   # Climate.enabled below is DERIVED from this on every save.
+
+#-----------------------------------------------------------------------------
 # FILTER: VCF quality filtering
 #-----------------------------------------------------------------------------
 Filter:
@@ -70,6 +78,13 @@ Climate:
   # dbMEM: always site-level (one point per site, centroid of its samples),
   # no min-sites knob — below 3 sites, dbMEM writes a skip record (warning
   # badge in Shiny) instead of a config-time guard.
+
+#-----------------------------------------------------------------------------
+# TRAITS: phenotypic factor characterization (mode=traits)
+# Runs in both regimes — traits need no coordinates and no climate.
+#-----------------------------------------------------------------------------
+Traits:
+  pairs_max_factors: 8             # Above this many traits the pairs grid is replaced by a placeholder
 
 #-----------------------------------------------------------------------------
 # POPULATION STATS

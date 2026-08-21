@@ -1,0 +1,50 @@
+direction: right
+
+raw: {
+  label: "Trifol_maf005_minDP3.vcf.gz\n86 образцов · 7 163 793 SNP\nгетерозиготы схлопнуты (replaceHetOnMaxAD)"
+  style.fill: "#35274A"
+  style.font-color: "#FFFFFF"
+}
+
+dedup: {
+  label: "greedy-дедупликация IBS>=0.999\n58 выживших · 11/11 сайтов · min 2/сайт"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+
+armA: {
+  label: "ARM A · Core47\n47 обр. · snp_miss 0.4\n972 926 SNP · F_MISS 0.33"
+  style.fill: "#1A2332"
+  style.font-color: "#FFFFFF"
+}
+armB: {
+  label: "ARM B · Core58\n58 обр. · snp_miss 0.5\n1 316 380 SNP · F_MISS 0.48"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+armC: {
+  label: "ARM C · Beagle58\nте же 58 обр., ТЕ ЖЕ 1 316 380 сайтов\nимпутация Beagle · F_MISS 0"
+  style.fill: "#F2300F"
+  style.font-color: "#FFFFFF"
+}
+
+raw -> dedup
+dedup -> armA: "порог F_MISS 0.75"
+dedup -> armB: "все 58"
+armB -> armC: "Beagle 5.5\nсайты не меняются"
+
+contrast: {
+  label: "A vs B = эффект ЧИСЛА ОБРАЗЦОВ\nB vs C = эффект СПОСОБА ИМПУТАЦИИ\n(совпадают образцы И сайты)"
+  style.fill: "#35274A"
+  style.font-color: "#FFFFFF"
+  style.stroke-dash: 3
+}
+armA -> contrast
+armC -> contrast
+
+result: {
+  label: "varpart, уникальная доля климата\nA 10.13%  ·  B 6.96%  ·  C 14.40%\nk_best = 5 (Tracy-Widom), закреплён для всех"
+  style.fill: "#0B775E"
+  style.font-color: "#FFFFFF"
+}
+contrast -> result

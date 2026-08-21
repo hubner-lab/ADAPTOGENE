@@ -1,0 +1,20 @@
+direction: right
+
+permissive: "разрешительный запуск (86)\nsample_miss 0.8\n**57** обр." {
+  shape: rectangle
+}
+tune: "поиск оптимума\nпо покрытию сайтов" {
+  shape: rectangle
+}
+final75: "sample_miss → 0.75\n**51** обр., все 11 сайтов" {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+compare: "сравнение с 41-обр. путём\n**+10** образцов" {
+  shape: rectangle
+}
+
+permissive -> tune
+tune -> final75
+final75 -> compare

@@ -1,0 +1,6 @@
+scheme_id	label	subset	rule	combine_window_kb	assignment	source
+A1	LFMM+EMMAX, union, 0kb	LFMM+EMMAX	union	0	LFMM:custom_0.001;EMMAX:bonf_0.5	anchor scheme S2, univariate-only so it can be scored per axis
+A2	LFMM+EMMAX+MLMM, at_least_2, 5kb	LFMM+EMMAX+MLMM	at_least_2	5	LFMM:top_100;EMMAX:qval_0.1;MLMM:top_50	anchor scheme S3, univariate-only
+A3	LFMM+EMMAX+GLM, at_least_2, 5kb	LFMM+EMMAX+GLM	at_least_2	5	LFMM:top_100;EMMAX:custom_1e-04;GLM:bonf_0.05	S1 with GLM standing in for RDA, which has no per-axis p-value
+P1	LFMM solo, qval 0.05	LFMM	solo	0	LFMM:qval_0.05	direct comparator to Lotterhos 2023's published LFMM TPR/FDR, at THEIR threshold
+P2	all univariate, union, bonf 0.05	ALL	union	0	*:bonf_0.05	naive all-method union, the pipeline's current behaviour

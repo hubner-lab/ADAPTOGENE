@@ -1,0 +1,42 @@
+direction: right
+
+select: "отбор сидов по опубликованным\nстатистикам депозита\n**2250** → **14**" {
+  shape: rectangle
+}
+fetch: "потоковая распаковка 3 тарболлов\n**23.5 ГБ** прочитано → **60 МБ** на диск" {
+  shape: rectangle
+}
+convert: "конвертация в входы ADAPTOGENE\n**14/14**, расхождение AF = **0**" {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+configs: "генерация конфигов\n**14** шт., k_best из колонки K депозита" {
+  shape: rectangle
+}
+pilot: "пилот MVP1232548\nprocessing → prestructure → structure → gea" {
+  shape: rectangle
+}
+score: "скоринг детекции\nAUC-PR **0.396** (контроль) / **0.222** (конфаунд)" {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+compare: "сверка с Lotterhos 2023\nTPR LFMM совпал точно\n**3 из 4** AUC-PR воспроизведены" {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+
+select -> fetch
+fetch -> convert
+convert -> configs
+configs -> pilot
+pilot -> score
+score -> compare
+compare -> rda: "параметры RDA"
+rda: "развёртка параметров RDA\nдефолт лучший из **8** ячеек\nAUC-PR **0.222**" {
+  shape: rectangle
+  style.fill: "#2a1f14"
+  style.stroke: "#d8a24a"
+}

@@ -1,0 +1,81 @@
+direction: right
+
+anchor: {
+  label: "Якорь: MVP1232548 (журнал 06)"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#35274A"
+
+  win: "Победившие схемы при MAF 0.05\nLFMM+RDA+EMMAX @ at_least_2 / 5 кб\nLFMM+EMMAX @ union"
+  bias: "Но выигрыш измерен in-sample:\nподмножество, назначение и окно\nвыбраны на тех же 43 локусах"
+}
+
+seeds: {
+  label: "14 реплик Lotterhos 2023"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  arch: "oliogenic 6-10 · mod-polygenic 28-70 ·\nhighly-polygenic 268-515 каузальных"
+  ctrl: "2 контроля Est-Clines\nR2(PC1~temp) 0.92-0.94"
+  cap: "TOP_MAX по сиду: 100 / 1000 / 2000\n(потолок 100 цензурировал бы\nполигенные реплики)"
+}
+
+arms: {
+  label: "Два плеча MAF, отдельные project_name"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  base: "MVP{seed}\nFilter.maf 0.01"
+  m05: "MVP{seed}M05\nFilter.maf 0.05\n+ таблицы истины под MAF"
+}
+
+run: {
+  label: "Прогон\nmvp_journal07.sh"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  ladder: "5 рунгов x 11 методов\nx 13 реплик x 2 плеча"
+}
+
+score: {
+  label: "Два семейства чисел, которые нельзя смешивать"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#F2300F"
+
+  tr: "ПЕРЕНОС\nсхемы якоря без изменений\n(verbatim / перекалиброванные)"
+  rs: "ПОИСК ЗАНОВО\nполный портфельный поиск\nна каждой реплике"
+}
+
+out: {
+  label: "Результат\nmvp_crossseed_report.R"
+  style.fill: "#1A2332"
+  style.font-color: "#E8E8E8"
+  style.stroke: "#0B775E"
+
+  gen: "Переносится ли выигрыш\nот объединения"
+  sel: "Смещение отбора =\nпоиск - перенос"
+  rec: "Рекомендованные схемы\nпо стратам архитектуры"
+  maf: "Плечо MAF 0.05\nна 14 репликах"
+}
+
+anchor.win -> score.tr: "фиксируются"
+anchor.bias -> score.rs: "воспроизводится честно"
+seeds.arch -> arms.base
+seeds.arch -> arms.m05
+seeds.cap -> score.tr
+seeds.cap -> score.rs
+arms.base -> run.ladder
+arms.m05 -> run.ladder
+run.ladder -> score.tr
+run.ladder -> score.rs
+score.tr -> out.gen
+score.tr -> out.rec
+score.rs -> out.sel
+score.tr -> out.sel
+score.rs -> out.maf
+score.tr -> out.maf
+seeds.ctrl -> out.gen: "фальсификация рамки"

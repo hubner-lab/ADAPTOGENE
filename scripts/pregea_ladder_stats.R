@@ -89,8 +89,12 @@ stats_one_trait <- function(pvec, trait_name) {
                          error = function(e) list(status = "error"))
     qval_res <- tryCatch(compute_pval_threshold(p_for_hits, "qval", FDR),
                          error = function(e) list(status = "error"))
-    hits_bonf <- if (identical(bonf_res$status, "ok")) sum(p_for_hits < bonf_res$threshold, na.rm = TRUE) else NA_integer_
-    hits_qval <- if (identical(qval_res$status, "ok")) sum(p_for_hits < qval_res$threshold, na.rm = TRUE) else NA_integer_
+    # Inclusive '<=' — compute_pval_threshold() returns a cutoff that is itself a
+    # member of the call set under 'qval' (see its header). A strict '<' made
+    # hits_qval one short (plus ties) on every rung, which biased the rung
+    # comparison the preGEA recommender reads.
+    hits_bonf <- if (identical(bonf_res$status, "ok")) sum(p_for_hits <= bonf_res$threshold, na.rm = TRUE) else NA_integer_
+    hits_qval <- if (identical(qval_res$status, "ok")) sum(p_for_hits <= qval_res$threshold, na.rm = TRUE) else NA_integer_
 
     # Histogram shape — computed on RAW p (not GC-corrected): the point is
     # diagnosing the rung's null behavior, which GC-correction would mask.

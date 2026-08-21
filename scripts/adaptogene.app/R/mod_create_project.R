@@ -126,6 +126,37 @@ mod_create_project_ui <- function(id) {
             "TSV with columns: site, sample, latitude, longitude (columns 1\u20134)."
         ),
 
+        # \u2500\u2500 Regime \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        # Sits right after the metadata field: the regime is a statement about
+        # whether that file's coordinates are meaningful. Fixed at creation.
+        htmltools::tags$label("Project regime", class = "form-label fw-semibold"),
+        shiny::radioButtons(
+            ns("regime"),
+            label    = NULL,
+            selected = "standard",
+            choiceNames = list(
+                htmltools::tagList(
+                    htmltools::tags$strong("Standard"),
+                    htmltools::tags$span(
+                        class = "text-muted d-block small",
+                        "Geography and climate. Population structure, GEA, and maladaptation."
+                    )
+                ),
+                htmltools::tagList(
+                    htmltools::tags$strong("GWAS only"),
+                    htmltools::tags$span(
+                        class = "text-muted d-block small",
+                        "No coordinates. Structure and GWAS only \u2014 skips WorldClim, GEA, and maladaptation."
+                    )
+                )
+            ),
+            choiceValues = list("standard", "gwas_only")
+        ),
+        htmltools::tags$small(
+            class = "text-muted d-block mb-3",
+            "Set once, at creation \u2014 it decides which modules this project has."
+        ),
+
         # ── GFF file (optional) ────────────────────────────────────────────────
         htmltools::tags$label(
             "GFF file ",
@@ -321,6 +352,11 @@ mod_create_project_server <- function(id, pipeline_path_rv,
                 if (nzchar(gff_val)) {
                     cfg$Input$gff <- gff_val
                 }
+                # Regime is declared here and nowhere else; Climate.enabled is the
+                # derived value the pipeline reads (see fct_config_writer.R).
+                regime_val <- input$regime %||% "standard"
+                cfg$Regime$mode     <- regime_val
+                cfg$Climate$enabled <- !identical(regime_val, "gwas_only")
                 yaml::write_yaml(cfg, dest)
 
                 # 3. Create result and log directories

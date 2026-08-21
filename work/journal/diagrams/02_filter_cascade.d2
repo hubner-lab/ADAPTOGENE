@@ -1,0 +1,26 @@
+direction: right
+
+raw: "raw VCF (64 обр.)\n**7 163 793** SNP" {
+  shape: rectangle
+}
+permissive: "permissive Phase 1\nmaf 0.05, snp_miss 0.3\nsample_miss 0.8\n**64** обр." {
+  shape: rectangle
+}
+tight_sample: "sample_miss → 0.7\n**48** обр." {
+  shape: rectangle
+  style.fill: "#2a1f14"
+  style.stroke: "#d8a24a"
+}
+dedup: "родство ≥0.999 удалено\n(discordance-подтверждено)\n**41** обр." {
+  shape: rectangle
+  style.fill: "#14251a"
+  style.stroke: "#4dac26"
+}
+final: "финал Phase 1\n**41** обр., **1 283 403** SNP\n(**31 980** после LD-прунинга)" {
+  shape: rectangle
+}
+
+raw -> permissive: "maf+snp_miss фильтр"
+permissive -> tight_sample: "**412 474** SNP"
+tight_sample -> dedup: "**1 632 363** SNP"
+dedup -> final: "**7** обр. удалено (дубликаты)"
