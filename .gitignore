@@ -162,3 +162,6 @@ local/
 # 18 tracked files were its README, converter and eval tables. Kept on disk, out of
 # git: MVP replaced it and nothing in the pipeline reads from here at runtime.
 _archive/
+
+# Stray device output from headless Rscript runs (benchmarks/*.R)
+Rplots.pdf
