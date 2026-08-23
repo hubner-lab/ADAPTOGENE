@@ -165,3 +165,8 @@ _archive/
 
 # Stray device output from headless Rscript runs (benchmarks/*.R)
 Rplots.pdf
+
+# Curated publication-figure exports (2026-08-23). Copies of plots that already
+# exist under {PROJECT}_results/ or were recomputed in scratch; 80 MB and
+# regenerable, so kept on disk and out of git.
+selected_figures_*/

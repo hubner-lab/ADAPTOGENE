@@ -164,7 +164,15 @@ maf_filt <- fread(MAF_FILT_FILE)  # kept for attrition computation below
 n_below_maf <- nrow(maf_raw[MAF < MAF_THRESH])
 
 p_maf <- ggplot(maf_raw, aes(x = MAF)) +
-    geom_histogram(binwidth = 0.01, fill = ADAPT_RETAINED, color = NA) +
+    geom_histogram(
+        aes(fill = MAF < MAF_THRESH),
+        binwidth = 0.01, color = NA
+    ) +
+    scale_fill_manual(
+        values = c("FALSE" = ADAPT_RETAINED, "TRUE" = ADAPT_REMOVED),
+        labels = c("FALSE" = "Retained", "TRUE" = "Removed"),
+        name = NULL
+    ) +
     geom_vline(xintercept = MAF_THRESH, linetype = "dashed", color = ADAPT_THRESHOLD) +
     labs(
         title = "Minor allele frequency distribution (pre-filter)",
