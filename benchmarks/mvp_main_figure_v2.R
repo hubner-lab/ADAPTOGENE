@@ -3,13 +3,14 @@
 # mvp_main_figure_v2.R -- the two-panel main-text figure for the simulation arm.
 #
 #   A  what each GEA selection rule actually returns (causal / linked / noise)
-#   B  how often each rule's panel predicts WORSE than the true causal loci,
-#      per genetic architecture x genomic-offset method
+#   B  how often each rule's panel matches the true causal loci, per genetic
+#      architecture x genomic-offset method
 #
 # The claim: the pipeline's >=2-of-3 marker panel predicts common-garden fitness
 # AS WELL AS the true causal loci, across every architecture and every working
-# offset method. B is stated as a shortfall RATE, not an advantage, so "better
-# than the truth" is not representable on the axis.
+# offset method. B counts the replicates where the panel did AT LEAST AS WELL as
+# the causal loci -- equalling and exceeding them are one category on purpose, so
+# the figure states "matches the truth" and never "beats" it.
 #
 # Reads only tables written by benchmarks/mvp_oracle_stats.R plus the panel
 # composition table already on disk. Fits nothing, runs no pipeline mode.
@@ -41,7 +42,9 @@ shades <- function(base, n) {
 # green = a marker that carries real signal, red = a marker that carries none
 CLASS_COL <- c(causal = shades(MINOU[["sage"]], 3)[3], linked = MINOU[["sage"]],
                neutral = MINOU[["red"]])
-HEAT <- c("#14614a", MINOU[["sage"]], "grey92", MINOU[["red"]], "#8f2438")
+# Green = good, and "good" is now a HIGH number, so the ramp runs red -> grey ->
+# green rather than the other way round.
+HEAT <- c("#8f2438", MINOU[["red"]], "grey92", MINOU[["sage"]], "#14614a")
 
 ARCH_LEVELS <- c("oliogenic", "mod-polygenic", "highly-polygenic")   # corpus typo
 ARCH_LABELS <- c("oligogenic", "moderately polygenic", "highly polygenic")
@@ -49,7 +52,10 @@ ARCH_LABELS <- c("oligogenic", "moderately polygenic", "highly polygenic")
 # the red end of the colour scale; `all loci` is the no-curation default, informative but
 # also pinned at 90-100% and equally compressing.
 DROP_ROWS   <- c("random, size-matched", "neutral", "all loci")
-LEG <- "replicates worse than the causal loci (%)"
+# Legend title. Short on purpose -- it is rotated alongside a ~4 in colourbar, so
+# anything longer wraps or shrinks. ASCII only: the image ships no font beyond the
+# default sans, and a ">=" glyph would silently render as a box.
+LEG <- "% as good as causal loci"
 
 rd <- function(...) { f <- file.path(...); if (!file.exists(f)) stop("MISSING: ", f); fread(f) }
 
@@ -63,6 +69,8 @@ rd <- function(...) { f <- file.path(...); if (!file.exists(f)) stop("MISSING: "
 # nine architecture x method cells (2/3 37% < RDA 44% < 3/3 47% < EMMAX 50% <
 # 1/3 80% < LFMM 86%); if the corpus changes, re-derive it once and re-pin it here.
 ROW_ORDER <- c("LFMM", "1/3 methods", "EMMAX", "3/3 methods", "RDA", "2/3 methods")
+# The order below is stated worst-first for the same reason; it is unchanged by
+# the switch from `below_pct` to `match_pct`, which is its exact complement.
 
 # Panel A keeps its own, ORIGINAL order: by how many signal-carrying (causal +
 # linked) markers the rule returns, fewest at the bottom. A is a statement about
@@ -118,30 +126,43 @@ pA <- ggplot(a_long, aes(label, markers, fill = class)) +
     facet_wrap(~ arch_lab, nrow = 1, labeller = labeller(arch_lab = arch_facet)) +
     scale_fill_manual(values = CLASS_COL, name = NULL) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
-    labs(tag = "A", x = NULL, y = "markers selected (median per replicate)") +
+    labs(tag = "A", x = "GEA marker panel",
+         y = "markers selected (median per replicate)") +
     theme_adaptogene() +
     theme(plot.tag = element_text(face = "bold", size = 13),
           strip.text = element_text(size = 8.5),
           axis.text.y = element_text(size = 9),
+          axis.title.y = element_text(size = 8.5),
           legend.position = "right", legend.justification = "top") +
     guides(fill = guide_legend(ncol = 1))
 
 # =============================================================================
-# B -- how often a rule's panel predicts worse than the true causal loci
+# B -- how often a rule's panel MATCHES the true causal loci
 # =============================================================================
+# match_pct = 100 - below_pct = share of replicates in which the panel scored at
+# least as well as the causal-loci panel. Equalling and exceeding the oracle are
+# deliberately one category: the claim is equivalence, and splitting them would
+# put "beats the truth" back on the figure.
+#
+# 50% is the reference, not an arbitrary midpoint -- two equally good predictors
+# each win about half the replicates, so 50% IS the equivalence target. Note the
+# tie band is wide: at n = 30 per cell, an exact binomial puts 33-67% inside a
+# 50/50 tie, so a cell in the pale middle is a MATCH, which is the result.
 BM[, `:=`(arch_lab = factor(arch_lab, levels = ARCH_LABELS),
           method_label = factor(method_label,
                                 levels = c("GFoffset", "LFMM2offset", "RDA-uncorrected"),
-                                labels = c("GF", "LFMM2", "RDA")),
+                                labels = c("gradientForest\noffset", "LFMM2\noffset",
+                                           "RDA\noffset")),
           label = factor(as.character(label), levels = ROW_ORDER))]
+BM[, match_pct := 100 - below_pct]
 fwrite(BM[order(label, arch_lab, method_label)],
-       file.path(OUT, "panelB_below_oracle.tsv"), sep = "\t")
-print(dcast(BM, label ~ arch_lab + method_label, value.var = "below_pct"))
+       file.path(OUT, "panelB_match_oracle.tsv"), sep = "\t")
+print(dcast(BM, label ~ arch_lab + method_label, value.var = "match_pct"))
 
-pB <- ggplot(BM, aes(method_label, label, fill = below_pct)) +
+pB <- ggplot(BM, aes(method_label, label, fill = match_pct)) +
     geom_tile(colour = "white", linewidth = 0.9) +
-    geom_text(aes(label = sprintf("%.0f", below_pct),
-                  colour = below_pct < 25 | below_pct > 75),
+    geom_text(aes(label = sprintf("%.0f", match_pct),
+                  colour = match_pct < 25 | match_pct > 75),
               size = 3.0, fontface = "bold", show.legend = FALSE) +
     facet_grid(. ~ arch_lab, scales = "free_x", space = "free_x", switch = "x") +
     scale_fill_gradientn(colours = HEAT, values = c(0, 0.25, 0.5, 0.75, 1),
@@ -149,10 +170,12 @@ pB <- ggplot(BM, aes(method_label, label, fill = below_pct)) +
                          name = LEG) +
     scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = ADAPT_COL$fg)) +
     scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
-    labs(tag = "B", x = NULL, y = NULL) +
+    labs(tag = "B", x = NULL, y = "GEA marker panel") +
     theme_adaptogene() +
     theme(plot.tag = element_text(face = "bold", size = 13),
-          axis.text.x = element_text(size = 8), axis.text.y = element_text(size = 9),
+          axis.text.x = element_text(size = 8, lineheight = 0.95),
+          axis.text.y = element_text(size = 9),
+          axis.title.y = element_text(size = 8.5),
           panel.border = element_blank(), axis.line = element_blank(),
           axis.ticks = element_blank(), strip.text = element_text(size = 8.5),
           strip.placement = "outside", panel.spacing.x = unit(6, "pt"),
@@ -164,7 +187,7 @@ pB <- ggplot(BM, aes(method_label, label, fill = below_pct)) +
                                                              hjust = 0.5)))
 
 adapt_save_both(file.path(OUT, "panelA_composition"), pA, w = 10.4, h = 3.9)
-adapt_save_both(file.path(OUT, "panelB_below_oracle"), pB, w = 10.4, h = 4.1)
+adapt_save_both(file.path(OUT, "panelB_match_oracle"), pB, w = 10.4, h = 4.1)
 
 MAIN <- cowplot::plot_grid(pA, pB, ncol = 1, rel_heights = c(1, 1.05), align = "v",
                            axis = "lr")
