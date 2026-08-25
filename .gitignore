@@ -170,3 +170,6 @@ Rplots.pdf
 # exist under {PROJECT}_results/ or were recomputed in scratch; 80 MB and
 # regenerable, so kept on disk and out of git.
 selected_figures_*/
+
+# editor-style numbered backups of analysis scripts
+*.R.v[0-9]*
