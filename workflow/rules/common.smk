@@ -382,6 +382,28 @@ NTREE = _gf.get('ntree', '500')
 COR_THRESHOLD = _gf.get('cor_threshold', '0.5')
 SPATIAL_CORRECTION = _gf.get('spatial_correction', 'with')
 GF_RANDOM_MODEL = _gf.get('random_model', True)
+# Imputation-sensitivity check: refit the SAME adaptive SNP set as site-level allele
+# frequencies computed from OBSERVED calls only (the non-imputed matrix), then compare it
+# with the imputed individual-level fit. Answers "did the imputation decide the answer?",
+# which is the reviewer question any high-missingness panel invites. Site frequencies are
+# also the canonical GF response unit (Fitzpatrick & Keller 2015, Ecol Lett 18:1-16 —
+# "we converted the SNP data into minor allele relative frequencies"), so this is not an
+# exotic re-parameterisation, it is the textbook one run as a control.
+GF_SENSITIVITY_CHECK = _gf.get('sensitivity_check', True)
+if not isinstance(GF_SENSITIVITY_CHECK, bool):
+    raise ValueError(
+        f"Maladaptation.methods.gradient_forest.sensitivity_check must be true or false; "
+        f"got {GF_SENSITIVITY_CHECK!r}"
+    )
+# Minimum observed (non-missing) calls a site must have at a SNP for that site's allele
+# frequency to be used; a SNP is dropped when ANY site falls below it.
+# Default 1 = "the site has at least one real call here". Deliberately permissive: the bar
+# applies to every site simultaneously, so it bites far harder than it reads. Measured on
+# Trifolium86FinalPC3v2 (58 samples / 11 sites / 43.7% missing), raising it from 1 to 2
+# takes the usable marker set from 130 of 185 to 3 of 185, because the two-sample sites
+# average 1.28 calls per SNP. Raise it only on panels with many samples per site; the
+# resulting frequencies are reported as a near-fixed fraction in the diagnostics either way.
+GF_FREQ_MIN_CALLS = _gf.get('freq_min_calls', 1)
 # Legacy keys — ignored now (SNP sets are named by the user in the Shiny GEA tab)
 _GF_LEGACY = {k: _gf.get(k) for k in ('run_label', 'combine_method', 'combine_gap') if k in _gf}
 if _GF_LEGACY:
@@ -1348,8 +1370,20 @@ def mala_inter_dir(method, run_label, spatial_tag):
     return f"{INTER}{method}/{_mala_suffix(run_label, spatial_tag)}/"
 
 def mala_model(method, run_label, spatial_tag, kind):
-    """kind: 'adaptive' or 'random'"""
+    """kind: 'adaptive', 'random', or 'frequency'
+
+    'frequency' is the imputation-sensitivity control: the SAME adaptive SNP set refit on
+    site-level allele frequencies built from observed calls only. See GF_SENSITIVITY_CHECK.
+    """
     return f"{mala_inter_dir(method, run_label, spatial_tag)}{kind}_model.qs"
+
+def mala_sensitivity(method, run_label, spatial_tag):
+    """Long key/value diagnostics TSV for the imputation-sensitivity check.
+
+    Same shape as geometric_offset_diagnostics.tsv (two columns: quantity, value) so the
+    Shiny loader convention in fct_data_loading.R applies unchanged.
+    """
+    return f"{mala_table_dir(method, run_label, spatial_tag)}imputation_sensitivity.tsv"
 
 def snp_set_dir(set_name):
     """Directory for a curated SNP set (produced by Shiny, ancestor-less source)."""
@@ -2143,6 +2177,13 @@ def get_targets(mode):
                     # Random/neutral model (GF + config flag)
                     if _mflags['supports_random_model'] and GF_RANDOM_MODEL:
                         targets.append(mala_model(method, set_name, spatial_tag, 'random'))
+                    # Imputation-sensitivity check (GF only — the other engines cannot take
+                    # a frequency response: LEA::genetic.gap requires individual genotypes
+                    # with mandatory imputation, Gain et al. 2023 MBE 40(6):msad140).
+                    # Runs automatically; the badge it feeds is the whole point, so it is
+                    # NOT gated on MALA_EMIT_PLOTS (it is a table, not a plot).
+                    if _mflags['builds_model'] and GF_SENSITIVITY_CHECK:
+                        targets.append(mala_sensitivity(method, set_name, spatial_tag))
                     # Offset products — one set per scenario
                     for scenario in SCENARIO_NAMES:
                         targets += [
