@@ -126,6 +126,44 @@ HELP_NOTES <- list(
         desc   = "Gradient Forest cumulative importance / turnover along each predictor.",
         config = "Maladaptation.methods.gradient_forest.ntree, .cor_threshold"
     ),
+    gf_imputation_sensitivity = list(
+        desc   = paste0("Whether the imputation decided the answer. Gradient Forest cannot ",
+                        "read missing genotypes, so it is always fitted on an imputed matrix. ",
+                        "This check refits the SAME SNP set a second way — as site allele ",
+                        "frequencies computed from OBSERVED calls only, inventing nothing — ",
+                        "and compares the two. Agreement means the offset is a property of ",
+                        "the data; disagreement means it is a property of the imputer. Site ",
+                        "frequencies are also the canonical Gradient Forest response unit ",
+                        "(Fitzpatrick & Keller 2015), so this is the textbook parameterisation ",
+                        "run as a control on the individual-level one."),
+        states = list(
+            pass = list(
+                label = "Pass", class = "bg-success",
+                desc  = paste0("Site ranking agrees (Spearman ≥ 0.80) and at least 2 of the ",
+                               "top 3 climate drivers are shared. The imputed result is ",
+                               "reproduced without imputing anything — safe to report.")),
+            warning = list(
+                label = "Warning", class = "bg-warning text-dark",
+                desc  = paste0("Partial agreement (Spearman 0.60–0.80, or only 1 shared top ",
+                               "driver). The broad pattern survives but individual site ranks ",
+                               "move. Quote the ranking with a caveat, and do not lean on the ",
+                               "exact order of adjacent sites.")),
+            fail = list(
+                label = "Fail", class = "bg-danger",
+                desc  = paste0("The two fits disagree (Spearman < 0.60, below the p<0.05 ",
+                               "critical value at typical site counts, or no shared top ",
+                               "driver). The offset map is substantially an artefact of the ",
+                               "imputation and should not be reported as a marker result.")),
+            not_run = list(
+                label = "Not run", class = "bg-secondary",
+                desc  = paste0("The check could not be evaluated — too few sites (<8), too ",
+                               "few SNPs surviving observed-only aggregation (<30), or the ",
+                               "check is disabled. Absence of a warning here is NOT evidence ",
+                               "that the imputation is harmless."))
+        ),
+        config = paste0("Maladaptation.methods.gradient_forest.sensitivity_check, ",
+                        ".freq_min_calls")
+    ),
     offset_piemap = list(
         desc   = "Predicted genetic offset under future climate.",
         config = "Future.ssp, .year, .models, Maladaptation.methods.gradient_forest.spatial_correction"
@@ -300,7 +338,8 @@ HELP_NOTES <- list(
 #'   itself, not just in the tooltip. Pass a value the caller already has —
 #'   don't recompute it here.
 #' @noRd
-help_note <- function(id, results = NULL, extra = NULL, label = "") {
+help_note <- function(id, results = NULL, extra = NULL, label = "",
+                      class = "bg-secondary", states = FALSE) {
     entry <- HELP_NOTES[[id]]
     if (is.null(entry)) return(NULL)
 
@@ -308,11 +347,25 @@ help_note <- function(id, results = NULL, extra = NULL, label = "") {
         htmltools::p(htmltools::strong("What it shows: "), entry$desc),
         if (!is.null(results))
             htmltools::p(htmltools::strong("Results: "), results),
+        # `states` renders an entry's per-status legend (green/amber/red), so a status badge
+        # explains its own colour scale in the same tooltip that reports the result.
+        if (isTRUE(states) && !is.null(entry$states))
+            htmltools::div(
+                class = "small mt-1",
+                lapply(names(entry$states), function(s) {
+                    st <- entry$states[[s]]
+                    htmltools::p(
+                        class = "mb-1",
+                        htmltools::tags$span(class = paste("badge me-1", st$class), st$label),
+                        st$desc
+                    )
+                })
+            ),
         if (!is.null(entry$config))
             htmltools::p(class = "text-muted small",
                 htmltools::strong("Config: "), htmltools::code(entry$config)),
         if (!is.null(extra)) htmltools::p(extra)
     )
 
-    filter_note(label = label, body = body, class = "bg-secondary")
+    filter_note(label = label, body = body, class = class)
 }

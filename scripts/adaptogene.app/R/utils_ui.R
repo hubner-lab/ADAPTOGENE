@@ -249,6 +249,62 @@ relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
     filter_note(badge_label, body, class = badge_class)
 }
 
+#' Gradient-Forest imputation-sensitivity badge.
+#'
+#' Traffic-light status for "did the imputation decide the answer". Reads the diagnostics
+#' written by scripts/gf_sensitivity_check.R and renders a hover badge whose tooltip carries
+#' both the measured result and the legend for all four states, so the colour explains itself.
+#'
+#' Unlike mod_climate.R's dbmem_skip_warning, a clean result is NOT hidden: the whole value of
+#' this check on a high-missingness panel is being able to point at a green badge, so `pass`
+#' renders too. Only a genuinely absent check returns NULL.
+#'
+#' @param diag named list from load_gf_sensitivity(), or list() when the check has not run
+#' @noRd
+gf_sensitivity_note <- function(diag) {
+    if (length(diag) == 0) return(NULL)
+    status <- diag[["status"]] %||% "not_run"
+
+    spec <- switch(status,
+        pass    = list(label = "Imputation check: pass",    class = "bg-success"),
+        warning = list(label = "Imputation check: warning", class = "bg-warning text-dark"),
+        fail    = list(label = "Imputation check: FAIL",    class = "bg-danger"),
+                  list(label = "Imputation check: not run", class = "bg-secondary"))
+
+    num <- function(k) {
+        v <- suppressWarnings(as.numeric(diag[[k]]))
+        if (length(v) == 0 || is.na(v)) NULL else v
+    }
+    rho   <- num("offset_spearman")
+    # Kept as the raw string: the check writes "<1e-10" when the exact p underflows.
+    pval  <- diag[["offset_spearman_p"]]
+    nsite <- diag[["n_sites"]]
+    nfreq <- diag[["n_snps_frequency"]]
+    nimp  <- diag[["n_snps_imputed"]]
+
+    results <- if (!is.null(rho)) {
+        paste0(
+            "Site-offset rank agreement between the imputed fit and the observed-only ",
+            "site-frequency fit: Spearman ", sprintf("%.3f", rho),
+            if (!is.null(pval) && nzchar(pval)) paste0(" (p = ", pval, ")") else "",
+            " across ", nsite %||% "?", " sites. Top predictors — imputed: ",
+            diag[["top_predictors_imputed"]] %||% "?", "; frequency: ",
+            diag[["top_predictors_frequency"]] %||% "?", " (",
+            diag[["top_predictors_shared"]] %||% "0", " of ",
+            diag[["top_predictors_k"]] %||% "3", " shared). Markers: ",
+            nimp %||% "?", " imputed vs ", nfreq %||% "?", " observed-only."
+        )
+    } else {
+        diag[["reason"]] %||% "The check did not produce a comparison."
+    }
+
+    help_note("gf_imputation_sensitivity",
+              results = results,
+              label   = spec$label,
+              class   = spec$class,
+              states  = TRUE)
+}
+
 #' A card header with title + download popover
 #' @noRd
 card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = NULL) {

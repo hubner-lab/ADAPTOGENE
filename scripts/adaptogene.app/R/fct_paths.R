@@ -517,6 +517,15 @@ geometric_offset_diagnostics_path <- function(project, suffix) {
              "geometric_offset_diagnostics.tsv")
 }
 
+#' Gradient-Forest imputation-sensitivity diagnostics table (long key/value)
+#'
+#' Written by scripts/gf_sensitivity_check.R. Same two-column (quantity, value) shape as
+#' geometric_offset_diagnostics.tsv.
+#' @noRd
+gf_sensitivity_path <- function(project, suffix, method = "gradient_forest") {
+    mod_path(project, MOD_MALAD, "tables", method, suffix, "imputation_sensitivity.tsv")
+}
+
 #' Scenario names available for one method/SNP-set, newest layout only
 #'
 #' Offset products gained a {scenario} level when the pipeline learned to project

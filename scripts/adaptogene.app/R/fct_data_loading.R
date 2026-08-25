@@ -322,6 +322,20 @@ load_geometric_offset_diagnostics <- function(project, suffix) {
     }, error = function(e) list())
 }
 
+#' Load the Gradient-Forest imputation-sensitivity diagnostics.
+#'
+#' Returns list() when the check has not been run for this suffix (older projects, or
+#' Maladaptation.methods.gradient_forest.sensitivity_check: false).
+#' @noRd
+load_gf_sensitivity <- function(project, suffix, method = "gradient_forest") {
+    p <- gf_sensitivity_path(project, suffix, method)
+    if (!file_ok(p)) return(list())
+    tryCatch({
+        dt <- data.table::fread(p, sep = "\t", header = TRUE, colClasses = "character")
+        stats::setNames(as.list(dt$value), dt$quantity)
+    }, error = function(e) list())
+}
+
 #' Load RDA candidates side table (Mahalanobis/p/q/loadings/assigned predictor).
 #' @noRd
 load_rda_candidates <- function(project, module = MOD_GEA) {

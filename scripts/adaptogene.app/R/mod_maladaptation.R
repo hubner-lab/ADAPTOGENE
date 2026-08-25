@@ -15,6 +15,7 @@ mod_maladaptation_ui <- function(id) {
             shiny::uiOutput(ns("snp_count_badge")),
             shiny::uiOutput(ns("method_params_badge")),
             shiny::uiOutput(ns("climate_scenario_badge")),
+            shiny::uiOutput(ns("sensitivity_badge")),
             shiny::uiOutput(ns("set_details_btn")),
             shiny::uiOutput(ns("set_delete_btn"))
         ),
@@ -297,6 +298,21 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
                 style = "font-size:0.85rem; vertical-align:middle;",
                 label
             )
+        })
+
+        # ── Imputation-sensitivity badge (Gradient Forest only) ──────────────
+        # Gradient Forest is always fitted on an imputed matrix (gradientForest() has no
+        # na.action). On a panel with heavy missingness that invites the obvious reviewer
+        # question, so mode=maladaptation refits the same SNP set on observed-only site
+        # allele frequencies and this badge reports whether the two agree. The other
+        # engines get no badge: LEA::genetic.gap requires individual genotypes with
+        # mandatory imputation and cannot be refit this way.
+        output$sensitivity_badge <- shiny::renderUI({
+            suf    <- selected_suffix()
+            method <- selected_method()
+            pd     <- project_data()
+            if (is.null(suf) || is.null(pd) || !identical(method, "gradient_forest")) return(NULL)
+            gf_sensitivity_note(load_gf_sensitivity(pd$name, suf, method))
         })
 
         # ── G2: Method run parameters badge (method-aware) ───────────────────
