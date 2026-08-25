@@ -605,7 +605,7 @@ Validate exon/promoter SNP counting in `find_genes_around_regions.R` (uses Genom
 
 ## Active Obsidian Project
 - Project: ADAPTOGENE
-- File: ~/Orthidian/projects/ADAPTOGENE.md
+- File: ~/Orthidian/projects/ADAPTOGENE/ADAPTOGENE.md
 
 ## Permission Guidelines
 
