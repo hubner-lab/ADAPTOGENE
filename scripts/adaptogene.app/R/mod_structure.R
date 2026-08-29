@@ -1,85 +1,4 @@
-#' Structure tab UI
-#'
-#' Piemaps (bio variable + metric + zoom), climate plots, population stats,
-#' LD decay, and summary tables.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_structure_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Piemap controls inline above piemap
-        htmltools::div(
-            class = "control-bar",
-            bslib::layout_columns(
-                col_widths = c(3, 3, 3, 3),
-                shiny::uiOutput(ns("bio_selector")),
-                shiny::uiOutput(ns("metric_selector")),
-                shiny::uiOutput(ns("zoom_selector")),
-                htmltools::div(
-                    class = "d-flex align-items-center h-100",
-                    bslib::input_switch(ns("points"), "Points", value = FALSE)
-                )
-            )
-        ),
 
-        # Piemap + PCA-structure companion (constrains piemap to 2/3 width)
-        bslib::layout_columns(
-            col_widths = c(8, 4),
-            mod_piemap_viewer_ui(ns("piemap")),
-            mod_image_card_ui(ns("pca_structure_k"))
-        ),
-
-        # Climate correlation/density plots moved to the Climate tab (display
-        # only — producers stay in structure.smk, zero DAG/path change).
-        htmltools::div(
-            class = "d-flex align-items-center gap-2 text-muted small mb-2",
-            bsicons::bs_icon("thermometer-half"),
-            "Climate correlation, density, and the invariant-predictor warning moved to the ",
-            htmltools::tags$strong("Climate"), " tab (Predictors panel)."
-        ),
-
-        # LD decay, pop stats, tables in accordion
-        bslib::accordion(
-            id       = ns("sk_sections"),
-            open     = c("ld_decay"),
-            multiple = TRUE,
-
-            bslib::accordion_panel(
-                "LD Decay",
-                value = "ld_decay",
-                icon  = bsicons::bs_icon("bar-chart-line"),
-                shiny::uiOutput(ns("ld_decay_skipped_alert")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("ld_decay")),
-                    mod_image_card_ui(ns("ld_decay_chr"))
-                ),
-                htmltools::h6("LD Decay Summary", class = "mt-3"),
-                DT::DTOutput(ns("ld_decay_table"))
-            ),
-
-            bslib::accordion_panel(
-                "Population Statistics",
-                value = "pop_stats",
-                icon  = bsicons::bs_icon("graph-up"),
-                shiny::uiOutput(ns("pop_stats_info")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("mantel")),
-                    mod_image_card_ui(ns("amova"))
-                )
-            ),
-
-            bslib::accordion_panel(
-                "Tables",
-                value  = "tables",
-                icon   = bsicons::bs_icon("table"),
-                shiny::uiOutput(ns("tables_content"))
-            )
-        )
-    )
-}
 
 #' Structure K tab server
 #'
@@ -359,3 +278,102 @@ mod_structure_server <- function(id, project_data) {
         })
     })
 }
+
+#' structure tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_structure_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "structure",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # ── LEFT: controls + the piemap anchor ────────────────────────────
+            htmltools::div(
+                class = "lab-hero-col",
+
+                # All four controls drive ONLY the piemap, so they belong in this
+                # column rather than spanning the page -- and they sit on ONE
+                # inline strip (.lab-mapbar), not in a bordered box.
+                #
+                # The boxed version measured 116px: a layout_columns of three
+                # 52px selector cells, plus the Points switch on its own 23px
+                # row, plus padding -- more chrome than the four controls need,
+                # directly above the figure they drive. Shared with
+                # Maladaptation's map strip; see .lab-mapbar in lab.scss.
+                htmltools::div(
+                    class = "lab-mapbar",
+                    shiny::uiOutput(ns("bio_selector")),
+                    shiny::uiOutput(ns("metric_selector")),
+                    shiny::uiOutput(ns("zoom_selector")),
+                    bslib::input_switch(ns("points"), "Points", value = FALSE)
+                ),
+
+                lab_hero(mod_piemap_viewer_ui(ns("piemap")))
+            ),
+
+            # ── RIGHT: plenty of plots ────────────────────────────────────────
+            htmltools::div(
+                class = "lab-multiples-col",
+
+                # pop_stats_info is a filter_note badge ("3 pops" -> N
+                # populations at K, samples per population). On its own line it
+                # cost a full row to say one thing about the section beneath it,
+                # so it rides the divider instead -- same aside slot as
+                # PreStructure's K selector.
+                lab_section_header("Population structure", icon = "diagram-3",
+                                   aside = shiny::uiOutput(ns("pop_stats_info"))),
+                # pca_structure_k is 1:1; mantel/amova are absent unless
+                # Pop.calc_stats ran, so they render as placeholders -- kept
+                # visible (not hidden) so the gap is legible.
+                lab_thumb_grid(
+                    cols = 3,
+                    lab_thumb(mod_image_card_ui(ns("pca_structure_k"))),
+                    lab_thumb(mod_image_card_ui(ns("mantel"))),
+                    lab_thumb(mod_image_card_ui(ns("amova")))
+                ),
+
+                lab_section_header("Linkage disequilibrium", icon = "bar-chart-line"),
+                shiny::uiOutput(ns("ld_decay_skipped_alert")),
+                # Two ~1.4:1 curves at one column each, and the half-distance
+                # table takes the remaining two columns -- the row fills exactly.
+                lab_thumb_grid(
+                    cols = 4,
+                    lab_thumb(mod_image_card_ui(ns("ld_decay"))),
+                    lab_thumb(mod_image_card_ui(ns("ld_decay_chr"))),
+                    lab_thumb(
+                        bslib::card(
+                            class = "lab-dock-card lab-dock-ld",
+                            bslib::card_header(bsicons::bs_icon("table"),
+                                               " LD half-distances"),
+                            bslib::card_body(DT::DTOutput(ns("ld_decay_table")))
+                        ),
+                        span = 2
+                    )
+                )
+            )
+        ),
+
+        # Below the fold: the pop-stats table accordion. Collapsed -> suspended.
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE,
+            bslib::accordion_panel(
+                value = "pop_tables",
+                title = htmltools::tagList(bsicons::bs_icon("table"),
+                                           " Population statistics tables"),
+                shiny::uiOutput(ns("tables_content"))
+            )
+        )
+    )
+}
+

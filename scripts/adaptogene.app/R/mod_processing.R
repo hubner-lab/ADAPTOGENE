@@ -1,90 +1,4 @@
-#' Processing QC tab UI
-#'
-#' Displays all VCF QC diagnostic plots and tables from mode=processing.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_processing_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
 
-        # ── Summary cards (dynamic themes based on data quality) ──────────────
-        shiny::uiOutput(ns("summary_boxes")),
-
-        # ── LEA conversion alert (shown only if SNPs were dropped) ─────────────
-        shiny::uiOutput(ns("lea_losses_alert")),
-
-        shiny::br(),
-
-        # ── Row 2: Filtering overview ──────────────────────────────────────────
-        bslib::layout_columns(
-            col_widths = c(8, 4),
-            mod_image_card_ui(ns("attrition")),
-            bslib::card(
-                full_screen = TRUE,
-                bslib::card_header(
-                    bsicons::bs_icon("table"),
-                    " Filtering Summary"
-                ),
-                bslib::card_body(
-                    DT::DTOutput(ns("filtering_table"))
-                )
-            )
-        ),
-
-        shiny::br(),
-
-        # ── Row 3: Sample QC ───────────────────────────────────────────────────
-        # Relatedness caveat/counts live in the hover note badge next to the plot
-        # title (mod_image_card's `note` slot) rather than a static caption below —
-        # keeps the tab compact and matches the "minimal on-screen text" rule.
-        # 2x2 grid: the relatedness MDS sits beside its histogram so users see
-        # WHICH samples cluster as duplicates, not just that a spike exists.
-        bslib::layout_column_wrap(
-            width = 1 / 2,
-            mod_image_card_ui(ns("sample_miss")),
-            mod_image_card_ui(ns("het_miss")),
-            mod_image_card_ui(ns("relatedness")),
-            mod_image_card_ui(ns("relatedness_mds"))
-        ),
-
-        shiny::br(),
-
-        # ── Row 4: SNP QC ──────────────────────────────────────────────────────
-        bslib::layout_column_wrap(
-            width = 1 / 2,
-            mod_image_card_ui(ns("snp_miss")),
-            mod_image_card_ui(ns("maf"))
-        ),
-
-        shiny::br(),
-
-        # ── Row 5: SNP density (full width) ───────────────────────────────────
-        mod_image_card_ui(ns("snp_density")),
-
-        shiny::br(),
-
-        # ── Row 6: Depth (conditional) ─────────────────────────────────────────
-        shiny::uiOutput(ns("depth_section")),
-
-        # ── Row 7: Sample heterozygosity table ────────────────────────────────
-        bslib::card(
-            full_screen = TRUE,
-            bslib::card_header(
-                class = "d-flex justify-content-between align-items-center",
-                htmltools::span(
-                    bsicons::bs_icon("table"),
-                    " Sample Heterozygosity"
-                ),
-                shiny::downloadButton(ns("dl_het"), "CSV",
-                                      class = "btn-sm btn-outline-secondary")
-            ),
-            bslib::card_body(
-                DT::DTOutput(ns("het_table"))
-            )
-        )
-    )
-}
 
 #' Processing QC tab server
 #'
@@ -447,3 +361,90 @@ mod_processing_server <- function(id, project_data) {
         )
     })
 }
+
+#' processing tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_processing_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "processing",
+
+        lab_kpi_row(ns),
+
+        htmltools::div(
+            class = "lab-overview",
+            bslib::layout_columns(
+                col_widths = c(5, 7),
+                # layout_columns defaults to fill=TRUE, which would stretch the
+                # columns and fight the fraction-based heights below.
+                fill = FALSE, fillable = FALSE,
+                gap = "0.75rem",
+
+                # LEFT — hero figure over the short filtering table
+                htmltools::div(
+                    class = "lab-hero-col",
+                    lab_hero(mod_image_card_ui(ns("attrition"))),
+                    lab_filtering_summary_card(ns)
+                ),
+
+                # RIGHT — grouped small multiples
+                htmltools::div(
+                    class = "lab-multiples-col",
+
+                    lab_section_header("Sample QC", icon = "people-fill"),
+                    lab_thumb_grid(
+                        cols = 4,
+                        lab_thumb(mod_image_card_ui(ns("sample_miss"))),
+                        lab_thumb(mod_image_card_ui(ns("het_miss"))),
+                        lab_thumb(mod_image_card_ui(ns("relatedness"))),
+                        lab_thumb(mod_image_card_ui(ns("relatedness_mds")))
+                    ),
+
+                    lab_section_header("SNP QC", icon = "database-fill"),
+                    # Same 4-column rhythm as Sample QC so every tile is the same
+                    # width and the two groups read as one grid. A 2-col grid made
+                    # these tiles ~520px wide while the height cap held the image
+                    # to ~280px, stranding it in empty space.
+                    lab_thumb_grid(
+                        cols = 4,
+                        lab_thumb(mod_image_card_ui(ns("snp_miss"))),
+                        lab_thumb(mod_image_card_ui(ns("maf"))),
+                        # a chromosome strip chart is unreadable in a square tile
+                        lab_thumb(mod_image_card_ui(ns("snp_density")), span = 2)
+                    )
+                )
+            )
+        ),
+
+        # ── Below the fold: both collapsed -> outputs suspended ───────────────
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE, multiple = TRUE,
+            bslib::accordion_panel(
+                value = "depth",
+                title = htmltools::tagList(
+                    bsicons::bs_icon("layers"), " Depth Distribution ",
+                    htmltools::span(class = "text-muted small",
+                                    "(context — often empty for GBS)")
+                ),
+                shiny::uiOutput(ns("depth_section"))
+            ),
+            bslib::accordion_panel(
+                value = "het",
+                title = htmltools::tagList(bsicons::bs_icon("table"),
+                                           " Sample Heterozygosity"),
+                htmltools::div(
+                    class = "d-flex justify-content-end mb-2",
+                    shiny::downloadButton(ns("dl_het"), "CSV",
+                                          class = "btn-sm btn-outline-secondary")
+                ),
+                DT::DTOutput(ns("het_table"))
+            )
+        )
+    )
+}
+

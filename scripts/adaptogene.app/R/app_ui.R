@@ -2,13 +2,13 @@
 #' @noRd
 app_ui <- function(request) {
     pipeline_path <- get_pipeline_path()
-    projects <- find_projects(pipeline_path)
+    projects <- find_selectable_projects(pipeline_path)
 
     # Serve pipeline output files as static resources
     shiny::addResourcePath("pipeline", pipeline_path)
 
     bslib::page_navbar(
-        title = brand_logo(),
+        title = NULL,
         theme    = app_theme(),
         id       = "main_tabs",
         # Matches the nav_panel VALUE, not its title (bslib resolves `fillable`
@@ -28,36 +28,35 @@ app_ui <- function(request) {
             shiny::useBusyIndicators(spinners = TRUE),
             htmltools::tags$script(src = "www/config-dirty.js"),
             htmltools::tags$script(src = "www/module-bar.js"),
-            shiny::uiOutput("module_bar")
-        ),
 
-        # ── Navbar right: benchmark switch + project selector + dark mode toggle ──
-        # The switch decides WHICH projects the selector offers, never how a module
-        # renders. Off (the default) is ordinary analysis: simulated benchmark
-        # replicates are hidden entirely, so a user doing real work never sees them
-        # or a benchmark control. On: only simulated projects, with a badge so the
-        # mode is never ambiguous. Internal scaffolding is hidden in both.
-        nav_item(
+            # ONE bar at the top: brand | project | module tabs | dark toggle.
+            # The app's own navbar is visually hidden by dashboard.scss (NOT
+            # display:none -- module-bar.js switches tabs by firing synthetic
+            # clicks on its anchors, so they must stay in the tree), and this
+            # replaces both it and the separate module bar. Two stacked bars
+            # cost ~104px of every module's vertical budget.
             htmltools::div(
-                class = "d-flex align-items-center gap-3",
-                htmltools::span(
-                    id    = "benchmark_badge",
-                    class = "badge bg-warning text-dark",
-                    style = "display: none;",
-                    "BENCHMARK"
+                class = "lab-chrome-bar",
+                htmltools::div(
+                    class = "lab-bar-left",
+                    brand_logo(),
+                    shiny::selectInput(
+                        "project_selector", label = NULL,
+                        choices = c(
+                            "+ New Project" = "__new__",
+                            if (length(projects) > 0) setNames(projects, projects)
+                            else character(0)
+                        ),
+                        selected = if (length(projects) > 0) projects[1] else "__new__",
+                        width = "200px"
+                    )
                 ),
-                bslib::input_switch("benchmark_mode", "Benchmark", value = FALSE),
-                shiny::selectInput(
-                    "project_selector",
-                    label    = NULL,
-                    choices  = c(
-                        "+ New Project" = "__new__",
-                        if (length(projects) > 0) setNames(projects, projects) else character(0)
-                    ),
-                    selected = if (length(projects) > 0) projects[1] else "__new__",
-                    width    = "220px"
-                ),
-                bslib::input_dark_mode(id = "dark_mode", mode = "dark")
+                htmltools::div(class = "lab-bar-modules",
+                               shiny::uiOutput("module_bar")),
+                # Display preference, not identity and not navigation -- so it
+                # sits apart from both, at the far right.
+                htmltools::div(class = "lab-bar-right",
+                               bslib::input_dark_mode(id = "dark_mode", mode = "dark"))
             )
         ),
 
@@ -202,10 +201,4 @@ app_ui <- function(request) {
             )
         )
     )
-}
-
-#' Wrapper for nav_item (bslib helper)
-#' @noRd
-nav_item <- function(...) {
-    bslib::nav_item(...)
 }

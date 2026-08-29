@@ -1,75 +1,4 @@
-#' Phenotypic Factors tab UI
-#'
-#' The phenotypic counterpart of mod_climate.R: "what do my traits look like,
-#' how do they covary, and does any of them carry no signal at all".
-#'
-#' Exists in BOTH regimes. mode=climate raises when Climate.enabled is false,
-#' so in gwas_only — the regime where traits are the only factors a project
-#' has — this is the only factor-characterization tab available. Everything
-#' here comes from mode=traits (workflow/rules/traits.smk), which needs no
-#' coordinates and no climate; the single climate-dependent product is the
-#' joint traits x climate correlogram, and the switch that selects it hides
-#' itself when that file is absent.
-#'
-#' Phenomaps are NOT produced here — they are mode=gwas outputs
-#' (gwas.smk phenomap_{trait}) surfaced again on this tab, which is where a
-#' user reasoning about traits expects to find them.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_traits_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        bslib::card(
-            bslib::card_header("Factors"),
-            shiny::uiOutput(ns("trait_invariant_warning")),
-            htmltools::div(
-                class = "control-bar d-flex align-items-end gap-3 flex-wrap mb-2",
-                shiny::selectInput(ns("figure"), "Figure",
-                                   choices = c("Correlogram" = "corr",
-                                               "Pairs plot"  = "pairs"),
-                                   selected = "corr", width = "200px"),
-                # Static (not inside renderUI) so its state survives re-renders;
-                # shinyjs hides it when the project has no traits x climate file.
-                shinyjs::hidden(htmltools::div(
-                    id = ns("climate_toggle_wrap"),
-                    bslib::input_switch(ns("with_climate"), "Include climate factors",
-                                        value = FALSE)
-                ))
-            ),
-            mod_image_card_ui(ns("trait_figure"))
-        ),
 
-        bslib::layout_column_wrap(
-            width = 1 / 2,
-            bslib::card(
-                bslib::card_header("Distributions"),
-                mod_image_card_ui(ns("phenotype_density"))
-            ),
-            bslib::card(
-                bslib::card_header("Trait map"),
-                htmltools::div(
-                    class = "control-bar d-flex align-items-end gap-3 flex-wrap mb-2",
-                    shiny::uiOutput(ns("phenomap_trait_selector")),
-                    bslib::input_switch(ns("phenomap_points"), "Points", value = FALSE)
-                ),
-                htmltools::div(class = "piemap-container",
-                               shiny::uiOutput(ns("phenomap_content")))
-            )
-        ),
-
-        bslib::card(
-            bslib::card_header("Tables"),
-            bslib::accordion(
-                open = FALSE, multiple = TRUE,
-                bslib::accordion_panel("Trait summary",
-                    DT::DTOutput(ns("trait_summary_table"))),
-                bslib::accordion_panel("Invariant traits",
-                    DT::DTOutput(ns("trait_invariant_table")))
-            )
-        )
-    )
-}
 
 #' Phenotypic Factors tab server
 #'
@@ -249,3 +178,106 @@ mod_traits_server <- function(id, project_data) {
         })
     })
 }
+
+#' traits tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_traits_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "traits",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # ── LEFT: the anchor ──────────────────────────────────────────────
+            htmltools::div(
+                class = "lab-hero-col",
+
+                shiny::uiOutput(ns("trait_invariant_warning")),
+
+                htmltools::div(
+                    class = "control-bar lab-trait-bar d-flex align-items-center gap-3",
+                    shiny::selectInput(
+                        ns("figure"), "Figure",
+                        choices  = c("Correlogram" = "correlogram",
+                                     "Pairs plot"  = "pairs"),
+                        selected = "correlogram"
+                    ),
+                    shinyjs::hidden(htmltools::div(
+                        id = ns("climate_toggle_wrap"),
+                        bslib::input_switch(ns("with_climate"),
+                                            "Include climate factors", value = FALSE)
+                    ))
+                ),
+
+                lab_hero(mod_image_card_ui(ns("trait_figure"))),
+
+                bslib::card(
+                    class = "lab-dock-card lab-dock-traitsum",
+                    bslib::card_header(bsicons::bs_icon("table"), " Trait summary"),
+                    bslib::card_body(DT::DTOutput(ns("trait_summary_table")))
+                )
+            ),
+
+            # ── RIGHT: plenty of plots ────────────────────────────────────────
+            htmltools::div(
+                class = "lab-multiples-col",
+
+                lab_section_header("Distributions", icon = "graph-up"),
+                # density_plot_phenotypes is 3.5:1 -- a full-width row is the
+                # one shape that fits it without stranding it.
+                lab_thumb_grid(
+                    cols = 1,
+                    lab_thumb(htmltools::div(class = "lab-density-strip",
+                                             mod_image_card_ui(ns("phenotype_density"))))
+                ),
+
+                lab_section_header("Trait map", icon = "geo-alt"),
+                htmltools::div(
+                    class = "control-bar lab-phenomap-bar d-flex align-items-center gap-3",
+                    shiny::uiOutput(ns("phenomap_trait_selector")),
+                    bslib::input_switch(ns("phenomap_points"), "Points", value = FALSE)
+                ),
+                htmltools::div(
+                    class = "lab-traitmap-row",
+                    lab_thumb_grid(
+                        cols = 1,
+                        lab_thumb(bslib::card(
+                            class = "lab-phenomap-card",
+                            bslib::card_header(bsicons::bs_icon("geo-alt"), " Trait map"),
+                            bslib::card_body(
+                                class = "p-2 text-center",
+                                htmltools::div(class = "piemap-container",
+                                               shiny::uiOutput(ns("phenomap_content")))
+                            )
+                        ))
+                    )
+                )
+            )
+        ),
+
+        # Invariant traits below the fold. With 0 invariant traits the DT renders
+        # an empty "No data available" box -- a message box where the KPI strip
+        # already carries the number. Collapsed here, so it is reachable when a
+        # project DOES have invariant traits and silent when it does not.
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE,
+            bslib::accordion_panel(
+                value = "invariant",
+                title = htmltools::tagList(bsicons::bs_icon("exclamation-triangle"),
+                                           " Invariant traits"),
+                DT::DTOutput(ns("trait_invariant_table"))
+            )
+        )
+    )
+}
+

@@ -1,114 +1,4 @@
-#' PreGEA tab UI
-#'
-#' Focused hyperparameter-choice module: "how many K / how many PCs" for
-#' LFMM/EMMAX/GAPIT, plus RDA's Condition()-PC setup — sweeps LFMM-K,
-#' EMMAX-#PC, and RDA Condition()-PC ladders (one shared PC range for the
-#' latter two) before committing to the expensive full-SNP GEA run.
-#' Predictor characterization (correlations, densities, varpart, dbMEM) lives
-#' on the Climate tab (mod_climate.R) — see that file's header for the
-#' module-split rationale.
-#'
-#' LFMM/EMMAX plots are grid-level only (one histogram grid / QQ grid /
-#' lambda-vs-K-or-#PCs / hits-vs-K-or-#PCs PNG per engine, never one file per
-#' rung) — the ladder tables carry the per-value numbers. RDA IS per-model:
-#' one biplot/screeplot/axis-anova set per swept Condition()-PC value, picked
-#' with the selector below the model-comparison plot.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_pregea_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Recommendations — headline handoff artifact, cross-cuts every ladder
-        # below. Read-only here; pre-fill/Apply into the GEA config is a
-        # separate follow-up (see project notes).
-        bslib::card(
-            full_screen = TRUE,
-            bslib::card_header("Recommended Hyperparameters"),
-            htmltools::p(class = "text-muted small",
-                "One row per (method, hyperparameter): the rule that produced the ",
-                "recommendation and the evidence behind it. Nothing here writes to ",
-                "the config automatically — copy values you agree with into the ",
-                "GEA tab's method config."),
-            DT::DTOutput(ns("recommendations_table"))
-        ),
 
-        bslib::navset_card_tab(
-            id = ns("pregea_tabs"),
-
-            bslib::nav_panel("LFMM K ladder",
-                mod_image_card_ui(ns("lfmm_screeplot")),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("lfmm_hist")),
-                    mod_image_card_ui(ns("lfmm_qq")),
-                    mod_image_card_ui(ns("lfmm_lambda")),
-                    mod_image_card_ui(ns("lfmm_hits"))
-                ),
-                htmltools::div(
-                    class = "d-flex align-items-center gap-2 mt-3",
-                    htmltools::h6("Ladder Table", class = "mb-0"),
-                    shiny::uiOutput(ns("lfmm_table_note"), inline = TRUE)
-                ),
-                DT::DTOutput(ns("lfmm_table"))
-            ),
-
-            bslib::nav_panel("EMMAX / GAPIT #PC ladder",
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("emmax_hist")),
-                    mod_image_card_ui(ns("emmax_qq")),
-                    mod_image_card_ui(ns("emmax_lambda")),
-                    mod_image_card_ui(ns("emmax_hits"))
-                ),
-                htmltools::div(
-                    class = "d-flex align-items-center gap-2 mt-3",
-                    htmltools::h6("Ladder Table", class = "mb-0"),
-                    shiny::uiOutput(ns("emmax_table_note"), inline = TRUE)
-                ),
-                DT::DTOutput(ns("emmax_table"))
-            ),
-
-            bslib::nav_panel("RDA setup",
-                mod_image_card_ui(ns("rda_comparison")),
-                htmltools::div(
-                    class = "control-bar mt-3",
-                    shiny::uiOutput(ns("rda_model_selector"))
-                ),
-                bslib::layout_column_wrap(
-                    width = 1 / 2,
-                    mod_image_card_ui(ns("rda_biplot")),
-                    mod_image_card_ui(ns("rda_screeplot"))
-                ),
-                htmltools::h6("Tables", class = "mt-3"),
-                bslib::accordion(
-                    open = FALSE, multiple = TRUE,
-                    bslib::accordion_panel("Selected model — axis anova",
-                        DT::DTOutput(ns("rda_model_axis_table"))),
-                    bslib::accordion_panel("Condition-PC comparison (all models)",
-                        DT::DTOutput(ns("rda_ladder_table"))),
-                    bslib::accordion_panel("Predictor collinearity",
-                        DT::DTOutput(ns("rda_collinearity_table"))),
-                    bslib::accordion_panel("ordiR2step selection path",
-                        DT::DTOutput(ns("rda_ordir2step_table")))
-                )
-            )
-        ),
-
-        # Transfer guard — opt-in (PreGEA.TransferGuard.enabled), cross-cuts
-        # LFMM + EMMAX, collapsed by default since most runs never enable it.
-        bslib::accordion(
-            open = FALSE,
-            bslib::accordion_panel(
-                "Transfer Guard (full-set validation)",
-                icon = bsicons::bs_icon("shield-check"),
-                mod_image_card_ui(ns("transfer_guard_plot")),
-                htmltools::h6("Table", class = "mt-3"),
-                DT::DTOutput(ns("transfer_guard_table"))
-            )
-        )
-    )
-}
 
 #' PreGEA tab server
 #'
@@ -338,3 +228,151 @@ mod_pregea_server <- function(id, project_data) {
         })
     })
 }
+
+#' pregea tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_pregea_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "pregea",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # ── LEFT: the recommendations, this module's whole output ─────────
+            htmltools::div(
+                class = "lab-hero-col",
+                lab_section_header("Recommended hyperparameters", icon = "sliders"),
+                bslib::card(
+                    class = "lab-dock-card lab-dock-recs",
+                    bslib::card_header(bsicons::bs_icon("table"),
+                                       " Recommendations"),
+                    bslib::card_body(DT::DTOutput(ns("recommendations_table")))
+                )
+            ),
+
+            # ── RIGHT: per-method ladders (inactive tabs suspend) ─────────────
+            htmltools::div(
+                class = "lab-multiples-col",
+                bslib::navset_card_tab(
+                    id = ns("pregea_tabs"),
+
+                    bslib::nav_panel(
+                        "LFMM K ladder", value = "lfmm",
+                        lab_thumb_grid(
+                            cols = 3,
+                            lab_thumb(mod_image_card_ui(ns("lfmm_screeplot"))),
+                            lab_thumb(mod_image_card_ui(ns("lfmm_lambda"))),
+                            lab_thumb(mod_image_card_ui(ns("lfmm_hits")))
+                        ),
+                        htmltools::div(
+                            class = "lab-pregea-grids",
+                            lab_thumb_grid(
+                                cols = 2,
+                                lab_thumb(mod_image_card_ui(ns("lfmm_hist"))),
+                                lab_thumb(mod_image_card_ui(ns("lfmm_qq")))
+                            )
+                        ),
+                        .lab_pregea_note_table(ns, "lfmm_table_note", "lfmm_table",
+                                               "LFMM ladder")
+                    ),
+
+                    bslib::nav_panel(
+                        "EMMAX / GAPIT #PC ladder", value = "emmax",
+                        lab_thumb_grid(
+                            cols = 2,
+                            lab_thumb(mod_image_card_ui(ns("emmax_lambda"))),
+                            lab_thumb(mod_image_card_ui(ns("emmax_hits")))
+                        ),
+                        # 1720x3820 -- these are nearly 1:2.2 portrait strips
+                        htmltools::div(
+                            class = "lab-pregea-tallgrids",
+                            lab_thumb_grid(
+                                cols = 2,
+                                lab_thumb(mod_image_card_ui(ns("emmax_hist"))),
+                                lab_thumb(mod_image_card_ui(ns("emmax_qq")))
+                            )
+                        ),
+                        .lab_pregea_note_table(ns, "emmax_table_note", "emmax_table",
+                                               "EMMAX ladder")
+                    ),
+
+                    bslib::nav_panel(
+                        "RDA setup", value = "rda",
+                        htmltools::div(
+                            class = "lab-pregea-wide",
+                            lab_thumb_grid(
+                                cols = 1,
+                                lab_thumb(mod_image_card_ui(ns("rda_comparison")))
+                            )
+                        ),
+                        htmltools::div(
+                            class = "control-bar lab-k-bar",
+                            shiny::uiOutput(ns("rda_model_selector"))
+                        ),
+                        lab_thumb_grid(
+                            cols = 2,
+                            lab_thumb(mod_image_card_ui(ns("rda_biplot"))),
+                            lab_thumb(mod_image_card_ui(ns("rda_screeplot")))
+                        ),
+                        bslib::accordion(
+                            open = FALSE, multiple = TRUE, class = "mt-2",
+                            bslib::accordion_panel("Axis ANOVA", value = "axis",
+                                DT::DTOutput(ns("rda_model_axis_table"))),
+                            bslib::accordion_panel("Condition() ladder", value = "ladder",
+                                DT::DTOutput(ns("rda_ladder_table"))),
+                            bslib::accordion_panel("Predictor collinearity", value = "collin",
+                                DT::DTOutput(ns("rda_collinearity_table")))
+                        )
+                    )
+                )
+            )
+        ),
+
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE,
+            bslib::accordion_panel(
+                value = "transfer",
+                title = htmltools::tagList(bsicons::bs_icon("shield-check"),
+                                           " Transfer guard (full-set validation)"),
+                mod_image_card_ui(ns("transfer_guard_plot")),
+                DT::DTOutput(ns("transfer_guard_table"))
+            )
+        )
+    )
+}
+
+# lab_88_pregea_a.R — PreGEA in the Variant A pattern.
+#
+# This module exists to RECOMMEND hyperparameters, so the KPI strip carries the
+# four recommendations themselves (LFMM K, EMMAX #PCs, RDA Condition() PCs, RDA
+# axes) and the recommendations table is the left anchor -- it is the module's
+# summary table in the most literal sense.
+#
+# Right column keeps the app's own navset (LFMM / EMMAX / RDA): three tabs of
+# diagnostics, where the inactive tabs stay in the DOM but suspend, so 13 figures
+# never load at once.
+#
+# Tile shapes follow the figures: lambda/hits are 1.56 landscape, the LFMM
+# histogram/QQ grids are 0.91, and the EMMAX grids are 0.45 -- nearly 1:2.2
+# portrait -- so they get their own taller row rather than a shared height.
+.lab_pregea_note_table <- function(ns, note_id, table_id, title) {
+    htmltools::div(
+        htmltools::div(
+            class = "d-flex align-items-center gap-2 mt-2 mb-1",
+            htmltools::span(class = "lab-pregea-tbl-title", title),
+            shiny::uiOutput(ns(note_id), inline = TRUE)
+        ),
+        DT::DTOutput(ns(table_id))
+    )
+}
+

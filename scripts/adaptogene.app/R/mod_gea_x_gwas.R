@@ -1,127 +1,4 @@
-#' GEAxGWAS tab UI
-#'
-#' Two independent filter bars (GEA above Miami, GWAS below) drive independent
-#' region sets on each half of the Miami plot. Overlap regions — where a GEA region
-#' and a GWAS region intersect — are highlighted in orange across both halves and
-#' feed the region explorer (genes / SNPs / GO / regionplot / haplotype).
-#'
-#' @param id module namespace id
-#' @noRd
-mod_gea_x_gwas_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Notification about filter bars and fill buttons
-        htmltools::div(
-            class = "alert alert-info py-2 mb-2 small",
-            bsicons::bs_icon("info-circle"), " ",
-            "The GEA and GWAS filter bars below drive the Miami plot, region overlap explorer, ",
-            "and Pairwise Trait Overlap table. ",
-            "Use the ", htmltools::strong("Fill from …"), " buttons to copy your settings from the GEA or GWAS tabs."
-        ),
 
-        # GEA filter bar
-        bslib::card(
-            class = "mb-0",
-            bslib::card_header(
-                class = "d-flex justify-content-between align-items-center",
-                htmltools::div(
-                    htmltools::span("GEA Filter",
-                        class = "fw-semibold text-primary me-2"),
-                    htmltools::span("(above zero line)",
-                        class = "text-muted small")
-                ),
-                shiny::actionButton(ns("fill_gea"), "Fill from GEA tab",
-                                    class = "btn-sm btn-outline-primary")
-            ),
-            bslib::card_body(
-            class = "p-2",
-            shiny::uiOutput(ns("gea_threshold_bar")),
-            shiny::uiOutput(ns("gea_filter_bar"))
-        )
-        ),
-
-        # Miami Manhattan — GEA filter above, GWAS filter below
-        mod_manhattan_overlay_ui(
-            ns("miami"),
-            height    = "450px",
-            filter_ui = NULL
-        ),
-
-        # GWAS filter bar
-        bslib::card(
-            class = "mb-0 mt-1",
-            bslib::card_header(
-                class = "d-flex justify-content-between align-items-center",
-                htmltools::div(
-                    htmltools::span("GWAS Filter",
-                        class = "fw-semibold text-success me-2"),
-                    htmltools::span("(below zero line)",
-                        class = "text-muted small")
-                ),
-                shiny::actionButton(ns("fill_gwas"), "Fill from GWAS tab",
-                                    class = "btn-sm btn-outline-success")
-            ),
-            bslib::card_body(
-            class = "p-2",
-            shiny::uiOutput(ns("gwas_threshold_bar")),
-            shiny::uiOutput(ns("gwas_filter_bar"))
-        )
-        ),
-
-        # Overlap bounds selector (persisted per project)
-        bslib::card(
-            class = "mt-2 mb-3",
-            bslib::card_body(
-                class = "py-2 px-3",
-                htmltools::div(
-                    class = "d-flex align-items-center gap-4",
-                    htmltools::span("Overlap region bounds:", class = "fw-semibold me-1"),
-                    bslib::tooltip(
-                        bsicons::bs_icon("info-circle", class = "text-muted", size = "0.95em"),
-                        htmltools::tags$div(
-                            htmltools::tags$strong("Union"), ": merged extent of GEA \u222a GWAS region \u2014 covers the full area of either source.",
-                            htmltools::tags$br(),
-                            htmltools::tags$strong("Intersection"), ": only the overlapping portion between GEA and GWAS regions.",
-                            htmltools::tags$br(),
-                            htmltools::tags$strong("GEA only"), ": GEA region boundaries, ignoring GWAS extent.",
-                            htmltools::tags$br(),
-                            htmltools::tags$strong("GWAS only"), ": GWAS region boundaries, ignoring GEA extent."
-                        ),
-                        placement = "right"
-                    ),
-                    shiny::radioButtons(
-                        ns("overlap_bounds"), label = NULL,
-                        choices = c(
-                            "Union (GEA \u222a GWAS)"         = "union",
-                            "Intersection (GEA \u2229 GWAS)"  = "intersection",
-                            "GEA region only"                  = "gea_only",
-                            "GWAS region only"                 = "gwas_only"
-                        ),
-                        selected = "union",
-                        inline   = TRUE
-                    )
-                )
-            )
-        ),
-
-        # Overlap region explorer
-        mod_region_explorer_ui(ns("region_explorer")),
-
-        # Pairwise Trait Overlap — collapsed by default (independent analysis)
-        bslib::accordion(
-            id       = ns("pairwise_accordion"),
-            open     = FALSE,
-            multiple = FALSE,
-            class    = "mt-4",
-            bslib::accordion_panel(
-                "Pairwise Trait Overlap",
-                value = "pairwise",
-                icon  = bsicons::bs_icon("intersect"),
-                mod_pairwise_overlap_ui(ns("pairwise"))
-            )
-        )
-    )
-}
 
 #' Overlapping Regions tab server
 #'
@@ -884,3 +761,86 @@ mod_gea_x_gwas_server <- function(id, project_data, run_trigger = NULL) {
         )
     })
 }
+
+#' gea_x_gwas tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_gea_x_gwas_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "geaxgwas",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        bslib::layout_columns(
+            col_widths = c(6, 6),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.6rem",
+
+            bslib::card(
+                class = "lab-xg-filter lab-xg-gea",
+                bslib::card_header(
+                    class = "d-flex justify-content-between align-items-center",
+                    htmltools::span(bsicons::bs_icon("arrow-up"),
+                                    " GEA filter (above the zero line)"),
+                    shiny::actionButton(ns("fill_gea"), "Fill from GEA",
+                                        class = "btn-sm btn-outline-secondary")
+                ),
+                bslib::card_body(
+                    shiny::uiOutput(ns("gea_threshold_bar")),
+                    shiny::uiOutput(ns("gea_filter_bar"))
+                )
+            ),
+
+            bslib::card(
+                class = "lab-xg-filter lab-xg-gwas",
+                bslib::card_header(
+                    class = "d-flex justify-content-between align-items-center",
+                    htmltools::span(bsicons::bs_icon("arrow-down"),
+                                    " GWAS filter (below the zero line)"),
+                    shiny::actionButton(ns("fill_gwas"), "Fill from GWAS",
+                                        class = "btn-sm btn-outline-secondary")
+                ),
+                bslib::card_body(
+                    shiny::uiOutput(ns("gwas_threshold_bar")),
+                    shiny::uiOutput(ns("gwas_filter_bar"))
+                )
+            )
+        ),
+
+        # ── HERO: the Miami plot ──────────────────────────────────────────────
+        htmltools::div(
+            class = "lab-gea-hero",
+            mod_manhattan_overlay_ui(ns("miami"), height = "100%")
+        ),
+
+        htmltools::div(
+            class = "control-bar lab-xg-bounds d-flex align-items-center gap-3",
+            htmltools::span(class = "lab-xg-bounds-label", "Overlap bounds"),
+            shiny::radioButtons(
+                ns("overlap_bounds"), label = NULL,
+                choices = c("Union" = "union", "Intersection" = "intersection",
+                            "GEA only" = "gea", "GWAS only" = "gwas"),
+                selected = "union", inline = TRUE
+            )
+        ),
+
+        mod_region_explorer_ui(ns("region_explorer")),
+
+        bslib::accordion(
+            id = ns("pairwise_accordion"),
+            class = "lab-below-fold",
+            open = FALSE,
+            bslib::accordion_panel(
+                value = "pairwise",
+                title = htmltools::tagList(bsicons::bs_icon("grid-3x3"),
+                                           " Pairwise trait overlap"),
+                mod_pairwise_overlap_ui(ns("pairwise"))
+            )
+        )
+    )
+}
+

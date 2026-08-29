@@ -1,64 +1,4 @@
-#' GEA tab UI
-#'
-#' GEA results: combined Manhattan with interactive filter/strategy bar,
-#' per-method accordion, and region-centric detail panel.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_gea_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Config parameter badges
-        shiny::uiOutput(ns("config_badges")),
 
-        # Combined Manhattan — threshold bar (always visible) + filter bar (matrix/strategy)
-        mod_manhattan_overlay_ui(
-            ns("combined_manhattan"),
-            filter_ui = htmltools::tagList(
-                shiny::uiOutput(ns("threshold_bar")),
-                shiny::uiOutput(ns("wza_collapse_note")),
-                shiny::uiOutput(ns("filter_bar")),
-                shiny::actionButton(
-                    ns("save_snp_set"),
-                    label = htmltools::tagList(bsicons::bs_icon("save"), " Save SNP set for maladaptation"),
-                    class = "btn btn-success btn-sm mt-2"
-                )
-            )
-        ),
-
-        # Per-method accordion (collapsed by default)
-        bslib::accordion(
-            id       = ns("per_method_accordion"),
-            open     = FALSE,
-            multiple = FALSE,
-
-            bslib::accordion_panel(
-                "Per-Method Details",
-                value = "per_method",
-                icon  = bsicons::bs_icon("layers"),
-                shiny::uiOutput(ns("method_tabs_ui")),
-                shiny::uiOutput(ns("per_method_trait_ui")),
-                bslib::layout_columns(
-                    col_widths = c(9, 3),
-                    mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
-                    mod_image_card_ui(ns("qq_plot"))
-                )
-            ),
-
-            # RDA-specific diagnostics/candidates — content hides itself (renders
-            # nothing) on projects without RDA configured; see mod_rda_details.R.
-            bslib::accordion_panel(
-                "RDA Diagnostics & Candidates",
-                value = "rda",
-                icon  = bsicons::bs_icon("diagram-3"),
-                mod_rda_details_ui(ns("rda_details"))
-            )
-        ),
-
-        # Interactive region explorer (replaces static region dropdown)
-        mod_region_explorer_ui(ns("region_explorer"))
-    )
-}
 
 #' Association tab server
 #'
@@ -730,3 +670,97 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
 
     })
 }
+
+#' gea tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_gea_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "gea",
+
+        shiny::uiOutput(ns("config_badges")),
+
+        # ── Controls: collapsed by default, above the plot they drive ─────────
+        # Safe to collapse: mod_gea_server() has exactly one req() in 729 lines
+        # (on project_data(), inside the save observer), and every control input
+        # it reads is guarded by `%||%` fallback -- input$threshold_type %||%
+        # "bonf", input$combine_strategy %||% default_strategy(), and so on. A
+        # suspended control bar therefore yields pipeline defaults rather than a
+        # blocked plot. mod_gea_dashboard_outputs() additionally un-suspends them so
+        # the values saved in region_params.json still reach them.
+        bslib::accordion(
+            id    = ns("params_accordion"),
+            class = "lab-gea-params",
+            open  = FALSE,
+            bslib::accordion_panel(
+                value = "params",
+                title = htmltools::tagList(
+                    bsicons::bs_icon("sliders"),
+                    htmltools::span(" Significance, methods & strategy")
+                ),
+                htmltools::div(
+                    class = "lab-gea-controls",
+                    shiny::uiOutput(ns("threshold_bar")),
+                    shiny::uiOutput(ns("wza_collapse_note")),
+                    shiny::uiOutput(ns("filter_bar")),
+                    htmltools::div(
+                        class = "d-flex justify-content-end mt-1",
+                        shiny::actionButton(
+                            ns("save_snp_set"),
+                            label = htmltools::tagList(
+                                bsicons::bs_icon("save"),
+                                " Save SNP set for maladaptation"
+                            ),
+                            class = "btn-sm btn-success"
+                        )
+                    )
+                )
+            )
+        ),
+
+        # ── HERO: combined Manhattan, full width, no injected filter_ui ───────
+        htmltools::div(
+            class = "lab-gea-hero",
+            mod_manhattan_overlay_ui(ns("combined_manhattan"), height = "100%")
+        ),
+
+        # ── Per-method detail ─────────────────────────────────────────────────
+        lab_section_header("Per-method detail", icon = "layers"),
+        htmltools::div(
+            class = "lab-gea-methodbar d-flex align-items-center gap-3 flex-wrap",
+            shiny::uiOutput(ns("method_tabs_ui")),
+            shiny::uiOutput(ns("per_method_trait_ui"))
+        ),
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+            # QQ is square-ish -> the narrow column; the per-method Manhattan is
+            # wide -> the broad one. Inverted vs the display modules on purpose.
+            htmltools::div(class = "lab-gea-qq", mod_image_card_ui(ns("qq_plot"))),
+            htmltools::div(class = "lab-gea-methodman",
+                           mod_manhattan_overlay_ui(ns("method_manhattan"),
+                                                    height = "100%"))
+        ),
+
+        # ── RDA diagnostics: collapsed (suspended until opened) ───────────────
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE,
+            bslib::accordion_panel(
+                value = "rda",
+                title = htmltools::tagList(bsicons::bs_icon("compass"),
+                                           " RDA diagnostics & candidates"),
+                mod_rda_details_ui(ns("rda_details"))
+            )
+        ),
+
+        # ── Region Explorer: unchanged, full width, bottom ────────────────────
+        mod_region_explorer_ui(ns("region_explorer"))
+    )
+}
+

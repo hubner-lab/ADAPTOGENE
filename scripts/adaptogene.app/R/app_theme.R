@@ -29,5 +29,8 @@ app_theme <- function() {
         "border-radius"      = "0.375rem",
         "accordion-border-color" = "#E2E8F0"
     ) |>
-        bslib::bs_add_rules(sass::sass_file(app_sys("app/www/custom.scss")))
+        bslib::bs_add_rules(sass::sass_file(app_sys("app/www/custom.scss"))) |>
+        # Dashboard layout LAST: it refines what custom.scss establishes, and
+        # this order is the one every layout measurement was taken against.
+        bslib::bs_add_rules(sass::sass_file(app_sys("app/www/dashboard.scss")))
 }

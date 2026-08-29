@@ -1,148 +1,4 @@
-#' Maladaptation tab UI
-#'
-#' Gradient Forest + Geometric Offset results: importance plots, genetic offset
-#' piemaps, zoom maps, site-level offset table, and cross-model comparison.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_maladaptation_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Model selector (method × suffix) + badges + set actions
-        htmltools::div(
-            class = "control-bar",
-            shiny::uiOutput(ns("model_selector")),
-            shiny::uiOutput(ns("snp_count_badge")),
-            shiny::uiOutput(ns("method_params_badge")),
-            shiny::uiOutput(ns("climate_scenario_badge")),
-            shiny::uiOutput(ns("sensitivity_badge")),
-            shiny::uiOutput(ns("set_details_btn")),
-            shiny::uiOutput(ns("set_delete_btn"))
-        ),
 
-        # Importance plots
-        bslib::layout_column_wrap(
-            width = 1 / 2,
-            mod_image_card_ui(ns("overall_importance")),
-            mod_image_card_ui(ns("cumulative_importance"))
-        ),
-
-        shiny::hr(),
-
-        # Piemap Type + Zoom + Points right before piemap
-        htmltools::div(
-            class = "control-bar",
-            bslib::layout_columns(
-                col_widths = c(4, 4, 4),
-                shiny::uiOutput(ns("piemap_variant_ui")),
-                shiny::uiOutput(ns("zoom_selector")),
-                htmltools::div(
-                    class = "d-flex align-items-center h-100",
-                    bslib::input_switch(ns("points"), "Points", value = FALSE)
-                )
-            )
-        ),
-
-        # Genetic offset piemap (constrained to 2/3 width; full-screen for detail)
-        bslib::layout_columns(
-            col_widths = c(8, 4),
-            htmltools::div(
-                class = "piemap-container",
-                mod_image_card_ui(ns("offset_piemap"))
-            ),
-            bslib::card(
-                bslib::card_body(
-                    class = "text-muted small",
-                    htmltools::p(bsicons::bs_icon("info-circle"), " Genetic offset estimates local population vulnerability to projected climate change."),
-                    htmltools::p(bsicons::bs_icon("arrows-fullscreen"), " Use the expand icon for a full-resolution view of the map."),
-                    htmltools::p(bsicons::bs_icon("table"), " Site-level offset values are in the table below.")
-                )
-            )
-        ),
-
-        # Site table in accordion
-        bslib::accordion(
-            id       = ns("malad_sections"),
-            open     = FALSE,
-            multiple = TRUE,
-
-            bslib::accordion_panel(
-                "Site Offset Table",
-                value = "site_table",
-                icon  = bsicons::bs_icon("table"),
-                bslib::card_body(
-                    shiny::uiOutput(ns("offset_summary")),
-                    shiny::downloadButton(ns("dl_site"), "Download CSV",
-                                          class = "btn-sm btn-outline-secondary mb-2"),
-                    DT::DTOutput(ns("site_table"))
-                )
-            ),
-
-            bslib::accordion_panel(
-                "Cross-model comparison",
-                value = "cross_set",
-                icon  = bsicons::bs_icon("bar-chart-steps"),
-                bslib::card_body(
-                    # ── Honesty banner ────────────────────────────────────────
-                    compare_honesty_banner(),
-
-                    # ── Two-model picker ──────────────────────────────────────
-                    bslib::card(
-                        class = "mb-3",
-                        bslib::card_header("Select Models to Compare"),
-                        bslib::card_body(
-                            class = "overflow-visible",
-                            bslib::layout_columns(
-                                col_widths = c(6, 6),
-                                htmltools::div(
-                                    class = "control-bar p-2 rounded border",
-                                    style = "border-color:#1B7A6E !important; overflow:visible",
-                                    htmltools::div(
-                                        htmltools::tags$span(
-                                            class = "badge text-bg-primary me-1",
-                                            style = "background-color:#1B7A6E !important",
-                                            "A"
-                                        ),
-                                        htmltools::tags$strong("Model A")
-                                    ),
-                                    shiny::uiOutput(shiny::NS(id, "compare_model_a_ui"))
-                                ),
-                                htmltools::div(
-                                    class = "control-bar p-2 rounded border",
-                                    style = "border-color:#d97706 !important; overflow:visible",
-                                    htmltools::div(
-                                        htmltools::tags$span(
-                                            class = "badge me-1",
-                                            style = "background-color:#d97706",
-                                            "B"
-                                        ),
-                                        htmltools::tags$strong("Model B")
-                                    ),
-                                    shiny::uiOutput(shiny::NS(id, "compare_model_b_ui"))
-                                )
-                            ),
-                            # Spatial-tag mismatch note + run button
-                            shiny::uiOutput(shiny::NS(id, "compare_spatial_note")),
-                            htmltools::div(
-                                class = "mt-2 d-flex align-items-center gap-2",
-                                shiny::actionButton(
-                                    shiny::NS(id, "run_compare"),
-                                    "Compare",
-                                    class = "btn-sm btn-primary",
-                                    icon  = shiny::icon("play")
-                                ),
-                                shiny::uiOutput(shiny::NS(id, "compare_cache_badge"))
-                            )
-                        )
-                    ),
-
-                    # ── Comparison results ─────────────────────────────────────
-                    shiny::uiOutput(shiny::NS(id, "compare_results_ui"))
-                )
-            )
-        )
-    )
-}
 
 #' Maladaptation tab server
 #'
@@ -989,3 +845,114 @@ mod_maladaptation_server <- function(id, project_data, snp_sets_trigger = NULL) 
         })
     })
 }
+
+#' maladaptation tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_maladaptation_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "malad",
+
+        # Model selector + the badge cluster the server renders. offset_summary
+        # joins them here (it used to sit above the site table); it is the live
+        # result for the selected model, so it reads as the bar's headline.
+        htmltools::div(
+            class = "control-bar lab-malad-modelbar d-flex align-items-center gap-2 flex-wrap",
+            shiny::uiOutput(ns("model_selector")),
+            shiny::uiOutput(ns("snp_count_badge")),
+            shiny::uiOutput(ns("method_params_badge")),
+            shiny::uiOutput(ns("climate_scenario_badge")),
+            shiny::uiOutput(ns("sensitivity_badge")),
+            htmltools::div(class = "ms-auto d-flex align-items-center gap-2",
+                           shiny::uiOutput(ns("set_details_btn")),
+                           shiny::uiOutput(ns("set_delete_btn")))
+        ),
+
+        bslib::layout_columns(
+            col_widths = c(4, 4, 4),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # ── COLUMN 1: the offset map ──────────────────────────────────────
+            htmltools::div(
+                class = "lab-malad-col lab-malad-col-map",
+                # One inline strip, not a control-bar box. The old version wrapped
+                # the two selectors in a layout_columns and put the Points switch
+                # on its own row beneath: on a project with neither a piemap
+                # variant nor a zoom map (both renderUI's return NULL when there
+                # is only one choice) that was a 64px bordered box containing two
+                # zero-height grid columns and a 23px switch. Flex + gap means the
+                # row is exactly as tall as whatever actually rendered.
+                htmltools::div(
+                    class = "lab-mapbar lab-malad-mapbar",
+                    shiny::uiOutput(ns("piemap_variant_ui")),
+                    shiny::uiOutput(ns("zoom_selector")),
+                    bslib::input_switch(ns("points"), "Points", value = FALSE),
+                    # The offset range/mean/n-sites badge sits with the map
+                    # rather than in the model bar: it describes what this map
+                    # is showing, and the map strip is where the eye already is
+                    # when reading it.
+                    htmltools::div(class = "lab-malad-offsetnote ms-auto",
+                                   shiny::uiOutput(ns("offset_summary")))
+                ),
+                lab_hero(htmltools::div(class = "piemap-container",
+                                        mod_image_card_ui(ns("offset_piemap"))))
+            ),
+
+            # ── COLUMN 2: predictor importance, stacked ───────────────────────
+            htmltools::div(
+                class = "lab-malad-col lab-malad-col-imp",
+                mod_image_card_ui(ns("overall_importance")),
+                mod_image_card_ui(ns("cumulative_importance"))
+            ),
+
+            # ── COLUMN 3: per-site offsets ────────────────────────────────────
+            htmltools::div(
+                class = "lab-malad-col lab-malad-col-tbl",
+                bslib::card(
+                    class = "lab-dock-card lab-dock-offset",
+                    bslib::card_header(
+                        class = "d-flex justify-content-between align-items-center",
+                        htmltools::span(bsicons::bs_icon("geo-alt"), " Site offsets"),
+                        shiny::downloadButton(ns("dl_site"), "CSV",
+                                              class = "btn-sm btn-outline-secondary")
+                    ),
+                    bslib::card_body(DT::DTOutput(ns("site_table")))
+                )
+            )
+        ),
+
+        # Cross-model comparison: opt-in and expensive -> collapsed.
+        bslib::accordion(
+            id = ns("malad_sections"),
+            class = "lab-below-fold",
+            open = FALSE, multiple = TRUE,
+            bslib::accordion_panel(
+                value = "compare",
+                title = htmltools::tagList(bsicons::bs_icon("shuffle"),
+                                           " Cross-model comparison"),
+                compare_honesty_banner(),
+                bslib::layout_columns(
+                    col_widths = c(6, 6),
+                    htmltools::div(class = "control-bar lab-cmp-a",
+                                   shiny::uiOutput(ns("compare_model_a_ui"))),
+                    htmltools::div(class = "control-bar lab-cmp-b",
+                                   shiny::uiOutput(ns("compare_model_b_ui")))
+                ),
+                shiny::uiOutput(ns("compare_spatial_note")),
+                htmltools::div(
+                    class = "d-flex align-items-center gap-2 mb-2",
+                    shiny::actionButton(ns("run_compare"), "Compare",
+                                        class = "btn-sm btn-primary"),
+                    shiny::uiOutput(ns("compare_cache_badge"))
+                ),
+                shiny::uiOutput(ns("compare_results_ui"))
+            )
+        )
+    )
+}
+

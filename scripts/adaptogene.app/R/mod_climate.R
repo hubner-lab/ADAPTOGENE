@@ -1,56 +1,4 @@
-#' Climate tab UI
-#'
-#' Predictor characterization: correlation/density plots, invariant-predictor
-#' detection, and spatial structure (dbMEM + variance partitioning). Split out
-#' of the old preGEA module so each module answers one question — Climate
-#' answers "what do my predictors look like and how much do they overlap with
-#' geography/structure", PreGEA (mod_pregea.R) answers "how many K / #PCs".
-#'
-#' Producers: correlation heatmap / density plots / invariant-predictor table
-#' come from structure.smk (unchanged, moved display only in an earlier pass);
-#' dbMEM + varpart come from climate.smk (mode=climate, this tab's own Run
-#' button) — see workflow/rules/climate.smk.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_climate_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        bslib::card(
-            bslib::card_header("Predictors"),
-            shiny::uiOutput(ns("climate_invariant_warning")),
-            mod_image_card_ui(ns("climate_heatmap")),
-            # Phenotype density moved to the Phenotypic tab (mod_traits.R) in
-            # Phase 3 — it is a trait product, and mode=climate no longer
-            # builds it.
-            mod_image_card_ui(ns("climate_density"))
-        ),
 
-        bslib::card(
-            bslib::card_header("Variance Partitioning"),
-            shiny::uiOutput(ns("variance_explained_badge")),
-            shiny::uiOutput(ns("dbmem_skip_warning")),
-            shiny::uiOutput(ns("confounding_badge")),
-            bslib::layout_column_wrap(
-                width = 1 / 3,
-                mod_image_card_ui(ns("dbmem_screeplot")),
-                mod_image_card_ui(ns("dbmem_selection_path")),
-                mod_image_card_ui(ns("varpart_venn"))
-            ),
-            mod_image_card_ui(ns("px_barplot")),
-            htmltools::h6("Tables", class = "mt-3"),
-            bslib::accordion(
-                open = FALSE, multiple = TRUE,
-                bslib::accordion_panel("Variance partition",
-                    DT::DTOutput(ns("varpart_table"))),
-                bslib::accordion_panel("Px per variable",
-                    DT::DTOutput(ns("px_table"))),
-                bslib::accordion_panel("dbMEM diagnostics",
-                    DT::DTOutput(ns("dbmem_diagnostics_table")))
-            )
-        )
-    )
-}
 
 #' Climate tab server
 #'
@@ -303,3 +251,80 @@ mod_climate_server <- function(id, project_data) {
         })
     })
 }
+
+#' climate tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_climate_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "climate",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # ── LEFT: both headline figures, in focus ─────────────────────────
+            htmltools::div(
+                class = "lab-hero-col",
+
+                shiny::uiOutput(ns("climate_invariant_warning")),
+                lab_hero(mod_image_card_ui(ns("climate_heatmap"))),
+
+                htmltools::div(
+                    class = "lab-varpart-badges",
+                    shiny::uiOutput(ns("variance_explained_badge")),
+                    shiny::uiOutput(ns("dbmem_skip_warning")),
+                    shiny::uiOutput(ns("confounding_badge"))
+                ),
+                lab_hero(mod_image_card_ui(ns("varpart_venn")))
+            ),
+
+            # ── RIGHT: plenty of plots ────────────────────────────────────────
+            htmltools::div(
+                class = "lab-multiples-col",
+
+                lab_section_header("Predictor distributions", icon = "graph-up"),
+                # density_plot_present is a multi-panel grid (5250x3600, 18.9 MP).
+                # A full-width row keeps the per-predictor panels legible; a
+                # standard tile height caps the width too and collapses it.
+                htmltools::div(
+                    class = "lab-density",
+                    lab_thumb_grid(
+                        cols = 1,
+                        lab_thumb(mod_image_card_ui(ns("climate_density")))
+                    )
+                ),
+
+                lab_section_header("Variance partitioning & spatial structure",
+                                   icon = "pie-chart"),
+                # Three ~1.40 plots -> three columns, matching their aspect ratio.
+                lab_thumb_grid(
+                    cols = 3,
+                    lab_thumb(mod_image_card_ui(ns("px_barplot"))),
+                    lab_thumb(mod_image_card_ui(ns("dbmem_screeplot"))),
+                    lab_thumb(mod_image_card_ui(ns("dbmem_selection_path")))
+                )
+            )
+        ),
+
+        # Below the fold: the three varpart/dbMEM tables. Collapsed -> suspended.
+        bslib::accordion(
+            class = "lab-below-fold",
+            open = FALSE, multiple = TRUE,
+            bslib::accordion_panel("Variance partition", value = "vp",
+                DT::DTOutput(ns("varpart_table"))),
+            bslib::accordion_panel("Px per variable", value = "px",
+                DT::DTOutput(ns("px_table"))),
+            bslib::accordion_panel("dbMEM diagnostics", value = "dbmem",
+                DT::DTOutput(ns("dbmem_diagnostics_table")))
+        )
+    )
+}
+

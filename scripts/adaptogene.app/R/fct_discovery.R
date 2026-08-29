@@ -86,6 +86,26 @@ find_projects <- function(pipeline_path = get_pipeline_path(),
     sort(p$name)
 }
 
+#' Every project a user may select, real and simulated alike.
+#'
+#' find_projects() partitions on `is_simulated`, which existed to serve the
+#' navbar's Benchmark switch: one pool or the other, never both. The merged
+#' chrome has no such switch (a project declares its own nature via
+#' `Simulation.enabled` in its config, so it was never a session mode), and
+#' without it `input$benchmark_mode` is NULL, `isTRUE(NULL)` is FALSE, and
+#' simulated projects became unreachable from the selector AND from
+#' app_server's repopulate observer.
+#'
+#' One list instead. `is_internal` scaffolding stays excluded -- that flag marks
+#' things that should never be user-visible, which is a different question from
+#' whether the data is simulated.
+#' @noRd
+find_selectable_projects <- function(pipeline_path = get_pipeline_path()) {
+    p <- discover_projects(pipeline_path)
+    if (!nrow(p)) return(character(0))
+    sort(p$name[!p$is_internal])
+}
+
 #' Find K values for a project (from PreStructure/plots/K{k}/ directories)
 #' @noRd
 find_k_values <- function(project) {

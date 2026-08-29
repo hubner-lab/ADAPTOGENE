@@ -1,95 +1,4 @@
-#' GWAS tab UI
-#'
-#' GWAS results: phenotype piemap + combined Manhattan with interactive
-#' filter/strategy bar + per-method accordion + region explorer.
-#'
-#' @param id module namespace id
-#' @noRd
-mod_gwas_ui <- function(id) {
-    ns <- shiny::NS(id)
-    htmltools::tagList(
-        # Config parameter badges
-        shiny::uiOutput(ns("config_badges")),
 
-        # Phenotype missing data alert
-        shiny::uiOutput(ns("pheno_missing_alert")),
-
-        # Trait selector + points toggle inline above phenomap
-        htmltools::div(
-            class = "control-bar",
-            bslib::layout_columns(
-                col_widths = c(8, 4),
-                shiny::uiOutput(ns("trait_selector")),
-                htmltools::div(
-                    class = "d-flex align-items-center h-100",
-                    bslib::input_switch(ns("points"), "Points", value = FALSE)
-                )
-            )
-        ),
-
-        # Phenomap piemap (constrained to 2/3 width)
-        bslib::layout_columns(
-            col_widths = c(8, 4),
-            bslib::card(
-                full_screen = TRUE,
-                bslib::card_header(
-                    htmltools::div(
-                        class = "d-flex align-items-center gap-2",
-                        htmltools::span(bsicons::bs_icon("geo-fill"), " Phenotype Map"),
-                        help_note("phenomap")
-                    )
-                ),
-                bslib::card_body(
-                    class = "piemap-container",
-                    shiny::uiOutput(ns("phenomap_content"))
-                )
-            ),
-            bslib::card(
-                bslib::card_body(
-                    class = "text-muted small",
-                    htmltools::p(bsicons::bs_icon("info-circle"), " Click a significant SNP in the Manhattan plot below to explore GO enrichment and genes for that region."),
-                    htmltools::p(bsicons::bs_icon("arrows-fullscreen"), " Use the expand icon on any card for full-screen detail view.")
-                )
-            )
-        ),
-
-        # Warning: traits with no significant SNPs
-        shiny::uiOutput(ns("no_sig_snps_warning")),
-
-        # Combined Manhattan — threshold bar (always visible) + filter bar (matrix/strategy)
-        mod_manhattan_overlay_ui(
-            ns("combined_manhattan"),
-            filter_ui = htmltools::tagList(
-                shiny::uiOutput(ns("threshold_bar")),
-                shiny::uiOutput(ns("wza_collapse_note")),
-                shiny::uiOutput(ns("filter_bar"))
-            )
-        ),
-
-        # Per-method accordion (collapsed by default)
-        bslib::accordion(
-            id       = ns("per_method_accordion"),
-            open     = FALSE,
-            multiple = FALSE,
-
-            bslib::accordion_panel(
-                "Per-Method Details",
-                value = "per_method",
-                icon  = bsicons::bs_icon("layers"),
-                shiny::uiOutput(ns("method_tabs_ui")),
-                shiny::uiOutput(ns("per_method_trait_ui")),
-                bslib::layout_columns(
-                    col_widths = c(9, 3),
-                    mod_manhattan_overlay_ui(ns("method_manhattan"), height = "400px"),
-                    mod_image_card_ui(ns("qq_plot"))
-                )
-            )
-        ),
-
-        # Interactive region explorer (replaces static region dropdown)
-        mod_region_explorer_ui(ns("region_explorer"))
-    )
-}
 
 #' Phenotype Association tab server
 #'
@@ -696,3 +605,85 @@ mod_gwas_server <- function(id, project_data, run_trigger = NULL, config_state =
 
     })
 }
+
+#' gwas tab UI — dashboard layout.
+#'
+#' Promoted from scripts/layout_lab/ on 2026-08-29; the comments inside
+#' carry the measurements behind each sizing decision.
+#' @param id module namespace id
+#' @noRd
+mod_gwas_ui <- function(id) {
+    ns <- shiny::NS(id)
+
+    lab_root("a", module = "gwas",
+
+        lab_kpi_row(ns, alert_id = NULL),
+
+        shiny::uiOutput(ns("config_badges")),
+        shiny::uiOutput(ns("pheno_missing_alert")),
+
+        htmltools::div(
+            class = "control-bar lab-gea-controls",
+            shiny::uiOutput(ns("threshold_bar")),
+            shiny::uiOutput(ns("wza_collapse_note")),
+            shiny::uiOutput(ns("filter_bar"))
+        ),
+
+        htmltools::div(
+            class = "lab-gea-hero",
+            mod_manhattan_overlay_ui(ns("combined_manhattan"), height = "100%")
+        ),
+
+        shiny::uiOutput(ns("no_sig_snps_warning")),
+
+        bslib::layout_columns(
+            col_widths = c(5, 7),
+            fill = FALSE, fillable = FALSE,
+            gap = "0.75rem",
+
+            # LEFT: phenotype map + the two controls that drive only it
+            htmltools::div(
+                class = "lab-hero-col",
+                lab_section_header("Phenotype map", icon = "geo-alt"),
+                htmltools::div(
+                    class = "control-bar lab-phenomap-bar d-flex align-items-center gap-3",
+                    shiny::uiOutput(ns("trait_selector")),
+                    bslib::input_switch(ns("points"), "Points", value = FALSE)
+                ),
+                bslib::card(
+                    class = "lab-phenomap-card",
+                    bslib::card_header(bsicons::bs_icon("geo-alt"), " Phenotype map"),
+                    bslib::card_body(
+                        class = "p-2 text-center",
+                        htmltools::div(class = "piemap-container",
+                                       shiny::uiOutput(ns("phenomap_content")))
+                    )
+                )
+            ),
+
+            # RIGHT: per-method detail
+            htmltools::div(
+                class = "lab-multiples-col",
+                lab_section_header("Per-method detail", icon = "layers"),
+                htmltools::div(
+                    class = "lab-gea-methodbar d-flex align-items-center gap-3 flex-wrap",
+                    shiny::uiOutput(ns("method_tabs_ui")),
+                    shiny::uiOutput(ns("per_method_trait_ui"))
+                ),
+                bslib::layout_columns(
+                    col_widths = c(4, 8),
+                    fill = FALSE, fillable = FALSE,
+                    gap = "0.5rem",
+                    htmltools::div(class = "lab-gea-qq",
+                                   mod_image_card_ui(ns("qq_plot"))),
+                    htmltools::div(class = "lab-gea-methodman",
+                                   mod_manhattan_overlay_ui(ns("method_manhattan"),
+                                                            height = "100%"))
+                )
+            )
+        ),
+
+        mod_region_explorer_ui(ns("region_explorer"))
+    )
+}
+

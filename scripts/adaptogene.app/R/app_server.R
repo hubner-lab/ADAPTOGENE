@@ -15,28 +15,10 @@ app_server <- function(input, output, session) {
     # Track the last valid project for reverting selector after modal cancel
     prev_project <- shiny::reactiveVal(NULL)
 
-    # ── Benchmark mode ────────────────────────────────────────────────────────
-    # Repopulates the project selector from the other pool and shows the navbar
-    # badge. Modules are untouched: the mode only decides which projects exist to
-    # choose from, so the real-data layout is byte-identical to before.
-    benchmark_mode <- shiny::reactive(isTRUE(input$benchmark_mode))
-
-    shiny::observeEvent(input$benchmark_mode, {
-        bm       <- isTRUE(input$benchmark_mode)
-        projects <- find_projects(get_pipeline_path(), benchmark_mode = bm)
-        shinyjs::runjs(sprintf(
-            "var b=document.getElementById('benchmark_badge'); if(b) b.style.display='%s';",
-            if (bm) "inline-block" else "none"))
-        choices <- c(
-            if (!bm) c("+ New Project" = "__new__") else character(0),
-            if (length(projects)) setNames(projects, projects) else character(0)
-        )
-        # No project in this pool: leave the selector empty rather than silently
-        # falling back to a project from the other mode, which would show benchmark
-        # data under an analysis layout (or the reverse).
-        shiny::updateSelectInput(session, "project_selector", choices = choices,
-                                 selected = if (length(projects)) projects[1] else character(0))
-    }, ignoreInit = TRUE)
+    # Benchmark mode is gone: the merged chrome has no such switch, and a
+    # project declares whether it is simulated in its own config, so it was
+    # never a session mode. find_selectable_projects() returns one list of both
+    # pools -- see fct_discovery.R for why the old partition stranded them.
 
     # Populate config_state on project switch; intercept __new__ to open modal
     shiny::observeEvent(input$project_selector, {
@@ -110,7 +92,10 @@ app_server <- function(input, output, session) {
         existing_projects_rv = shiny::reactive(find_projects(get_pipeline_path(), all = TRUE)),
         on_created = function(new_project) {
             pip      <- get_pipeline_path()
-            projects <- find_projects(pip)
+            # Same one-list rule as the initial render, or a project created with
+            # Simulation.enabled would vanish from the selector right after it
+            # was made.
+            projects <- find_selectable_projects(pip)
             choices  <- c(
                 "+ New Project" = "__new__",
                 setNames(projects, projects)
@@ -205,4 +190,20 @@ app_server <- function(input, output, session) {
     mod_gea_x_gwas_server("gea_x_gwas",        project_data = project_data, run_trigger = project_data_trigger)
     mod_maladaptation_server("maladaptation",  project_data = project_data,
                              snp_sets_trigger = snp_sets_trigger)
+
+    # ── Dashboard-layout outputs ──────────────────────────────────────────────
+    # A second moduleServer on the SAME id as its module above, so it shares the
+    # namespace and can read that server's inputs. These ADD outputs the original
+    # module servers never defined (the KPI strips, PreStructure's Q-matrix
+    # table, GEA's suspend override) rather than replacing anything -- see
+    # R/mod_dashboard_outputs.R. Order matters for GEA: outputOptions() there
+    # needs the outputs already registered by mod_gea_server().
+    mod_prestructure_dashboard_outputs("prestructure", project_data)
+    mod_structure_dashboard_outputs("structure",       project_data)
+    mod_climate_dashboard_outputs("climate",           project_data)
+    mod_traits_dashboard_outputs("traits",             project_data)
+    mod_pregea_dashboard_outputs("pregea",             project_data)
+    mod_gea_dashboard_outputs("gea",                   project_data)
+    mod_gwas_dashboard_outputs("gwas",                 project_data)
+    mod_geaxgwas_dashboard_outputs("gea_x_gwas",       project_data)
 }
