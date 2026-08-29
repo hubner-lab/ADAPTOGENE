@@ -4,36 +4,66 @@
 #   * The combined Manhattan is a genome-wide x-axis. It gets the FULL width as
 #     the hero rather than a 5/12 anchor column -- compressing it by 40% would
 #     cost real resolution on the one plot that needs it.
-#   * The threshold bar, WZA note, trait x method matrix and Save button move OUT
-#     of the Manhattan card into a control bar above it. Today they are injected
-#     between the card header and the plot (mod_gea.R filter_ui slot), which is
-#     the one control convention that differs from every other module AND eats
-#     the plot's height.
+#   * There is NO KPI strip. Every number a GEA value box could show
+#     (significant SNPs, regions, genes) is read from pipeline_summary.tsv,
+#     which records what the PIPELINE computed at ITS configured threshold.
+#     The tab's whole point is that the user re-derives those numbers live from
+#     the threshold bar and the trait x method matrix, so the boxes contradicted
+#     the screen the moment anything was touched (measured 2026-08-27:
+#     `gea/selected_snps_total = 8` while the on-screen matrix summed to more)
+#     and never updated. Static numbers next to live controls are worse than no
+#     numbers. Live counts are an app-level change, not a layout one -- see the
+#     note on lab_gea_extras() below.
+#   * The threshold bar, WZA note, trait x method matrix and Save button live in
+#     a COLLAPSED accordion above the plot. They are set once and then read
+#     rarely, but in the old layout they occupied ~230px of permanent vertical
+#     budget between the card header and the plot. Collapsing them (plus
+#     dropping the KPI strip) is what buys the combined Manhattan AND the
+#     per-method detail row on one screen.
 #   * Region Explorer is left exactly as-is, full width at the bottom. Its server
 #     is 1342 lines; there is nothing to gain from re-housing it.
-#
-# Additive server (lab_gea_extras) supplies only the KPI strip.
 
 mod_gea_ui_a <- function(id) {
     ns <- shiny::NS(id)
 
     lab_root("a", module = "gea",
 
-        lab_kpi_row(ns, alert_id = NULL),
-
         shiny::uiOutput(ns("config_badges")),
 
-        # ── Controls, above the plot they drive ───────────────────────────────
-        htmltools::div(
-            class = "control-bar lab-gea-controls",
-            shiny::uiOutput(ns("threshold_bar")),
-            shiny::uiOutput(ns("wza_collapse_note")),
-            shiny::uiOutput(ns("filter_bar")),
-            htmltools::div(
-                class = "d-flex justify-content-end mt-1",
-                shiny::actionButton(
-                    ns("save_snp_set"), "Save SNP set for maladaptation",
-                    class = "btn-sm btn-success"
+        # ── Controls: collapsed by default, above the plot they drive ─────────
+        # Safe to collapse: mod_gea_server() has exactly one req() in 729 lines
+        # (on project_data(), inside the save observer), and every control input
+        # it reads is guarded by `%||%` fallback -- input$threshold_type %||%
+        # "bonf", input$combine_strategy %||% default_strategy(), and so on. A
+        # suspended control bar therefore yields pipeline defaults rather than a
+        # blocked plot. lab_gea_extras() additionally un-suspends the outputs so
+        # the values saved in region_params.json still reach them.
+        bslib::accordion(
+            id    = ns("params_accordion"),
+            class = "lab-gea-params",
+            open  = FALSE,
+            bslib::accordion_panel(
+                value = "params",
+                title = htmltools::tagList(
+                    bsicons::bs_icon("sliders"),
+                    htmltools::span(" Significance, methods & strategy")
+                ),
+                htmltools::div(
+                    class = "lab-gea-controls",
+                    shiny::uiOutput(ns("threshold_bar")),
+                    shiny::uiOutput(ns("wza_collapse_note")),
+                    shiny::uiOutput(ns("filter_bar")),
+                    htmltools::div(
+                        class = "d-flex justify-content-end mt-1",
+                        shiny::actionButton(
+                            ns("save_snp_set"),
+                            label = htmltools::tagList(
+                                bsicons::bs_icon("save"),
+                                " Save SNP set for maladaptation"
+                            ),
+                            class = "btn-sm btn-success"
+                        )
+                    )
                 )
             )
         ),
@@ -43,8 +73,6 @@ mod_gea_ui_a <- function(id) {
             class = "lab-gea-hero",
             mod_manhattan_overlay_ui(ns("combined_manhattan"), height = "100%")
         ),
-
-        shiny::uiOutput(ns("no_sig_snps_warning")),
 
         # ── Per-method detail ─────────────────────────────────────────────────
         lab_section_header("Per-method detail", icon = "layers"),
@@ -82,41 +110,37 @@ mod_gea_ui_a <- function(id) {
     )
 }
 
-#' Additive server: the KPI strip only.
+#' Additive server for the GEA lab layout.
+#'
+#' There is no KPI strip to feed any more (see the header note). What is left is
+#' one correctness fix that the collapsed control accordion makes necessary.
+#'
+#' Shiny suspends an output whose DOM node is hidden, and a closed accordion
+#' panel is `display: none`. `threshold_bar` and `filter_bar` are `renderUI`
+#' outputs, so collapsing them by default would mean they never render on load
+#' -- and the `observe()` in mod_gea_server() that replays the user's saved
+#' threshold from region_params.json via updateSelectInput/updateNumericInput
+#' would push into inputs that do not exist yet. The messages are dropped, and
+#' when the panel is finally opened the bar rebuilds from
+#' `input$threshold_type %||% "bonf"` -- silently discarding the saved value.
+#' That is exactly the "never silently discard a user's chosen parameter value"
+#' failure the app's UI rules call out.
+#'
+#' Un-suspending the two outputs keeps them rendering while hidden, so the
+#' inputs exist from load and the replay lands. This runs AFTER
+#' .lab_orig_mod_gea_server() (see lab_90_dispatch.R), so the outputs are
+#' already registered on the session by the time we set the option.
 lab_gea_extras <- function(id, project_data) {
     shiny::moduleServer(id, function(input, output, session) {
-        output$summary_boxes <- shiny::renderUI({
-            pd <- project_data()
-            s  <- as.data.frame(load_pipeline_summary(pd$name))
-            sv <- function(metric, default = NA) {
-                if (nrow(s) == 0) return(default)
-                row <- s[s$step == "gea" & s$metric == metric, ]
-                if (nrow(row) == 0) default else row$value[1]
-            }
-            num <- function(x) suppressWarnings(as.numeric(x))
-
-            # Methods actually run = the sig_snps_<METHOD> rows the summary wrote.
-            meth <- if (nrow(s) == 0) character(0) else
-                s$metric[s$step == "gea" & grepl("^sig_snps_", s$metric)]
-            n_meth <- length(meth)
-
-            n_snps      <- num(sv("selected_snps_total"))
-            snps_theme  <- if (is.na(n_snps)) "secondary"
-                           else if (n_snps == 0) "danger" else "primary"
-
-            bslib::layout_column_wrap(
-                width = 1 / 4, fill = FALSE,
-                lab_value_box("Significant SNPs",
-                              as.character(sv("selected_snps_total", "—")),
-                              snps_theme, "bullseye"),
-                lab_value_box("Regions", as.character(sv("regions_combined", "—")),
-                              "info", "geo-alt"),
-                lab_value_box("Genes", as.character(sv("genes_found", "—")),
-                              "success", "diagram-2"),
-                lab_value_box("Methods",
-                              if (n_meth > 0) as.character(n_meth) else "—",
-                              "info", "layers")
-            )
-        })
+        for (out_id in c("threshold_bar", "filter_bar", "wza_collapse_note")) {
+            ok <- tryCatch({
+                shiny::outputOptions(output, out_id, suspendWhenHidden = FALSE)
+                TRUE
+            }, error = function(e) {
+                message("[lab] could not un-suspend '", out_id, "': ", conditionMessage(e))
+                FALSE
+            })
+            if (!ok) next
+        }
     })
 }

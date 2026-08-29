@@ -38,7 +38,7 @@ mod_maladaptation_ui <- function(id) {
                 shiny::uiOutput(ns("zoom_selector")),
                 htmltools::div(
                     class = "d-flex align-items-center h-100",
-                    bslib::input_switch(ns("points"), "Points (clear map)", value = FALSE)
+                    bslib::input_switch(ns("points"), "Points", value = FALSE)
                 )
             )
         ),

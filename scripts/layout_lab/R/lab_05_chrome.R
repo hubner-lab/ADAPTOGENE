@@ -5,7 +5,7 @@
 # any content renders. This folds the upper panel DOWN INTO the lower one, so
 # there is ONE bar, still at the top:
 #
-#     ADAPTOGENE | (dark toggle) | (project selector) | module tabs
+#     CLINE-GO | (project selector) | module tabs | ... | (dark toggle)
 #
 # It is pinned: the tab content scrolls beneath it, so navigation never scrolls
 # away, and the merge still buys back ~56px on every module.
@@ -81,8 +81,7 @@ app_ui <- function(request) {
                 class = "lab-chrome-bar",
                 htmltools::div(
                     class = "lab-bar-left",
-                    htmltools::span(class = "lab-brand", "ADAPTOGENE"),
-                    bslib::input_dark_mode(id = "dark_mode", mode = "dark"),
+                    brand_logo(),
                     shiny::selectInput(
                         "project_selector", label = NULL,
                         choices = c(
@@ -95,7 +94,13 @@ app_ui <- function(request) {
                     )
                 ),
                 htmltools::div(class = "lab-bar-modules",
-                               shiny::uiOutput("module_bar"))
+                               shiny::uiOutput("module_bar")),
+                # Far right of the bar. The toggle is a session-wide display
+                # preference, not part of the identity block (brand + project)
+                # nor of the navigation, so it sits apart from both rather than
+                # wedged between the wordmark and the project selector.
+                htmltools::div(class = "lab-bar-right",
+                               bslib::input_dark_mode(id = "dark_mode", mode = "dark"))
             )
         ),
 

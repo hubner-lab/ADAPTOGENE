@@ -73,6 +73,92 @@
     border-bottom: 2px solid rgba(var(--bs-primary-rgb), 0.35);
 }
 
+// A divider carrying a control on its right (lab_section_header(aside=)).
+// The control is form-sized, so the divider grows a little -- still far less
+// than the `.control-bar` row it replaces, and the control now sits on the
+// section it governs. Un-uppercase the aside: the header's letter-spacing and
+// text-transform are for the LABEL, not for a select's option text.
+.lab-section-header--aside {
+    padding-top: 0;
+    padding-bottom: 0.2rem;
+}
+.lab-section-aside {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+
+    .form-group, .shiny-input-container { margin-bottom: 0; }
+    // label beside the control, not stacked above it
+    > .shiny-html-output > .form-group,
+    > .shiny-html-output > .shiny-input-container {
+        display: flex; align-items: center; gap: 0.4rem; width: auto !important;
+        > .control-label {
+            margin-bottom: 0;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--bs-primary);
+            white-space: nowrap;
+        }
+        > div { width: auto; }
+    }
+    select, .selectize-input {
+        min-height: calc(1.5em + 0.3rem);
+        padding: 0.1rem 1.75rem 0.1rem 0.6rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        min-width: 64px;
+    }
+    .selectize-input::after { right: 0.8rem !important; }
+}
+
+// Map/plot control strip: an inline row, deliberately WITHOUT .control-bar's
+// box. Used by Structure, Maladaptation and any other module whose selectors
+// drive one figure.
+//
+// The boxed alternative wrapped its selectors in a layout_columns and put the
+// Points switch on a row of its own beneath. Measured at 1680x1050: Structure
+// 116px (three 52px grid columns + a 23px switch row + padding), Maladaptation
+// 64px around a single 23px switch because BOTH of its selectors render NULL
+// when the project has one piemap variant and no zoom maps. A flex row with
+// wrapping is exactly as tall as whatever actually rendered, in both cases.
+.lab-v-a .lab-mapbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 1rem;
+    row-gap: 0.25rem;
+    margin: 0 0 0.35rem;
+    overflow: visible;                 // selectize menus escape the strip
+
+    .form-group, .shiny-input-container { margin-bottom: 0; }
+    // labels inline with their control, matching the GEA method bar
+    > .shiny-html-output > .form-group,
+    > .shiny-html-output > .shiny-input-container {
+        display: flex; align-items: center; gap: 0.4rem; width: auto !important;
+        > .control-label {
+            margin-bottom: 0; font-size: 0.75rem; white-space: nowrap;
+        }
+        > div { width: auto; }
+    }
+    select, .selectize-input {
+        min-height: calc(1.5em + 0.35rem);
+        padding: 0.12rem 0.5rem;
+        font-size: 0.8rem;
+        min-width: 84px;
+    }
+    .form-switch, .bslib-input-switch { margin-bottom: 0; }
+    label { font-size: 0.78rem; margin-bottom: 0; }
+
+    // Shiny gives every .shiny-input-container a 300px default width. On a flex
+    // strip that makes the Points switch claim 300px for ~70px of content and
+    // pushes itself onto a second line all by itself (measured on Structure:
+    // three selectors on row 1, a 300px-wide switch alone on row 2, 55px total).
+    // Direct children only -- the uiOutput-wrapped selectors are handled above.
+    > .form-group, > .shiny-input-container { width: auto !important; }
+}
+
 .lab-thumb-grid {
     display: grid;
     grid-template-columns: repeat(var(--lab-cols, 4), minmax(0, 1fr));
@@ -419,7 +505,15 @@ $labb-i: 0;
         flex: 1; min-height: 0; margin-bottom: 0 !important;
         > .card-body { min-height: 0; overflow: hidden; }
     }
+    // 0.52 -> 0.60 for Structure: folding its four controls onto one
+    // .lab-mapbar strip returned 61px (the piemap moved from y=309 to y=248),
+    // and that height belongs to the figure the module exists for. Scoped to
+    // the module so the shared 0.52 still applies anywhere else this selector
+    // reaches.
     .lab-hero > .piemap-container { height: calc(var(--lab-overview-h) * 0.52); }
+    &.lab-mod-structure .lab-hero > .piemap-container {
+        height: calc(var(--lab-overview-h) * 0.60);
+    }
 
     // custom.scss caps .piemap-container img at 40vh; inside the hero the card
     // body is the bound, and the image must stay aspect-ratio-safe because
@@ -430,23 +524,8 @@ $labb-i: 0;
         height: auto; width: auto; object-fit: contain;
     }
 
-    // Four controls stacked in the left column: keep them tight.
-    .lab-piemap-bar {
-        padding: 0.35rem 0.6rem;
-        margin-bottom: 0.4rem;
-        .form-group { margin-bottom: 0; }
-        label { margin-bottom: 0.05rem; font-size: 0.72rem; }
-        .shiny-input-container { width: 100% !important; }
-        select, .selectize-input {
-            min-height: calc(1.5em + 0.4rem); padding: 0.15rem 0.5rem; font-size: 0.8rem;
-        }
-    }
-
-    .lab-dock-ld { height: 100%; margin-bottom: 0 !important; }
-    .lab-dock-ld .card-body { padding: 0.25rem 0.5rem; overflow: auto; }
-    .lab-dock-ld .dataTables_wrapper { font-size: 0.74rem; }
-    .lab-dock-ld table.dataTable td,
-    .lab-dock-ld table.dataTable th { padding: 0.12rem 0.35rem; }
+// (The old .lab-piemap-bar box was removed 2026-08-27 -- Structure and
+    // Maladaptation both use the shared .lab-mapbar strip now.)
 }
 
 // ── Environmental / climate (Variant A) tuning ───────────────────────────────
@@ -632,6 +711,17 @@ body:has(.lab-chrome-bar) {
 
     .lab-bar-modules { flex: 1 1 auto; min-width: 0; display: flex; }
 
+    // Dark-mode toggle, pinned to the far right. `margin-left: auto` as well as
+    // the flex-grow on .lab-bar-modules, so the toggle stays right even when the
+    // module row is narrower than the space available (few modules, wide screen).
+    .lab-bar-right {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 0.2rem 0.9rem 0.2rem 0.5rem;
+    }
+
     // The module bar now lives INSIDE this bar: strip its own chrome so the two
     // do not read as two stacked bars again.
     .module-bar {
@@ -673,8 +763,97 @@ body:has(.lab-chrome-bar) {
 // clipped by the viewport edge.
 // Bar is at the top now, so the menu drops downward normally -- no override.
 
+// ── Plotly Manhattan sizing (shared by GEA / GWAS / GEAxGWAS) ────────────────
+// mod_manhattan_overlay_ui() is called here with height = "100%" so the plot
+// fills a card whose height the layout owns. But `height: 100%` only resolves
+// against a definite-height ancestor, and `.plot-loading-wrap` (custom.scss)
+// is `position: relative` with height auto -- so 100% resolved to auto and
+// plotly fell back to its built-in 450px default.
+//
+// Measured 2026-08-27 @1680x1050: every interactive Manhattan rendered 450px
+// tall inside a 276-388px card body and had its bottom 66-178px clipped -- the
+// chromosome tick labels and the lowest ~2 -log10(p) units vanished, which
+// reads as "the y-axis now starts at 4". yaxis.range was correct throughout
+// ([0, 15.61] on GEA combined); nothing was ever re-ranged, only cropped.
+//
+// Giving the wrap a definite height restores the chain. `overflow: hidden` on
+// the body is belt-and-braces so a sub-pixel rounding can't bring a scrollbar
+// back. plotly is built with `config(responsive = FALSE)`, so it measures once
+// at reveal -- which is why the wrap must be sized by CSS, not by JS resize.
+.lab-v-a {
+    .lab-gea-hero,
+    .lab-gea-methodman,
+    .lab-xg-hero {
+        > .card > .card-body { overflow: hidden; }
+
+        .plot-loading-wrap {
+            height: 100%;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+    }
+}
+
+// ── PreStructure (Variant A) ────────────────────────────────────────────────
+// The right column is Ancestry only; Diagnostics moved into a collapsed panel.
+// The two ancestry figures therefore get roughly double the default tile height
+// (0.255) instead of sharing the column with a second tile row.
+.lab-v-a.lab-mod-prestructure {
+    // Stacked, each sized to its own aspect ratio in a ~900px column:
+    // pca_structure is 1:1 (square, so height is the limit) and structure_bar
+    // is 4:1 (wide, so ~1/4 of the column width is all the height it can use).
+    .lab-prestr-ancestry > div { margin-bottom: 0.5rem; }
+    .lab-prestr-ancestry > div:last-child { margin-bottom: 0; }
+    // Measured at 1680x1050 (904px column). The square PCA is height-bound, so
+    // its tile height IS its size. The 4:1 barplot needs width/4 ~= 226px of
+    // picture to span the column; give it less and object-fit shrinks the image
+    // in BOTH directions rather than cropping (0.235 tried: 773x195 -> 642x162),
+    // so 0.27 is a floor here, not a preference.
+    .lab-prestr-pca > .card { height: calc(var(--lab-overview-h) * 0.42); }
+    .lab-prestr-bar > .card { height: calc(var(--lab-overview-h) * 0.27); }
+    .lab-prestr-ancestry > div > .card {
+        margin-bottom: 0 !important;
+        > .card-body { min-height: 0; overflow: hidden; }
+    }
+    .lab-prestr-ancestry .card-body > .shiny-html-output,
+    .lab-prestr-ancestry .card-body .shiny-image-output {
+        height: 100% !important; width: 100%; min-height: 0;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .lab-prestr-ancestry .card-body img {
+        max-height: 100%; max-width: 100%;
+        height: auto; width: auto; object-fit: contain;
+    }
+    // Inside the collapsed panel the diagnostics keep the normal tile size.
+    .lab-prestr-diag .lab-thumb > .card {
+        height: calc(var(--lab-overview-h) * 0.255);
+    }
+    .lab-prestr-diag { margin-top: 0.5rem; }
+}
+
 // ── GEA (Variant A) — interactive module ─────────────────────────────────────
 .lab-v-a.lab-mod-gea {
+
+    // The control stack is COLLAPSED by default (lab_85_gea_a.R). Closed, it
+    // costs one 40px header instead of the ~230px the always-open bar took --
+    // that reclaimed height is what puts the per-method row on the first
+    // screen. `overflow: visible` on the open body lets selectize menus escape.
+    .lab-gea-params {
+        margin-bottom: 0.4rem;
+        --bs-accordion-btn-padding-y: 0.35rem;
+        --bs-accordion-body-padding-y: 0.4rem;
+        --bs-accordion-body-padding-x: 0.6rem;
+
+        .accordion-button {
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+        .accordion-body { overflow: visible; }
+        // bslib clips the accordion for its radius; the matrix popovers and
+        // selectize menus have to escape it.
+        &, .accordion-item { overflow: visible; }
+    }
 
     // Controls now live ABOVE the plot, not injected into its card. Keep the
     // stack (threshold bar / WZA note / trait x method matrix / Save) compact.
@@ -684,9 +863,11 @@ body:has(.lab-chrome-bar) {
     // it here with spacing/type only -- nothing is hidden, because the wording
     // is the app's to own (moving it into hover notes is an app-level change,
     // see the note in the handover).
+    // Padding/margin now belong to the accordion body; this only compacts the
+    // app-owned bars (build_threshold_bar_ui / build_filter_bar_ui in
+    // fct_combine.R), which the lab reuses UNCHANGED. Spacing and type only --
+    // nothing is hidden, because the wording is the app's to own.
     .lab-gea-controls {
-        padding: 0.4rem 0.6rem;
-        margin-bottom: 0.4rem;
         overflow: visible;             // selectize menus must escape the bar
         font-size: 0.82rem;
 
@@ -707,22 +888,123 @@ body:has(.lab-chrome-bar) {
 
     // HERO: the combined Manhattan gets real height and the full page width.
     .lab-gea-hero > .card {
-        height: calc(var(--lab-overview-h) * 0.46);
+        height: calc(var(--lab-overview-h) * 0.44);
         margin-bottom: 0.4rem !important;
         > .card-body { min-height: 0; padding: 0.25rem; }
     }
 
+    // The method bar is two app-owned outputs: method_tabs_ui renders a full
+    // bslib card whose header carries the tabset (57px of card chrome for a
+    // row of tabs), and per_method_trait_ui a selectInput with a stacked
+    // label (67px). Together they measured 83px -- more than the section
+    // header and accordion header combined, for two controls. Stripping the
+    // card chrome and putting the trait label inline brings it to ~46px,
+    // which is what lands the per-method row above the fold at 1050px.
     .lab-gea-methodbar {
-        margin: 0.3rem 0 0.4rem;
+        margin: 0.15rem 0 0.3rem;
+        column-gap: 1.25rem !important;
+
         .form-group, .shiny-input-container { margin-bottom: 0; }
         .nav { margin-bottom: 0; }
+
+        // method_tabs_ui: a tabset does not need card chrome.
+        > .shiny-html-output > .card {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            margin-bottom: 0 !important;
+
+            > .card-header {
+                background: transparent;
+                border-bottom: 0;
+                padding: 0;
+            }
+            > .tab-content { display: none; }   // panels are empty by design
+        }
+        .nav-link { padding: 0.15rem 0.6rem; font-size: 0.82rem; }
+
+        // per_method_trait_ui: the trait picker. It selects WHAT is plotted,
+        // while the tabs to its left select WHICH METHOD plots it -- two
+        // different axes of the same choice, so it is set apart rather than
+        // lined up as a third tab: a divider rule plus real space on the left,
+        // and an accent-filled pill instead of a default input.
+        //
+        // The "Trait" label is hidden, not removed -- selectInput() builds it
+        // in mod_gea.R and the lab does not edit the app. It is redundant next
+        // to values that are literally the trait names.
+        //
+        // `width: auto !important` beats the inline `width: 200px` that
+        // selectInput() writes on the form-group. Without it the group is a
+        // 200px flex box, the hidden label still reserved a slot, and the
+        // selectize wrapper shrank to 51px -- which is what made the caret sit
+        // on top of "bio_2".
+        > .shiny-html-output > .form-group,
+        > .shiny-html-output > .shiny-input-container {
+            display: flex;
+            align-items: center;
+            width: auto !important;
+            margin-left: 1.5rem;
+            padding-left: 1.5rem;
+            border-left: 1px solid var(--bs-border-color, #E2E8F0);
+
+            > .control-label { display: none; }
+
+            // The selectize wrapper selectInput() emits around the control.
+            // Content-sized, not fixed: the trait list changes with the method
+            // (EMMAX offers bio_1..bio_3, RDA only climate_multivariate), and
+            // any fixed width is either 92px of dead space next to "bio_1" or
+            // too narrow for "climate_multivariate" -- which is how the caret
+            // ended up on top of the text in the first place. Measured: 84px
+            // at the short end, 150px at the long one, caret clear at both.
+            > div { width: auto; }
+
+            .selectize-input, select.form-control {
+                min-height: calc(1.5em + 0.35rem);
+                font-size: 0.8rem;
+                font-weight: 600;
+                min-width: 82px;
+                // right padding clears selectize's ::after caret (right: 15px)
+                padding: 0.12rem 1.75rem 0.12rem 0.7rem;
+                color: var(--bs-primary);
+                border-color: rgba(27, 122, 110, 0.55);
+                background-color: rgba(27, 122, 110, 0.08);
+                border-radius: 999px;
+            }
+            .selectize-input.focus, .selectize-input.dropdown-active {
+                border-color: var(--bs-primary);
+                box-shadow: 0 0 0 0.15rem rgba(27, 122, 110, 0.2);
+            }
+            // selectize draws the caret as a border triangle; keep it clear of
+            // the text and tinted to match the pill.
+            .selectize-input::after { right: 0.85rem !important; }
+        }
     }
+
+    // Dark mode: the tinted pill needs more lift to read against the dark card,
+    // and the divider must not disappear into the background.
+    [data-bs-theme="dark"] & .lab-gea-methodbar {
+        > .shiny-html-output > .form-group,
+        > .shiny-html-output > .shiny-input-container {
+            border-left-color: rgba(226, 232, 240, 0.18);
+
+            .selectize-input, select.form-control {
+                color: #5FD4C0;
+                border-color: rgba(95, 212, 192, 0.5);
+                background-color: rgba(95, 212, 192, 0.12);
+            }
+        }
+    }
+
+    // bslib gives an accordion 1rem of top margin; the params panel sits
+    // directly under the badge row and does not need it.
+    .lab-gea-params { margin-top: 0 !important; }
+    .lab-section-header { margin-top: 0; }
 
     // QQ (square-ish) in the narrow column, per-method Manhattan (wide) in the
     // broad one -- inverted relative to the display modules, on purpose.
     .lab-gea-qq > .card,
     .lab-gea-methodman > .card {
-        height: calc(var(--lab-overview-h) * 0.36);
+        height: calc(var(--lab-overview-h) * 0.30);
         margin-bottom: 0 !important;
         > .card-body { min-height: 0; overflow: hidden; }
     }
@@ -866,8 +1148,67 @@ body:has(.lab-chrome-bar) {
         .badge { font-size: 0.7rem; }
     }
 
+    // offset_summary is authored for the site-table card, where it is a
+    // right-aligned caption (`d-flex justify-content-end mb-2`). On the map
+    // strip it must be an inline badge sitting beside the Points switch --
+    // drop the block behaviour rather than ask the app to re-style itself.
+    .lab-malad-offsetnote { display: flex; align-items: center; }
+    .lab-malad-offsetnote > .shiny-html-output > div {
+        margin-bottom: 0 !important;
+        display: inline-flex !important;
+    }
+    .lab-malad-offsetnote .badge { font-size: 0.7rem; }
+
     // Offset piemap: aspect-ratio-safe, bounded by the card (extents vary a lot).
-    .lab-hero > .piemap-container { height: calc(var(--lab-overview-h) * 0.44); }
+    // ── Three-column row ─────────────────────────────────────────────────
+    // One shared height for map / importance / table so the row ends flush.
+    // Each column is a flex column and its cards grow into whatever is left
+    // after the fixed-height chrome above them (map strip, section header) --
+    // arithmetic per column would drift the moment one of them gains a control.
+    // 0.70 of the viewport. All three source figures are square (2100x2100 on
+    // SIMDATA), so the binding constraint in column 2 is HEIGHT, not width: two
+    // stacked 1:1 images in a short column render tiny and sit in side
+    // whitespace (measured 225px in a 511px column at 0.64). Raising the row and
+    // dropping the section headers gets them to ~290px while the map, which is
+    // width-bound at the column's 511px, still fills its box.
+    --lab-malad-row: calc(var(--lab-overview-h) * 0.70);
+
+    .lab-malad-col {
+        height: var(--lab-malad-row);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+
+        // section headers / the map strip keep their natural height
+        > .lab-section-header, > .lab-malad-mapbar { flex: 0 0 auto; }
+    }
+
+    // Column 1 -- the map fills whatever the strip leaves.
+    .lab-malad-col-map > .lab-hero { flex: 1 1 auto; min-height: 0; }
+    .lab-malad-col-map .piemap-container { height: 100%; }
+
+    // Column 2 -- two figures splitting the column evenly (flex-basis 0, not
+    // auto, so their intrinsic image heights cannot bias the split).
+    .lab-malad-col-imp > .card {
+        flex: 1 1 0;
+        min-height: 0;
+        margin-bottom: 0.5rem !important;
+        > .card-body { min-height: 0; overflow: hidden; }
+        &:last-child { margin-bottom: 0 !important; }
+    }
+    .lab-malad-col-imp .card-body > .shiny-html-output,
+    .lab-malad-col-imp .card-body .shiny-image-output {
+        height: 100% !important; width: 100%; min-height: 0;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .lab-malad-col-imp .card-body img {
+        max-height: 100%; max-width: 100%;
+        height: auto; width: auto; object-fit: contain;
+    }
+
+    // Column 3 -- the table card takes the rest of the column.
+    .lab-malad-col-tbl > .card { flex: 1 1 auto; min-height: 0; }
+
     .lab-hero .piemap-container > .card {
         height: 100%; min-height: 0; margin-bottom: 0 !important;
         > .card-body { min-height: 0; overflow: hidden; }
@@ -882,7 +1223,7 @@ body:has(.lab-chrome-bar) {
         height: auto; width: auto; object-fit: contain;
     }
 
-    .lab-dock-offset { margin-bottom: 0 !important; flex: 1 1 auto; min-height: 0; }
+    .lab-dock-offset { margin-bottom: 0 !important; min-height: 0; }
     .lab-dock-offset .card-body { padding: 0.25rem 0.5rem; overflow: auto; }
     .lab-dock-offset .dataTables_wrapper { font-size: 0.74rem; }
     .lab-dock-offset table.dataTable td,

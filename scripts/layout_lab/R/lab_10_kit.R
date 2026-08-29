@@ -56,11 +56,21 @@ lab_value_box <- function(title, value, theme = "primary", icon = "dot") {
 }
 
 #' Uppercase domain divider (Sample QC / SNP QC).
-lab_section_header <- function(label, icon = NULL) {
+#'
+#' `aside` is an optional right-aligned slot for a control that governs the
+#' section it labels -- PreStructure's K selector, for instance. A selector that
+#' drives exactly one section does not need a `.control-bar` row of its own
+#' (measured: a 128px select sitting in a 64px band), and putting it on the
+#' divider keeps the control and the plots it changes in the same visual unit.
+#' Omitted by every other caller, so the header renders exactly as before.
+lab_section_header <- function(label, icon = NULL, aside = NULL) {
     htmltools::div(
-        class = "lab-section-header",
+        class = if (is.null(aside)) "lab-section-header"
+                else "lab-section-header lab-section-header--aside",
         if (!is.null(icon)) bsicons::bs_icon(icon),
-        htmltools::span(label)
+        htmltools::span(label),
+        if (!is.null(aside))
+            htmltools::div(class = "lab-section-aside ms-auto", aside)
     )
 }
 

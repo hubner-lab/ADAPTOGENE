@@ -26,9 +26,6 @@ mod_gea_ui <- function(id) {
             )
         ),
 
-        # Warning: traits with no significant SNPs
-        shiny::uiOutput(ns("no_sig_snps_warning")),
-
         # Per-method accordion (collapsed by default)
         bslib::accordion(
             id       = ns("per_method_accordion"),
@@ -428,35 +425,30 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             # filter-bar selector), not GEA.combine_method from the YAML — that key
             # governs the static pipeline tables only and the two can disagree.
             cmb  <- .normalize_strategy(active_strategy())
+            # Everything after K mirrors the CURRENT state of the (collapsed)
+            # control accordion, so the bar reads as its summary: what the panel
+            # computed with, without opening it. All five are live reactives, so
+            # the badges move the moment a control does.
             config_badges_bar(
                 if (!is.na(k)) config_badge("K", k, "bg-primary"),
-                config_badge("combine", cmb),
-                if (regime_wza()) config_badge("regime", "WZA", "bg-info")
+                config_badge("strategy", cmb),
+                config_badge("significance",
+                             format_threshold_rule(threshold_type(), threshold_value())),
+                config_badge("clumping", .format_bp(snp_clumping_distance())),
+                # Always shown, both ways: the regime is one of two states, and a
+                # badge that only appears when WZA is on leaves per-SNP implicit.
+                if (regime_wza()) config_badge("regime", "WZA windows", "bg-info")
+                else              config_badge("regime", "per-SNP")
             )
         })
 
         # ── D5: Traits with zero significant SNPs warning ──────────────────────
-        output$no_sig_snps_warning <- shiny::renderUI({
-            all_traits  <- all_trait_names_rv()
-            sig_traits  <- traits()
-            missing     <- setdiff(all_traits, sig_traits)
-            if (length(missing) == 0) return(NULL)
-            items <- lapply(missing, function(tr)
-                htmltools::tags$li(htmltools::tags$code(tr)))
-            htmltools::div(
-                class = "alert alert-warning d-flex gap-2 align-items-start mb-2",
-                bsicons::bs_icon("exclamation-triangle-fill", class = "flex-shrink-0 mt-1"),
-                htmltools::div(
-                    htmltools::tags$strong(
-                        length(missing),
-                        if (length(missing) == 1) "trait" else "traits",
-                        "yielded no significant SNPs/windows at current threshold"
-                    ),
-                    ". Adjust the Significance threshold, switch to FDR/top-N mode, ",
-                    "or the per-method rule for the method(s) involved.",
-                    htmltools::tags$ul(class = "mb-0 mt-1", items)
-                )
-            )
+        # Traits with no significant SNPs/windows at the current threshold.
+        # Surfaced as an amber hover badge in the combined Manhattan's card header
+        # (see the `note` argument below), not as a full-width alert -- the banner
+        # cost ~98px of permanent height for guidance the user acts on rarely.
+        missing_traits <- shiny::reactive({
+            setdiff(all_trait_names_rv(), traits())
         })
 
         # ── Filter bar: Trait x Method matrix + Strategy + Clumping ──────────
@@ -628,7 +620,10 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
             title_label          = shiny::reactive({
                 if (regime_wza()) "Combined Manhattan (WZA)" else "Combined Manhattan"
             }),
-            note                 = shiny::reactive(help_note("manhattan_gea_combined")),
+            note                 = shiny::reactive(htmltools::tagList(
+                help_note("manhattan_gea_combined"),
+                no_sig_traits_note(missing_traits())
+            )),
             regions              = explorer$computed_regions,
             current_region_id    = explorer$selected_region_id,
             show_regions_control = FALSE,
@@ -667,13 +662,21 @@ mod_gea_server <- function(id, project_data, run_trigger = NULL, module = MOD_GE
                                choices = tr, selected = tr[1], width = "200px")
         })
 
-        per_method_trait <- shiny::reactive({
+        per_method_trait <- dedupe_reactive(shiny::reactive({
             tr <- all_trait_names_rv()
             if (length(tr) == 0) return(NULL)
             input$per_method_trait %||% tr[1]
-        })
+        }))
 
-        active_method <- shiny::reactive(input$method_tab %||% methods()[1])
+        # Deduped: both resolve twice on a cold tab -- first the `%||%` fallback,
+        # then the real renderUI-backed input carrying the SAME value -- and each
+        # repeat forced a full per-method Plotly.newPlot. Measured on SIMDATA at
+        # 1680x1050: method_manhattan load renders 3 -> 2. (Deduping the shared
+        # upstreams -- regime_wza, the debounced threshold pair,
+        # effective_method_sigsnps -- was tried and moved nothing, so it was
+        # reverted rather than left in as unproven complexity.)
+        active_method <- dedupe_reactive(
+            shiny::reactive(input$method_tab %||% methods()[1]))
 
         # Per-method Manhattan overlay — use interactive sig SNPs (avoids pipeline file read)
         per_method_sigsnps_override <- shiny::reactive({

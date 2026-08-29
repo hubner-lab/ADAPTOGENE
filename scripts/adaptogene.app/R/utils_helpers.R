@@ -130,3 +130,34 @@ dt_format_pvals <- function(tbl, cols = c("pvalue", "p_adjust")) {
 #' (get_global_param()/set_global_param()), independent of this constant.
 #' @noRd
 DEFAULT_CLUMPING_DISTANCE <- 100000L
+
+#' Reactive wrapper that only propagates when the VALUE actually changes.
+#'
+#' Shiny's `reactive()` has no value memo: it re-invalidates every downstream
+#' consumer whenever an upstream dependency fires, even when the recomputed
+#' value is identical. That is normally harmless, but it is expensive for the
+#' per-method Manhattan, whose driving inputs resolve in stages on a cold tab:
+#' `input$method_tab` and `input$per_method_trait` live in `renderUI` outputs, so
+#' each reactive first yields its `%||%` fallback ("EMMAX", first trait) and then
+#' yields the SAME string again a beat later when the real input registers. Each
+#' of those identical values forced a full `Plotly.newPlot`, which re-rasterizes
+#' the large base64 background PNG -- measured as 3 renders in ~280 ms, seen as a
+#' flicker.
+#'
+#' `reactiveVal` already refuses to invalidate on an `identical()` write, so
+#' routing the value through one collapses the burst to a single render while
+#' leaving genuine changes untouched (one extra flush of latency, no more).
+#'
+#' @param r a reactive expression
+#' @return a reactive that fires only on real value changes
+#' @noRd
+dedupe_reactive <- function(r) {
+    # Seed from the current value rather than starting NULL: reactiveVal() would
+    # otherwise report NULL for the one flush before the observer first runs, and
+    # a consumer reading in that window would see NULL where the plain reactive
+    # gave it the `%||%` fallback. Observer priority happens to cover this today
+    # -- seeding removes the dependency on that ordering.
+    rv <- shiny::reactiveVal(shiny::isolate(r()))
+    shiny::observe(rv(r()))
+    shiny::reactive(rv())
+}

@@ -3,7 +3,10 @@
 # Anchor (left, 5/12): PCA -- the "what does this dataset look like" figure, and a
 # perfect 1:1 for a narrow column -- with the Q-matrix docked beneath it, the way
 # Filtering Summary sat under the attrition chart in Processing.
-# Right (7/12): plenty of plots.
+# Right (7/12): ANCESTRY, and only ancestry -- PCA (Clustered) + the structure
+# barplot, given the whole column. The K selector rides the section divider and
+# the K-choice diagnostics sit in a collapsed panel underneath, so the two
+# figures a reader actually comes here for are the two that get the space.
 #
 # DIFFERENT FROM PROCESSING: mod_prestructure_server() has no summary_boxes and no
 # clusters table output -- they do not exist to reuse. So this variant ships a small
@@ -43,32 +46,51 @@ mod_prestructure_ui_a <- function(id) {
 
                 # The K selector drives structure_bar / pca_structure / pop_diff,
                 # all of which live in this column. PCA on the left is
-                # K-independent, so the control belongs here, not page-wide.
+                # K-independent, so the control belongs here, not page-wide --
+                # and it rides the Ancestry divider rather than claiming a
+                # `.control-bar` row, which cost 64px to hold a 128px select.
+                lab_section_header("Ancestry", icon = "diagram-3",
+                                   aside = shiny::uiOutput(ns("k_selector"))),
+                # PCA (Clustered) then the barplot -- the same K-dependent story
+                # told two ways -- STACKED, not side by side.
+                #
+                # They cannot share a row at any useful size. pca_structure is
+                # 1:1 and structure_bar is 4:1, so filling one row of height H
+                # needs H + 4H of width: in this 904px column that pins H at
+                # ~180px. Side by side at 1+3 columns they measured 202px and
+                # 166px inside 466px tiles -- both width-bound, each stranded in
+                # ~270px of vertical whitespace. Stacked, each tile is sized to
+                # its own aspect and the figures roughly double.
                 htmltools::div(
-                    class = "control-bar lab-k-bar d-flex align-items-center gap-2",
-                    shiny::uiOutput(ns("k_selector"))
+                    class = "lab-prestr-ancestry",
+                    htmltools::div(class = "lab-prestr-pca",
+                                   mod_image_card_ui(ns("pca_structure"))),
+                    htmltools::div(class = "lab-prestr-bar",
+                                   mod_image_card_ui(ns("structure_bar")))
                 ),
 
-                lab_section_header("Ancestry", icon = "diagram-3"),
-                # PCA (Clustered) FIRST, then the barplot, on one line: they are
-                # the same K-dependent story told two ways, and PCA is the main
-                # figure of this module. 1 + 3 columns, not 2 + 2 -- pca_structure
-                # is 1:1 so a 2-span tile would just strand it, while the 4:1
-                # barplot genuinely wants the width.
-                lab_thumb_grid(
-                    cols = 4,
-                    lab_thumb(mod_image_card_ui(ns("pca_structure"))),
-                    lab_thumb(mod_image_card_ui(ns("structure_bar")), span = 3)
-                ),
-
-                lab_section_header("Diagnostics", icon = "graph-up"),
-                # tracy_widom and cross_entropy are 1:1 -> one column each.
-                # pop_diff is 1.33 -> two columns, which also fills the row exactly.
-                lab_thumb_grid(
-                    cols = 4,
-                    lab_thumb(mod_image_card_ui(ns("tracy_widom"))),
-                    lab_thumb(mod_image_card_ui(ns("cross_entropy"))),
-                    lab_thumb(mod_image_card_ui(ns("pop_diff")), span = 2)
+                # Diagnostics are read once, when choosing K -- not on every
+                # visit. Collapsed, they cost one 35px header instead of a full
+                # tile row, and that reclaimed height goes to the Ancestry pair
+                # above, which is what this column is FOR. (A closed panel is
+                # display:none, so the three PNGs are not transmitted until it
+                # is opened -- see lab_depth_below_fold()'s note.)
+                bslib::accordion(
+                    class = "lab-below-fold lab-prestr-diag",
+                    open = FALSE,
+                    bslib::accordion_panel(
+                        value = "diag",
+                        title = htmltools::tagList(bsicons::bs_icon("graph-up"),
+                                                   " Diagnostics (Tracy-Widom, cross-entropy, population differentiation)"),
+                        # tracy_widom and cross_entropy are 1:1 -> one column each.
+                        # pop_diff is 1.33 -> two columns, filling the row exactly.
+                        lab_thumb_grid(
+                            cols = 4,
+                            lab_thumb(mod_image_card_ui(ns("tracy_widom"))),
+                            lab_thumb(mod_image_card_ui(ns("cross_entropy"))),
+                            lab_thumb(mod_image_card_ui(ns("pop_diff")), span = 2)
+                        )
+                    )
                 )
             )
         )

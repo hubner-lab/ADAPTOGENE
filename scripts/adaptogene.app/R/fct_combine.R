@@ -258,6 +258,42 @@ threshold_value_valid_for_type <- function(type, value) {
 #'   GEAxGWAS's two bars, which don't drive a pipeline run.
 #' @return tagList
 #' @noRd
+#' Significance-threshold modes offered by the threshold bar.
+#'
+#' Hoisted out of build_threshold_bar_ui() so the selectInput and the collapsed
+#' summary badge (mod_gea.R::config_badges) name the same mode the same way --
+#' they sit far apart in the UI and would otherwise drift.
+#' @noRd
+THRESHOLD_TYPE_CHOICES <- c(
+    "Bonferroni"     = "bonf",
+    "FDR (qval)"     = "qval",
+    "Top N SNPs"     = "top",
+    "Custom (raw p)" = "custom"
+)
+
+#' One-line rendering of the active significance rule, for a summary badge.
+#'
+#' The threshold VALUE means something different per mode -- an alpha, an FDR
+#' target, a count of SNPs per trait, a raw p cutoff -- so the badge spells the
+#' unit out rather than printing a bare number next to a mode name. Mirrors the
+#' per-mode wording of output$threshold_hint in mod_gea.R.
+#'
+#' @param type one of THRESHOLD_TYPE_CHOICES' values
+#' @param value the numeric threshold currently in force
+#' @noRd
+format_threshold_rule <- function(type, value) {
+    type <- type %||% "bonf"
+    if (is.null(value) || is.na(value)) return(names(which(THRESHOLD_TYPE_CHOICES == type))[1] %||% type)
+    num <- function(v) format(v, scientific = (v > 0 && v < 1e-3), trim = TRUE)
+    switch(type,
+        bonf   = paste0("Bonferroni \u03b1 ", num(value)),
+        qval   = paste0("FDR q \u2264 ", num(value)),
+        top    = paste0("Top ", format(round(value), trim = TRUE), " SNPs/trait"),
+        custom = paste0("raw p < ", num(value)),
+        paste0(type, " ", num(value))
+    )
+}
+
 build_threshold_bar_ui <- function(ns, input_prefix = "",
                                    regime_value          = FALSE,
                                    threshold_type_value  = "bonf",
@@ -290,12 +326,7 @@ build_threshold_bar_ui <- function(ns, input_prefix = "",
                 shiny::selectInput(
                     pid("threshold_type"),
                     label = NULL,
-                    choices = c(
-                        "Bonferroni"     = "bonf",
-                        "FDR (qval)"     = "qval",
-                        "Top N SNPs"     = "top",
-                        "Custom (raw p)" = "custom"
-                    ),
+                    choices = THRESHOLD_TYPE_CHOICES,
                     selected = threshold_type_value,
                     width = "150px"
                 )

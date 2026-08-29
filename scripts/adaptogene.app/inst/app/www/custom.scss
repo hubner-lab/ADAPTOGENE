@@ -1175,3 +1175,37 @@
         font-weight: 600;
     }
 }
+
+// ── CLINE-GO wordmark ───────────────────────────────────────────────────────
+// See brand_logo() in R/utils_ui.R for what the two halves mean. Used by both
+// the production navbar (app_ui.R) and the layout-lab chrome bar, which are
+// both pinned to #1A2332 — hence one fixed palette, no theme variants.
+.brand-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.09em;
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1.1;
+}
+
+.brand-logo-cline {
+    // cool -> warm: the gradient IS the cline
+    background: linear-gradient(90deg, #4FD1C5 0%, #9AE6B4 45%, #F6AD55 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+.brand-logo-go {
+    background-color: #1B7A6E;
+    color: #FFFFFF;
+    border-radius: 999px;
+    padding: 0.05em 0.5em;
+    font-size: 0.82em;
+    letter-spacing: 0.12em;
+}

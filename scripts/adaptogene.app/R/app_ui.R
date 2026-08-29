@@ -8,7 +8,7 @@ app_ui <- function(request) {
     shiny::addResourcePath("pipeline", pipeline_path)
 
     bslib::page_navbar(
-        title = htmltools::strong("ADAPTOGENE", style = "letter-spacing: 0.05em;"),
+        title = brand_logo(),
         theme    = app_theme(),
         id       = "main_tabs",
         # Matches the nav_panel VALUE, not its title (bslib resolves `fillable`

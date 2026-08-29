@@ -46,7 +46,7 @@ mod_gwas_ui_a <- function(id) {
                 htmltools::div(
                     class = "control-bar lab-phenomap-bar d-flex align-items-center gap-3",
                     shiny::uiOutput(ns("trait_selector")),
-                    bslib::input_switch(ns("points"), "Points (clear map)", value = FALSE)
+                    bslib::input_switch(ns("points"), "Points", value = FALSE)
                 ),
                 bslib::card(
                     class = "lab-phenomap-card",

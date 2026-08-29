@@ -249,6 +249,49 @@ relatedness_note <- function(threshold, action, n_pairs_above, n_would_remove) {
     filter_note(badge_label, body, class = badge_class)
 }
 
+#' Amber hover badge for traits that yielded no significant SNPs/windows.
+#'
+#' Replaces the full-width `alert alert-warning` block that used to sit between the
+#' combined Manhattan and the per-method section. That alert cost ~98px of permanent
+#' vertical space to say something the user acts on rarely, and it grew with the
+#' number of empty traits -- the same "instructional text belongs in Shiny, not in a
+#' banner" argument that produced filter_note()/relatedness_note().
+#'
+#' Status-coloured (amber) rather than neutral, because "a trait produced nothing at
+#' this threshold" is a genuine signal about the current selection, not fixed
+#' reference info: it appears and disappears as the threshold is moved.
+#'
+#' Returns NULL when every trait has hits, so the badge is absent rather than green
+#' -- the useful state is "nothing to say".
+#'
+#' @param missing character vector of trait names with no significant SNPs/windows
+#' @noRd
+no_sig_traits_note <- function(missing) {
+    if (length(missing) == 0) return(NULL)
+    n <- length(missing)
+    label <- paste(n, if (n == 1) "trait" else "traits", "empty")
+
+    body <- htmltools::tagList(
+        htmltools::p(
+            htmltools::strong(n), " ", if (n == 1) "trait" else "traits",
+            " yielded no significant SNPs/windows at the current threshold."
+        ),
+        htmltools::p(
+            htmltools::tags$ul(
+                class = "mb-0 ps-3",
+                lapply(missing, function(tr) htmltools::tags$li(htmltools::tags$code(tr)))
+            )
+        ),
+        htmltools::p(
+            class = "text-muted small mb-0",
+            "Adjust the Significance threshold, switch to FDR/top-N mode, or the ",
+            "per-method rule for the method(s) involved."
+        )
+    )
+
+    filter_note(label, body, class = "bg-warning")
+}
+
 #' Gradient-Forest imputation-sensitivity badge.
 #'
 #' Traffic-light status for "did the imputation decide the answer". Reads the diagnostics
@@ -327,5 +370,30 @@ card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = N
         class = "d-flex justify-content-between align-items-center",
         shiny::textOutput(ns(title), inline = TRUE),
         if (!is.null(dl_btn)) htmltools::span(class = "d-flex gap-2", dl_btn)
+    )
+}
+
+#' The CLINE-GO wordmark.
+#'
+#' Renamed from ADAPTOGENE on 2026-08-29. Scope of that rename is the displayed
+#' label only — the package, image tag, config keys and result paths are all
+#' still `adaptogene`.
+#'
+#' Two spans rather than a string so the mark can carry meaning: "CLINE" is
+#' filled with a cool-to-warm gradient (the thing an environmental cline IS,
+#' and the same cold->hot ramp the climate rasters use), and "GO" — genetic
+#' offset — sits in a solid pill that anchors the wordmark and stands in for
+#' the hyphen.
+#'
+#' Palette is fixed rather than theme-aware on purpose: both chromes that host
+#' it are pinned to #1A2332 (`navbar-bg` in app_theme(), `.lab-chrome-bar` in
+#' lab.scss), so the mark never sits on a light surface and a second palette
+#' would be dead code. Styles live in custom.scss as `.brand-logo`.
+#' @noRd
+brand_logo <- function() {
+    htmltools::span(
+        class = "brand-logo",
+        htmltools::span(class = "brand-logo-cline", "CLINE"),
+        htmltools::span(class = "brand-logo-go", "GO")
     )
 }

@@ -1,8 +1,8 @@
 # lab_60_structure_a.R — Structure in the approved Variant A pattern.
 #
 # Anchor (left, 5/12): the ancestry PIEMAP -- the figure this module exists for --
-# with the four controls that drive it directly above, since none of them affect
-# anything in the right column.
+# with the four controls that drive it on one inline strip directly above, since
+# none of them affect anything in the right column.
 # Right (7/12): plenty of plots.
 #
 # Like PreStructure, mod_structure_server() has no summary_boxes output, so the KPI
@@ -26,20 +26,20 @@ mod_structure_ui_a <- function(id) {
                 class = "lab-hero-col",
 
                 # All four controls drive ONLY the piemap, so they belong in this
-                # column rather than spanning the page.
+                # column rather than spanning the page -- and they sit on ONE
+                # inline strip (.lab-mapbar), not in a bordered box.
+                #
+                # The boxed version measured 116px: a layout_columns of three
+                # 52px selector cells, plus the Points switch on its own 23px
+                # row, plus padding -- more chrome than the four controls need,
+                # directly above the figure they drive. Shared with
+                # Maladaptation's map strip; see .lab-mapbar in lab.scss.
                 htmltools::div(
-                    class = "control-bar lab-piemap-bar",
-                    bslib::layout_columns(
-                        col_widths = c(4, 4, 4),
-                        shiny::uiOutput(ns("bio_selector")),
-                        shiny::uiOutput(ns("metric_selector")),
-                        shiny::uiOutput(ns("zoom_selector"))
-                    ),
-                    htmltools::div(
-                        class = "d-flex align-items-center gap-2 mt-1",
-                        bslib::input_switch(ns("points"), "Points (clear map)",
-                                            value = FALSE)
-                    )
+                    class = "lab-mapbar",
+                    shiny::uiOutput(ns("bio_selector")),
+                    shiny::uiOutput(ns("metric_selector")),
+                    shiny::uiOutput(ns("zoom_selector")),
+                    bslib::input_switch(ns("points"), "Points", value = FALSE)
                 ),
 
                 lab_hero(mod_piemap_viewer_ui(ns("piemap")))
@@ -49,8 +49,13 @@ mod_structure_ui_a <- function(id) {
             htmltools::div(
                 class = "lab-multiples-col",
 
-                lab_section_header("Population structure", icon = "diagram-3"),
-                shiny::uiOutput(ns("pop_stats_info")),
+                # pop_stats_info is a filter_note badge ("3 pops" -> N
+                # populations at K, samples per population). On its own line it
+                # cost a full row to say one thing about the section beneath it,
+                # so it rides the divider instead -- same aside slot as
+                # PreStructure's K selector.
+                lab_section_header("Population structure", icon = "diagram-3",
+                                   aside = shiny::uiOutput(ns("pop_stats_info"))),
                 # pca_structure_k is 1:1; mantel/amova are absent unless
                 # Pop.calc_stats ran, so they render as placeholders -- kept
                 # visible (not hidden) so the gap is legible.
