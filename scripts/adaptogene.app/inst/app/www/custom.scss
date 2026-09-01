@@ -1177,35 +1177,22 @@
 }
 
 // ── CLINE-GO wordmark ───────────────────────────────────────────────────────
-// See brand_logo() in R/utils_ui.R for what the two halves mean. Used by both
-// the production navbar (app_ui.R) and the layout-lab chrome bar, which are
-// both pinned to #1A2332 — hence one fixed palette, no theme variants.
+// Raster asset since 2026-09-01 (was a two-span CSS wordmark) — see
+// brand_logo() in R/utils_ui.R for the asset's provenance and why it needs no
+// theme variant. Only the height is fixed: the whole point of the merged chrome
+// (dashboard.scss) is that the bar costs as little vertical budget as possible,
+// so the mark must not be allowed to grow it. 1.75rem is the ceiling that still
+// fits: .lab-bar-left measures 34px, of which 6.4px is its own 0.2rem padding.
+// The old CSS wordmark's 1.25rem box was legible as live text but not as a
+// raster mark. `width: auto` keeps the 5.589:1 aspect. `max-*` are the
+// belt-and-braces: an unstyled 1118x200 img wrecks the bar, so cap it even if a
+// rule above ever overrides `height`. Mirror any height change into
+// brand_logo()'s width/height attributes.
 .brand-logo {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-weight: 800;
-    font-size: 1rem;
-    letter-spacing: 0.09em;
-    white-space: nowrap;
+    display: block;
+    height: 1.75rem;
+    width: auto;
+    max-height: 1.75rem;
+    max-width: 100%;
     user-select: none;
-    line-height: 1.1;
-}
-
-.brand-logo-cline {
-    // cool -> warm: the gradient IS the cline
-    background: linear-gradient(90deg, #4FD1C5 0%, #9AE6B4 45%, #F6AD55 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-}
-
-.brand-logo-go {
-    background-color: #1B7A6E;
-    color: #FFFFFF;
-    border-radius: 999px;
-    padding: 0.05em 0.5em;
-    font-size: 0.82em;
-    letter-spacing: 0.12em;
 }

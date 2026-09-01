@@ -379,21 +379,40 @@ card_header_with_download <- function(ns, title, dl_id_svg = NULL, dl_id_png = N
 #' label only — the package, image tag, config keys and result paths are all
 #' still `adaptogene`.
 #'
-#' Two spans rather than a string so the mark can carry meaning: "CLINE" is
-#' filled with a cool-to-warm gradient (the thing an environmental cline IS,
-#' and the same cold->hot ramp the climate rasters use), and "GO" — genetic
-#' offset — sits in a solid pill that anchors the wordmark and stands in for
-#' the hyphen.
+#' 2026-09-01: the hand-built CSS wordmark (gradient "CLINE" + solid "GO" pill)
+#' was replaced by the designed raster asset at `inst/app/www/cline-go-logo.png`
+#' — downscaled to 1118x200 from a 6338x1134 source the designer had already
+#' clipped tight to the mark. The first attempt used the unclipped 2172x724
+#' export (aspect 3.585:1); its wide transparent margin meant a chrome-bar-sized
+#' render left the glyphs too small to read, since most of the height went to
+#' padding. Clipping raised the aspect to 5.589:1, so the same box height now
+#' buys visibly larger glyphs. 200px tall is ~7x oversampled for the 28px
+#' render — crisp on hi-DPI without carrying the full-size file in the repo.
 #'
-#' Palette is fixed rather than theme-aware on purpose: both chromes that host
-#' it are pinned to #1A2332 (`navbar-bg` in app_theme(), `.lab-chrome-bar` in
-#' lab.scss), so the mark never sits on a light surface and a second palette
-#' would be dead code. Styles live in custom.scss as `.brand-logo`.
+#' The asset is dark-theme only by design: ~62% of its opaque pixels are a dark
+#' navy that reads as transparent against the #1A2332 chrome, and only the
+#' bright warm/green ink shows. Both chromes that host it are pinned to that
+#' colour (`navbar-bg` in app_theme(), `.lab-chrome-bar` in dashboard.scss), so
+#' it never sits on a light surface. Sizing lives in custom.scss as
+#' `.brand-logo`.
+#'
+#' `src` follows the same `www/` convention as the scripts loaded in app_ui.R —
+#' that prefix is registered by dev.R, not by the package.
+#'
+#' `width`/`height` are set as HTML attributes, not left to `.brand-logo` alone,
+#' because the compiled Sass bundle is cached by the browser: on a stale bundle
+#' (or before it lands) an unsized img falls back to its 717x200 intrinsic size,
+#' which blows the chrome bar apart and shoves the whole page down. The
+#' attributes give the browser the right box up front; the stylesheet still owns
+#' the final value. Keep them in sync with `.brand-logo`'s height x 5.589 (the
+#' asset's aspect ratio).
 #' @noRd
 brand_logo <- function() {
-    htmltools::span(
-        class = "brand-logo",
-        htmltools::span(class = "brand-logo-cline", "CLINE"),
-        htmltools::span(class = "brand-logo-go", "GO")
+    htmltools::img(
+        class  = "brand-logo",
+        src    = "www/cline-go-logo.png",
+        alt    = "CLINE-GO",
+        width  = 157,
+        height = 28
     )
 }
